@@ -78,7 +78,7 @@ def test_truncated_source_archive_cannot_authorize_removal(tmp_path) -> None:
     assert result['surfaces']['project']['error'] == 'retention-failed'
 
 
-@pytest.mark.parametrize("pi_version, expected_containers", [("1.2.0", 2), ("1.0.0", 1)])
+@pytest.mark.parametrize("pi_version, expected_containers", [("1.3.0", 2), ("1.2.0", 1), ("1.0.0", 1)])
 def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, monkeypatch, pi_version, expected_containers) -> None:
     import argparse
     from pathlib import Path
@@ -129,7 +129,7 @@ def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, mo
     monkeypatch.setattr(study.base, 'process', process)
     monkeypatch.setattr(study, 'retain_failure_container', retain, raising=False)
     report = study.run(argparse.Namespace(output=tmp_path, source=tmp_path, base_image='fixture', preflight_only=False))
-    assert report['status'] == 'failed' and len(retained) == (expected_containers if pi_version == '1.2.0' else 0)
+    assert report['status'] == 'failed' and len(retained) == (expected_containers if pi_version == '1.3.0' else 0)
     assert len(report['retainedContainers']) == expected_containers
     assert report['retentionIncomplete']
     assert report['piVersions'] == [pi_version] * expected_containers
@@ -139,6 +139,6 @@ def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, mo
     assert manifest['sourceHashes'][str(helper)] == hashlib.sha256(helper.read_bytes()).hexdigest()
     # Record the selected runtime model, or no model before transport exists.
     protocol = json.loads(next(tmp_path.glob('*/protocol.json')).read_text())
-    assert protocol['jev'] == ('jev-1.14.0' if pi_version == '1.2.0' else None)
-    if pi_version == '1.2.0':
+    assert protocol['jev'] == ('jev-1.14.0' if pi_version == '1.3.0' else None)
+    if pi_version == '1.3.0':
         assert protocol['jevTransport'] == 'node-https'

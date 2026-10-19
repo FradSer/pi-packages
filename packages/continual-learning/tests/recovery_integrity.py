@@ -4,9 +4,110 @@ import base64
 import hashlib
 import json
 import os
+import re
+import stat
 import tarfile
 from collections import Counter
 from pathlib import Path
+
+
+def _revision(info: os.stat_result) -> str:
+    return ':'.join(str(value) for value in
+                    (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns))
+
+
+def _valid_revision(value: object, size: int) -> bool:
+    return (isinstance(value, str)
+            and re.fullmatch(r'[0-9]+:[0-9]+:[0-9]+:-?[0-9]+:-?[0-9]+', value) is not None
+            and int(value.split(':')[2]) == size)
+
+
+def source_archive_files(raw: bytes) -> dict[str, dict]:
+    """Validate a complete, bounded source-only archive before extraction."""
+    import gzip
+    import io
+    from pathlib import PurePosixPath
+    bound = 16 * 1024 * 1024
+    if len(raw) > bound:
+        raise ValueError('Compressed source archive exceeds bound')
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(raw)) as compressed:
+            expanded = compressed.read(bound + 1)
+        if len(expanded) > bound:
+            raise ValueError('Expanded source archive exceeds bound')
+        files, seen, end = {}, set(), 0
+        with tarfile.open(fileobj=io.BytesIO(expanded), mode='r:') as archive:
+            for member in archive:
+                path = PurePosixPath(member.name)
+                key = str(path)
+                if (len(seen) >= 512 or path.is_absolute() or '..' in path.parts or '\\' in member.name
+                        or key in seen or member.sparse or member.mode & 0o7000
+                        or member.name.rstrip('/') not in (key, './' + key)
+                        or not (member.isdir() or member.isfile())):
+                    raise ValueError('Unsafe source archive member')
+                seen.add(key)
+                end = max(end, ((member.offset_data + member.size + 511) // 512) * 512)
+                if path.parts and path.parts[0] in ('.git', 'node_modules', '.memory', '.pi', 'AGENTS.md'):
+                    raise ValueError('Source archive contains learned state or dependency overlay')
+                if member.isdir():
+                    continue
+                if not path.parts or member.size > 2 * 1024 * 1024 or 'continuous-study' in key:
+                    raise ValueError('Invalid source file')
+                data = archive.extractfile(member).read(member.size + 1)
+                if len(data) != member.size:
+                    raise ValueError('Incomplete source file')
+                files[key] = {'data': data, 'sha256': hashlib.sha256(data).hexdigest(),
+                              'size': len(data), 'mode': member.mode & 0o777}
+        if len(expanded) - end < 1024 or any(expanded[end:]):
+            raise ValueError('Incomplete or trailing source archive')
+        for name in files:
+            if any(str(parent) in files for parent in PurePosixPath(name).parents):
+                raise ValueError('Source file/directory collision')
+        return files
+    except (OSError, EOFError, tarfile.TarError) as error:
+        raise ValueError('Unreadable complete source archive') from error
+
+
+def load_observed_idle_source(manifest: Path) -> dict:
+    """Read admitted immutable inputs; this does not authenticate their origin."""
+    def read(file: Path, bound: int) -> bytes:
+        if any(parent.is_symlink() for parent in (file, *file.parents)):
+            raise ValueError('Input path contains a symlink')
+        try:
+            with os.fdopen(os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+                before = os.fstat(stream.fileno())
+                if not stat.S_ISREG(before.st_mode) or before.st_mode & 0o222 or before.st_size > bound:
+                    raise ValueError('Source input is not immutable bounded regular data')
+                data = stream.read(bound + 1)
+                after = os.fstat(stream.fileno())
+            if (len(data) > bound or _revision(before) != _revision(after)
+                    or _revision(after) != _revision(file.lstat())
+                    or any(parent.is_symlink() for parent in (file, *file.parents))):
+                raise ValueError('Source input changed')
+            return data
+        except OSError as error:
+            raise ValueError('Source input is unavailable') from error
+    try:
+        manifest_raw = read(manifest, 2 * 1024 * 1024)
+        value = json.loads(manifest_raw)
+        if (value['kind'] != 'actual-public-project-failed-source-input' or value['version'] != 1
+                or value['sourceOnlySeedNotKnowledgeSeed'] is not True or value['learningBenefitEstablished'] is not False):
+            raise ValueError('Unsupported failure source input')
+        raw = read(manifest.with_name('source.tar.gz'), 16 * 1024 * 1024)
+        if hashlib.sha256(raw).hexdigest() != value['sourceArchiveSha256']:
+            raise ValueError('Source archive binding changed')
+        files = source_archive_files(raw)
+        if {name: {key: item[key] for key in ('sha256', 'mode', 'size')} for name, item in files.items()} != value['files']:
+            raise ValueError('Complete source inventory differs')
+        case = value['publicReproducer']
+        if (case['file'] != 'observed-idle-failure.mjs'
+                or files[case['file']]['sha256'] != case['sha256']
+                or not {'index.js', 'index.d.ts', 'package.json'}.issubset(files)):
+            raise ValueError('Missing bound public failure case or source')
+        return {'manifest': value, 'manifestSha256': hashlib.sha256(manifest_raw).hexdigest(),
+                'archive': raw, 'files': files}
+    except (KeyError, TypeError, json.JSONDecodeError) as error:
+        raise ValueError('Incomplete failure source input') from error
 
 
 def archive_surface_snapshots(memory: Path, project: Path, live_metadata: dict) -> dict:
@@ -34,6 +135,14 @@ def archive_surface_snapshots(memory: Path, project: Path, live_metadata: dict) 
                 body = archive.extractfile(item).read()
                 snapshots[key] = {'bytes': base64.b64encode(body).decode(),
                                   'digest': hashlib.sha256(body).hexdigest(), 'mode': item.mode & 0o777}
+                # Tar does not retain inode or nanosecond identity. Bind its exact
+                # bytes/mode to the separately collected live identity, never
+                # infer that identity from history or from the archive itself.
+                live = live_metadata.get(key)
+                if isinstance(live, dict) and 'revision' in live:
+                    if not _valid_revision(live['revision'], len(body)):
+                        raise ValueError('Invalid live learned-surface revision')
+                    snapshots[key]['revision'] = live['revision']
     metadata = {key: {k: v for k, v in value.items() if k != 'bytes'} for key, value in snapshots.items()}
     if metadata != live_metadata:
         raise ValueError('Retained learned surfaces differ from raw live metadata')
@@ -45,6 +154,22 @@ def collect_surface_metadata(private: Path, project: Path) -> dict:
     def safe(file: Path) -> None:
         if any(parent.is_symlink() for parent in (file, *file.parents)):
             raise ValueError('Learned surface contains a symlink')
+    def metadata(file: Path) -> dict:
+        safe(file)
+        with os.fdopen(os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as handle:
+            before = os.fstat(handle.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                raise ValueError('Non-regular learned surface')
+            body = handle.read()
+            after = os.fstat(handle.fileno())
+        safe(file)
+        current = file.lstat()
+        if (_revision(before) != _revision(after) or _revision(after) != _revision(current)
+                or before.st_mode != after.st_mode or after.st_mode != current.st_mode
+                or len(body) != after.st_size):
+            raise ValueError('Learned surface changed during metadata capture')
+        return {'digest': hashlib.sha256(body).hexdigest(), 'mode': after.st_mode & 0o777,
+                'revision': _revision(after)}
     result = {}
     for root, prefix in ((private, 'private/'), (project / '.memory', 'project/.memory/'), (project / '.pi', 'project/.pi/')):
         safe(root)
@@ -55,15 +180,14 @@ def collect_surface_metadata(private: Path, project: Path) -> dict:
                     continue
                 if not file.is_file():
                     raise ValueError('Non-regular learned surface')
-                result[prefix + str(file.relative_to(root))] = {
-                    'digest': hashlib.sha256(file.read_bytes()).hexdigest(), 'mode': file.stat().st_mode & 0o777}
+                result[prefix + str(file.relative_to(root))] = metadata(file)
     for name in ('AGENTS.md',):
         file = project / name
         safe(file)
         if file.exists():
             if not file.is_file():
                 raise ValueError('Non-regular project learned surface')
-            result['project/' + name] = {'digest': hashlib.sha256(file.read_bytes()).hexdigest(), 'mode': file.stat().st_mode & 0o777}
+            result['project/' + name] = metadata(file)
     return result
 
 
@@ -118,9 +242,12 @@ def verify_recovery_chains(before: dict, after: dict, histories: list[dict], own
     """Verify intermediate snapshots, all roots, permissions and actual endpoints."""
     def valid(value):
         if value is None:return True
-        if not isinstance(value,dict) or set(value)!={'bytes','digest','mode'}:return False
+        if not isinstance(value,dict) or set(value) not in ({'bytes','digest','mode'}, {'bytes','digest','mode','revision'}):return False
         if type(value['mode']) is not int or not 0<=value['mode']<=0o777:return False
-        try:return hashlib.sha256(base64.b64decode(value['bytes'],validate=True)).hexdigest()==value['digest']
+        try:
+            body = base64.b64decode(value['bytes'],validate=True)
+            return (hashlib.sha256(body).hexdigest()==value['digest']
+                    and ('revision' not in value or _valid_revision(value['revision'], len(body))))
         except (ValueError,TypeError):return False
     try:
         if any(not valid(value) or value is None for value in [*before.values(),*after.values()]):

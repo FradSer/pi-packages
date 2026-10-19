@@ -108,7 +108,12 @@ def test_default_review_deadline_accepts_delayed_complete_response_without_relax
       console.log(JSON.stringify({defaultResult,shortResult,cancelled}));
     ''')
     assert result['defaultResult']['decision'] == 'allow'
-    assert result['defaultResult']['telemetry']['completedRequests'] == 2
+    # Body consistency, complete source support and counterevidence are separate.
+    assert result['defaultResult']['telemetry']['completedRequests'] == 3
+    assert result['defaultResult']['telemetry']['requestCount'] == 3
+    assert result['defaultResult']['telemetry']['inputTokens'] == 3
+    assert result['defaultResult']['telemetry']['outputTokens'] == 3
+    assert result['defaultResult']['telemetry']['completedWindows'] == 1
     assert result['shortResult']['decision'] == 'propose'
     assert result['shortResult']['telemetry']['reason'] == 'timeout'
     assert result['cancelled']['decision'] == 'propose'

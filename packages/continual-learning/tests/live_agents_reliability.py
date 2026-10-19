@@ -34,6 +34,20 @@ def terminate_recorded_groups(registry: Path | None) -> None:
                 os.killpg(pid, sig)
             except ProcessLookupError:
                 break
+            except PermissionError as error:
+                # A denied signal does not prove that a group is still running.
+                # Confirm every member is gone or stopped; live/unknown stays a
+                # cleanup failure. Do not hide denied access to a live planner.
+                try:
+                    observed = subprocess.run(["ps", "-axo", "pgid=,stat="],
+                                              capture_output=True, text=True, timeout=5)
+                    groups = [(int(group), state) for line in observed.stdout.splitlines() if line.strip()
+                              for group, state in [line.split()]]
+                    if observed.returncode or any(group == pid and not state.startswith("Z") for group, state in groups):
+                        raise error
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    raise error
+                break
 
 
 def communicate_bounded(child: subprocess.Popen, timeout: float, registry: Path | None = None) -> tuple[int, bytes, bytes, bool]:

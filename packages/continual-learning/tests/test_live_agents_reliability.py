@@ -42,5 +42,23 @@ signal.pause()
     finally:
         if parent.poll() is None: parent.kill();parent.wait()
         if pid:
-            try: os.killpg(pid,signal.SIGKILL)
-            except ProcessLookupError: pass
+            probe.terminate_recorded_groups(registry)
+
+
+def test_permission_failure_is_ignored_only_for_observed_stopped_groups(tmp_path, monkeypatch):
+    """Given a denied signal, When cleanup checks the group, Then live/unknown still fail."""
+    import pytest
+    registry = tmp_path / 'children.jsonl'
+    registry.write_text(json.dumps({'pid': 12345, 'event': 'started'}) + '\n')
+    def denied(*_args):
+        raise PermissionError('denied')
+    monkeypatch.setattr(probe.os, 'killpg', denied)
+    for status, output, stopped in [(0, '', True), (0, '12345 Z\n', True),
+                                    (0, '12345 Z\n12345 S\n', False),
+                                    (1, '', False), (0, 'malformed', False)]:
+        monkeypatch.setattr(probe.subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, status, output, ''))
+        if stopped:
+            probe.terminate_recorded_groups(registry)
+        else:
+            with pytest.raises(PermissionError):
+                probe.terminate_recorded_groups(registry)

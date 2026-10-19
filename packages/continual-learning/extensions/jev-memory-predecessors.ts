@@ -3,6 +3,36 @@ import {createHash} from "node:crypto";
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
+/** Comparison roles only, never write permission. Existing records must stay
+ * complete and unchanged; a no-op row cannot become an eligible mutation. */
+export function independentMemoryRoles(candidates: readonly unknown[], existing: readonly {
+  name: string; classification: string; content: string;
+}[], allowFrozenNoopComparators = false): ("new" | "frozen-noop")[] | undefined {
+  const names = new Set<string>();
+  const existingNames = existing.map(item => item.name.toLowerCase());
+  if (new Set(existingNames).size !== existingNames.length) return undefined;
+  const roles: ("new" | "frozen-noop")[] = [];
+  for (const candidate of candidates) {
+    if (!record(candidate) || candidate.op !== undefined || typeof candidate.name !== "string"
+      || names.has(candidate.name.toLowerCase())) return undefined;
+    names.add(candidate.name.toLowerCase());
+    if (candidate.kind === "project" || candidate.kind === "preference") {
+      if (existingNames.includes(candidate.name.toLowerCase())) return undefined;
+      roles.push("new");
+      continue;
+    }
+    if (!allowFrozenNoopComparators || candidate.kind !== "rewrite"
+      || Object.keys(candidate).some(key => !["kind", "name", "classification", "content", "contentSha256", "evidence"].includes(key))) return undefined;
+    const predecessor = existing.find(item => item.name === candidate.name);
+    if (!predecessor || candidate.classification !== predecessor.classification
+      || typeof candidate.content !== "string" || candidate.content !== predecessor.content
+      || Buffer.from(candidate.content, "utf8").toString("utf8") !== candidate.content
+      || candidate.contentSha256 !== undefined && candidate.contentSha256 !== createHash("sha256").update(candidate.content).digest("hex")) return undefined;
+    roles.push("frozen-noop");
+  }
+  return roles;
+}
+
 export const predecessorReferenceInstruction = " An existingMemories contentReference is a lossless pointer to its complete predecessor body in this same state: follow statePath, read the UTF-16 substring [start,end) as content. It is the exact original predecessor, not proof of source truth or mutation authority; do not infer that missing inline content means no knowledge to preserve.";
 
 /** Compact only a second, exact copy; never change original review evidence. */

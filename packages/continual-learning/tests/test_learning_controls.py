@@ -213,6 +213,33 @@ def test_learning_file_rejects_fifo_without_blocking(tmp_path: Path) -> None:
     assert json.loads(result.stdout) == {"refused": True}
 
 
+@pytest.mark.parametrize('operation', ['read', 'hash', 'agents-race'])
+def test_consolidation_read_refuses_fifo_without_blocking(tmp_path: Path, operation: str) -> None:
+    # Given a FIFO (or a regular file replaced after lstat), When reading for
+    # consolidation, Then refuse without waiting for another process to open it.
+    source = r'''
+      import fs from 'node:fs/promises';import {spawnSync} from 'node:child_process';
+      import {readBoundedRegularFile,sha256File} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {planAgentsMdConsolidationPhase} from './packages/continual-learning/extensions/agents-md-consolidation.ts';
+      const cwd=process.env.CONTROL_TEST_ROOT,file=cwd+'/AGENTS.md',mode=process.env.CL_FILE_OPERATION;
+      if(mode==='agents-race') {
+        await fs.writeFile(file,'Project instructions.');const original=fs.lstat.bind(fs);let swapped=false;
+        fs.lstat=async (p,...args)=>{const st=await original(p,...args);
+          if(p===file&&!swapped){swapped=true;await fs.unlink(file);const r=spawnSync('mkfifo',[file]);if(r.status!==0)throw Error('FIFO setup failed');}return st;};
+      } else {const r=spawnSync('mkfifo',[file]);if(r.status!==0)throw Error('FIFO setup failed');}
+      let watchdog;const action=mode==='agents-race'
+        ? planAgentsMdConsolidationPhase({ui:{notify(){}}},{active:true,generation:1,cancelled:false},
+          {cwd,pkgDir:process.cwd(),reason:'test',budgetBytes:16384,disabled:false},{manifest:{}},1)
+          .then(r=>({refused:r.outcome==='failed'}))
+        : (mode==='hash'?sha256File(file,100):readBoundedRegularFile(file,100)).then(()=>({refused:false}),()=>({refused:true}));
+      const result=await Promise.race([action,new Promise(resolve=>{watchdog=setTimeout(()=>resolve({blocked:true}),1000)})]);
+      clearTimeout(watchdog);console.log(JSON.stringify(result));if(result.blocked)process.exit(1);
+    '''
+    result = _run_bun(source, {'CONTROL_TEST_ROOT': str(tmp_path), 'CL_FILE_OPERATION': operation}, timeout=10, parse=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == {'refused': True}
+
+
 def test_rejected_mutation_cannot_own_a_concurrent_edit(tmp_path: Path) -> None:
     result = run_bun(r"""
       import fs from 'node:fs';import path from 'node:path';

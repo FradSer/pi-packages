@@ -561,7 +561,7 @@ export function sha256Digest(value: string | Uint8Array): string { return crypto
 export async function readBoundedRegularFile(filePath: string, maxBytes: number): Promise<Buffer> {
   let handle: fsp.FileHandle | undefined;
   try {
-    handle = await fsp.open(filePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    handle = await fsp.open(filePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
     const stat = await handle.stat();
     if (!stat.isFile()) throw new Error(`Consolidation file is not regular: ${filePath}`);
     if (stat.size > maxBytes) throw new Error(`Consolidation file exceeds ${maxBytes} bytes: ${filePath}`);
@@ -584,7 +584,7 @@ export async function readBoundedRegularFile(filePath: string, maxBytes: number)
 export async function sha256File(filePath: string, maxBytes = MAX_SNAPSHOT_BYTES): Promise<string> {
   let handle: fsp.FileHandle | undefined;
   try {
-    handle = await fsp.open(filePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    handle = await fsp.open(filePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
     const stat = await handle.stat();
     if (!stat.isFile()) throw new Error(`Consolidation file is not regular: ${filePath}`);
     if (stat.size > maxBytes) throw new Error(`Consolidation file exceeds ${maxBytes} bytes: ${filePath}`);
@@ -1516,7 +1516,39 @@ const SENSITIVE_MEMORY_PATTERNS: readonly RegExp[] = [
 
 /** An assigned value must be long enough to be a credential: prose ("token is
  * short-lived") assigns nothing, and URLs are not secrets. */
-const ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*\/\/)(?<value>[^\s,;]{8,})/gi;
+const ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)["']?)\s*(?::|=)\s*(?<value>[^\s,;]{8,})/gi;
+
+/** A delimited value hides punctuation the plain pattern stops at, so a quoted
+ * value under either a quoted or an unquoted credential key is matched here
+ * with a quote-aware value class and judged by the same placeholder rule. The
+ * value admits the other quote type and backslash escapes, and excludes only a
+ * real URL scheme, so a secret containing `,`, `;`, `?`, `'` or `//` cannot stop
+ * matching early and be allowed. */
+const QUOTED_ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)["']?)\s*(?::|=)\s*(?<value>"(?:[^"\\\r\n]|\\.){7,}"|'(?:[^'\\\r\n]|\\.){7,}')/gi;
+
+/** Ordinary URL schemes are not credentials. The list is deliberately a set of
+ * well-known schemes rather than "anything containing `://`", so a secret that
+ * merely starts with or contains `://` is still refused. A URL that carries
+ * userinfo (`scheme://user:pass@host`) is a credential-bearing connection string
+ * and is refused as well. Shared by both detectors and mirrored in the packed
+ * validator. */
+const PLAIN_URL_SCHEMES = /^(?:https?|ftps?|ssh|git|git\+ssh|svn|ws|wss|file):\/\//i;
+export function credentialValueIsPlainUrl(assigned: string): boolean {
+  const text = assigned.trim().replace(/^["'`]+|["'`]+$/g, "");
+  if (!PLAIN_URL_SCHEMES.test(text)) return false;
+  return !/^[^@]*:[^/@\s]*@/.test(text.slice(text.indexOf("://") + 3));
+}
+
+/** A credential-named structured key with an assigned value is refused without
+ * the documentation-placeholder exemption that applies to prose text. A parsed
+ * object member is not a tracked-source sample, and it is exactly where an
+ * assigned secret travels. Shared by the Memory guard and the Jev preflight so
+ * both detectors classify one object identically. */
+const CREDENTIAL_KEY_PATTERN = /^(?:api(?:key|token|secret)|accesstoken|auth(?:orization)?|bearer|clientsecret|credentials?|password|passwd|secret|token)$/i;
+export function credentialNamedKeyAssignsValue(key: string, assigned: string): boolean {
+  const text = assigned.trim();
+  return text.length >= 8 && !credentialValueIsPlainUrl(text) && CREDENTIAL_KEY_PATTERN.test(key.replace(/[_ -]/g, ""));
+}
 
 /** Documentation-style placeholders, so a tracked source sample or doc snippet
  * does not refuse a whole review. A realistic assigned value stays sensitive. */
@@ -1527,9 +1559,19 @@ const PLACEHOLDER_CREDENTIAL_VALUES = new Set([
   "fixture", "mock", "fake", "stub", "default",
 ]);
 
-const CODE_OR_ENV_PATTERN = /^(?:\(?\s*(?:process\.env|os\.environ|System\.getenv|Deno\.env|\$[A-Z_]+|\$\{[A-Z_]+\})|(?:config|options|opts|params|props|settings|this|self|ctx)\.[A-Za-z0-9_]+|\(|.*(?:\?|\|\||&&|\+\s*["']))/i;
+/** A code, env or expression reference, never a literal secret. The expression
+ * clause requires whitespace around its operator so a password that merely
+ * contains `?` or `&&` is not read as an expression; failing closed here only
+ * refuses more, never less. */
+const CODE_OR_ENV_PATTERN = /^(?:\(?\s*(?:process\.env|os\.environ|System\.getenv|Deno\.env|\$[A-Z_]+|\$\{[A-Z_]+\})|(?:config|options|opts|params|props|settings|this|self|ctx)\.[A-Za-z0-9_]+|\(|.*\s(?:\?|\|\||&&|\+(?=\s*["'])))/i;
 
-function placeholderCredentialValue(key: string, assigned: string): boolean {
+/** Documentation-style placeholders are not credentials: a tracked source
+ * sample, doc snippet or JSON config sample must not refuse a whole review, while
+ * a realistic assigned value stays sensitive. Both the Memory guard and the Jev
+ * preflight call this rule so the same text cannot be refused by one detector and
+ * allowed by the other. Quoted JSON keys and values are accepted, and quotes are
+ * stripped before the placeholder comparison. */
+export function placeholderCredentialValue(key: string, assigned: string): boolean {
   const trimmed = assigned.trim();
   if (CODE_OR_ENV_PATTERN.test(trimmed)) return true;
   const unquoted = trimmed.replace(/^["'`\\]+|["'`\\]+$/g, "");
@@ -1563,6 +1605,12 @@ function containsAssignedCredentialMaterial(value: string, depth = 0): boolean {
       if (depth < MAX_CREDENTIAL_LITERAL_DEPTH && containsAssignedCredentialMaterial(snippetOf(value, start), depth + 1)) return true;
       continue;
     }
+    if (credentialValueIsPlainUrl(assigned)) continue;
+    if (!placeholderCredentialValue(match.groups?.key ?? "", assigned)) return true;
+  }
+  for (const match of value.matchAll(QUOTED_ASSIGNED_CREDENTIAL_PATTERN)) {
+    const assigned = match.groups?.value ?? "";
+    if (credentialValueIsPlainUrl(assigned)) continue;
     if (!placeholderCredentialValue(match.groups?.key ?? "", assigned)) return true;
   }
   return false;
@@ -1583,7 +1631,10 @@ export function containsSensitiveMemoryMaterial(value: string): boolean {
         if (!current || typeof current !== "object") continue;
         for (const [key, child] of Object.entries(current)) {
           if (containsSensitiveMemoryMaterial(key)) return true;
-          if (typeof child === "string" && containsAssignedCredentialMaterial(`${key}: ${child}`)) return true;
+          // A parsed member with a credential-named key is judged strictly, like
+          // the preflight's structured-key rule; prose text keeps the placeholder
+          // rule on the string path.
+          if (typeof child === "string" && credentialNamedKeyAssignsValue(key, child)) return true;
           pending.push(child);
         }
       }

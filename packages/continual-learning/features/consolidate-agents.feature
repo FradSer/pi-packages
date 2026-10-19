@@ -172,3 +172,11 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     And successful or skipped attempts do not receive failure diagnostics
     And no retry or earlier-stage success erases the failure
 
+
+  Scenario: Missing project instructions do not keep successful learning pending
+    Given Memory and Harness learning have completed their required reviews
+    And the project has no AGENTS.md
+    When the AGENTS consolidation phase checks its target
+    Then that phase completes as a no-op without launching a planner or creating a file
+    And the bound learning receipt can acknowledge its original backlog reference
+    But a protected user-level target or an unresolved phase keeps the reference pending

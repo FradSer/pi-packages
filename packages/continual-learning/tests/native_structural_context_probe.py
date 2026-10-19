@@ -81,7 +81,7 @@ export default function(pi){
         }
         env.update({"HOME": str(root), "PI_CODING_AGENT_DIR": str(agent),
                     "PI_OFFLINE": "1", "PI_TELEMETRY": "0"})
-        cli = REPO / "node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+        cli = REPO / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"
         command = ["node", str(cli), "--offline", "--print", "--no-session",
                    "--no-extensions", "--no-skills", "--no-prompt-templates",
                    "--no-themes", "--no-context-files", "--no-tools", "-e",

@@ -50,7 +50,7 @@ def test_bad_domains_fail_before_service_and_empty_domain_allows_only_abstention
       import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
       import {Value} from 'typebox/value';
       fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true,plannerJsonOutput:true}));
-      let handler,domain;extension({registerFlag:()=>{},getFlag:name=>name==='learning-output-schema'?'memory-delta':domain,getActiveTools:()=>[],on:(name,fn)=>handler=fn});
+      let handler,domain;extension({registerFlag:()=>{},getFlag:name=>name==='learning-output-schema'?'memory-delta':name==='learning-citation-domain'?domain:undefined,getActiveTools:()=>[],on:(name,fn)=>handler=fn});
       const payload={messages:[]};const ctx={model:{id:'qwen3.8-flash',api:'openai-completions'}};
       const errors=[];for(const v of ['damaged','complete-catalog-overflow','{"indices":[0],"refs":[]}','{"indices":[0],"refs":["e2.b0.l1"]}','{"indices":[0,0],"refs":["e0.b0.l1"]}','{"indices":[],"refs":"bad"}']){domain=v;try{handler({payload},ctx);errors.push(false)}catch{errors.push(true)}}
       domain='complete-catalog-overflow';const unsupported=handler({payload},{model:{id:'unknown',api:'openai-completions'}});

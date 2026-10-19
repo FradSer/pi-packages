@@ -26,7 +26,7 @@ PACKAGE=Path(__file__).resolve().parents[1]
 REPO=PACKAGE.parents[1]
 AGENT='/home/node/agent'
 RESULTS='/home/node/results'
-PI='/opt/experiment/node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
+PI='/opt/experiment/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
 
 
 def process(args: list[str], *, timeout: int = 900, data: bytes | None = None) -> subprocess.CompletedProcess:
@@ -65,8 +65,8 @@ def runtime_image(base_image: str = "cl-real-project-runtime:20261011-rebuilt") 
         # The historical cache pins transitive Pi dependencies to 1.0. A root
         # install alone leaves the new CLI importing that old TUI. Replace the
         # isolated workspace's dependency policy before installing the new pair.
-        (context/'pnpm-workspace.yaml').write_text('packages:\n  - packages/*\noverrides:\n  "@earendil-works/pi-coding-agent": 1.2.0\n  "@earendil-works/pi-ai": 1.2.0\n  "@earendil-works/pi-agent-core": 1.2.0\n  "@earendil-works/pi-codemode": 1.2.0\n  "@earendil-works/pi-mcp": 1.2.0\n  "@earendil-works/pi-telemetry": 1.2.0\n  "@earendil-works/pi-tui": 1.2.0\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
-        (context/'Dockerfile').write_text('FROM '+base_image+'\nUSER root\nWORKDIR /opt/experiment\nCOPY pnpm-workspace.yaml ./\nCOPY packages /opt/experiment/packages\nRUN pnpm add --workspace-root --save-exact @earendil-works/pi-coding-agent@1.2.0 @earendil-works/pi-tui@1.2.0\nRUN chown -R node:node /home/node/.cache /home/node/.local\nUSER node\nWORKDIR /work\n')
+        (context/'pnpm-workspace.yaml').write_text('packages:\n  - packages/*\noverrides:\n  "@earendil-works/pi-coding-agent": 1.3.0\n  "@earendil-works/pi-ai": 1.3.0\n  "@earendil-works/pi-agent-core": 1.3.0\n  "@earendil-works/pi-codemode": 1.3.0\n  "@earendil-works/pi-mcp": 1.3.0\n  "@earendil-works/pi-telemetry": 1.3.0\n  "@earendil-works/pi-tui": 1.3.0\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
+        (context/'Dockerfile').write_text('FROM '+base_image+'\nUSER root\nWORKDIR /opt/experiment\nCOPY pnpm-workspace.yaml ./\nCOPY packages /opt/experiment/packages\nRUN pnpm add --workspace-root --save-exact @earendil-works/pi-coding-agent@1.3.0 @earendil-works/pi-tui@1.3.0\nRUN chown -R node:node /home/node/.cache /home/node/.local\nUSER node\nWORKDIR /work\n')
         tag='cl-real-runtime:'+uuid.uuid4().hex[:12]
         checked(['docker','build','-q','-t',tag,str(context)])
         return tag
@@ -78,6 +78,9 @@ def container(image: str) -> str:
 
 
 def configuration(c: str, proxy: InferenceProxy) -> None:
+    # Preflight can fail before Pi creates a session. Retain that empty root
+    # through the normal archive path instead of inferring absence from cp errors.
+    shell(c, 'mkdir -p ' + AGENT + '/sessions')
     with tempfile.TemporaryDirectory(prefix='cl-proxy-config-') as temp:
         root=Path(temp)/'agent';proxy.write_agent_config(root)
         for f in root.iterdir(): put(c,AGENT+'/'+f.name,f.read_bytes())

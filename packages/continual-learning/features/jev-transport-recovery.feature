@@ -33,3 +33,18 @@ Feature: Jev transport recovery without inventing a result
     When the judge evaluates the candidate
     Then the telemetry reason is timeout
     And no retry is recorded
+
+  Scenario: A failed request group stops later groups of the same review
+    Given a memory support job that needs more than one wire-bounded request group
+    When the first group fails at the connection level
+    Then only the bounded retry is spent
+    And the later request group is never requested
+    And partial usage and the connection failure kind are retained
+    And no decision is produced from the incomplete review
+
+  Scenario: The bounded retry waits and yields to an abort
+    Given a connection-level failure on the first attempt
+    When the bounded retry re-issues the same frozen request
+    Then it waits the recorded backoff before that attempt
+    And the retry count, request bounds and per-request deadline stay unchanged
+    And an abort arriving during the wait is honoured without the full delay

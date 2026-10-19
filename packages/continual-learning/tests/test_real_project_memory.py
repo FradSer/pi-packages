@@ -136,7 +136,7 @@ def test_documentation_updates_are_allowed_but_existing_type_tests_stay_protecte
     assert 'recipes.md' in study.protected('disposable','p-limit',include_source=True)
 
 
-def test_runtime_image_upgrades_cached_dependencies_to_pi12_before_admission(monkeypatch):
+def test_runtime_image_upgrades_cached_dependencies_to_pi13_before_admission(monkeypatch):
     # Given an old cached project image, When building a fresh cohort runtime,
     # Then install the pinned requested Pi before the study's version guard.
     from pathlib import Path
@@ -148,19 +148,19 @@ def test_runtime_image_upgrades_cached_dependencies_to_pi12_before_admission(mon
     monkeypatch.setattr(study, 'checked', checked)
     study.runtime_image('historical-pi10-cache')
     assert len(files) == 1
-    assert 'pnpm add --workspace-root --save-exact @earendil-works/pi-coding-agent@1.2.0 @earendil-works/pi-tui@1.2.0' in files[0]['dockerfile']
+    assert 'pnpm add --workspace-root --save-exact @earendil-works/pi-coding-agent@1.3.0 @earendil-works/pi-tui@1.3.0' in files[0]['dockerfile']
     assert files[0]['dockerfile'].index('COPY pnpm-workspace.yaml ./') < files[0]['dockerfile'].index('RUN pnpm add')
-    assert '"@earendil-works/pi-coding-agent": 1.2.0' in files[0]['workspace']
-    assert '"@earendil-works/pi-tui": 1.2.0' in files[0]['workspace']
+    assert '"@earendil-works/pi-coding-agent": 1.3.0' in files[0]['workspace']
+    assert '"@earendil-works/pi-tui": 1.3.0' in files[0]['workspace']
     assert '1.0.0' not in files[0]['workspace']
-    assert '"@earendil-works/pi-ai": 1.2.0' in files[0]['workspace']
+    assert '"@earendil-works/pi-ai": 1.3.0' in files[0]['workspace']
     for package in ('pi-agent-core', 'pi-codemode', 'pi-mcp', 'pi-telemetry'):
-        assert f'"@earendil-works/{package}": 1.2.0' in files[0]['workspace']
+        assert f'"@earendil-works/{package}": 1.3.0' in files[0]['workspace']
     baseline = (Path(study.__file__).parent/'docker/real-task.Dockerfile').read_text()
     assert '1.0.0' not in baseline
-    assert '"@earendil-works/pi-ai":"1.2.0"' in baseline
+    assert '"@earendil-works/pi-ai":"1.3.0"' in baseline
     for package in ('pi-agent-core', 'pi-codemode', 'pi-mcp', 'pi-telemetry'):
-        assert f'\\"@earendil-works/{package}\\": 1.2.0' in baseline
+        assert f'\\"@earendil-works/{package}\\": 1.3.0' in baseline
     import docker_experiment
     builds=[]
     def build(args, **kwargs):
@@ -180,7 +180,37 @@ def test_runtime_image_upgrades_cached_dependencies_to_pi12_before_admission(mon
 
     for package in ('pi-coding-agent','pi-ai','pi-tui'):
         name='@earendil-works/'+package
-        assert builds[0]['manifest']['dependencies'][name]=='1.2.0'
-        assert f'"{name}": 1.2.0' in builds[0]['workspace']
+        assert builds[0]['manifest']['dependencies'][name]=='1.3.0'
+        assert f'"{name}": 1.3.0' in builds[0]['workspace']
     for package in ('pi-agent-core', 'pi-codemode', 'pi-mcp', 'pi-telemetry'):
-        assert f'"@earendil-works/{package}": 1.2.0' in builds[0]['workspace']
+        assert f'"@earendil-works/{package}": 1.3.0' in builds[0]['workspace']
+
+
+def test_configuration_prepares_empty_session_root_before_any_model_task(tmp_path, monkeypatch):
+    # Given a fresh disposable agent, when configuration succeeds before any
+    # model task, then failure retention can archive an empty sessions root.
+    # Reconfiguration must preserve existing session bytes.
+    agent = tmp_path / 'agent'
+
+    class Proxy:
+        def write_agent_config(self, root):
+            root.mkdir()
+            (root / 'settings.json').write_text('{}')
+
+    def put(_container, file, data):
+        target = agent / file.removeprefix(study.AGENT + '/')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+
+    def shell(_container, command):
+        return subprocess.check_output(['sh', '-c', command.replace(study.AGENT, str(agent))])
+
+    monkeypatch.setattr(study, 'put', put)
+    monkeypatch.setattr(study, 'shell', shell)
+    study.configuration('owned-disposable', Proxy())
+    assert (agent / 'sessions').is_dir()
+    assert list((agent / 'sessions').iterdir()) == []
+    session = agent / 'sessions' / 'existing.jsonl'
+    session.write_bytes(b'original session\n')
+    study.configuration('owned-disposable', Proxy())
+    assert session.read_bytes() == b'original session\n'

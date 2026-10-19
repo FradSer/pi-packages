@@ -1,3 +1,4 @@
+import pytest
 from support import isolated_run_bun
 
 
@@ -67,3 +68,82 @@ def test_combined_repair_binds_existing_and_new_proposals_without_transcribing_i
     assert value['retainedOnly']['outcome'] == 'repaired'
     assert [op['name'] for op in value['retainedExample']['operations']] == ['retained.md']
     assert value['retainedExample']['newMemories'] == []
+
+
+@pytest.mark.parametrize('native', [False, True])
+def test_retained_evidence_only_repair_preserves_frozen_real_contract(tmp_path, native) -> None:
+    """Given V89's retyping error, When evidence alone changes, Then reuse exact prior bytes."""
+    import json
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {spawnSync} from 'node:child_process';
+      import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const kit=await import('./packages/kit/src/index.ts');let next,mutate=()=>{},payload,args,nativeEnabled=NATIVE,nativeCalls=0;
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async options=>{
+        payload=JSON.parse(options.prompt.split('\n').at(-1));args=options.extraArgs;mutate();
+        if(nativeEnabled){
+          const cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
+          const response=structuredClone(next);
+          if(response.replacements)response.replacements=response.replacements.map(patch=>{
+            const candidate=payload.repairCandidates.find(c=>c.candidateId===patch.candidateId);
+            const {candidateId,...rest}=patch;return {...rest,candidateRef:candidate.candidateRef};
+          });
+          const r=spawnSync('node',[cli,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
+            '--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json','--bound-candidate-response',JSON.stringify(response),options.prompt],
+            {cwd:ROOT,env:{PATH:process.env.PATH,HOME:ROOT,PI_CODING_AGENT_DIR:path.join(ROOT,'agent'),PI_OFFLINE:'1'},encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
+          fs.writeFileSync(path.join(ROOT,'native-retained-'+(++nativeCalls)+'.jsonl'),r.stdout);
+          if(r.status!==0)throw Error(r.stderr+'\n'+r.stdout);
+          return {...kit.parsePiWorkerOutput(r.stdout),exitCode:0,stderr:'',cancelled:false};
+        }
+        return {text:JSON.stringify(next),exitCode:0,stderr:'',cancelled:false,usage:{input:3,output:2,cacheRead:0,cacheWrite:0,totalTokens:5,cost:.1}};
+      }}));
+      const {repairIncrementalMemoryPlan,semanticMemoryRepairCandidates}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const {learningOutputSchema}=await import('./packages/continual-learning/extensions/planner-output-schema.ts');
+      const real=JSON.parse(fs.readFileSync('packages/continual-learning/tests/fixtures/real-retained-and-proposed-repair.json','utf8')).retainedBodyRetyping;
+      const snapshot={contextEnabled:true,runId:'r',scopeKey:'s',scopeDigest:'d',entries:[{role:'toolResult',content:'readonly rejectOnClear?: boolean;'}]};
+      const h=sha256Digest(JSON.stringify(snapshot,null,2)+'\n'),identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:h,snapshotDigest:h};
+      const evidence=[{ref:'e0.b0.l1'}],name='limit_function_contract.md';
+      const prior={name,classification:'private',type:'project',description:'Declared contract',content:real.predecessor};
+      const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[]};
+      const input={identity,rejectedPlan:original,selectedNames:[name],retainedRepairNames:[name],errors:['source support held'],semanticContext:{frozenEvidence:snapshot,existingMemories:[prior]}};
+      const reply={...original,operations:[{name,kind:'rewrite',classification:'private',evidence}]};
+      next=reply;const good=await repairIncrementalMemoryPlan(input),contract=payload.retainedOperationContract,nativeArgs=args;
+      nativeEnabled=false;const bad=[];
+      for(const change of [v=>v.operations[0].content=null,v=>v.operations[0].content='',v=>v.operations[0].content=42,
+        v=>v.runId='foreign',v=>delete v.artifactHash,v=>delete v.kind,v=>v.version=2,v=>v.schemaVersion=2,
+        v=>v.operations[0].classification='safe',v=>v.operations.push(v.operations[0]),v=>v.operations[0].contentSha256='forged',v=>v.operations[0].foreign=true,
+        v=>v.operations[0].evidence=[{ref:'e0.b0.l9'}]]){
+        next=structuredClone(reply);change(next);bad.push(await repairIncrementalMemoryPlan(input));
+      }
+      for(const changes of [{requiredTextChanges:{[name]:['body']}},{requiredTextChanges:{[name]:['description']}},
+        {semanticContext:{...input.semanticContext,frozenEvidence:{...snapshot,runId:'foreign'}}},
+        {semanticContext:{...input.semanticContext,existingMemories:[prior,prior]}}]){
+        next=reply;bad.push(await repairIncrementalMemoryPlan({...input,...changes}));
+      }
+      next=reply;mutate=()=>{prior.content=real.rejectedReplacement};const changed=await repairIncrementalMemoryPlan(input);prior.content=real.predecessor;mutate=()=>{};
+      next=reply;mutate=()=>{snapshot.entries[0].content='changed after generation'};const sourceChanged=await repairIncrementalMemoryPlan(input);snapshot.entries[0].content='readonly rejectOnClear?: boolean;';mutate=()=>{};
+      next=reply;mutate=()=>{input.requiredTextChanges={[name]:['body']}};const textRequirementChanged=await repairIncrementalMemoryPlan(input);delete input.requiredTextChanges;mutate=()=>{};
+      next=reply;mutate=()=>{original.newMemories.push({name:'race.md'})};const proposalChanged=await repairIncrementalMemoryPlan(input);original.newMemories=[];mutate=()=>{};
+      const fresh={name:'failure.md',kind:'project',classification:'private',content:'---\nname: failure\ndescription: Observed failure\ntype: project\n---\nThe observed task failed.',evidence};
+      const combinedOriginal={...original,newMemories:[fresh]},ids=semanticMemoryRepairCandidates(combinedOriginal,['failure.md']);
+      next={kind:'incremental-memory-amendment',version:1,...identity,replacements:[{candidateId:ids[0].candidateId,evidence}],operations:reply.operations};
+      nativeEnabled=NATIVE;const combined=await repairIncrementalMemoryPlan({...input,rejectedPlan:combinedOriginal,repairableNames:['failure.md'],repairableFields:{'failure.md':['body']}});
+      const delta=learningOutputSchema('memory-delta'),retained=learningOutputSchema('memory-retained-amendment');
+      console.log(JSON.stringify({good,bad,changed,sourceChanged,textRequirementChanged,proposalChanged,combined,contract,nativeArgs,nativeCalls,originalUnchanged:original.operations.length===0,
+        predecessorUnchanged:prior.content===real.predecessor,body:real.predecessor,
+        deltaContentRequired:delta.properties.operations.items.anyOf[0].required.includes('content'),
+        retainedContentOptional:retained&&!retained.properties.operations.items.anyOf[0].required.includes('content')}));
+    '''.replace('ROOT', json.dumps(str(tmp_path))).replace('NATIVE', str(native).lower()))
+    assert result['good']['outcome'] == 'repaired', result['good']
+    operation = result['good']['plan']['operations'][0]
+    assert operation['content'] == result['body']
+    assert operation['evidence'] == [{'index': 0, 'quote': 'readonly rejectOnClear?: boolean;'}]
+    assert result['contract']['records'][0]['reuseFrozenContent'] is True
+    assert result['retainedContentOptional'] and result['deltaContentRequired']
+    assert all(row['outcome'] == 'failed' for row in result['bad']), result['bad']
+    assert all(result[name]['outcome'] == 'failed' for name in ['changed', 'sourceChanged', 'textRequirementChanged', 'proposalChanged'])
+    assert result['combined']['outcome'] == 'repaired', result['combined']
+    assert result['combined']['plan']['operations'][0]['content'] == result['body']
+    assert result['originalUnchanged'] and result['predecessorUnchanged']
+
+    assert result['nativeCalls'] == (2 if native else 0)

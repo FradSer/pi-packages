@@ -60,6 +60,12 @@ def main() -> None:
             assert run.returncode==0 and (root/'result.json').exists(),(mode,run.returncode,run.stderr)
             result=json.loads((root/'result.json').read_text());(root/'wire-observations.json').write_text(json.dumps(observations,indent=2));assert any(x['kind']=='semantic' for x in observations),(mode,observations,result)
             at_main=result['atMain'];assert bool(result['results']),(mode,result);message=result['results'][-1]['message'];body=json.dumps(message['content']);executed=not message.get('isError',False) and __import__('re').search(r'\d+\.\d+\.\d+',body) is not None
+            behavior=result['behaviorObservations'];decisions=[r for r in behavior if r['data']['phase']=='decision' and r['data']['toolCallIdDigest']==hashlib.sha256(json.dumps('native-version').encode()).hexdigest()];closed=[r for r in behavior if r['data']['phase']=='handler-result' and r['data']['toolCallIdDigest']==hashlib.sha256(json.dumps('native-version').encode()).hexdigest()]
+            assert len(decisions)==len(closed)==1,(mode,behavior)
+            decision,closure=decisions[0],closed[0];assert closure['data']['decisionEntryId']==decision['id'],(mode,behavior)
+            assert decision['data']['revisionCoverage']=='complete' and closure['data']['handlerInvoked'] is (True if executed else None),(mode,behavior)
+            assert closure['data']['taskOutcome']=='unverified' and closure['data']['effect']=='cannot-attribute',behavior
+            assert ('npm --version' not in json.dumps(behavior)),behavior
             if mode=='held':assert at_main==original and not executed,(mode,result)
             else:assert at_main!=original and executed,(mode,result)
             if mode in ('ordinary-write','shadow-write'):assert len(result['writeResults'])==1 and result['writeResults'][0]['message']['isError'] is True,result

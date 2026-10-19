@@ -101,19 +101,96 @@ def retain_failure_container(
     return report
 
 
+def valid_learning_usage(value: Any) -> bool:
+    import math
+    return isinstance(value, dict) and all(
+        isinstance(value.get(key), (int, float)) and not isinstance(value[key], bool)
+        and math.isfinite(value[key]) and value[key] >= 0
+        for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens', 'cost'))
+
+
+def unique_learning_receipts(values: list[dict]) -> dict[str, dict]:
+    """Reconcile parent snapshots by batch identity, never by numeric totals.
+
+    Different snapshots of one batch are unresolved evidence. Do not choose a
+    larger or later snapshot without a proved lifecycle ordering.
+    """
+    receipts = {}
+    for value in values:
+        if not isinstance(value, dict) or value.get('kind') != 'learning-pipeline-receipt':
+            raise ValueError('Invalid parent receipt')
+        identity = value.get('batchId')
+        if not isinstance(identity, str) or not identity or not valid_learning_usage(value.get('totals')):
+            raise ValueError('Invalid retained receipt')
+        if identity in receipts and receipts[identity] != value:
+            raise ValueError('Conflicting retained receipt identity')
+        receipts[identity] = value
+    return receipts
+
+
+def validate_receipt_usage_totals(receipt: dict) -> None:
+    usage_rows = [a['usage'] for a in receipt.get('attempts', []) if a.get('usage') is not None]
+    if any(not valid_learning_usage(row) for row in usage_rows):
+        raise ValueError('Invalid receipt attempt usage')
+    expected = {key: sum(row[key] for row in usage_rows) for key in receipt['totals']}
+    if expected != receipt['totals']:
+        raise ValueError('Receipt totals do not match known attempt usage')
+
+
+def learning_cost_summary(receipt_values: list[dict], attempts: list[dict], workers: list[dict]) -> dict:
+    """Count all owned pipelines, including early corrections outside replay."""
+    receipts = unique_learning_receipts(receipt_values + [a['receipt'] for a in attempts if a.get('receipt')])
+    included = {}
+    for batch, receipt in receipts.items():
+        validate_receipt_usage_totals(receipt)
+        for attempt in receipt.get('attempts', []):
+            identity = attempt.get('usageLedgerId')
+            if not identity or not valid_learning_usage(attempt.get('usage')):
+                continue
+            if identity in included:
+                raise ValueError('Conflicting or duplicate receipt worker usage identity')
+            included[identity] = attempt['usage']
+    ledgers = {}
+    for row in workers:
+        identity = row.get('ledgerId')
+        if not isinstance(identity, str) or not identity or not valid_learning_usage(row.get('knownUsage')):
+            raise ValueError('Invalid worker usage ledger')
+        previous = ledgers.get(identity)
+        if previous and (previous['knownUsage'] != row['knownUsage'] or previous.get('complete') != row.get('complete')):
+            raise ValueError('Conflicting worker usage ledger identity')
+        ledgers[identity] = row
+        if identity in included and included[identity] != row['knownUsage']:
+            raise ValueError('Conflicting receipt and worker usage')
+    additional = [row for identity, row in ledgers.items() if identity not in included]
+    known = [receipt['totals'] for receipt in receipts.values()] + [row['knownUsage'] for row in additional]
+    unknown = (sum(not a.get('receipt') for a in attempts)
+               + sum(r.get('usageAvailable') is not True for r in receipts.values()))
+    return {
+        'knownLearningTokens': sum(row['totalTokens'] for row in known),
+        'knownLearningCost': sum(row['cost'] for row in known),
+        'partialWorkerUsageLedgers': additional,
+        'interruptedUnknownUsage': unknown,
+        'unknownWorkerUsageLedgers': sum(row.get('complete') is not True for row in additional),
+        'actualLearningOperations': sum(r.get('operations', 0) for r in receipts.values()),
+        # Count failed phase attempts once per parent batch, plus failed jobs
+        # without receipts. Replay final-state failures remain a separate unit.
+        'learningFailedAttempts': sum(not a.get('receipt') and a.get('outcome') != 'completed' for a in attempts)
+            + sum(a.get('outcome') in ('failed', 'rejected', 'cancelled')
+                  for r in receipts.values() for a in r.get('attempts', [])),
+        'learningFailedReplayAttempts': sum(a.get('outcome') != 'completed' for a in attempts),
+        'allLearningCostsPriced': not additional and unknown == 0
+            and all(row.get('complete') is True for row in ledgers.values())
+            and all(r.get('costAvailable') is True for r in receipts.values()),
+    }
+
+
 def retained_learning_costs(target: Path) -> dict:
     """Recover a known lower bound from retained parent-owned evidence.
 
     Interrupted calls remain unknown. Receipt copies are keyed by batch, workers
     by ledger identity; numeric equality alone never establishes call identity.
     """
-    import math
-
-    def valid_usage(value: Any) -> bool:
-        return isinstance(value, dict) and all(
-            isinstance(value.get(key), (int, float)) and not isinstance(value[key], bool)
-            and math.isfinite(value[key]) and value[key] >= 0
-            for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens', 'cost'))
+    valid_usage = valid_learning_usage
 
     receipts: dict = {}
     workers: dict = {}
@@ -121,14 +198,7 @@ def retained_learning_costs(target: Path) -> dict:
     errors: list = []
 
     def collect(value: Any) -> None:
-        if not isinstance(value, dict) or value.get('kind') != 'learning-pipeline-receipt':
-            raise ValueError('Invalid parent receipt')
-        identity = value.get('batchId')
-        if not isinstance(identity, str) or not identity or not valid_usage(value.get('totals')):
-            raise ValueError('Invalid retained receipt')
-        if identity in receipts and receipts[identity] != value:
-            raise ValueError('Conflicting retained receipt identity')
-        receipts[identity] = value
+        receipts.update(unique_learning_receipts([*receipts.values(), value]))
 
     paths = [*target.glob('memory/runs/*/*/*.json'), *target.glob('learning/*/replay-*.json')]
     for path in sorted(paths):
@@ -169,7 +239,8 @@ def retained_learning_costs(target: Path) -> dict:
             else:
                 errors.append(row['path'])
             continue
-        if identity in workers and workers[identity]['knownUsage'] != value['knownUsage']:
+        if identity in workers and (workers[identity]['knownUsage'] != value['knownUsage']
+                                    or workers[identity].get('complete') != value.get('complete')):
             raise ValueError('Conflicting worker usage ledger identity')
         workers[identity] = row
 
@@ -186,6 +257,8 @@ def retained_learning_costs(target: Path) -> dict:
             if identity in included:
                 raise ValueError('Conflicting or duplicate receipt worker usage identity')
             included[identity] = {'batch': batch, 'usage': attempt['usage']}
+    for receipt in receipts.values():
+        validate_receipt_usage_totals(receipt)
     additional = []
     for identity, row in workers.items():
         if identity in included:

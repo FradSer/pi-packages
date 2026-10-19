@@ -81,7 +81,7 @@ def test_actual_pi_structural_repair_has_source_and_keeps_parent_intent(tmp_path
       const kit=await import('./packages/kit/src/index.ts');const root=ROOT;
       mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{
         const env={PATH:process.env.PATH,HOME:root,PI_CODING_AGENT_DIR:path.join(root,'agent'),PI_OFFLINE:'1'};
-        const native=spawnSync('node',[path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/cli.js'),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),'--missing-memory-body','enabled','--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json',input.prompt],{cwd:root,env,encoding:'utf8',timeout:40000});
+        const native=spawnSync('node',[path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),'--missing-memory-body','enabled','--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json',input.prompt],{cwd:root,env,encoding:'utf8',timeout:40000});
         fs.writeFileSync(path.join(root,'native-pi-output.jsonl'),native.stdout);
         if(native.status!==0)throw new Error(native.stderr+'\n'+native.stdout);
         return {...kit.parsePiWorkerOutput(native.stdout),exitCode:0,stderr:'',cancelled:false};

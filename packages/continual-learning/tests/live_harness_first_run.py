@@ -75,7 +75,7 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             env.update(HOME=str(home), PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE='1', TERM='xterm-256color',
                        PI_HARNESS_READY=str(ready), PI_HARNESS_ENDED=str(ended), PI_HARNESS_REAL='1' if real else '0')
             node = shutil.which('node')
-            pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
+            pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
             sdk = pi.resolve().parents[1]
             schema_docs = [sdk / 'README.md', *sorted((sdk / 'docs').rglob('*.md'))]
             assert all(p.resolve().is_relative_to(sdk) for p in schema_docs)
@@ -84,7 +84,7 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             env['PI_HARNESS_SCHEMA_DOCS'] = json.dumps([str(p.resolve()) for p in documentation_paths])
             report['publicSchemaDocs'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in schema_docs}
             version = subprocess.check_output([node, str(pi), '--version'], env=env, text=True).strip()
-            assert version == '1.2.0', 'Pi baseline changed'
+            assert version == '1.3.0', 'Pi baseline changed'
             report['piVersion'] = version
             session = run / 'session.jsonl'
             command = [node, str(pi), '--offline', '--no-extensions', '--no-skills', '--no-prompt-templates',

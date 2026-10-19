@@ -91,7 +91,7 @@ def test_actual_pi_preserves_reasoning_for_semantic_body_repairs(scope):
       fs.writeFileSync(path.join(agent,'models.json'),JSON.stringify({providers:{fixture:{baseUrl:`http://127.0.0.1:${server.port}/v1`,api:'openai-completions',apiKey:'offline',models:[{id:'deepseek',name:'offline',reasoning:true,input:['text'],contextWindow:1000000,maxTokens:2048,cost:{input:0,output:0,cacheRead:0,cacheWrite:0},compat:{thinkingFormat:'deepseek',supportsReasoningEffort:true},thinkingLevelMap:{xhigh:'max'}}]}}}));
       fs.writeFileSync(path.join(agent,'settings.json'),JSON.stringify({packages:[],extensions:[],skills:[],retry:{enabled:false}}));
       fs.writeFileSync(path.join(agent,'continual-learning.json'),JSON.stringify({plannerThinkingLevel:'low'}));
-      process.env.PI_OFFLINE='1';process.argv[1]=fs.realpathSync('./node_modules/@earendil-works/pi-coding-agent/dist/cli.js');process.execPath=Bun.which('node');
+      process.env.PI_OFFLINE='1';process.argv[1]=fs.realpathSync('./node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');process.execPath=Bun.which('node');
       const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'h',snapshotDigest:'h'};
       const candidate={name:'a.md',kind:'project',classification:'private',content:'Original',evidence:[{index:0,quote:'Source'}]},targets=prepareMemoryBodyTargets([candidate],[]);
       const original={kind:'incremental-memory-plan',version:1,...identity,operations:[],newMemories:[candidate]},before=JSON.stringify(original);

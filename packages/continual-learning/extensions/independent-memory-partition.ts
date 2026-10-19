@@ -1,6 +1,7 @@
+import {independentMemoryRoles} from "./jev-memory-predecessors";
 import {interpretStandaloneMemory} from "./jev-memory-readiness";
 import {createHash} from "node:crypto";
-import {jevModelMatchesRequest, reviewedMemoryEvidence, memoryDescriptionClaim, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
+import {jevModelMatchesRequest, reviewedMemoryEvidence, independentMemoryChecks, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
 import {interpretMemoryPair} from "./jev-memory-relations";
 import type {SelectedMemory} from "./incremental-learning";
 
@@ -11,12 +12,15 @@ import type {SelectedMemory} from "./incremental-learning";
 export function partitionReviewedNewMemory(
   evidence: unknown, candidates: readonly unknown[], existing: readonly SelectedMemory[],
   review: JevCandidateReview | undefined, relations: JevMemoryRelationsReview | undefined,
-  readiness?: unknown, requestedModel = "jev-1.13.0",
+  readiness?: unknown, requestedModel = "jev-1.13.0", options?: {allowFrozenNoopComparators?: boolean},
 ): {eligible: number[]; held: number[]; writeAuthorized: false} {
   const all = candidates.map((_, index) => index);
   const denied = () => ({eligible: [], held: all, writeAuthorized: false as const});
   const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-  const prepared = reviewedMemoryEvidence(evidence, candidates, review);
+  const roles = independentMemoryRoles(candidates, existing, options?.allowFrozenNoopComparators === true);
+  if (!roles) return denied();
+  const mixed = roles.includes("frozen-noop");
+  const prepared = reviewedMemoryEvidence(evidence, candidates, review, mixed ? existing : undefined);
   if (!prepared || typeof prepared === "string" || !review || !relations
     || review.version !== 1 || relations.version !== 1 || review.purpose !== "diagnostic-only" || relations.purpose !== "diagnostic-only"
     || review.complete !== true || relations.complete !== true || review.sameBatchIndependenceReviewed !== false
@@ -30,22 +34,18 @@ export function partitionReviewedNewMemory(
   const eligible = new Set<number>();
   for (const [index, candidate] of candidates.entries()) {
     const observation = review.candidates[index];
-    // A record without a description line gets no description judgment, so the
-    // expected checklist must shrink with it rather than deny the plan.
-    const described = memoryDescriptionClaim(candidate) !== undefined;
-    const expected = [`supported_${index}`, `coherence_${index}`, ...(described ? [`supported_description_${index}`] : []),
-      ...(existing.length ? [`relation_${index}`, ...(described ? [`relation_description_${index}`] : [])] : []),
-      ...prepared.windows.flatMap((_, window) => [`counter_${index}_${window}`, ...(described ? [`counter_description_${index}_${window}`] : [])])];
+    const expected = independentMemoryChecks(candidate, index, existing, prepared.windows);
     if (!observation || !Array.isArray(observation.passedChecks) || !Array.isArray(observation.heldChecks)) return denied();
     const checks = [...observation.passedChecks, ...observation.heldChecks];
     if (observation.index !== index || observation.candidateDigest !== digest(candidate)
       || checks.length !== expected.length || new Set(checks).size !== checks.length
       || checks.some(key => !expected.includes(key))
       || observation.outcome !== (observation.heldChecks.length ? "held" : "passed")) return denied();
-    if (observation.outcome === "passed") eligible.add(index);
+    if (observation.outcome === "passed" && roles[index] === "new") eligible.add(index);
   }
   const supported = new Set(eligible);
   const seen = new Set<string>();
+  const persistedPairHolds = new Set<number>();
   for (const pair of relations.pairs) {
     if (!pair || !Number.isSafeInteger(pair.a) || !Number.isSafeInteger(pair.b) || pair.a < 0 || pair.a >= pair.b || pair.b >= candidates.length
       || !Array.isArray(pair.candidateDigests) || pair.candidateDigests.length !== 2
@@ -55,7 +55,11 @@ export function partitionReviewedNewMemory(
     seen.add(key);
     const observed = interpretMemoryPair(pair.answer);
     if (observed.status === "invalid-response" || pair.status !== observed.status || pair.relation !== observed.relation) return denied();
-    if (!observed.independenceObserved) { eligible.delete(pair.a); eligible.delete(pair.b); }
+    if (!observed.independenceObserved) {
+      eligible.delete(pair.a); eligible.delete(pair.b);
+      if (roles[pair.a] === "frozen-noop") persistedPairHolds.add(pair.b);
+      if (roles[pair.b] === "frozen-noop") persistedPairHolds.add(pair.a);
+    }
   }
   const result = (selected: Set<number>) => ({eligible: all.filter(index => selected.has(index)),
     held: all.filter(index => !selected.has(index)), writeAuthorized: false as const});
@@ -66,14 +70,14 @@ export function partitionReviewedNewMemory(
     || readiness.complete !== true || readiness.model !== review.model
     || readiness.evidenceDigest !== review.evidenceDigest || readiness.existingDigest !== review.existingDigest
     || readiness.candidatesDigest !== review.candidatesDigest || !Array.isArray(readiness.candidates)
-    || readiness.candidates.length !== candidates.length) return result(eligible);
-  const tentative = new Set(eligible);
+    || readiness.candidates.length !== candidates.length) return mixed ? denied() : result(eligible);
+  const tentative = new Set(mixed ? [] : eligible);
   for (const [index, candidate] of candidates.entries()) {
     const observation: unknown = readiness.candidates[index];
-    if (!record(observation) || observation.index !== index || observation.candidateDigest !== digest(candidate)) return result(eligible);
+    if (!record(observation) || observation.index !== index || observation.candidateDigest !== digest(candidate)) return mixed ? denied() : result(eligible);
     const interpreted = interpretStandaloneMemory(observation.answer);
-    if (interpreted.status === "invalid-response") return result(eligible);
-    if (supported.has(index) && interpreted.standaloneObserved) tentative.add(index);
+    if (interpreted.status === "invalid-response") return mixed ? denied() : result(eligible);
+    if (supported.has(index) && !persistedPairHolds.has(index) && interpreted.standaloneObserved) tentative.add(index);
   }
   const composed = new Set(tentative);
   // Use the initial tentative set for every obligation: removing one member

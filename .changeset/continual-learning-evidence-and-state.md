@@ -5,6 +5,15 @@
 "@fradser/pi-vision": patch
 ---
 
+Use Pi 1.3.0 for fresh continuous learning acceptance, with exact runtime pins
+and the declared CLI entry. Preserve historical Pi 1.0 and 1.2 results and costs.
+
+Run normal Memory body-consistency questions in a separate body-only job. Keep
+complete source, description, permission and preservation review. Count the new
+job within the existing prepared-request bound. Retain failed transport attempts
+and their known or unknown costs. Recognize explicit maintenance-purpose labels
+without treating draft claims as facts. These fixes do not prove learning benefit.
+
 Point historical Memory counter instructions at the actual `supportEvidence`
 and `reviewEvidence` fields. Keep source-support fields, complete evidence,
 historical bounded encoding and every approval gate unchanged.
@@ -27,7 +36,7 @@ Bind actual `/consolidate` and explicit backfill invocations separately from sou
 
 Focus normal Memory rewrite support checks on the complete new record, original citations and bound current source. Keep complete predecessor records and historical purpose in every separate counter, permission and preservation review. Preserve uncertain holds, atomic approval, privacy, source bindings and all thresholds; this input change alone does not establish better learning.
 
-Keep explicit `/memory` commands after their older task evidence. Preserve the current request under the existing evidence bounds and bind its retained index through fresh source reads and planning. Use Pi 1.2 for current native acceptance; preserve historical runtime records.
+Keep explicit `/memory` commands after their older task evidence. Preserve the current request under the existing evidence bounds and bind its retained index through fresh source reads and planning. Use Pi 1.3 for fresh native acceptance; preserve historical Pi 1.2 runtime records.
 
 Refresh complete original-task source during explicitly requested Memory
 backfill, retaining original evidence and binding the fresh read-only observations
@@ -50,6 +59,10 @@ Render exact parent-owned identity JSON for incremental planners, retain per-can
 Distinguish source-comment explanations and historical test counts from durable verified knowledge. Keep queue-completion knowledge scoped to the inspected callback phase; an empty queue does not guarantee that future caller continuations have drained. Complete only strict-prefix display messages of new literal rules from a single validated user quote, retaining both plans and revalidating the actual reviewed and applied candidate.
 
 Retain a bounded fifteen-second default semantic-service request deadline after a real frozen response exceeded the old five-second deadline. Honor explicit deadlines and cancellation, preserve connection-only retry bounds, and distinguish task-local verification instructions from independently observed reusable source knowledge during planning and repair. Semantic thresholds and full evidence remain unchanged.
+
+Separate an assertion's printed failure label from the state that its complete test and observed execution establish. Require Memory generation and correction to trace completed callbacks and unfinished work before naming the blocking subject, or preserve the state as unresolved. Keep all original evidence, prior rejections and semantic gates.
+
+Allow a fully reviewed new Memory fact to persist beside a held byte-identical rewrite only with complete original mixed bindings, direct independence against the persisted record, standalone and body review. Never write the held record or clear its pending status. Keep source, privacy, ownership, transaction, Harness and backlog gates.
 
 Keep partially learned tasks pending until the latest phase disposition has no unresolved candidates, and render those counts as warnings. Route source-verified empty-index backfill consistently with automatic learning and retain rejected selector output in a bounded private diagnostic artifact. Clarify that permanent executable restrictions remain Harness-owned rather than being relabeled as Memory workflow facts.
 
@@ -397,9 +410,9 @@ Allow explicitly bounded Jev review concurrency for service backpressure while p
 
 Align semantic amendment output with parent document validation by requiring complete frontmatter and body when content is supplied.
 
-Bound semantic Memory repair workers to the existing review worker budget,
-retain lifecycle/partial costs, and reconcile interrupted study costs without
-double-counting receipt copies or treating unknown calls as free.
+Bound semantic Memory repair workers to a recorded worker budget (600 seconds,
+ADR 0009), retain lifecycle/partial costs, and reconcile interrupted study costs
+without double-counting receipt copies or treating unknown calls as free.
 
 Make semantic amendment producer patterns consume the complete Markdown value,
 including its body, while preserving standard frontmatter search validation and
@@ -615,3 +628,11 @@ Reject semantic responses that do not match an explicitly pinned Jev model versi
 Bind Memory relationship checks, partial review feedback, description correction and independent partition checks to the parent-requested Jev model. Preserve the legacy 1.13 contract for injected judges without a model binding. Keep complete evidence, protected fields, privacy, thresholds and fresh post-correction review.
 
 Keep the original rejected Memory plan in the existing run-bound structural rejection artifact before correction can replace it. Use the existing sensitive-output guard to retain hashes only for sensitive output. Keep rejection outcomes, usage and all validation gates.
+
+Record non-context Harness decision and native completion observations with exact canonical rule revisions and hashed call/rule identities. Preserve incomplete and ambiguous evidence as unverified. Keep observer failures outside execution policy and reject late confirmation across session changes. Handler invocation does not establish task success or learning benefit.
+
+Distinguish complete raw Memory snapshots from truncated metadata. Record hash-only section preparation and native full-body result observations only after a unique retained result matches the complete revision through the current branch. Keep model attention, source truth and task benefit unverified; do not add body injection, source reads or mutation authority.
+
+Let retained Memory corrections add original-source evidence without retyping unchanged knowledge. Copy exact parent-frozen Markdown only for an omitted body under complete identity and source bindings. Reject empty bodies, changed repair context and unchanged text that requires correction. Preserve complete semantic review and failed learning outcomes.
+
+Clarify the outer and inner return annotations of a function that returns a callable. Keep the exact observed declaration, declared members and invocation result distinct. Retain the rejected real proposal and all source, consistency and correction checks.

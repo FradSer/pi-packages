@@ -14,7 +14,7 @@ def main() -> None:
     tests = Path(__file__).resolve().parent
     fixture = json.loads((tests / 'fixtures/real-memory-retrieval-ranking.json').read_text())
     node = shutil.which('node')
-    pi = tests.parents[2] / 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
+    pi = tests.parents[2] / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
     assert node and pi.is_file(), 'Installed workspace Pi CLI required'
     with tempfile.TemporaryDirectory(prefix='cl-native-retrieval-') as directory:
         root = Path(directory).resolve()
@@ -38,7 +38,7 @@ def main() -> None:
         env.update(HOME=str(root), PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE='1',
                    PI_RETRIEVAL_FIXTURE_AUTH=secrets.token_hex(16), PI_RETRIEVAL_FIXTURE_RESULT=str(result))
         version = subprocess.check_output([node, str(pi), '--version'], env=env, text=True).strip()
-        assert version == '1.2.0', 'Pi compatibility baseline changed'
+        assert version == '1.3.0', 'Pi compatibility baseline changed'
         command = [node, str(pi), '--no-session', '--offline', '--no-extensions', '--no-skills', '--no-prompt-templates',
                    '--no-context-files', '--no-themes', '--no-approve', '--no-builtin-tools',
                    '--extension', str(tests / 'memory-retrieval-live-fixture.ts'), '--provider', 'memory-retrieval-fixture',

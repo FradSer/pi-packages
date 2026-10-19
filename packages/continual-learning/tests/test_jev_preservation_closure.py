@@ -114,19 +114,32 @@ def test_normal_mutation_groups_keep_full_source_and_final_revocations() -> None
     assert value['result']['telemetry']['dimension'] == 'counterevidence'
 
 
-def test_normal_mutation_total_budget_covers_the_complete_bounded_candidate_matrix() -> None:
+def test_normal_mutation_total_budget_counts_isolated_coherence_before_transport() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const entries=Array.from({length:16},(_,i)=>({role:'toolResult',content:`Source ${i}. `+'x'.repeat(19000)}));
       const existing=Array.from({length:33},(_,i)=>({name:`record-${i}.md`,classification:'safe',type:'project',description:`Record ${i}`,content:`Old ${i}.`}));
       const candidates=existing.map((item,i)=>({kind:'rewrite',name:item.name,classification:'safe',content:`New ${i}.`,evidence:[{index:i%16,quote:`Source ${i%16}.`}]}));
       let calls=0;const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_u,init)=>{calls++;const r=JSON.parse(init.body);return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{const choice=key.startsWith('coherence_')||key.startsWith('counter_')?'compatible':key.startsWith('relation_')?'supplement':'grounded';return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}]}))}));}});
-      const complete=await judge.validate('memory',{contextEnabled:true,entries},candidates.slice(0,32),existing.slice(0,32));const completeCalls=calls;calls=0;
+      const complete=await judge.validate('memory',{contextEnabled:true,entries},candidates.slice(0,31),existing.slice(0,31));const completeCalls=calls;calls=0;
+      const requestBound=await judge.validate('memory',{contextEnabled:true,entries},candidates.slice(0,32),existing.slice(0,32));const requestBoundCalls=calls;calls=0;
+      const fullCandidates=candidates.slice(0,32).map((c,i)=>({...c,evidence:[{index:i%15,quote:`Source ${i%15}.`}]}));
+      const full=await judge.validate('memory',{contextEnabled:true,entries:entries.slice(0,15)},fullCandidates,existing.slice(0,32));const fullCalls=calls;calls=0;
       const oversized=await judge.validate('memory',{contextEnabled:true,entries},candidates,existing);
-      console.log(JSON.stringify({complete,completeCalls,oversized,oversizedCalls:calls}));
+      console.log(JSON.stringify({complete,completeCalls,requestBound,requestBoundCalls,full,fullCalls,oversized,oversizedCalls:calls}));
     ''')
     assert value['complete']['decision'] == 'allow'
-    assert value['completeCalls'] == 32 * (16 + 2)
+    # The original 576-request bound also counts the new body-only request.
+    assert value['completeCalls'] == 31 * (16 + 2) + 1
+    assert value['full']['decision'] == 'allow' and value['fullCalls'] == 32 * (15 + 2) + 1
+    assert value['requestBound']['decision'] == 'propose' and value['requestBoundCalls'] == 0
+    assert value['requestBound']['telemetry']['reason'] == 'bounds'
+    assert value['requestBound']['telemetry']['boundsKind'] == 'requests'
+    assert value['requestBound']['telemetry']['boundsCount'] == 577
+    assert value['requestBound']['telemetry']['requestCount'] == 0
+    assert value['requestBound']['telemetry']['completedRequests'] == 0
+    assert 'inputTokens' not in value['requestBound']['telemetry']
+    assert 'outputTokens' not in value['requestBound']['telemetry']
     assert value['complete']['telemetry']['completedWindows'] == 16
     assert value['oversizedCalls'] == 0
     assert value['oversized']['decision'] == 'propose'

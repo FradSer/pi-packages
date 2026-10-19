@@ -1,6 +1,6 @@
 /** Wire structure only. Parent validators remain the authority for all values. */
 type Schema = Record<string, unknown>;
-export type LearningOutputKind = "memory-selector" | "memory-delta" | "memory-amendment" | "memory-semantic-amendment" | "memory-combined-amendment" | "memory-body-review";
+export type LearningOutputKind = "memory-selector" | "memory-delta" | "memory-amendment" | "memory-semantic-amendment" | "memory-combined-amendment" | "memory-retained-amendment" | "memory-body-review";
 const string: Schema = {type: "string"};
 const integer = (minimum: number): Schema => ({type: "integer", minimum});
 const object = (properties: Record<string, Schema>, required: string[]): Schema => ({type: "object", properties, required, additionalProperties: false});
@@ -26,16 +26,17 @@ const citationSchema = (domain?: MemoryCitationDomain, referenceOverride?: Schem
 const classification: Schema = {type: "string", enum: ["safe", "private"]};
 const observations = array(object({path: string, status: {type: "string", enum: ["found", "missing", "updated"]}}, ["path", "status"]), 1, 32);
 const memoryDocument: Schema = {...string, description: "Complete Markdown including name/description/type frontmatter and a non-empty grounded knowledge body; discovery metadata alone is not a body", pattern: "^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n[\\s\\S]*\\S[\\s\\S]*$"};
-const operationSchema = (evidence: Schema): Schema => {
+const operationSchema = (evidence: Schema, retainedBodyReuse = false): Schema => {
 const common = {name: string, classification, evidence, observations};
 return {anyOf: [
-  object({...common, kind: {type: "string", const: "rewrite"}, content: memoryDocument, contentSha256: string}, ["name", "kind", "classification", "content", "evidence"]),
+  object({...common, kind: {type: "string", const: "rewrite"}, content: memoryDocument, contentSha256: string}, ["name", "kind", "classification", ...(retainedBodyReuse ? [] : ["content"]), "evidence"]),
   object({...common, kind: {type: "string", const: "delete"}, verdict: {type: "string", enum: ["CONTRADICTED", "SUPERSEDED", "SUBSUMED"]}, preservedIn: array(string, 1)}, ["name", "kind", "classification", "verdict", "preservedIn", "evidence"]),
 ]};
 };
 const identity = {runId: string, scopeKey: string, scopeDigest: string, artifactHash: string, snapshotDigest: string};
 
-export function learningOutputSchema(kind: unknown, domain?: MemoryCitationDomain, candidateIds?: readonly string[], bodyCount?: number): Schema | undefined {
+export function learningOutputSchema(kind: unknown, domain?: MemoryCitationDomain, candidateIds?: readonly string[], bodyCount?: number,
+  withdrawalCandidateIds?: readonly string[]): Schema | undefined {
   if (kind === "memory-body-review") {
     if (!Number.isSafeInteger(bodyCount) || bodyCount! < 1 || bodyCount! > 32) throw new Error("Invalid complete Memory body count");
     const judgment = object({verdict: {type: "string", enum: ["consistent", "contradictory", "uncertain"]},
@@ -52,11 +53,11 @@ export function learningOutputSchema(kind: unknown, domain?: MemoryCitationDomai
   const withReference = (schema: Schema): Schema => domain?.refs.length
     ? {...schema, $defs: {memorySourceReference: {type: "string", enum: domain.refs}}} : schema;
   const evidence = array(citationSchema(empty ? undefined : domain, reference), 1, 8);
-  const operation = operationSchema(evidence);
+  const operation = operationSchema(evidence, kind === "memory-retained-amendment" || kind === "memory-combined-amendment");
   if (kind === "memory-selector") return object({
     selectedIndices: array(integer(0)), memory: {type: "boolean"}, harness: {type: "boolean"}, agents: {type: "boolean"}, reason: string,
   }, ["selectedIndices", "memory", "harness", "agents", "reason"]);
-  if (kind === "memory-delta") return withReference(object({kind: {type: "string", const: "incremental-memory-plan"}, version: {type: "integer", const: 1}, schemaVersion: {type: "integer", const: 1}, ...identity,
+  if (kind === "memory-delta" || kind === "memory-retained-amendment") return withReference(object({kind: {type: "string", const: "incremental-memory-plan"}, version: {type: "integer", const: 1}, schemaVersion: {type: "integer", const: 1}, ...identity,
     operations: array(operation, undefined, empty ? 0 : undefined), newMemories: array({anyOf: [object({name: string, kind: {type: "string", enum: ["project", "preference"]}, classification, content: memoryDocument, evidence}, ["name", "kind", "content", "evidence"]),
       object({name: string, kind: {type: "string", const: "project"}, classification: {type: "string", const: "private"}, sourceExcerpt: object({ref: reference, endRef: reference}, ["ref"]), evidence}, ["name", "kind", "classification", "sourceExcerpt", "evidence"])]}, undefined, empty ? 0 : undefined),
   }, ["kind", "version", "schemaVersion", ...Object.keys(identity), "operations", "newMemories"]));
@@ -84,15 +85,27 @@ export function learningOutputSchema(kind: unknown, domain?: MemoryCitationDomai
         {required: ["sourceExcerpt", "evidence"], not: {required: ["content"]}},
       ];
     }
+    const withdrawalIds = withdrawalCandidateIds ?? [];
+    if (withdrawalIds.length && (!inheritedSources || new Set(withdrawalIds).size !== withdrawalIds.length
+      || withdrawalIds.some(id => !/^newMemories:\d+:[a-f0-9]{64}$/.test(id) || !candidateIds?.includes(id)))) {
+      throw new Error("Invalid parent Memory withdrawal domain");
+    }
+    const withdrawal = object({candidateId: {type: "string", enum: withdrawalIds},
+      candidateRef: {type: "string", enum: withdrawalIds.map(id => id.slice(0, id.lastIndexOf(":")))},
+      reason: {type: "string", enum: ["insufficient-evidence", "not-reusable"]}}, ["reason"]);
+    withdrawal.anyOf = [{required: ["candidateId"], not: {required: ["candidateRef"]}},
+      {required: ["candidateRef"], not: {required: ["candidateId"]}}];
     const schema = object({kind: {type: "string", const: "incremental-memory-amendment"}, version: {type: "integer", const: 1}, ...identity,
       replacements: array(patch, undefined, empty || candidateIds?.length === 0 ? 0 : undefined),
+      ...(withdrawalIds.length ? {withdrawals: array(withdrawal, 0, 32)} : {}),
       ...(kind === "memory-combined-amendment" ? {operations: array(operation, undefined, empty ? 0 : undefined)} : {}),
     }, ["kind", "version", ...Object.keys(identity), "replacements", ...(kind === "memory-combined-amendment" ? ["operations"] : [])]);
     // Combined patches cover both sets, or explicitly decline all correction.
     // Shape cannot prove complete names/IDs or source support; the parent does.
     if (kind === "memory-combined-amendment") schema.anyOf = [
       {properties: {replacements: {minItems: 1}, operations: {minItems: 1}}},
-      {properties: {replacements: {maxItems: 0}, operations: {maxItems: 0}}},
+      {properties: {replacements: {maxItems: 0}, operations: {maxItems: 0}, ...(withdrawalIds.length ? {withdrawals: {maxItems: 0}} : {})}},
+      ...(withdrawalIds.length ? [{required: ["withdrawals"], properties: {withdrawals: {minItems: 1}, operations: {minItems: 1}}}] : []),
     ];
     return withReference(schema);
   }

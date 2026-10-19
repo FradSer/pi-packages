@@ -31,6 +31,7 @@ import {
   extractChildPlan,
   containsSensitiveMemoryMaterial,
   sha256Digest,
+  readBoundedRegularFile,
   terminateConsolidationChild,
   writeFileAtomic,
   MAX_JSONL_LINE_BYTES,
@@ -561,15 +562,17 @@ interface AgentsRecoveryReceipt {
 }
 
 async function readRegularFileIfExists(filePath: string, maxBytes: number): Promise<Buffer | null> {
+  let st;
   try {
-    const st = await fs.lstat(filePath);
-    if (!st.isFile()) return null;
-    if (st.size > maxBytes) throw new Error(`AGENTS.md exceeds ${maxBytes} bytes; refusing to plan against it`);
-    return await fs.readFile(filePath);
+    st = await fs.lstat(filePath);
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+  if (!st.isFile()) throw new Error(`AGENTS consolidation target is not a regular file: ${filePath}`);
+  // A disappearance after this observation is a read failure, not an absent target.
+  // The shared reader refuses final-component symlinks and bounds descriptor reads.
+  return readBoundedRegularFile(filePath, maxBytes);
 }
 
 async function readSnapshotText(run: ConsolidationRun): Promise<string> {
@@ -1029,7 +1032,8 @@ async function planAgentsMdConsolidationPhaseInternal(
   if (!docBytes) {
     const detail = "no project AGENTS.md found";
     notifyPi(ctx.ui, "AGENTS.md consolidation: no project AGENTS.md found; nothing to consolidate.", "info");
-    return { outcome: "skipped", durationMs: durationMs(), detail };
+    // No project document is a completed no-op, unlike a protected target.
+    return { outcome: "noop", durationMs: durationMs(), detail };
   }
   const preBytes = docBytes.byteLength;
   const doc = docBytes.toString("utf8");

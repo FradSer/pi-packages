@@ -215,6 +215,15 @@ Feature: Memory management with automatic learning and manual consolidation
     When the parent validates the plan
     Then the proposal is rejected before any root is mutated
 
+  Scenario: A documentation placeholder in text is not a secret in either detector
+    Given tracked source text carries a plain or quoted credential placeholder
+    When the Memory guard and the Jev preflight judge the same text
+    Then both treat that placeholder as non-sensitive
+    And a realistic assigned value, a provider key, or a delimited value containing punctuation, the other quote type or an escape is refused by both
+    And a quoted URL is not a credential in either detector
+    And a credential-named structured member or object key is strict in both detectors
+    And no placeholder allowlist entry is added and no secret value class is loosened
+
   Scenario: New memory writes roll back with existing memory writes
     Given a transaction contains an existing rewrite and a new memory proposal
     When a later write or index update fails

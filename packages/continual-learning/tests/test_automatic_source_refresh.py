@@ -65,7 +65,7 @@ def test_native_automatic_source_refresh_applies_current_source_without_keyword_
 def test_native_held_memory_stops_later_model_workers(tmp_path):
     from live_automatic_source_refresh import run
     result = run(tmp_path / 'held', 'held-later')
-    assert result['piVersion'] == '1.2.0'
+    assert result['piVersion'] == '1.3.0'
     assert result['receipt']['operations'] == 0
     assert 'harness-noop' not in result['kinds']
     assert result['externalRequests'] == result['paidRequests'] == 0

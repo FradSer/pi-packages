@@ -3,10 +3,10 @@ from support import isolated_run_bun
 
 def test_generation_prompts_require_claim_specific_original_citations() -> None:
     value = isolated_run_bun(r'''
-      import {buildIncrementalMemoryConsolidatorPrompt,buildMemoryConsolidatorPrompt,MEMORY_CITATION_GUIDANCE} from './packages/continual-learning/extensions/planner-prompts.ts';
+      import {buildIncrementalMemoryConsolidatorPrompt,buildMemoryConsolidatorPrompt,MEMORY_CITATION_GUIDANCE,MEMORY_KNOWLEDGE_GUIDANCE} from './packages/continual-learning/extensions/planner-prompts.ts';
       const bindings={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h',dossierPath:'d.json',pkgDir:'pkg',runDir:'run',snapshotPath:'s.json',harnessDir:'private',publicDir:'public',repoRoot:'repo'};
       const prompts=[buildIncrementalMemoryConsolidatorPrompt(bindings),buildMemoryConsolidatorPrompt(bindings)];
-      console.log(JSON.stringify({guidance:MEMORY_CITATION_GUIDANCE,prompts}));
+      console.log(JSON.stringify({guidance:MEMORY_CITATION_GUIDANCE,knowledge:MEMORY_KNOWLEDGE_GUIDANCE,prompts}));
     ''')
     guidance = value['guidance']
     assert 'future-task instruction does not prove a verified current state' in guidance
@@ -23,6 +23,15 @@ def test_generation_prompts_require_claim_specific_original_citations() -> None:
     assert 'work already queued at the inspected completion check' in guidance
     assert 'caller-facing Promise continuations' in guidance
     assert 'instantaneous empty state' in guidance
+    assert 'pipeline or output filter does not establish' in guidance
+    assert 'upstream command' in guidance
+    # V95 treated an assertion label as the actual outstanding work.
+    # This checks delivery only; real generation and later tasks remain required.
+    assert 'failure message is an observed label, not proof of its named mechanism' in guidance
+    assert 'trace the awaited reactions, completed callbacks and unreleased work' in guidance
+    assert 'quote the message as output and keep the actual blocking state unresolved' in guidance
+    assert 'source-scoped observation' in value['knowledge']
+    assert 'unsupported or obsolete draft claims' in value['knowledge']
     assert all(guidance in prompt for prompt in value['prompts'])
     # Given an evidenced maintenance purpose, When choosing a new record format,
     # Then keep that purpose alongside exact source, without inventing behavior.

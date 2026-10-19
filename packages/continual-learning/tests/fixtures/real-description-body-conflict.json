@@ -3,5 +3,140 @@
   "sourceRun": "continuous-reviewed-permission-facts/cohort/20261013T105036Z-e52f0ab29517",
   "filename": "limit-function-type-contract.md",
   "content": "---\ndescription: limitFunction d.ts type contract: input fn returns PromiseLike, wrapper returns Promise & Pick<LimitFunction,'clearQueue'>\ntype: project\n---\n`limitFunction` in `index.d.ts` declares this type-level contract:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n  function_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n  options: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nType-level facts from the declaration:\n- Input `function_` returns `PromiseLike<ReturnType>`.\n- The returned callable produces `Promise<ReturnType>`.\n- The return type is an intersection with `Pick<LimitFunction, 'clearQueue'>`, including only `clearQueue` from `LimitFunction`.\n- The second parameter `options` is typed as `Options`; its `concurrency` is a required readonly number and `rejectOnClear` is an optional readonly boolean.\n",
-  "revision": "53116612849ac57e9b8d6a5aed2b8798333b0149025aa21a51c1a861ca81267d"
+  "revision": "53116612849ac57e9b8d6a5aed2b8798333b0149025aa21a51c1a861ca81267d",
+  "correctionScopeCase": {
+    "sourceRun": "continuous-reviewed-deepseek-pi13-purpose-contract-v79/cohort/20261018T183449Z-a73d51d6cd5d",
+    "provenance": "Actual public proposal and submitted correction. Parent restored the old description before fresh independent review held it. Offline regression only; never seed a learning arm.",
+    "original": {
+      "name": "limitfunction-type-contract.md",
+      "kind": "project",
+      "classification": "safe",
+      "content": "---\nname: limitfunction-type-contract\ndescription: limitFunction is declared in index.d.ts to return a callable yielding Promise<ReturnType> and clearQueue\ntype: project\n---\n\nFrom `/work/p-limit/index.d.ts`, the declared public contract is:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe `options` parameter uses the `Options` type declared in the same file:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\n**Why**: The user requested retaining the currently inspected `limitFunction` public input/output type contract for future maintenance, grounded in the actual declarations.\n\n**How to apply**: Treat it as the declared contract when reviewing or changing `limitFunction`. The declared `function_` parameter returns `PromiseLike<ReturnType>`; the returned callable is declared to yield `Promise<ReturnType>` and to expose `clearQueue` (picked from `LimitFunction`). This is a type-level declaration, not a runtime guarantee.\n",
+      "evidence": [
+        {
+          "ref": "e5.b0.l135",
+          "endRef": "e5.b0.l138"
+        },
+        {
+          "ref": "e5.b0.l93",
+          "endRef": "e5.b0.l109"
+        },
+        {
+          "ref": "e0.b0.l13"
+        }
+      ]
+    },
+    "submittedContent": "---\nname: limitfunction-type-contract\ndescription: limitFunction is declared in index.d.ts to return a callable yielding Promise<ReturnType>\ntype: project\n---\n\nIn `/work/p-limit/index.d.ts`, `limitFunction` is declared as:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe `function_` parameter's declared type is `(...arguments_: Arguments) => PromiseLike<ReturnType>`. The `options` parameter's declared type is `Options`:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\nThe returned value is declared as the intersection `((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>`: a callable whose invocation result is `Promise<ReturnType>`, intersected with the `clearQueue` member picked from `LimitFunction`.\n\n**Why**: The user requested retaining the currently inspected `limitFunction` public input/output type contract for future maintenance.\n\n**How to apply**: Use this declared contract as the reference for the `limitFunction` public API. These are type-level declarations, not a runtime guarantee.\n",
+    "parentMergedContent": "---\nname: limitfunction-type-contract\ndescription: limitFunction is declared in index.d.ts to return a callable yielding Promise<ReturnType> and clearQueue\ntype: project\n---\n\nIn `/work/p-limit/index.d.ts`, `limitFunction` is declared as:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe `function_` parameter's declared type is `(...arguments_: Arguments) => PromiseLike<ReturnType>`. The `options` parameter's declared type is `Options`:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\nThe returned value is declared as the intersection `((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>`: a callable whose invocation result is `Promise<ReturnType>`, intersected with the `clearQueue` member picked from `LimitFunction`.\n\n**Why**: The user requested retaining the currently inspected `limitFunction` public input/output type contract for future maintenance.\n\n**How to apply**: Use this declared contract as the reference for the `limitFunction` public API. These are type-level declarations, not a runtime guarantee.\n",
+    "artifactHashes": {
+      "semantic-rejected-plan.json": "896df60ee27e80f3332e80aee7d28aca4efd6ab2bbc57fd173253596fde8e924",
+      "repair-response.json": "330a124a4c70ffa4002a70d1b8708856d5262aa12bd2a57ba01df3fae94e1d0b",
+      "semantic-repair-plan.json": "981d4b8d7a1b2d30bef12bd805b1dc8a150eeb2f36bfe5e87ac2b85273883f07"
+    }
+  },
+  "declarationCoherenceCase": {
+    "source": "V81 public p-limit automatic Memory; original and repaired content, not a reconstructed historical wire or accepted Memory.",
+    "archiveSha256": "821aa89a7d2110d8c980afaf32959d040037d68b7f32f663548c04eb3f9b0497",
+    "original": {
+      "name": "limitfunction-declared-contract.md",
+      "kind": "project",
+      "classification": "safe",
+      "content": "---\nname: limitfunction-declared-contract\ndescription: p-limit index.d.ts declares limitFunction's public input/output type contract\ntype: project\n---\n\n`/work/p-limit/index.d.ts` declares:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe referenced input type is declared in the same file:\n\n```ts\nexport type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};\n```\n\n**Why**: The user asked to remember the currently inspected `limitFunction` public input/output type contract for future maintenance, grounded in the actual declarations.\n\n**How to apply**: When maintaining the `limitFunction` API, treat these as the declared type-level input and output contracts. A declaration establishes a type-level contract, not runtime verification or absence of undeclared properties.\n",
+      "evidence": [
+        {
+          "index": 0,
+          "quote": "Read index.js, public declarations and selected existing tests. Run pnpm test once. Do not edit files. Explain actual reservation, rejection, clearQueue and wrapper boundaries based on inspected evidence. Remember the currently inspected limitFunction public input/output type contract for future maintenance, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+          "role": "user"
+        },
+        {
+          "index": 5,
+          "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+          "role": "toolResult"
+        },
+        {
+          "index": 5,
+          "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+          "role": "toolResult"
+        }
+      ]
+    },
+    "repairedContent": "---\nname: limitfunction-declared-contract\ndescription: index.d.ts declares limitFunction's parameter and return types\ntype: project\n---\n\n`index.d.ts` declares:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe `options` parameter uses this declared `Options` type:\n\n```ts\nexport type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};\n```\n\n**Why**: The user asked to remember the currently inspected `limitFunction` public input/output type contract for future maintenance, grounded in the actual declarations.\n\n**How to apply**: When maintaining the `limitFunction` API, treat these as the declared type-level input and output contracts.\n",
+    "observedCoherence": {
+      "initial": {
+        "compatible": 0.85,
+        "confidence": 0.77
+      },
+      "repair": {
+        "compatible": 0.88,
+        "confidence": 0.82
+      }
+    },
+    "independentBodyVerdict": "consistent",
+    "JevInternalCauseEstablished": false
+  },
+  "nestedReturnRoleCase": {
+    "provenance": {
+      "cohort": "20261019T022212Z-abe6edf15e62",
+      "runId": "run_mvemt0u0_2e450dd6adba8a18",
+      "archiveSha256": "f7d85739b63ac7ab54fc3e02c04730f7e63db585a428be8fd82b8afabd763920",
+      "scope": "Exact closed initial plan and repair before later backfill; old original remains rejected; no authority or learning benefit"
+    },
+    "original": {
+      "name": "plimit-limitfunction-contract.md",
+      "kind": "project",
+      "classification": "safe",
+      "content": "---\nname: plimit-limitfunction-contract\ndescription: In p-limit, limitFunction's declared input and return contract in index.d.ts\ntype: project\n---\n`index.d.ts` declares the `limitFunction` API (declared/type-level contract, not a runtime verification):\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```\n\nIts `options` parameter is `Options`:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\nThe declared return type is the intersection of the variadic callable `(...arguments_: Arguments) => Promise<ReturnType>` and the `LimitFunction` members `clearQueue: () => void` and `onIdle: () => Promise<void>`; the return-type annotation describes the invocation result, not the returned callable itself. The `function_` parameter is declared to return `PromiseLike<ReturnType>`.\n",
+      "evidence": [
+        {
+          "index": 7,
+          "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tclearQueue: () => void;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tonIdle: () => Promise<void>;",
+          "role": "toolResult"
+        }
+      ]
+    },
+    "repair": {
+      "name": "plimit-limitfunction-contract.md",
+      "kind": "project",
+      "classification": "safe",
+      "content": "---\nname: plimit-limitfunction-contract\ndescription: In p-limit, limitFunction's declared input and return contract in index.d.ts\ntype: project\n---\n`index.d.ts` declares the `limitFunction` API (declared/type-level contract, not a runtime verification):\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```\n\nIts `options` parameter is `Options`:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\nThe declared return type describes the returned callable: the intersection of the variadic `(...arguments_: Arguments) => Promise<ReturnType>` and `Pick<LimitFunction, 'clearQueue' | 'onIdle'>`; invoking that returned callable yields `Promise<ReturnType>`. The picked `LimitFunction` members are `clearQueue: () => void` and `onIdle: () => Promise<void>`. The `function_` parameter is declared to return `PromiseLike<ReturnType>`.\n",
+      "evidence": [
+        {
+          "index": 7,
+          "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tclearQueue: () => void;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tonIdle: () => Promise<void>;",
+          "role": "toolResult"
+        }
+      ]
+    },
+    "ambiguousGenerationRule": "A return-type annotation describes the invocation result, not the callable itself."
+  }
 }

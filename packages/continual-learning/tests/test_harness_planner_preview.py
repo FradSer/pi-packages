@@ -45,7 +45,7 @@ def test_actual_pi_worker_exposes_case_preview_and_repairs_real_mismatch(tmp_pat
     ''')
     env = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'LC_ALL')}
     env.update(HOME=str(tmp_path), PI_CODING_AGENT_DIR=str(tmp_path / 'agent'), PI_OFFLINE='1')
-    result = subprocess.run(['node', str(repo / 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'),
+    result = subprocess.run(['node', str(repo / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'),
         '--offline', '--no-extensions', '--no-context-files', '--no-skills', '--no-prompt-templates', '--no-themes',
         '--tools', 'learning_read,harness_check_cases', *args, '-e', str(Path(__file__).with_name('harness-planner-preview-live-fixture.ts')),
         '--provider', 'preview-fixture', '--model', 'fixed', '--thinking', 'off', '--no-session', '--print', '--mode', 'json', 'Check proposed cases.'],

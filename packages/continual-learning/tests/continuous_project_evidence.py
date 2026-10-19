@@ -1,6 +1,7 @@
 """Evidence checks for the real study; these never create learned state."""
 from __future__ import annotations
 import hashlib
+import base64
 import copy
 import json
 import posixpath
@@ -76,14 +77,304 @@ def exact_failure_processed(feedback: dict, learning: dict) -> bool:
     return acknowledged and observed
 
 
+def initial_learning_continuation(stage: dict, *, verified_failure_learning: bool) -> bool:
+    """A prospective safety/learning gate never changes original task outcomes."""
+    arms=stage.get('arms',{});control=arms.get('without-learning',{});learner=arms.get('with-learning',{})
+    if learner.get('validLearning') is not True:return False
+    if not verified_failure_learning:return control.get('passed') is True and learner.get('passed') is True
+    control_audit=control.get('failureMemoryAudit') or {};learner_audit=learner.get('failureMemoryAudit') or {}
+    return (control_audit.get('mode')=='observed-failure-source-safety' and control_audit.get('passed') is True
+            and learner_audit.get('mode') in ('observed-failure-record','observed-failure-feedback-record')
+            and learner_audit.get('passed') is True)
+
+
 def verifier_observation(task: str, verification: dict, output: Path, source_hashes: dict, session: bytes, *, inference: dict | None = None) -> dict:
-    logs={name:(output/(name+'.log')).read_text() for name in ('hidden','types','upstream') if (output/(name+'.log')).exists()}
+    logs={name:(output/(name+'.log')).read_text() for name in ('hidden','types','upstream','public-reproducer') if (output/(name+'.log')).exists()}
     if sum(len(text.encode()) for text in logs.values()) > 1_000_000:
         raise ValueError('Verifier evidence exceeds bound; do not truncate it')
     return {'kind':'actual-project-verification','task':task,'verification':copy.deepcopy(verification),'logs':logs,
             'sourceHashes':copy.deepcopy(source_hashes),'sessionDigest':hashlib.sha256(session).hexdigest(),
             'logsDigest':hashlib.sha256(json.dumps(logs,sort_keys=True).encode()).hexdigest(),
             **({'taskOutcome':task_outcome(inference,verification)} if inference is not None else {})}
+
+
+def _failure_memory_corpus(state: dict) -> None:
+    entries = state['memoryEntries']
+    if not entries:
+        raise ValueError('Missing complete Memory corpus')
+    bodies = {}
+    for entry in entries:
+        name, body, digest = entry['filename'], entry['content'], entry['revision']
+        if (not isinstance(name, str) or Path(name).name != name or name == 'MEMORY.md'
+                or not name.endswith('.md') or name in bodies or not isinstance(body, str)
+                or not body.strip() or hashlib.sha256(body.encode()).hexdigest() != digest):
+            raise ValueError('Invalid complete Memory entry')
+        bodies[name] = digest
+    seen = set()
+    for key, snapshot in state['surfaceSnapshots'].items():
+        if not snapshot.get('revision'):
+            raise ValueError('Missing physical surface identity')
+        prefix = next((p for p in ('private/', 'project/.memory/') if key.startswith(p)), None)
+        if prefix is None or key[len(prefix):] == 'MEMORY.md':
+            continue
+        name = key[len(prefix):]
+        if (name not in bodies or snapshot['digest'] != bodies[name]
+                or hashlib.sha256(base64.b64decode(snapshot['bytes'], validate=True)).hexdigest() != bodies[name]):
+            raise ValueError('Memory corpus and retained surfaces differ')
+        seen.add(name)
+    if seen != set(bodies):
+        raise ValueError('Incomplete retained Memory corpus')
+
+
+def _failure_native_observation(value: dict, text: dict[str, str], session: bytes, prompt: str, failed: bool, *, require_reproducer: bool = True) -> str:
+    if (not session.endswith(b'\n') or value['kind'] != 'actual-project-verification'
+            or hashlib.sha256(session).hexdigest() != value['sessionDigest']):
+        raise ValueError('Changed native session evidence')
+    rows = [json.loads(line) for line in session.decode('utf-8').splitlines()]
+    if (not rows or rows[0].get('type') != 'session' or rows[0].get('cwd') != '/work/p-limit'
+            or not isinstance(rows[0].get('id'), str) or not rows[0]['id']):
+        raise ValueError('Missing native session identity')
+    seen = {rows[0]['id']}
+    parent = None
+    for row in rows[1:]:
+        if (not isinstance(row.get('id'), str) or not row['id'] or row['id'] in seen
+                or 'parentId' not in row or row['parentId'] != parent):
+            raise ValueError('Incomplete native parent chain')
+        seen.add(row['id'])
+        parent = row['id']
+    deadline = task_deadline_evidence(rows, required=True)
+    if deadline['taskDeadlineMissing'] or deadline['taskDeadlineExceeded']:
+        raise ValueError('Incomplete successful main lifecycle')
+    lifecycle = [index for index, row in enumerate(rows) if row.get('customType') == 'continuous-study-task-deadline']
+    main_rows = [index for index, row in enumerate(rows) if row.get('message', {}).get('role') in ('user', 'assistant', 'toolResult')]
+    if not main_rows or not lifecycle[0] < min(main_rows) <= max(main_rows) < lifecycle[1]:
+        raise ValueError('Main task lies outside its native lifecycle')
+    users = [row['message'] for row in rows if row.get('message', {}).get('role') == 'user']
+    if (not isinstance(prompt, str) or not prompt.strip() or len(users) != 1
+            or users[0].get('content') != [{'type': 'text', 'text': prompt}]):
+        raise ValueError('Unexpected original task')
+    calls, results = {}, {}
+    last_assistant = None
+    for index, row in enumerate(rows):
+        message = row.get('message', {})
+        if message.get('role') == 'assistant':
+            last_assistant = message
+            if message.get('stopReason') in ('error', 'aborted'):
+                raise ValueError('Failed model task')
+            for part in message.get('content', []):
+                if part.get('type') != 'toolCall':
+                    continue
+                if not isinstance(part.get('id'), str) or not part['id'] or part['id'] in calls:
+                    raise ValueError('Ambiguous native tool call')
+                calls[part['id']] = (index, part)
+        elif message.get('role') == 'toolResult':
+            key = message.get('toolCallId')
+            if key not in calls or key in results or message.get('toolName') != calls[key][1].get('name'):
+                raise ValueError('Orphan or ambiguous native result')
+            results[key] = (index, message)
+    if (not calls or set(calls) != set(results) or last_assistant is None
+            or last_assistant.get('stopReason') != 'stop'):
+        raise ValueError('Incomplete native task/tool results')
+    reproductions = [key for key, (_, call) in calls.items()
+                    if call.get('name') == 'bash' and isinstance(call.get('arguments'), dict)
+                    and call['arguments'].get('command', '').strip() == 'node observed-idle-failure.mjs']
+    if require_reproducer and (not reproductions or results[reproductions[-1]][1].get('isError') is not failed
+            or not results[reproductions[-1]][1].get('content')):
+        raise ValueError('Actual final public reproducer result required')
+    if (not value['logs'] or value['logsDigest'] != hashlib.sha256(json.dumps(value['logs'], sort_keys=True).encode()).hexdigest()
+            or re.fullmatch(r'[a-f0-9]{64}', value['sessionDigest']) is None):
+        raise ValueError('Missing or changed observation identity/logs')
+    inventory = {name: digest for name, digest in value['sourceHashes'].items()
+                 if name != '__configuration_paths__' and not name.startswith(('.memory/', '.pi/'))}
+    if set(text) != set(inventory) or not {'index.js', 'index.d.ts', 'observed-idle-failure.mjs', 'package.json'}.issubset(text):
+        raise ValueError('Complete bound source inventory required')
+    for name, body in text.items():
+        if (not isinstance(body, str) or hashlib.sha256(body.encode()).hexdigest() != inventory[name]
+                or Path(name).is_absolute() or '..' in Path(name).parts):
+            raise ValueError('Observation and complete source differ')
+    return rows[0]['id']
+
+
+def source_task_audit_input(observation: dict, sources: dict[str, str], session: bytes, prompt: str,
+                            starting_sources: dict[str, str], starting_hashes: dict) -> dict:
+    """Bind full task review to its actual native branch and complete revisions."""
+    try:
+        _failure_native_observation(observation, sources, session, prompt, False, require_reproducer=False)
+        inventory = {name: digest for name, digest in starting_hashes.items()
+                     if name != '__configuration_paths__' and not name.startswith(('.memory/', '.pi/'))}
+        if set(starting_sources) != set(inventory) or any(hashlib.sha256(body.encode()).hexdigest() != inventory[name]
+                                                        for name, body in starting_sources.items()):
+            raise ValueError('Incomplete task starting source')
+        if observation['verification']['passed'] is not True:
+            raise ValueError('Independent source checks failed')
+        return {'mode': 'observed-project-task', 'observation': copy.deepcopy(observation),
+                'sources': dict(sources), 'startingSources': dict(starting_sources),
+                'startingSourceHashes': inventory, 'nativeSession': session.decode(), 'prompt': prompt,
+                'mutationAuthority': False, 'learningBenefitEstablished': False}
+    except (KeyError, TypeError, ValueError, AttributeError) as error:
+        raise ValueError('Incomplete or misbound source task evidence') from error
+
+
+def failure_record_audit_input(prior: dict, current: dict, observation: dict, sources: dict[str, str],
+                               session: bytes, protocol: dict, *, diagnosis_only: bool = False) -> dict:
+    """Bind fresh diagnosis and optional meaningful initial failure knowledge."""
+    return _initial_failure_audit_input(prior,current,observation,sources,session,protocol,
+                                        diagnosis_only=diagnosis_only,require_diagnosis=True)
+
+
+def failure_source_safety_audit_input(prior: dict, current: dict, observation: dict, sources: dict[str, str],
+                                     session: bytes, protocol: dict) -> dict:
+    """Review a failed control's read-only source safety, never its task success."""
+    result=_initial_failure_audit_input(prior,current,observation,sources,session,protocol,
+                                        diagnosis_only=True,require_diagnosis=False)
+    return {**result,'mode':'observed-failure-source-safety'}
+
+
+def failure_feedback_audit_input(prior: dict, current: dict, observation: dict, sources: dict[str, str],
+                                session: bytes, protocol: dict, feedback: dict, feedback_evidence: dict) -> dict:
+    """Bind a separate post-failure learning review to native observed feedback.
+
+    The SDK runner must recompute the native observation proof before transport.
+    These structural checks do not replace that proof or semantic review.
+    """
+    try:
+        result=_initial_failure_audit_input(prior,current,observation,sources,session,protocol,
+                                            diagnosis_only=False,require_diagnosis=False)
+        queued=feedback['queuedFailure'];proof=feedback['failureObservationProof']
+        raw=feedback_evidence['currentSession']
+        if (observation.get('taskOutcome',{}).get('passed') is not False
+                or feedback_evidence['originalSession']!=session.decode()
+                or not isinstance(raw,str) or not raw.startswith(session.decode())
+                or not raw.endswith('\n') or json.loads(feedback_evidence['verifierText'])!=observation
+                or feedback.get('observation')!=observation or feedback_evidence['queued']!=queued
+                or feedback_evidence['sourceBefore']!=observation['sourceHashes']
+                or feedback_evidence['sourceAfter']!=observation['sourceHashes']
+                or feedback_evidence['explicitBackfills']!=0
+                or proof.get('ready') is not True or proof.get('backlogDigest')!=queued['digest']
+                or proof.get('sessionDigest')!=hashlib.sha256(raw.encode()).hexdigest()
+                or not all(feedback.get(key) is True for key in ('originalObservationsPreserved','verifierObserved','taskSourceUnchanged'))
+                or not exact_failure_processed(feedback,current) or current['pendingLearningJobs']!=0
+                or any(current['backlogStatus'].get(key) for key in ('error','malformed','unlearnable','unscoped'))):
+            raise ValueError('Incomplete observed failure processing')
+        expected_range={key:queued[key] for key in ('from','to','digest')}
+        if not any(attempt.get('outcome')=='completed'
+                   and current['completedBacklog'].get(queued['id'])==attempt.get('receiptDigest')
+                   and (value:=attempt.get('receipt',{}).get('input',{})).get('backlogId')==queued['id']
+                   and value.get('sourceDigest')==proof['sessionDigest']
+                   and value.get('backlogRange')==expected_range
+                   and value.get('entryCount')==queued['to']-queued['from']+1
+                   for attempt in current['attempts']):
+            raise ValueError('Missing exact acknowledged native failure receipt')
+        return {**result,'mode':'observed-failure-feedback-record','feedback':copy.deepcopy(feedback),
+                'feedbackEvidence':copy.deepcopy(feedback_evidence),'originalTaskPassed':False}
+    except (KeyError,TypeError,ValueError,AttributeError) as error:
+        raise ValueError('Incomplete or misbound post-failure learning evidence') from error
+
+
+def _initial_failure_audit_input(prior: dict, current: dict, observation: dict, sources: dict[str, str],
+                                 session: bytes, protocol: dict, *, diagnosis_only: bool, require_diagnosis: bool) -> dict:
+    from recovery_integrity import verify_recovery_delta
+    try:
+        if any(prior[key] for key in ('memoryEntries', 'surfaceSnapshots', 'history', 'attempts')):
+            raise ValueError('Initial learned state is not empty')
+        inventory = protocol['initialSourceManifest']['files']
+        if (set(sources) != set(inventory) or any(hashlib.sha256(sources[name].encode()).hexdigest() != metadata['sha256']
+                                                 for name, metadata in inventory.items())):
+            raise ValueError('Read-only diagnosis source changed')
+        _failure_native_observation(observation, sources, session, protocol['originalPrompt'], True,
+                                    require_reproducer=require_diagnosis)
+        rows = [json.loads(line) for line in session.decode().splitlines()]
+        calls = [part for row in rows if row.get('message', {}).get('role') == 'assistant'
+                 for part in row['message'].get('content', []) if part.get('type') == 'toolCall']
+        for command, failed in ((('node observed-idle-failure.mjs', True), ('pnpm test', False)) if require_diagnosis else ()):
+            matches = [call for call in calls if call.get('name') == 'bash' and isinstance(call.get('arguments'), dict)
+                       and call['arguments'].get('command', '').strip() == command]
+            if len(matches) != 1 or not any(row.get('message', {}).get('toolCallId') == matches[0]['id']
+                    and row['message'].get('isError') is failed for row in rows):
+                raise ValueError('Actual once-only diagnostic and upstream results required')
+        checks = observation['verification']
+        if (checks['publicReproducer'] != {'passed': False, 'exitCode': 1}
+                or checks['behavior'] != {'passed': False, 'exitCode': 1}
+                or checks['existingChecksPreserved'] is not True
+                or any(checks[key].get('passed') is not True or checks[key].get('exitCode') != 0
+                       for key in ('upstream', 'types'))):
+            raise ValueError('Expected actual source failure or green existing checks missing')
+        integrity = verify_recovery_delta(prior, current)
+        if not integrity['passed']:
+            raise ValueError('Initial owned history incomplete')
+        if diagnosis_only:
+            if any(current[key] for key in ('memoryEntries', 'surfaceSnapshots', 'history', 'attempts')):
+                raise ValueError('Baseline acquired learned state')
+        else:
+            _failure_memory_corpus(current)
+            if not integrity['changedPaths']:
+                raise ValueError('No actual initial knowledge stored')
+        return {'mode': 'observed-failure-record', 'diagnosisOnly': diagnosis_only,
+                'priorState': copy.deepcopy(prior), 'currentState': copy.deepcopy(current),
+                'observation': copy.deepcopy(observation), 'sources': dict(sources),
+                'nativeSession': session.decode(), 'protocol': copy.deepcopy(protocol),
+                'historyIntegrity': integrity, 'mutationAuthority': False, 'learningBenefitEstablished': False}
+    except (KeyError, TypeError, ValueError, AttributeError) as error:
+        raise ValueError('Incomplete or misbound initial failure knowledge evidence') from error
+
+
+def failure_transition_audit_input(prior: dict, current: dict, original_observation: dict,
+                                   current_observation: dict, original_sources: dict[str, str],
+                                   sources: dict[str, str], original_session: bytes, current_session: bytes, protocol: dict,
+                                   *, original_feedback_record: dict | None = None) -> dict:
+    """Bind one observed failure/status correction; grant no mutation authority.
+
+    The caller must capture the learner's own source before source convergence.
+    This checks retained evidence links, not semantic truth or learning benefit.
+    """
+    import base64
+    from recovery_integrity import verify_recovery_delta
+
+
+
+    try:
+        integrity = verify_recovery_delta(prior, current)
+        if not integrity['passed'] or not any(
+                (key.startswith('private/') or key.startswith('project/.memory/'))
+                and not key.endswith('/MEMORY.md') for key in integrity['changedPaths']):
+            raise ValueError('No verified receipt-owned Memory correction')
+        _failure_memory_corpus(prior)
+        _failure_memory_corpus(current)
+        initial_files = protocol['initialSourceManifest']['files']
+        if (set(original_sources) != set(initial_files) or not set(initial_files).issubset(sources)
+                or any(hashlib.sha256(original_sources[name].encode()).hexdigest() != metadata['sha256']
+                       for name, metadata in initial_files.items())):
+            raise ValueError('Original source differs from admitted source inventory')
+        if original_feedback_record is not None:
+            record=original_feedback_record
+            reconstructed=failure_feedback_audit_input(record['priorState'],prior,original_observation,original_sources,
+                original_session,record['protocol'],record['feedback'],record['feedbackEvidence'])
+            if reconstructed!=record or record['protocol']['originalPrompt']!=protocol['originalPrompt']:
+                raise ValueError('Changed original post-failure learning record')
+        original_id = _failure_native_observation(original_observation, original_sources, original_session, protocol['originalPrompt'], True,
+                                                 require_reproducer=original_feedback_record is None)
+        current_id = _failure_native_observation(current_observation, sources, current_session, protocol['currentPrompt'], False)
+        if (original_id == current_id or original_observation['sessionDigest'] == current_observation['sessionDigest']
+                or original_sources['index.js'] == sources['index.js']
+                or original_sources['observed-idle-failure.mjs'] != sources['observed-idle-failure.mjs']):
+            raise ValueError('Fresh source repair and unchanged public case required')
+        old, new = original_observation['verification'], current_observation['verification']
+        if (old['publicReproducer'] != {'passed': False, 'exitCode': 1}
+                or new['publicReproducer'] != {'passed': True, 'exitCode': 0}
+                or any(old[name].get('passed') is not True or old[name].get('exitCode') != 0 for name in ('upstream', 'types'))
+                or new['passed'] is not True or new['existingChecksPreserved'] is not True
+                or any(new[name].get('passed') is not True or new[name].get('exitCode') != 0
+                       for name in ('upstream', 'types', 'behavior'))):
+            raise ValueError('Actual red-to-green independent source checks required')
+        return {'mode': 'observed-failure-transition', 'priorState': copy.deepcopy(prior),
+                'currentState': copy.deepcopy(current), 'originalObservation': copy.deepcopy(original_observation),
+                'currentObservation': copy.deepcopy(current_observation), 'originalSources': dict(original_sources),
+                'sources': dict(sources), 'originalSession': original_session.decode('utf-8'),
+                'currentSession': current_session.decode('utf-8'), 'protocol': copy.deepcopy(protocol), 'historyIntegrity': integrity,
+                **({'originalFeedbackRecord':copy.deepcopy(original_feedback_record)} if original_feedback_record is not None else {}),
+                'mutationAuthority': False, 'learningBenefitEstablished': False}
+    except (KeyError, TypeError, ValueError, AttributeError) as error:
+        raise ValueError('Incomplete or misbound observed-failure correction evidence') from error
 
 
 def observed_memory_reads(rows: list[dict], *, cwd: str, home: str, roots: tuple[str, ...]) -> list[dict]:
@@ -193,11 +484,9 @@ def continuous_coverage(report: dict) -> dict:
                 and bool(feedback.get('originalEntryIds')) and queued.get('id') in learning.get('completedBacklog',{}) and learning.get('pendingLearningJobs')==0):return False
         completed=[attempt for attempt in learning.get('attempts',[]) if attempt.get('outcome')=='completed' and attempt.get('receipt',{}).get('input',{}).get('backlogId')==queued['id']
                    and bool(attempt.get('receiptDigest')) and learning['completedBacklog'][queued['id']]==attempt['receiptDigest']]
-        complete=bool(completed)
-        observed=any(dossier.get('taskSliceDigest')==queued.get('digest') and set(feedback.get('originalEntryIds',[])).issubset(dossier.get('entryIds',[]))
-                     and any(item.get('sessionDigest')==observation.get('sessionDigest') and item.get('logsDigest')==observation.get('logsDigest') for item in dossier.get('observations',[]))
-                     for dossier in learning.get('dossiers',[]))
-        if not complete or not observed:return False
+        # Fresh source can extend the reviewed dossier beyond the queued task.
+        # Use the same exact prefix and receipt proof as replay processing.
+        if not completed or not exact_failure_processed(feedback,learning):return False
         if not learned:return True
         batches={a['receipt'].get('batchId') for a in completed if a['receipt'].get('operations',0)>0 and a['receipt'].get('batchId')}
         changed=[change for record in learning.get('history',[]) if record.get('status')=='applied' and record.get('batchId') in batches
@@ -225,5 +514,30 @@ def continuous_coverage(report: dict) -> dict:
             'harnessCorrected':corrected_harness,'harnessRetired':retired,'otherRulesPreserved':others_preserved,'failedTaskProcessed':bool(processed),'failedTaskBackfilled':bool(backfilled),
             'pairedOutcomes':pairs,'learningValid':bool(stages) and all(s.get('arms',{}).get('with-learning',{}).get('validLearning') for s in stages)}
     result['coverageComplete']=len(stages)==6 and all(result[k] for k in ('memoryLearned','originalTypeContractLearned','memoryUsed','memoryCorrectedAndUsed','harnessCorrected','harnessRetired','otherRulesPreserved','failedTaskBackfilled','learningValid'))
+    if report.get('observedFailureProtocolVersion') in (1,2):
+        initial_audit=first.get('failureMemoryAudit') or {}
+        repair=arms.get('idle',{});audit=repair.get('failureMemoryAudit') or {};capture=repair.get('candidateBeforeConvergence') or {}
+        initial_modes=('observed-failure-record','observed-failure-feedback-record') if report.get('observedFailureProtocolVersion')==2 else ('observed-failure-record',)
+        learned_failure=initial_audit.get('mode') in initial_modes and initial_audit.get('passed') is True and bool(entries)
+        own_repair=(audit.get('mode')=='observed-failure-transition' and audit.get('passed') is True
+                    and repair.get('verification',{}).get('sourceRepairPassed') is True
+                    and capture.get('phase')=='post-main-before-source-convergence' and capture.get('canonicalImportApplied') is False)
+        old_revisions={(entry['filename'],entry['revision']) for entry in entries}
+        changed=[entry for entry in repair.get('learning',{}).get('memoryEntries',[])
+                 if (entry['filename'],entry['revision']) not in old_revisions
+                 and hashlib.sha256(entry.get('content','').encode()).hexdigest()==entry['revision']]
+        later_reads=[ref for stage in stages[2:] for ref in stage.get('arms',{}).get('with-learning',{}).get('inference',{}).get(memory_evidence,[])]
+        corpus=repair.get('learning',{}).get('memoryEntries',[])
+        valid_corpus=bool(corpus) and len({entry['filename'] for entry in corpus})==len(corpus) and all(
+            hashlib.sha256(entry.get('content','').encode()).hexdigest()==entry['revision'] for entry in corpus)
+        corpus_digest=hashlib.sha256(json.dumps([[entry['filename'],entry['revision']] for entry in corpus],
+                                               ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+        bound_corpus=valid_corpus and audit.get('reviewedMemoryCorpusDigest')==corpus_digest and audit.get('ownedMemoryChange') is True
+        corrected_failure_used=learned_failure and own_repair and bool(changed) and bound_corpus and all(
+            any(ref.get('filename')==entry['filename'] and ref.get('revision')==entry['revision'] for ref in later_reads) for entry in corpus)
+        result.update(failureKnowledgeLearned=bool(learned_failure),failureKnowledgeCorrectedAndUsed=bool(corrected_failure_used),
+                      failureKnowledgeUseMetric='Every exact revision in the complete correction-reviewed corpus has a later complete native read; this does not establish attention, behavior adoption or causal benefit.',
+                      memoryReadMetricLimit='Successful native read result only; zero does not establish absence of a complete body in mixed Bash output.')
+        result['coverageComplete']=result['coverageComplete'] and learned_failure and corrected_failure_used
     result['improvementObserved']=result['coverageComplete'] and sum(x['outcome']=='win' for x in pairs)>sum(x['outcome']=='loss' for x in pairs)
     return result

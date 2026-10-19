@@ -2,6 +2,198 @@ import pytest
 from support import isolated_run_bun
 
 
+def test_bound_no_entry_does_not_erase_existing_or_omitted_candidates():
+    # Given optional and required held candidates, When an explicit refusal is
+    # parent-authorized, Then remove only that never-written proposal.
+    result = isolated_run_bun(r'''
+      import {bindSemanticMemoryAmendment,mergeSemanticMemoryRepairDelta,semanticMemoryRepairCandidates} from './packages/continual-learning/extensions/inject-memory.ts';
+      const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'};
+      const a={name:'required.md',kind:'project',classification:'private',content:'Required contract.',evidence:[{index:0,quote:'Required contract.'}]};
+      const b={...a,name:'optional.md',content:'A single unresolved timing observation.'};
+      const old={...a,name:'existing.md',kind:'rewrite'};
+      const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[old],newMemories:[a,b]};
+      const candidates=semanticMemoryRepairCandidates(original),id=candidates.find(x=>x.name===b.name).candidateId;
+      const response={kind:'incremental-memory-amendment',version:1,...identity,replacements:[],withdrawals:[{candidateId:id,reason:'not-reusable'}]};
+      const bound=bindSemanticMemoryAmendment(original,response,identity,[a.name,b.name],undefined,[b.name]);
+      const merged=mergeSemanticMemoryRepairDelta(original,bound,[a.name,b.name],undefined,undefined,[b.name]);
+      const rejects=(value,names=[b.name])=>{try{bindSemanticMemoryAmendment(original,value,identity,[old.name,a.name,b.name],undefined,names);return false}catch{return true}};
+      const mutation={...response,replacements:[{candidateId:id,content:'changed',evidence:b.evidence}]};
+      const omitted=mergeSemanticMemoryRepairDelta(original,bindSemanticMemoryAmendment(original,{...response,withdrawals:[]},identity));
+      console.log(JSON.stringify({names:merged.newMemories.map(x=>x.name),sameOld:JSON.stringify(merged.operations)===JSON.stringify(original.operations),
+        notMutationField:!('withdrawals' in merged),omitted:omitted.newMemories.length,
+        blocked:[rejects(response,[]),rejects({...response,runId:'foreign'}),rejects(mutation),
+          rejects({...response,withdrawals:[...response.withdrawals,...response.withdrawals]}),
+          rejects({...response,withdrawals:[{candidateId:candidates[0].candidateId,reason:'not-reusable'}]},[old.name]),
+          rejects({...response,withdrawals:[{candidateId:id,reason:'invented'}]}),
+          rejects({...response,withdrawals:[{candidateId:id,reason:'not-reusable',name:b.name}]})]}));
+    ''')
+    assert result['names'] == ['required.md']
+    assert result['sameOld'] and result['notMutationField'] and result['omitted'] == 2
+    assert all(result['blocked'])
+
+
+@pytest.mark.parametrize('native', [False, True])
+def test_explicit_optional_draft_refusal_survives_native_framing_and_rechecks_absence(tmp_path, native):
+    import json
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import path from 'node:path';import fs from 'node:fs';import {spawnSync} from 'node:child_process';
+      import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const kit=await import('./packages/kit/src/index.ts');let mode='valid',calls=0,checks=0,lastContext;
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{
+        calls++;const data=JSON.parse(input.prompt.split('\n').at(-1));lastContext=data;
+        const reply={kind:'incremental-memory-amendment',version:1,...data.identity,replacements:[],
+          withdrawals:mode==='empty'?[]:[{candidateRef:data.repairCandidates[0].candidateRef,reason:'not-reusable'}]};
+        if(NATIVE && mode==='valid'){
+          const cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
+          const r=spawnSync('node',[cli,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
+            '--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json','--bound-candidate-response',JSON.stringify(reply),input.prompt],
+            {cwd:ROOT,env:{PATH:process.env.PATH,HOME:ROOT,PI_CODING_AGENT_DIR:path.join(ROOT,'agent'),PI_OFFLINE:'1'},encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
+          fs.writeFileSync(path.join(ROOT,'native-no-entry-output.jsonl'),r.stdout);
+          if(r.status!==0)throw Error(r.stderr+'\n'+r.stdout);
+          return {...kit.parsePiWorkerOutput(r.stdout),exitCode:0,stderr:'',cancelled:false};
+        }
+        return {exitCode:0,stderr:'',cancelled:false,text:JSON.stringify(reply),usage:{input:3,output:2,cacheRead:0,cacheWrite:0,totalTokens:5,cost:.1}};
+      }}));
+      const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const snapshot={contextEnabled:true,runId:'r',scopeKey:'s',scopeDigest:'d',entries:[{role:'user',content:'Optional observation.'}]};
+      const h=sha256Digest(JSON.stringify(snapshot,null,2)+'\n'),identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:h,snapshotDigest:h};
+      const candidate={name:'optional.md',kind:'project',classification:'private',content:'---\nname: optional\ndescription: Optional observation.\ntype: project\n---\nOptional observation.',evidence:[{ref:'e0.b0.l1'}]};
+      const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[candidate]},before=JSON.stringify(original);
+      const input={identity,rejectedPlan:original,selectedNames:[],repairableNames:['optional.md'],repairableFields:{'optional.md':['body']},errors:['held'],
+        withdrawableNames:['optional.md'],assertWithdrawalsUnwritten:async()=>{checks++;if(mode==='race'&&checks===2||mode==='exists')throw Error('already exists');},
+        semanticContext:{frozenEvidence:snapshot,existingMemories:[]}};
+      const rows=[];for(mode of ['valid','empty','race','exists','required']){
+        checks=0;const count=calls;const r=await repairIncrementalMemoryPlan(mode==='required'?{...input,withdrawableNames:[]}:input);
+        rows.push({mode,outcome:r.outcome,failureKind:r.failureKind,declined:r.declinedNewMemories,newCount:r.plan?.newMemories.length,checks,calls:calls-count,
+          advertised:lastContext?.repairCandidates[0].withdrawalAllowed===true});
+      }
+      console.log(JSON.stringify({rows,unchanged:before===JSON.stringify(original),memoryWritten:fs.existsSync(path.join(ROOT,'.memory'))}));
+    '''.replace('ROOT', json.dumps(str(tmp_path))).replace('NATIVE', str(native).lower()))
+    first = result['rows'][0]
+    assert first['outcome'] == 'repaired' and first['declined'] == ['optional.md'] and first['newCount'] == 0, first
+    assert first['checks'] == 2 and first['advertised']
+    assert all(row['outcome'] == 'failed' for row in result['rows'][1:]), result
+    assert result['rows'][3]['calls'] == 0 and not result['rows'][4]['advertised']
+    assert result['unchanged'] and not result['memoryWritten']
+
+
+def test_real_repair_cannot_discard_maintenance_sections():
+    # Given V77's actual purpose loss, When repairing a held candidate,
+    # Then retain its populated purpose slots without locking their old claims.
+    result = isolated_run_bun(r'''
+      import fs from 'node:fs';
+      import {mergeSemanticMemoryRepairDelta} from './packages/continual-learning/extensions/inject-memory.ts';
+      const f=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-memory-repair-purpose-loss.json','utf8'));
+      const original={operations:[],newMemories:[f.original]},name=f.original.name;
+      const merge=(content,fields=['body','description'],prior=f.original)=>mergeSemanticMemoryRepairDelta(
+        {...original,newMemories:[prior]}, {operations:[],newMemories:[{...f.repaired,content}]}, [name],
+        fields===null?undefined:{[name]:fields});
+      const rejected=(content,fields)=>{try{merge(content,fields);return false}catch{return true}};
+      const corrected=f.repaired.content+'\n**Why**: Compare this observed declaration during later maintenance.\n\n**How to apply**:\nUse the current declarations when the API changes; the old input constraint is not permanent.\n';
+      const legacy={...f.original,content:f.repaired.content};
+      const fake=legacy.content+'\n```md\n**Why**: A quoted heading is not a purpose slot.\n**How to apply**: Nor is this.\n```\n';
+      const crlf=corrected.replaceAll('\n','\r\n');
+      const atx=f.repaired.content+'\n## Why\nCompare the observed contract.\n\n## How to apply\nCheck later source before maintenance.\n';
+      const empty=f.repaired.content+'\n**Why**:\n\n**How to apply**:\n\n## Notes\nUnrelated text cannot fill either slot.\n';
+      const breaks=f.repaired.content+'\n**Why**:\n---\n**How to apply**:\n* * *\n';
+      const comments=f.repaired.content+'\n**Why**:\n<!-- no purpose -->\n**How to apply**:\n<!-- no guidance -->\n';
+      const commented=legacy.content+'\n<!--\n**Why**: Hidden.\n**How to apply**: Hidden too.\n-->\n';
+      const codeOnly=legacy.content+'\n**Why**: Later maintenance.\n**How to apply**:\n```ts\nconst result = limitedFunction(1);\n```\n';
+      const literal=corrected.replace('Compare this observed declaration','Inspect the literal `<!--` marker in this declaration');
+      const multiline=corrected.replace('Compare this observed declaration','Inspect the literal ``line\n<!--\nend`` marker in this declaration');
+      const descriptionOnly=merge(f.repaired.content,['description']);
+      const actualFailures = f.additionalCases.map(c => {
+        try {mergeSemanticMemoryRepairDelta({operations:[],newMemories:[c.original]},
+          {operations:[],newMemories:[c.repaired]},[c.original.name],{[c.original.name]:['body','description']});return false}
+        catch{return true}
+      });
+      const inside=corrected.replaceAll('**Why**:', '**Why:**').replaceAll('**How to apply**:', '**How to apply:**');
+      const insideEmpty=empty.replaceAll('**Why**:', '**Why:**').replaceAll('**How to apply**:', '**How to apply:**');
+      const insideOtherHeading=f.repaired.content+'\n**Why:** Later maintenance.\n**How to apply:**\n\n**Notes:** Unrelated text.';
+      const plain=corrected.replaceAll('**Why**:', 'Why:').replaceAll('**How to apply**:', 'How to apply:');
+      const plainEmpty=empty.replaceAll('**Why**:', 'Why:').replaceAll('**How to apply**:', 'How to apply:');
+      const plainOtherHeading=f.repaired.content+'\nWhy: Later maintenance.\nHow to apply:\n\nOther section: Unrelated text.';
+      const plainQuoted=legacy.content+'\n```md\nWhy: Quoted.\nHow to apply: Quoted too.\n```\n';
+      const plainCommented=legacy.content+'\n<!--\nWhy: Hidden.\nHow to apply: Hidden too.\n-->\n';
+      const emptyPlainPrior=legacy.content+'\nWhy:\nNotes: Unrelated text.\nHow to apply: Compare declarations.\n';
+      const limitsPrior={...legacy,content:legacy.content+'\nLimits for future maintenance: Verify changed behavior with current evidence; preserve still-valid scope.\n'};
+      const limitsAccepted=f.repaired.content+'\nHow to apply: Compare current source and equivalent verification; revise obsolete advice with evidence.\n';
+      const limitsChecks=[
+        (()=>{try{merge(f.repaired.content,['body'],limitsPrior);return false}catch{return true}})(),
+        merge(limitsAccepted,['body'],limitsPrior).newMemories[0].content===limitsAccepted,
+        ...['## Limits for future maintenance\nInspect current source.','**Limits for future maintenance:** Inspect current source.',
+            '**Limits for future maintenance**: Inspect current source.','LIMITS FOR FUTURE MAINTENANCE: Inspect current source.'].map(label=>{
+          try{merge(f.repaired.content,['body'],{...legacy,content:legacy.content+'\n'+label+'\n'});return false}catch{return true}}),
+        (()=>{try{merge(f.repaired.content,['body'],{...limitsPrior,content:limitsPrior.content.replaceAll('\n','\r\n')});return false}catch{return true}})(),
+        ...['```md\nLimits for future maintenance: Quoted.\n```','<!--\nLimits for future maintenance: Hidden.\n-->',
+            'Limits for future maintenance:\nNotes: Unrelated text.'].map(text=>merge(f.repaired.content,['body'],{...legacy,content:legacy.content+'\n'+text+'\n'}).newMemories.length===1),
+      ];
+      const before=JSON.stringify(f);
+      console.log(JSON.stringify({actualFailures,limitsChecks,
+        plainAccepted:merge(plain).newMemories[0].content===plain,
+        plainCrlfAccepted:merge(plain.replaceAll('\n','\r\n')).newMemories[0].content.includes('Why: Compare'),
+        plainEmptyRejected:rejected(plainEmpty),plainOtherHeadingRejected:rejected(plainOtherHeading),
+        plainQuotedIgnored:merge(f.repaired.content,['body'],{...legacy,content:plainQuoted}).newMemories.length===1,
+        plainCommentedIgnored:merge(f.repaired.content,['body'],{...legacy,content:plainCommented}).newMemories.length===1,
+        plainEmptyNotInvented:merge(f.repaired.content+'\nHow to apply: Compare declarations.\n',['body'],{...legacy,content:emptyPlainPrior}).newMemories.length===1,insideAccepted:(()=>{try{return merge(inside).newMemories[0].content===inside}catch{return false}})(),
+        insideEmptyRejected:rejected(insideEmpty),insideOtherHeadingRejected:rejected(insideOtherHeading),dropped:rejected(f.repaired.content),broad:rejected(f.repaired.content,null),
+        lostWhy:rejected(corrected.replace(/\*\*Why\*\*:[^\n]*\n/,'')),
+        lostHow:rejected(corrected.replace(/\*\*How to apply\*\*:[\s\S]*$/,'')),
+        empty:rejected(empty),breaks:rejected(breaks),comments:rejected(comments),fake:rejected(fake),
+        corrected:merge(corrected).newMemories[0].content===corrected,
+        crlf:merge(crlf).newMemories[0].content.endsWith(crlf.split('---\r\n').at(-1)),
+        atx:merge(atx).newMemories[0].content===atx,
+        descriptionBody:descriptionOnly.newMemories[0].content.endsWith(f.original.content.split('---\n').at(-1)),
+        legacy:merge(f.repaired.content,['body','description'],legacy).newMemories.length===1,
+        quotedOnly:merge(f.repaired.content,['body'],{...legacy,content:fake}).newMemories.length===1,
+        commented:merge(f.repaired.content,['body'],{...legacy,content:commented}).newMemories.length===1,
+        codePreserved:(()=>{try{merge(f.repaired.content+'\n**Why**: Later maintenance.\n',['body'],{...legacy,content:codeOnly});return false}catch{return true}})(),
+        inlineAccepted:(()=>{try{return merge(literal).newMemories.length===1}catch{return false}})(),
+        multilineAccepted:(()=>{try{return merge(multiline).newMemories.length===1}catch{return false}})(),
+        inlineLossRejected:(()=>{try{merge(f.repaired.content+'\n**Why**: Later maintenance.\n',['body'],{...legacy,content:literal});return false}catch{return true}})(),
+        unchanged:before===JSON.stringify(f)}));
+    ''')
+    assert result['actualFailures'] == [True, True, True]
+    assert all(result['limitsChecks'])
+    for key in ('plainAccepted', 'plainCrlfAccepted', 'plainEmptyRejected', 'plainOtherHeadingRejected', 'plainQuotedIgnored', 'plainCommentedIgnored', 'plainEmptyNotInvented', 'insideAccepted', 'insideEmptyRejected', 'insideOtherHeadingRejected', 'dropped', 'broad', 'lostWhy', 'lostHow', 'empty', 'breaks', 'comments', 'fake', 'corrected',
+                'crlf', 'atx', 'descriptionBody', 'legacy', 'quotedOnly', 'commented', 'codePreserved',
+                'inlineAccepted', 'multilineAccepted', 'inlineLossRejected', 'unchanged'):
+        assert result[key], (key, result)
+
+
+def test_retained_repair_preserves_purpose_slots_without_blocking_deletion():
+    # Given an existing record with usage context, When the retained correction
+    # path rewrites or deletes it, Then only rewrites retain its purpose slots.
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';
+      const kit=await import('./packages/kit/src/index.ts');let mode,prompt;
+      const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'};
+      const header='---\nname: Example\ndescription: Source contract.\ntype: project\n---\n';
+      const slots='\n**Why**: Compare later maintenance.\n**How to apply**: Inspect current source.\n';
+      const prior={name:'a.md',classification:'private',type:'project',content:header+'Old source contract.'+slots};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{
+        prompt=input.prompt;
+        const operation=mode==='delete'?{name:'a.md',kind:'delete',classification:'private',verdict:'SUPERSEDED',preservedIn:['index.d.ts'],evidence:[{index:0,quote:'Correct source contract.'}]}:
+          {name:'a.md',kind:'rewrite',classification:'private',content:header+'Correct source contract.'+(mode==='corrected'?slots:''),evidence:[{index:0,quote:'Correct source contract.'}]};
+        return {exitCode:0,stderr:'',cancelled:false,text:JSON.stringify({kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[operation],newMemories:[]})};
+      }}));
+      const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const rows=[];for(mode of ['dropped','corrected','delete']){
+        const result=await repairIncrementalMemoryPlan({identity,rejectedPlan:{kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[]},
+          selectedNames:['a.md'],retainedRepairNames:['a.md'],errors:['held'],
+          semanticContext:{frozenEvidence:{entries:[{role:'toolResult',content:'Correct source contract.'}]},existingMemories:[prior]}});
+        rows.push({mode,outcome:result.outcome,failureKind:result.failureKind,hasPlan:!!result.plan,
+          sections:JSON.parse(prompt.split('\n').at(-1)).retainedOperationContract.records[0].requiredKnowledgeSections,
+          instruction:prompt.includes('not to an otherwise authorized delete operation')});
+      }
+      console.log(JSON.stringify(rows));
+    ''')
+    assert result[0]['outcome'] == 'failed' and result[0]['failureKind'] == 'intent' and not result[0]['hasPlan']
+    assert all(row['outcome'] == 'repaired' for row in result[1:]), result
+    assert all(row['sections'] == ['Why', 'How to apply'] and row['instruction'] for row in result), result
+
+
 def test_semantic_noop_normalizes_citation_order_and_inferred_roles():
     # Given a held proposal, When a patch only reorders the same valid sources,
     # Then retain failure and usage; real body or source changes remain reviewable.
@@ -56,8 +248,8 @@ def test_real_candidate_copy_failure_uses_exact_parent_bound_refs(tmp_path, nati
         const data=JSON.parse(prompt.split('\n').at(-1)),reply=JSON.parse(raw);
         reply.replacements=reply.replacements.map((patch,i)=>{const {candidateId,...rest}=patch;return {...rest,candidateRef:data.repairCandidates[i].candidateRef}});
         if(NATIVE){
-          const root=ROOT,cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/cli.js');
-          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.2.0')throw Error('Pi1.2 required');
+          const root=ROOT,cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
           const native=spawnSync('node',[cli,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
             '--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json','--bound-candidate-response',JSON.stringify(reply),input.prompt],{cwd:root,env:{PATH:process.env.PATH,HOME:root,PI_CODING_AGENT_DIR:path.join(root,'agent'),PI_OFFLINE:'1'},encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
           fs.writeFileSync(path.join(root,'native-prompt.txt'),input.prompt);fs.writeFileSync(path.join(root,'native-pi-output.jsonl'),native.stdout);fs.writeFileSync(path.join(root,'native-version.txt'),version.stdout);
@@ -170,8 +362,8 @@ def test_real_stale_repair_can_select_exact_parent_audited_source_without_regene
       mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{
         calls++;prompt=input.prompt;const context=JSON.parse(prompt.split('\n').at(-1)),candidate=context.repairCandidates[0];
         if(NATIVE && calls<=2){
-          const cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/cli.js');
-          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.2.0')throw Error('Pi1.2 required');
+          const cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
           const env={PATH:process.env.PATH,HOME:root,PI_CODING_AGENT_DIR:path.join(root,'agent'),PI_OFFLINE:'1'};
           const native=spawnSync('node',[cli,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
             '--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json','--source-excerpt-selection',JSON.stringify({ref:'e56.b0.l146',endRef:'e56.b0.l149'}),input.prompt],{cwd:root,env,encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
@@ -197,13 +389,17 @@ def test_real_stale_repair_can_select_exact_parent_audited_source_without_regene
       // same source again, Then retain failure and usage without a second review.
       const repeated=await repairIncrementalMemoryPlan({...input,rejectedPlan:good.plan});
       const rejected={};for(const value of ['mixed','noEvidence','foreign','uncovered','noIdentity','ordinaryRead']){mode=value;rejected[value]=(await repairIncrementalMemoryPlan(input)).outcome}
-      mode='valid';for(const [key,change] of Object.entries({noRun:x=>delete x.sourceExcerptRun,noAudit:x=>delete x.memorySources,
+      let purposeExcerptAllowed,purposeLimitsExcerptAllowed;mode='valid';for(const [key,change] of Object.entries({noRun:x=>delete x.sourceExcerptRun,noAudit:x=>delete x.memorySources,
         locked:x=>x.repairableFields={[name]:['description']},wrongRun:x=>x.sourceExcerptRun={manifest:{...run.manifest,runId:'foreign'}},
         wrongSnapshot:x=>x.semanticContext={...x.semanticContext,frozenEvidence:{...snapshot,runId:'foreign'}},
         safe:x=>x.rejectedPlan={...original,operations:original.operations.map(o=>({...o,classification:'safe'}))},
+        purposeLimits:x=>x.rejectedPlan={...original,operations:original.operations.map(o=>({...o,content:o.content+'\nLimits for future maintenance: Compare current source.'}))},
+        purpose:x=>x.rejectedPlan={...original,operations:original.operations.map(o=>({...o,content:o.content+'\n**Why**: Later maintenance.\n**How to apply**: Compare current source.\n'}))},
         preference:x=>x.semanticContext={...x.semanticContext,existingMemories:existing.map(o=>({...o,type:'preference'}))}})){
-          const x={...input};change(x);rejected[key]=(await repairIncrementalMemoryPlan(x)).outcome}
-      console.log(JSON.stringify({good,repeated,rejected,context:{repairCandidates:context.repairCandidates},saved,old:original.operations[0],historical:fixture.response.replacements[0],calls,
+          const x={...input};change(x);rejected[key]=(await repairIncrementalMemoryPlan(x)).outcome;
+          if(key==='purposeLimits')purposeLimitsExcerptAllowed=JSON.parse(prompt.split('\n').at(-1)).repairCandidates[0].sourceExcerptAllowed===true;
+          if(key==='purpose')purposeExcerptAllowed=JSON.parse(prompt.split('\n').at(-1)).repairCandidates[0].sourceExcerptAllowed===true;}
+      console.log(JSON.stringify({good,repeated,rejected,purposeExcerptAllowed,purposeLimitsExcerptAllowed,context:{repairCandidates:context.repairCandidates},saved,old:original.operations[0],historical:fixture.response.replacements[0],calls,
         memoryWritten:fs.existsSync(path.join(root,'.memory'))}));
     '''.replace('ROOT', json.dumps(str(tmp_path))).replace('NATIVE', str(native).lower()))
     assert result['good']['outcome'] == 'repaired', result['good']
@@ -216,6 +412,8 @@ def test_real_stale_repair_can_select_exact_parent_audited_source_without_regene
     assert operation['classification'] == result['old']['classification'] == 'private'
     assert all(value == 'failed' for value in result['rejected'].values()), result['rejected']
     assert result['context']['repairCandidates'][0]['sourceExcerptAllowed'] is True
+    assert result['purposeExcerptAllowed'] is False
+    assert result['purposeLimitsExcerptAllowed'] is False
     assert 'sourceExcerpt' in result['saved']['output'] and not result['memoryWritten']
     assert 'onIdle' not in result['historical']['content']
 
@@ -285,27 +483,33 @@ def test_semantic_worker_uses_bound_amendments_and_preserves_omitted_candidates(
 
 
 @pytest.mark.parametrize('raw_whitespace', [False, True])
-def test_actual_pi_receives_parent_bound_amendment_prompt_without_tools(tmp_path, raw_whitespace) -> None:
+@pytest.mark.parametrize('inside_colon', [False, True, 'plain', 'limits'])
+def test_actual_pi_receives_parent_bound_amendment_prompt_without_tools(tmp_path, raw_whitespace, inside_colon) -> None:
     import json
     result = isolated_run_bun(r'''
       import {mock} from 'bun:test';import {spawnSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';
       const kit=await import('./packages/kit/src/index.ts');const root=ROOT;const rawWhitespace=RAW_WHITESPACE;
+      const purpose=INSIDE_COLON==='limits'?'\n\nWhy: Later maintenance.\n\nLimits for future maintenance: Compare the current source.':INSIDE_COLON==='plain'?'\n\nWhy: Later maintenance.\n\nHow to apply: Compare the current source.':INSIDE_COLON?'\n\n**Why:** Later maintenance.\n\n**How to apply:** Compare the current source.':'\n\n**Why**: Later maintenance.\n\n**How to apply**: Compare the current source.';
+      const header='---\nname: a.md\ndescription: Claim.\ntype: project\n---\n';
+      let sections;
       mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{
+        sections=JSON.parse(input.prompt.split('\n').at(-1)).repairCandidates[0].requiredKnowledgeSections;
         const env={PATH:process.env.PATH,HOME:root,PI_CODING_AGENT_DIR:path.join(root,'agent'),PI_OFFLINE:'1'};
-        const native=spawnSync('node',[path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/cli.js'),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),'--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json',...(rawWhitespace?['--raw-string-whitespace','enabled']:[]),input.prompt],{cwd:root,env,encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
+        const native=spawnSync('node',[path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),'--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json',...(rawWhitespace?['--raw-string-whitespace','enabled']:[]),input.prompt],{cwd:root,env,encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
         fs.writeFileSync(path.join(root,'native-pi-output.jsonl'),native.stdout);
         if(native.status!==0)throw new Error(native.stderr+'\n'+native.stdout);
         return {...kit.parsePiWorkerOutput(native.stdout),exitCode:0,stderr:'',cancelled:false};
       }}));
       const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
       const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'};
-      const suffix=rawWhitespace?'\n\tline':'';const candidate={name:'a.md',kind:'project',classification:'private',content:'Old claim'+suffix,evidence:[{index:0,quote:'Correct claim'+suffix}]};
+      const suffix=rawWhitespace?'\n\tline':'';const candidate={name:'a.md',kind:'project',classification:'private',content:header+'Old claim'+suffix+purpose,evidence:[{index:0,quote:'Correct claim'+suffix}]};
       const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[candidate]};
       const result=await repairIncrementalMemoryPlan({identity,rejectedPlan:original,errors:['held'],selectedNames:[],repairableNames:['a.md'],semanticContext:{frozenEvidence:{entries:[{role:'toolResult',content:'Correct claim'+suffix}]},existingMemories:[]}});
-      console.log(JSON.stringify({result,wroteMemory:fs.existsSync(path.join(root,'.memory'))}));
-    '''.replace('ROOT', json.dumps(str(tmp_path))).replace('RAW_WHITESPACE', str(raw_whitespace).lower()))
+      console.log(JSON.stringify({result,sections,expected:header+'Correct claim'+suffix+purpose,wroteMemory:fs.existsSync(path.join(root,'.memory'))}));
+    '''.replace('ROOT', json.dumps(str(tmp_path))).replace('RAW_WHITESPACE', str(raw_whitespace).lower()).replace('INSIDE_COLON', json.dumps(inside_colon)))
     assert result['result']['outcome'] == 'repaired', result['result']
-    assert result['result']['plan']['newMemories'][0]['content'] == 'Correct claim' + ('\n\tline' if raw_whitespace else '')
+    assert result['result']['plan']['newMemories'][0]['content'] == result['expected']
+    assert result['sections'] == ['Why', 'How to apply']
     assert not result['wroteMemory']
 
 
@@ -462,11 +666,31 @@ def test_actual_pi_semantic_content_patch_retains_real_original_sources():
       }});
       fs.writeFileSync(path.join(agent,'models.json'),JSON.stringify({providers:{fixture:{baseUrl:`http://127.0.0.1:${server.port}/v1`,api:'openai-completions',apiKey:'offline',models:[{id:'offline',name:'offline',reasoning:false,input:['text'],contextWindow:1000000,maxTokens:4096,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}}]}}}));
       fs.writeFileSync(path.join(agent,'settings.json'),JSON.stringify({packages:[],extensions:[],skills:[],retry:{enabled:false}}));
-      process.env.PI_OFFLINE='1';process.argv[1]=fs.realpathSync('./node_modules/@earendil-works/pi-coding-agent/dist/cli.js');process.execPath=Bun.which('node');
+      process.env.PI_OFFLINE='1';process.argv[1]=fs.realpathSync('./node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');process.execPath=Bun.which('node');
       const identity=Object.fromEntries(['runId','scopeKey','scopeDigest','artifactHash','snapshotDigest'].map(k=>[k,f.original[k]])),name=f.original.operations[0].name,before=JSON.stringify(f);
       try{const result=await repairIncrementalMemoryPlan({identity,rejectedPlan:f.original,selectedNames:[name],repairableNames:[name],repairableFields:{[name]:['body']},errors:['held'],model:'fixture/offline',semanticContext:{frozenEvidence:f.snapshot,existingMemories:[]}});
         console.log(JSON.stringify({outcome:result.outcome,calls,tools:tools?.length??0,unchanged:before===JSON.stringify(f),sourceCount:result.plan?.operations[0].evidence.length,
           piVersion:JSON.parse(fs.readFileSync('./node_modules/@earendil-works/pi-coding-agent/package.json','utf8')).version,externalRequests:0}));
       }finally{server.stop(true)}
     ''',timeout=45)
-    assert value=={'outcome':'repaired','calls':1,'tools':0,'unchanged':True,'sourceCount':3,'piVersion':'1.2.0','externalRequests':0}
+    assert value=={'outcome':'repaired','calls':1,'tools':0,'unchanged':True,'sourceCount':3,'piVersion':'1.3.0','externalRequests':0}
+
+
+@pytest.mark.parametrize("mode", ["no-entry", "no-entry-final-held", "no-entry-required"])
+def test_parent_no_entry_requires_final_set_review_before_later_phases(mode):
+    from pathlib import Path
+    from support import run_bun_script
+    result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'memory-apply', env={'CL_JEV_FIXTURE': mode, 'CL_LATER_AFTER_MEMORY': '1'})
+    assert result['semanticRepairs'] == 1
+    receipt = result.get('registryReceipt') or next(run['receipt'] for run in result['runs'] if run.get('receipt'))
+    attempts = receipt['attempts']
+    if mode == 'no-entry':
+        assert any(a.get('declinedOperations') == 1 and a['operations'] == 0 for a in attempts)
+        assert result['reviewWireCalls'] == 2
+        assert 'harness' in result['planners'] and 'agents' in result['planners']
+        assert any(a['outcome'] == 'declined' for a in attempts)
+    else:
+        assert not any(a.get('declinedOperations') for a in attempts)
+        assert 'harness' not in result['planners'] and 'agents' not in result['planners']
+        assert not result['receiptComplete']
+    assert 'concise.md' not in result['privateFiles'] and 'concise.md' not in result['publicFiles']

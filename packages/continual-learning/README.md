@@ -69,6 +69,14 @@ proposed. No files changed.` The review remains incomplete; an empty response
 does not prove that the records are correct or that protected intent changed.
 Source evidence supporting the change is still required for a validated correction.
 
+With Jev enabled, the parent can allow a semantic worker to decline an optional
+new draft that has never been written. It checks the complete draft set against
+user obligations, then checks the exact declined set and final remaining plan.
+Both checks keep the original evidence and thresholds. Existing records and
+required knowledge cannot use this path. The receipt says `not learned` and
+counts no applied change for the draft. Original failures and costs remain.
+An empty response, cancellation or uncertain review leaves the work pending.
+
 Learning uses the current session model unless a separate provider/model pair
 is configured. An explicit invalid or empty pair in `memory.json` is diagnosed
 and prevents a worker from silently using a different model; `{}` retains the
@@ -229,6 +237,20 @@ Legacy skill guidance uses this additive surface with the same skill-task bounda
 Saved configuration and execution gates remain unchanged.
 Guidance delivery does not prove model compliance.
 
+Bash evaluation also records non-context `harness-behavior-observation` session
+entries. A decision binds its session, parent entry, input digest and exact
+canonical rule revisions. Rule IDs, call IDs, commands and results are represented
+by digests in these entries. At most 128 rules are listed; omitted rules, legacy
+configuration or incomplete reads mark revision coverage incomplete. A matching
+native completion links to the decision. The input digest covers this guardrail
+stage; later extensions can still change arguments. Valid Pi timing proves that the handler
+was invoked; it does not prove shell success or task correctness. Missing timing,
+ambiguous or reused call IDs, changed sessions and exhausted tracking bounds
+cannot establish execution. Observation failures do not change execution policy.
+A confirmation from a closed or changed session cannot authorize an old call.
+These records retain `taskOutcome: unverified` and `effect: cannot-attribute`.
+They do not yet establish Memory consumption or paired task improvement.
+
 Known limits: keywords first introduced by tools in the same run are picked up at
 the next agent start. Synchronous regex evaluation has volume limits, not
 preemptive cancellation of a single pathological pattern. Avoid unbounded patterns.
@@ -387,6 +409,22 @@ changed indexes replace stale references and missing context restores discovery.
 Entry bodies are read on demand, never automatically injected. Metadata exposure
 is not proof of use or benefit; current evidence and instructions take precedence.
 Use the native `read` tool to consult relevant entries. Automatic correction revisits Memory actually read through unique successful read calls; failed or ambiguous reads do not nominate entries. Revisit is not factual evidence or permission to mutate. Explicit `/memory` requests retain their selected maintenance scope.
+
+Local non-context `memory-use-observation` entries distinguish section preparation
+from a complete body result. Complete file revisions come from the existing
+bounded loader's raw bytes only when UTF-8 decoding round-trips exactly. At task
+settlement, a full-body observation requires matching native handler timing and
+content, a start-time session binding, one retained call/result pair, and an intact
+branch back to preparation. Equal bodies in multiple snapshots remain ambiguous.
+Partial, changed, failed, duplicate or foreign results establish no complete read.
+Only hashes and native entry IDs are recorded; bodies remain on demand.
+Observation is limited to 128 snapshots, 256 pending results, 4,096 seen call IDs,
+64,000 body characters and 10,000 branch entries. The loader may retain a shorter
+prefix; that entry has no complete snapshot. Exceeding a bound leaves proof
+unavailable and does not change learning or execution. Preparation does not prove
+wire delivery. A complete result does not prove physical file origin, model
+attention, correct knowledge or task benefit; those fields remain unverified.
+The native acceptance runner separately checks actual next-request content.
 
 An automatically learned project Harness rule may be revised or retired only with
 an exact predecessor revision, current user correction, positive/negative fixtures
@@ -804,7 +842,7 @@ The integration uses `@typesafe-ai/sdk` 0.6.0. Independent Noul questions detect
 
 After parent structure, identity and frozen-quote validation, another batch checks candidate support using the knowledge body or rule rather than administrative frontmatter/evidence bookkeeping (while scanning the full original candidate for credentials). For fully cited new Memory, the support question includes only the complete knowledge body; filenames and write/storage metadata cannot become claims requiring user evidence. Rewrite/delete/mixed batches retain the complete preservation context. This batch also checks Memory grounding and relationships against already-read bodies (Choice), and general Harness scope (Choice). For an absolute-end anchored literal block or confirmation rule, parent code proves the exact command matcher and Jev separately checks lasting user authorization and message fidelity. A confirmation rule requires the real native Allow once or Block decision for each invocation; a one-time grant cannot revoke future confirmation, and confirmation cannot weaken an unconditional ban. Plain `$`, whitespace classes and operators never qualify for that proof. Duplicates, conflicts, unsupported or uncertain candidates become proposals; an unavailable candidate judge also produces proposals. For a proved literal/family rule whose message is byte-identical to its validated original user quote, code proves wording equality and omits only the paraphrase judgment. Authorization, matcher scope, complete counterevidence and parent write checks remain mandatory; changed messages still require semantic verification. In the proved ASCII command-family grammar, literal TAB and its regex escape have identical meaning. Counterevidence review receives the exact code-proved command range, block action and original explanation; unproved regexes retain full matching review. Generated fixtures and rule identifiers do not establish user permission. No Jev answer permits a write by itself or disables existing Harness rules. Normal requests have at most 32 questions and four concurrent requests; byte capacity is delegated to the configured service. Explicit historical experiments can retain a 64,000-byte bound. For quoted new Memory candidates and parent-validated Harness citations, support uses the complete cited entries and existing bodies; a separate counterevidence review covers **every** indexed original entry. Normal requests preserve preferred 20,000-byte whole-entry windows without a local request-byte cap; explicitly bounded experiments additionally preflight every encoded request. The configured service token limits still apply. Entries are never truncated or summarized. Every review also receives the original cited support to interpret meaning and scope; later corrections still override that support. There are at most sixteen windows and 68 logical requests, including split support requests (up to four batches per job); the existing connection-only retry permits at most 136 transport attempts. Windows are never merged based only on raw entry bytes. If a cited support entry is also in the current review window, supportEvidence.reviewEntryIndexes points to that exact original entry instead of transmitting it twice; the complete cited context remains present across both fields. All original evidence and all planned requests are checked for sensitive material and bounds and copied before the first transport. Only fully successful windows count toward coverage, and any failed, uncertain or conflicting judgment holds the entire plan. Rewrite/delete/mixed Memory plans and uncited legacy inputs retain full-evidence transport with at most four batches. Any explicit experimental wire-byte cap is not a token count; API context failures remain proposals rather than discarding possible later contradictions. A batch is atomic for this policy: one questionable candidate holds the whole plan for review. Supported supplements can be applied only under the existing apply policy. Full maintenance also checks its validated candidates; too much evidence falls back to proposals.
 
-Normal project requests use the configured service capacity without a local byte cap and retain 32 questions per request; explicit historical experiments may still set `maxRequestBytes: 64000`; cited evidence windows prefer 20,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests default to a 15-second timeout, honor explicit shorter deadlines, use zero SDK retries and at most one connection-only retry, propagate cancellation and disable SDK body logging. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
+Normal project requests use the configured service capacity without a local byte cap and retain 32 questions per request; explicit historical experiments may still set `maxRequestBytes: 64000`; cited evidence windows prefer 20,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests default to a 15-second timeout, honor explicit shorter deadlines, use zero SDK retries and at most one connection-only retry, propagate cancellation and disable SDK body logging. That single retry waits a bounded 500 ms backoff before re-issuing the same frozen request, and an abort during the wait is honoured immediately; the retry count, request bounds and per-request deadline are unchanged. A failed request group stops later groups of the same review, so an already-unusable review spends no further requests. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
 
 For an apply-policy Harness plan or incremental Memory plan, an unsupported or uncertain semantic hold may use the existing single read-only repair slot, shared with structural repair. With Jev enabled, the first incremental Memory structural repair also receives the original hash-checked snapshot and selected Memory dossier; it must not turn one-task instructions into lasting preferences. Both files are rechecked after repair, valid original privacy classifications must remain unchanged, and a rejected completed call still retains its usage. This does not add a second repair slot or relax subsequent validation. Memory correction uses frozen evidence and already-read bodies, preserves names, intents and privacy classifications, and retains the original proposal if correction remains held. Duplicate, conflict and service failure do not trigger another correction. A semantic Harness repair may omit unsupported operations, but their exact original evidence is reindexed and saved as private pending proposals. Semantic repair receives an explicit table of the original operation kind, rule identity and complete evidence objects. Retained rule identities and all citation properties must stay unchanged apart from operation indexes; an empty or replacement repair retains the original proposal. Repaired candidates repeat parent validation and Jev judgment; service failures do not cause retries, and unresolved candidates remain proposals. Frozen evidence is checked after each judgment and again in the mutation queue before writing. A direct apply cannot bypass a semantic proposal. Memory index descriptions receive independent support, existing-Memory relationship and full-evidence checks alongside the original body checks. A duplicate description can accompany a body that adds supported knowledge; duplicate bodies and conflicting descriptions remain proposals. All additional questions fit the existing request limits before any call; budget exhaustion retains a proposal.
 
@@ -1079,7 +1117,7 @@ plugin learning net benefit. See @tests/jev-focused-requirement-manifest.json,
 
 ### Audit safety and upgrade ownership
 
-Learning workers use only the package's parent-scoped `learning_read` tool, not native read/grep/find/ls or shell tools. Incremental Memory is dossier-only; broader maintenance still checks project containment, symlinks, sensitive paths/content and read bounds. Variable Memory metadata is a replaceable untrusted reference message; the system prompt contains only fixed retrieval instructions.
+Learning workers use only the package's parent-scoped `learning_read` tool, not native read/grep/find/ls or shell tools. Incremental Memory is dossier-only; broader maintenance still checks project containment, symlinks, sensitive paths/content and read bounds. Variable Memory metadata occupies a replaceable, escaped structured prompt section beside fixed retrieval instructions. No reference message is appended for each user turn.
 
 Readable private paths remain compatible, with canonical project ownership recorded outside Memory entry roots. The first canonical project accessing an unbound legacy scope is bound automatically, preserving upgrade compatibility. This only adds an ownership binding; it never moves, rewrites or merges existing Memory or scoped Harness. Another project's binding cannot be overwritten. First-access binding cannot retrospectively prove historical legacy ownership. A colliding or malformed scoped Harness binding is diagnosed as unavailable rather than reusing another project's cached policy; global/project layers remain loaded.
 
@@ -1148,7 +1186,7 @@ from scoring as success. Failures and ties remain results. These authored featur
 tasks on previously used public projects are a small experiment, not upstream
 issue acceptance or evidence of general model improvement.
 
-The study requires Docker and an isolated Pi 1.2.0 runtime. The historical cache image
+The study requires Docker and an isolated Pi 1.3.0 runtime. The historical cache image
 `cl-real-project-runtime:20261010-base` is upgraded before fresh study admission. Use pinned local source checkouts matching
 `tests/real_project_tasks.py`, configured inference, and `TYPESAFE_API_KEY`.
 Real keys stay in the host proxy. Do not mount host project or agent directories.
@@ -1627,10 +1665,13 @@ or better subsequent tasks.
 
 Semantic Memory amendment `content` is a complete replacement Markdown document, including name/description/type frontmatter and the full body. Its structured-output schema matches the parent document requirement; a body-only paragraph is not a complete amendment. Identity, protected metadata, source citations and fresh complete review remain mandatory. A content patch may omit unchanged evidence only when the parent explicitly grants original-source reuse for that candidate. The parent checks the exact candidate ID and frozen snapshot hash, run and scope, resolves the complete original citations again, and preserves locked fields. Explicit invalid evidence and an unchanged effective patch remain rejected. This supplies a candidate for fresh review, never a learned change or approval. Citation-only amendments still require evidence. When parent-bound source observations are available, correction generation receives the reviewer's validated same-path read-order links alongside the complete original evidence. The links establish provenance only. They do not establish semantic supersession, runtime success or user permission, and old Memory remains a correction target. Invalid source bindings stop generation before a model request. Fresh full review must still reject a repair that restores an obsolete declaration while citing newer source.
 
-Semantic Memory repair uses the same 230-second worker budget as independent
-body review, with parent cancellation propagated to the child process group.
-Timeout retains the rejected proposal, parent-controlled lifecycle and partial
-usage; it does not admit a mutation or trigger another planner retry. Failed
+Semantic Memory repair and independent body review share the recorded
+`MEMORY_CORRECTION_WORKER_DEADLINE_MS` budget of 600 seconds (ADR 0009), with
+parent cancellation propagated to the child process group. The Harness
+correction path keeps its own 230-second bound, and every semantic threshold,
+request bound and retry policy is unchanged. Timeout retains the rejected
+proposal, both parent-controlled lifecycle markers and partial usage; it does not
+admit a mutation or trigger another planner retry. Failed
 continuous studies reconcile retained receipts and worker ledgers by identity,
 including body review and source collection. Known costs are lower bounds when
 calls were interrupted; receipt processing and writes do not establish learning

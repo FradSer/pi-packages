@@ -185,10 +185,10 @@ def run(output: Path, project: Path, *, preflight_only: bool, snapshot: Path | N
             (agent / 'models.json').write_text(json.dumps(models))
             (agent / 'settings.json').write_text(json.dumps({'packages': [], 'quietStartup': True, 'defaultThinkingLevel': 'off'}))
             env.update({k: v.replace('host.docker.internal', '127.0.0.1') for k, v in proxy.jev_environment().items()})
-            pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
+            pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
             node = shutil.which('node')
             version = subprocess.check_output([node, str(pi), '--version'], env=env, text=True).strip()
-            if version != '1.2.0':
+            if version != '1.3.0':
                 raise AssertionError('Pi compatibility baseline changed')
             report['piVersion'] = version
             command = [node, str(pi), '--offline', '--no-extensions', '--no-skills', '--no-prompt-templates',

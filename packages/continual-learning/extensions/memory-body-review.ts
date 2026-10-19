@@ -7,6 +7,18 @@ import {memoryDescriptionClaim} from "./jev-learning";
 import {containsSensitiveMemoryMaterial, writeFileAtomic} from "./consolidation-run";
 
 const digest = (value: string): string => createHash("sha256").update(value).digest("hex");
+
+/** Recorded Memory correction worker budget. Independent body review and
+ * semantic Memory repair both run `--thinking xhigh` over complete frozen
+ * evidence. The observed body review used 184004 ms of the previous 230000 ms
+ * bound, and the v64/v72/v73 repairs had no completed assistant message when that bound
+ * aborted them. This does not establish a service-side cause. 600000 ms fits the
+ * unlimited 7200-second study guardian; the combined learning workload can exceed
+ * the bounded 900-second task guardian, which remains authoritative, and that
+ * interruption stays an interruption, never a pass. The Harness correction path
+ * keeps its own 230-second bound. See
+ * docs/adr/0009-record-the-memory-correction-worker-budget.md. */
+export const MEMORY_CORRECTION_WORKER_DEADLINE_MS = 600_000;
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -161,7 +173,7 @@ export async function reviewMemoryBodies(input: {
   const controller = new AbortController();
   const abort = () => controller.abort();
   input.signal?.addEventListener("abort", abort, {once: true});
-  const timer = setTimeout(abort, 230_000);
+  const timer = setTimeout(abort, MEMORY_CORRECTION_WORKER_DEADLINE_MS);
   const batches: NonNullable<MemoryBodyReview["batches"]> = [];
   const judgments: MemoryBodyJudgment[] = [];
   let status: MemoryBodyReview["status"] = "reviewed";

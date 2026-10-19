@@ -17,7 +17,7 @@ import time
 
 REPO = Path(__file__).resolve().parents[3]
 FIXTURE = Path(__file__).with_name('private-memory-consent-live-fixture.ts')
-CLI = REPO/'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
+CLI = REPO/'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
 
 
 def main() -> None:

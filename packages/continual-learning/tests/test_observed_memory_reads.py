@@ -1,4 +1,5 @@
 """Correction revisits actual successful Memory reads without granting authority."""
+import pytest
 from support import run_bun
 
 
@@ -123,3 +124,75 @@ def test_study_read_aliases_preserve_exact_bytes_and_reject_remote_file_uri() ->
         assert bool(observed) is accepted
         if accepted:
             assert observed[0]['revision'] == original['revision']
+
+
+@pytest.mark.parametrize('case', ['complete', 'unlisted', 'partial-native', 'changed-result', 'failed', 'missing-time', 'foreign-session', 'missing-preparation', 'changed-preparation', 'broken-chain', 'duplicate-call', 'duplicate-result', 'duplicate-native', 'reset', 'truncated-snapshot', 'missing-revision', 'append-failure', 'result-append-failure', 'large-branch', 'cross-session-reuse', 'same-body-files', 'no-native-start'])
+def test_complete_memory_revision_observation_requires_native_result_and_retained_branch(case: str) -> None:
+    value = run_bun(r'''
+      import {createHash} from 'node:crypto';
+      import {MemoryUseTracker} from './packages/continual-learning/extensions/memory-retrieval.ts';
+      const hash=x=>createHash('sha256').update(x).digest('hex');
+      const mode=CASE;
+      const body='---\ndescription: private cue\n---\nPrivate exact knowledge.\n';
+      const scope={sessionId:'session-a',cwd:'/project',parentEntryId:null};
+      const rows=[];const emit=data=>{if(mode==='append-failure'||mode==='result-append-failure'&&data.phase==='full-body-result-observed')throw Error('Unavailable');const id='entry-'+rows.length;rows.push({type:'custom',id,parentId:rows.at(-1)?.id??null,customType:'memory-use-observation',data});return id};
+      const tracker=new MemoryUseTracker();
+      const entry={filename:'fact.md',source:'harness',readPath:'/private/fact.md',content:body,contentTruncated:mode==='truncated-snapshot',...(mode==='missing-revision'?{}:{fileRevision:hash(body)})};
+      const prepare=()=>tracker.prepare(scope,mode==='same-body-files'?[entry,{...entry,filename:'other.md',readPath:'/private/other.md'}]:[entry],mode==='unlisted'?'- another.md':'- fact.md — private cue','<section>metadata</section>',emit);
+      prepare();
+      const start={toolName:'read',toolCallId:'native-read',args:{path:'/private/fact.md'}};
+      if(mode==='cross-session-reuse'){tracker.nativeStart?.(scope,start);tracker.reset();scope.sessionId='session-b';rows.length=0;prepare()}
+      if(mode!=='no-native-start')tracker.nativeStart?.(scope,start);
+      if(!rows.length)rows.push({type:'custom',id:'unrelated',parentId:null});
+      rows.push({type:'message',id:'user',parentId:rows.at(-1).id,message:{role:'user',content:'Related task'}});
+      rows.push({type:'message',id:'call',parentId:'user',message:{role:'assistant',content:[{type:'toolCall',id:'native-read',name:'read',arguments:{path:'/private/fact.md'}}]}});
+      const native={toolName:'read',toolCallId:'native-read',result:{content:[{type:'text',text:mode==='partial-native'?body.slice(1):body}]},isError:mode==='failed',...(mode==='missing-time'?{}:{durationMs:1})};
+      tracker.nativeEnd(mode==='foreign-session'?{...scope,sessionId:'other'}:scope,native);
+      if(mode==='duplicate-native')tracker.nativeEnd(scope,native);
+      if(mode==='reset')tracker.reset();
+      rows.push({type:'message',id:'result',parentId:'call',message:{role:'toolResult',toolName:'read',toolCallId:'native-read',content:[{type:'text',text:body}],isError:false}});
+      if(mode==='changed-result')rows.at(-1).message.content[0].text+='changed';
+      if(mode==='broken-chain')rows.at(-1).parentId='wrong';
+      if(mode==='missing-preparation')rows.shift();
+      if(mode==='changed-preparation')rows[0].data.sectionDigest='tampered';
+      if(mode==='duplicate-call')rows[2].message.content.push({...rows[2].message.content[0]});
+      if(mode==='duplicate-result')rows.push({...rows.at(-1),id:'duplicate',parentId:'result'});
+      if(mode==='large-branch')for(let i=0;i<10000;i++)rows.push({type:'custom',id:'extra-'+i,parentId:rows.at(-1).id});
+      tracker.settle(scope,rows,emit);tracker.settle(scope,rows,emit);
+      console.log(JSON.stringify({observations:rows.filter(r=>r.customType==='memory-use-observation'),privateLeak:JSON.stringify(rows.filter(r=>r.customType==='memory-use-observation')).includes('Private exact knowledge')}));
+    '''.replace('CASE', __import__('json').dumps(case)))
+    observations = [r['data'] for r in value['observations']]
+    if case not in ('complete', 'unlisted'):
+        assert not any(r['phase'] == 'full-body-result-observed' for r in observations), value
+        assert value['privateLeak'] is False
+        return
+    assert [r['phase'] for r in observations] == ['section-prepared', 'full-body-result-observed']
+    assert observations[1]['resultEntryId'] == 'result'
+    assert observations[1]['callEntryId'] == 'call'
+    assert observations[1]['preparationEntryId'] == value['observations'][0]['id']
+    assert observations[1]['listed'] is (case == 'complete')
+    assert observations[1]['modelConsumption'] == 'unverified'
+    assert observations[1]['effect'] == 'cannot-attribute'
+    assert value['privateLeak'] is False
+
+
+def test_memory_preparation_binds_the_leaf_after_asynchronous_start_work(tmp_path) -> None:
+    from support import isolated_run_bun
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      const cwd=path.join(process.env.TEST_ROOT,'project');fs.mkdirSync(cwd);(await import('node:child_process')).execFileSync('git',['init','-q',cwd]);fs.mkdirSync(path.join(cwd,'.memory'));
+      fs.writeFileSync(path.join(cwd,'.memory/fact.md'),'---\ndescription: fixture fact\n---\nExact private fixture body.\n');
+      fs.mkdirSync(process.env.PI_CODING_AGENT_DIR,{recursive:true});fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({jev:false}));
+      fs.mkdirSync(path.join(process.env.PI_CODING_AGENT_DIR,'memory'),{recursive:true});fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'memory/settings.json'),JSON.stringify({autoMemory:false}));
+      const {default:register}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const hooks={},rows=[{id:'prior',parentId:null,type:'message',message:{role:'user',content:'Previous task'}}];let leaf='prior';
+      register({on:(name,f)=>(hooks[name]??=[]).push(f),registerCommand(){},sendMessage(){},getCommands:()=>[],appendEntry:(customType,data)=>{const id='entry-'+rows.length;rows.push({id,parentId:leaf,type:'custom',customType,data});leaf=id}});
+      const ctx={cwd,hasUI:false,ui:{notify(){}},sessionManager:{getSessionId:()=>'native-session',getLeafId:()=>leaf,getBranch:()=>rows}};
+      const options={sections:{}};
+      const pending=hooks.before_agent_start[0]({messageType:'user',prompt:'Related task',systemPromptOptions:options},ctx);
+      rows.push({id:'async-row',parentId:leaf,type:'custom',customType:'other-extension',data:{}});leaf='async-row';
+      await pending;
+      const prepared=rows.find(r=>r.customType==='memory-use-observation');
+      console.log(JSON.stringify({recordedParent:prepared?.data.parentEntryId,nativeParent:prepared?.parentId,bodyInjected:JSON.stringify(options).includes('Exact private fixture body')}));
+    ''', {'TEST_ROOT': str(tmp_path), 'PI_CODING_AGENT_DIR': str(tmp_path / 'agent')})
+    assert value == {'recordedParent': 'async-row', 'nativeParent': 'async-row', 'bodyInjected': False}

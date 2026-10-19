@@ -3,7 +3,7 @@ import json
 import subprocess
 import pytest
 from pathlib import Path
-from continuous_project_evidence import exact_failure_processed, verifier_observation
+from continuous_project_evidence import exact_failure_processed, verifier_observation, continuous_coverage
 
 
 def summarize(task, ranges):
@@ -26,6 +26,18 @@ def evidence():
     return original, feedback, learning
 
 
+def processing_coverage(feedback, learning):
+    # Controlled summary fixture: authenticated dossier extraction is tested
+    # separately. Processing is not a claim of stored or consumed knowledge.
+    feedback = copy.deepcopy(feedback)
+    feedback.update(originalObservationsPreserved=True, verifierObserved=True, taskSourceUnchanged=True)
+    feedback['observation']['verification'] = {'passed': False}
+    learning = dict(learning, pendingLearningJobs=0)
+    return continuous_coverage({'stages': [{'id': 'orientation', 'arms': {'with-learning': {
+        'verifierFeedback': feedback, 'explicitRecovery': {'exitCode': 0},
+        'learning': learning, 'validLearning': False}}}]})
+
+
 def test_complete_original_prefix_survives_append_without_replacing_review():
     original, feedback, learning = evidence()
     full = copy.deepcopy(original)
@@ -35,8 +47,16 @@ def test_complete_original_prefix_survives_append_without_replacing_review():
     learning['dossiers'] = [proof]
     assert proof['taskSliceDigest'] != feedback['queuedFailure']['digest']
     assert exact_failure_processed(feedback, learning)
+    # V91-R2 completed replay had a larger reviewed source snapshot than its
+    # unchanged original failure range. Both consumers must accept that same
+    # bound prefix, without claiming later consumption or learning benefit.
+    coverage = processing_coverage(feedback, learning)
+    assert coverage['failedTaskProcessed']
+    assert not coverage['failedTaskBackfilled']
+    assert not coverage['coverageComplete'] and not coverage['improvementObserved']
     learning['completedBacklog']['job'] = 'foreign'
     assert not exact_failure_processed(feedback, learning)
+    assert not processing_coverage(feedback, learning)['failedTaskProcessed']
 
 
 def test_prefix_proof_rejects_changed_reordered_shortened_and_forged_evidence():
@@ -56,6 +76,7 @@ def test_prefix_proof_rejects_changed_reordered_shortened_and_forged_evidence():
         proof = summarize(dict(original=original, task=task), [{'from':4,'to':5,'digest':digest}])
         learning['dossiers'] = [proof]
         assert not exact_failure_processed(feedback, learning)
+        assert not processing_coverage(feedback, learning)['failedTaskProcessed']
         assert proof['originalPrefixProofs'] == []
 
 
@@ -90,9 +111,11 @@ def test_prefix_boundaries_and_full_review_digest_cannot_be_substituted():
     learning['dossiers'] = [proof]
     feedback['queuedFailure'].update({'from':9,'to':10})
     assert not exact_failure_processed(feedback, learning)
+    assert not processing_coverage(feedback, learning)['failedTaskProcessed']
     feedback['queuedFailure'].update({'from':4,'to':5})
     proof['originalPrefixProofs'][0]['reviewDigest'] = 'foreign'
     assert not exact_failure_processed(feedback, learning)
+    assert not processing_coverage(feedback, learning)['failedTaskProcessed']
 
 
 @pytest.mark.parametrize('variant', ['original', 'dot-root', 'nested', 'parent', 'foreign-scope', 'wrong-digest', 'negative-range', 'boolean-range', 'symlink'])
@@ -112,7 +135,9 @@ def test_artifact_capture_preserves_closed_single_range_from_original_backlog(mo
     if variant == 'wrong-digest': record['digest'] = 'b' * 64
     if variant == 'negative-range': record['from'] = -1
     if variant == 'boolean-range': record['from'] = True
-    receipt = dict(input=dict(backlogId=job), totals=dict(totalTokens=0, cost=0), operations=0)
+    receipt = dict(kind='learning-pipeline-receipt',batchId='fixture-owned',attempts=[],
+                   input=dict(backlogId=job),totals={k:0 for k in ('input','output','cacheRead','cacheWrite','totalTokens','cost')},
+                   operations=0,usageAvailable=True,costAvailable=True)
     feedback['queuedFailure'] = dict(id=job, **{k: record[k] for k in ('from', 'to', 'digest')})
     receipt_digest = json.loads(subprocess.run(['node', '-e', "let s='';process.stdin.on('data',b=>s+=b).on('end',()=>console.log(JSON.stringify(require('crypto').createHash('sha256').update(JSON.stringify(JSON.parse(s))).digest('hex'))))"], input=json.dumps(receipt), capture_output=True, text=True, check=True).stdout)
     saved = {}

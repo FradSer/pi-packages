@@ -10,6 +10,7 @@ import { preservesOwnedHarnessRules } from "./current-user-harness-correction";
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import {Type} from "typebox";
 import {previewHarnessCandidate} from "./harness-authoring-preview.ts";
 import type { Stats } from "node:fs";
@@ -36,6 +37,7 @@ const renderHarnessPreview = guardrailRows.result<{content: unknown; details?: {
 
 import {
   evaluateBash,
+  ruleRevision,
   validateRuleDeclaration,
   validateRuleContainer,
   mergeLayers,
@@ -377,6 +379,40 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     },
   });
   const pendingBashMessages = new Map<string, Array<{ id: string; message: string }>>();
+  // Session-owned observation only: no mutation of history, Memory, or rules.
+  const pendingBehavior = new Map<string, {sessionId: string; decisionEntryId: string; inputDigest: string}>();
+  const seenBehaviorCalls = new Set<string>();
+  const behaviorDigest = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  let sessionGeneration = 0;
+  // Keep call-id tombstones across session changes: a late result from an old
+  // session must never close a new call that happens to reuse its id.
+  const resetBehavior = () => { pendingBehavior.clear(); sessionGeneration += 1; };
+  pi.on("session_start", resetBehavior);
+  pi.on("session_shutdown", resetBehavior);
+  pi.on("session_tree", resetBehavior);
+  const appendBehavior = (data: unknown): boolean => {
+    try { pi.appendEntry("harness-behavior-observation", data); return true; }
+    catch { return false; } // Missing observation is never authority to change execution.
+  };
+  pi.on("tool_execution_end", (event, ctx) => {
+    const pending = pendingBehavior.get(event.toolCallId);
+    if (!pending || event.toolName !== "bash") return;
+    pendingBehavior.delete(event.toolCallId);
+    try { if (ctx.sessionManager.getSessionId() !== pending.sessionId) return; } catch { return; }
+    let resultDigest: string | undefined;
+    try { resultDigest = behaviorDigest(event.result); } catch { /* Unserializable result is not evidence. */ }
+    appendBehavior({
+      version: 1, phase: "handler-result", sessionId: pending.sessionId,
+      decisionEntryId: pending.decisionEntryId, toolCallIdDigest: behaviorDigest(event.toolCallId),
+      inputDigest: pending.inputDigest, resultDigest: resultDigest ?? null,
+      // Missing timing is not positive execution evidence, including on older hosts.
+      handlerInvoked: typeof event.durationMs === "number" && Number.isFinite(event.durationMs) && event.durationMs >= 0 ? true : null,
+      handlerTiming: event.durationMs === undefined ? "absent" : typeof event.durationMs === "number" && Number.isFinite(event.durationMs) && event.durationMs >= 0 ? "observed" : "invalid",
+      ...(typeof event.durationMs === "number" && Number.isFinite(event.durationMs) && event.durationMs >= 0 ? {durationMs: event.durationMs} : {}),
+      isError: event.isError, taskOutcome: "unverified", effect: "cannot-attribute",
+    });
+  });
+
 
   pi.registerEntryRenderer("harness-event", (entry, { expanded }, theme) => {
     const details = entry.data as HarnessEventData | undefined;
@@ -409,6 +445,23 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   };
 
   pi.on("tool_call", async (event, ctx) => {
+    const requestGeneration = sessionGeneration;
+    let requestSessionId: string | undefined, requestParentEntryId: string | null | undefined;
+    try {
+      requestSessionId = ctx.sessionManager?.getSessionId?.();
+      requestParentEntryId = ctx.sessionManager?.getLeafId?.();
+    } catch { /* An unavailable observation scope must not become a fabricated binding. */ }
+    const sessionIsCurrent = (): boolean => {
+      if (requestGeneration !== sessionGeneration) return false;
+      try {
+        const current = ctx.sessionManager?.getSessionId?.();
+        return requestSessionId === undefined || current === undefined || requestSessionId === current;
+      } catch { return true; } // A broken observation accessor does not change policy.
+    };
+    const observationIsCurrent = (): boolean => {
+      try { return requestGeneration === sessionGeneration && !!requestSessionId && requestSessionId === ctx.sessionManager?.getSessionId?.(); }
+      catch { return false; }
+    };
     const cwd = ctx.cwd || process.cwd();
     const paths = configPaths(cwd);
     let configRecovery = false;
@@ -525,6 +578,41 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       ...(flat?.matchedRules.map(rule => ({ id: rule.id, message: rule.message, action: rule.action, source: rule.source })) ?? []),
       ...legacy.matches.map(match => ({ id: match.policyName, message: match.cleanReason, action: match.action, source: match.source })),
     ];
+    const recordBehaviorDecision = (decision: "execute" | "block" | "incomplete" | "allow-once" | "confirmation-blocked") => {
+      if (event.toolName !== "bash" || typeof event.toolCallId !== "string" || !event.toolCallId) return;
+      const sessionId = requestSessionId, parentEntryId = requestParentEntryId;
+      if (!sessionId || !parentEntryId || !observationIsCurrent()) return;
+      let inputDigest: string;
+      try { inputDigest = behaviorDigest(event.input); } catch { return; }
+      const duplicate = seenBehaviorCalls.has(event.toolCallId);
+      if (duplicate) pendingBehavior.delete(event.toolCallId);
+      const trackingAvailable = !duplicate && seenBehaviorCalls.size < 4096 && pendingBehavior.size < 256;
+      if (seenBehaviorCalls.size < 4096) seenBehaviorCalls.add(event.toolCallId);
+      const appended = appendBehavior({
+        version: 1, phase: "decision", sessionId, parentEntryId,
+        toolCallIdDigest: behaviorDigest(event.toolCallId), inputDigest,
+        projectDigest: behaviorDigest(path.resolve(cwd)), decision,
+        effectiveConfigDigest: behaviorDigest({rules: config.rules.map(rule => ({source: rule.source, revision: ruleRevision(rule)})), legacy: config.legacy}),
+        rules: config.rules.slice(0, 128).map(rule => ({
+          idDigest: behaviorDigest(rule.id),
+          source: rule.source ?? "unknown", revision: ruleRevision(rule),
+          enabled: rule.enabled !== false, matched: flat?.matchedRules.some(match => match.id === rule.id) ?? false,
+          action: rule.enabled === false ? "disabled" : "bash" in rule ? ("action" in rule ? rule.action ?? "message" : "message") : "guidance",
+        })),
+        omittedRules: Math.max(0, config.rules.length - 128),
+        revisionCoverage: config.rules.length > 128 || config.legacy.policies.length || config.legacy.invalidPolicies.length
+          || config.legacy.disabled.length || Object.keys(config.legacy.skillPrompts).length || config.legacy.unavailable
+          || legacy.incomplete.length || config.configReadIncomplete || flat?.incompleteRuleIds?.length
+          ? "incomplete" : "complete",
+        handlerTracking: trackingAvailable ? "pending" : "unavailable",
+        taskOutcome: "unverified", effect: "cannot-attribute",
+      });
+      if (!appended || !trackingAvailable || !observationIsCurrent()) return;
+      try {
+        const decisionEntryId = ctx.sessionManager.getLeafId();
+        if (decisionEntryId) pendingBehavior.set(event.toolCallId, {sessionId, decisionEntryId, inputDigest});
+      } catch { /* No closing observation can be bound without the parent entry. */ }
+    };
     for (const match of matches.filter(match => match.action === "observe")) pi.appendEntry("harness-event", {
       kind: "policy-matched", policy: match.id, action: "observe", tool: event.toolName,
       reason: match.message, outcome: "observed", source: match.source ?? "unknown", file: harnessSourcePath(match.source, paths),
@@ -554,6 +642,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           source: "unknown",
           file: unreadableFiles.join(", ") || harnessSourcePath(undefined, paths),
         });
+        recordBehaviorDecision("incomplete");
         return { block: true, reason: bashEval.reason ?? "Bash evaluation incomplete" };
       }
 
@@ -570,6 +659,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           source,
           file,
         });
+        recordBehaviorDecision("block");
         return { block: true, reason: bashEval.messages.join("\n") };
       }
 
@@ -589,6 +679,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
             source,
             file,
           });
+          recordBehaviorDecision("confirmation-blocked");
           return { block: true, reason: `${cleanReason}\n(no UI available to confirm)` };
         }
 
@@ -599,7 +690,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           ["Allow once", "Block"],
           { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS, signal: ctx.signal },
         );
-        if (ctx.signal?.aborted) return { block: true, reason: `${cleanReason}\n(confirmation cancelled)` };
+        if (ctx.signal?.aborted || !sessionIsCurrent()) return { block: true, reason: `${cleanReason}\n(confirmation cancelled)` };
         if (choice === "Allow once") {
           if (writeApproval) {
             const changed = await recheckHarnessWriteApproval(writeApproval, () => event.input, ctx.signal);
@@ -620,6 +711,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           if (flat?.messages.length) {
             pendingBashMessages.set(event.toolCallId, flat.matchedRules.map((r) => ({ id: r.id, message: r.message })));
           }
+          recordBehaviorDecision("allow-once");
           return await finalizeAuthoring();
         }
 
@@ -635,6 +727,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           source,
           file,
         });
+        recordBehaviorDecision("confirmation-blocked");
         return {
           block: true,
           reason: `${cleanReason}\n(${outcome})`,
@@ -651,6 +744,8 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const changed = await recheckHarnessWriteApproval(writeApproval, () => event.input, ctx.signal);
       if (changed) return { block: true, reason: changed };
     }
+    if (!sessionIsCurrent()) return {block: true, reason: "Harness evaluation belongs to a closed or changed session; retry in the current session."};
+    recordBehaviorDecision("execute");
     return await finalizeAuthoring();
   });
 

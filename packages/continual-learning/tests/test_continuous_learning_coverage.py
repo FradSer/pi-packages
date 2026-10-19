@@ -33,6 +33,9 @@ def test_partial_real_receipt_retains_known_cost_and_counts_unknown_usage(tmp_pa
     assert result['knownLearningCost'] == receipt['totals']['cost'] + .024
     assert len(result['partialWorkerUsageLedgers']) == 2
     assert result['interruptedUnknownUsage'] == 1
+    # Orphan incomplete ledgers can belong to that unknown pipeline. Preserve
+    # their separate identity count without claiming two distinct model calls.
+    assert result['unknownWorkerUsageLedgers'] == 1
     assert result['allLearningCostsPriced'] is False
 
 
@@ -195,3 +198,83 @@ def test_index_only_protocol_requires_actual_exact_revision_reads() -> None:
         inference['observedMemoryReads'] = inference.get('deliveredMemoryEntries', [])
     assert continuous_coverage(report)['memoryUsed']
     assert continuous_coverage(report)['memoryCorrectedAndUsed']
+
+
+def test_failure_first_correction_requires_own_capture_and_later_revision_read():
+    import hashlib
+    old='Current source has an unresolved onIdle failure. limitFunction PromiseLike contract remains scoped.'
+    new='The historical onIdle failure is fixed in the observed revision; prior limits remain.'
+    entry=lambda text:{'filename':'idle.md','content':text,'revision':hashlib.sha256(text.encode()).hexdigest()}
+    report={'coverageVersion':3,'observedFailureProtocolVersion':1,'stages':[
+        {'id':'orientation','arms':{'with-learning':{'learning':{'memoryEntries':[entry(old)]},
+            'failureMemoryAudit':{'mode':'observed-failure-record','passed':True}}}},
+        {'id':'idle','arms':{'with-learning':{'learning':{'memoryEntries':[entry(new)]},
+            'failureMemoryAudit':{'mode':'observed-failure-transition','passed':True},
+            'verification':{'sourceRepairPassed':True},
+            'candidateBeforeConvergence':{'phase':'post-main-before-source-convergence','canonicalImportApplied':False}}}},
+        {'id':'cancellable-idle','arms':{'with-learning':{'inference':{'observedMemoryReads':[{'filename':'idle.md','revision':entry(new)['revision']}]}}}}
+    ]}
+    audit=report['stages'][1]['arms']['with-learning']['failureMemoryAudit']
+    audit.update(ownedMemoryChange=True,reviewedMemoryCorpusDigest=hashlib.sha256(__import__('json').dumps([[entry(new)['filename'],entry(new)['revision']]],separators=(',',':')).encode()).hexdigest())
+    result=continuous_coverage(report)
+    assert result['failureKnowledgeLearned'] and result['failureKnowledgeCorrectedAndUsed']
+    assert not result['coverageComplete'] and not result['improvementObserved']
+    report['stages'][1]['arms']['with-learning']['candidateBeforeConvergence']['canonicalImportApplied']=True
+    assert not continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']
+    report['stages'][1]['arms']['with-learning']['candidateBeforeConvergence']['canonicalImportApplied']=False
+    report['stages'][2]['arms']['with-learning']['inference']['observedMemoryReads']=[]
+    assert not continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']
+
+
+def test_failure_corpus_use_cannot_be_satisfied_by_an_unrelated_changed_entry():
+    import hashlib
+    entry=lambda name,text:{'filename':name,'content':text,'revision':hashlib.sha256(text.encode()).hexdigest()}
+    old=entry('failure.md','Unresolved failure in the observed source.')
+    corrected=entry('failure.md','The observed source repair corrected the failure; history remains.')
+    unrelated=entry('types.md','An independently updated type contract.')
+    unchanged=entry('scope.md','Still valid limits on source scope.')
+    report={'coverageVersion':3,'observedFailureProtocolVersion':1,'stages':[
+        {'id':'orientation','arms':{'with-learning':{'learning':{'memoryEntries':[old,unchanged]},
+            'failureMemoryAudit':{'mode':'observed-failure-record','passed':True}}}},
+        {'id':'idle','arms':{'with-learning':{'learning':{'memoryEntries':[corrected,unrelated,unchanged]},
+            'failureMemoryAudit':{'mode':'observed-failure-transition','passed':True},
+            'verification':{'sourceRepairPassed':True},
+            'candidateBeforeConvergence':{'phase':'post-main-before-source-convergence','canonicalImportApplied':False}}}},
+        {'id':'cancellable-idle','arms':{'with-learning':{'inference':{'observedMemoryReads':[unrelated]}}}}
+    ]}
+    corpus=[corrected,unrelated,unchanged]
+    audit=report['stages'][1]['arms']['with-learning']['failureMemoryAudit']
+    audit.update(ownedMemoryChange=True,reviewedMemoryCorpusDigest=hashlib.sha256(__import__('json').dumps([[e['filename'],e['revision']] for e in corpus],separators=(',',':')).encode()).hexdigest())
+    reads=report['stages'][2]['arms']['with-learning']['inference']['observedMemoryReads']
+    assert not continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']
+    reads.append(corrected)
+    assert not continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']
+    reads.append(unchanged)
+    assert continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']
+    corrected['revision']='0'*64
+    assert not continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']
+
+
+@__import__('pytest').mark.parametrize('damage',['old-read','duplicate','missing','foreign-audit','no-owned-change'])
+def test_failure_corpus_use_requires_exact_complete_bound_revisions(damage):
+    import hashlib,json
+    def entry(name,text):return {'filename':name,'content':text,'revision':hashlib.sha256(text.encode()).hexdigest()}
+    old=entry('failure.md','Unresolved observed failure.')
+    new=entry('failure.md','Observed source correction with truthful history.')
+    other=entry('types.md','Valid independent contract.')
+    corpus=[new,other]
+    audit={'mode':'observed-failure-transition','passed':True,'ownedMemoryChange':True,
+           'reviewedMemoryCorpusDigest':hashlib.sha256(json.dumps([[e['filename'],e['revision']] for e in corpus],separators=(',',':')).encode()).hexdigest()}
+    reads=[dict(new),dict(other)]
+    report={'coverageVersion':3,'observedFailureProtocolVersion':1,'stages':[
+        {'id':'orientation','arms':{'with-learning':{'learning':{'memoryEntries':[old]},'failureMemoryAudit':{'mode':'observed-failure-record','passed':True}}}},
+        {'id':'idle','arms':{'with-learning':{'learning':{'memoryEntries':corpus},'failureMemoryAudit':audit,
+          'verification':{'sourceRepairPassed':True},'candidateBeforeConvergence':{'phase':'post-main-before-source-convergence','canonicalImportApplied':False}}}},
+        {'id':'later','arms':{'with-learning':{'inference':{'observedMemoryReads':reads}}}}]}
+    assert continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']
+    if damage=='old-read':reads[0]=old
+    elif damage=='duplicate':corpus.append(dict(new))
+    elif damage=='missing':reads.pop()
+    elif damage=='foreign-audit':audit['reviewedMemoryCorpusDigest']='0'*64
+    elif damage=='no-owned-change':audit['ownedMemoryChange']=False
+    assert not continuous_coverage(report)['failureKnowledgeCorrectedAndUsed']

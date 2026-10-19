@@ -1,4 +1,29 @@
 Feature: Learn, use, correct and recover across real tasks
+  Scenario: Declaration knowledge does not infer runtime property ownership
+    Given a structural declaration with a callable and declared members
+    When Memory generation or correction describes the observed contract
+    Then distinguish the declared members from own or inherited runtime properties
+    And require cited implementation observations for a property ownership claim
+    And preserve the exact source declaration and the separate semantic gates
+
+  Scenario: An assertion label does not establish the actual blocking state
+    Given a real failed test message names one job as held
+    And the complete test awaits that callback before checking work it enqueued
+    When Memory generation or correction records the unresolved failure
+    Then separate the literal error message from the failed predicate and observed control flow
+    And do not describe a completed callback as the unfinished work
+    And preserve the failure observation without inventing a cause when the blocking state is unknown
+    And keep complete original evidence and all existing semantic and mutation gates
+    And prompt delivery alone does not prove correct learning or later task benefit
+
+  Scenario: Recovery binds current native history to complete file identities
+    Given a native learning transaction records bytes, digest, mode and physical revision
+    When a fresh study captures and checks the recovery
+    Then preserve and compare the complete revision at both live endpoints and every history link
+    And bind retained archive bytes to the raw live digest, mode and size
+    And reject altered revisions, unknown snapshot fields and unrecorded mutations
+    And retain historical cohorts without changing their snapshots or failure outcomes
+
   Scenario: Normal Memory mutations independently preserve knowledge and reject counterevidence
     Given a rewrite or deletion and complete bound old and proposed knowledge
     When normal project review reads every original evidence window
@@ -615,6 +640,17 @@ Feature: Learn, use, correct and recover across real tasks
     And an unsuccessful correction may preserve verified independent knowledge with unresolved work pending
     And cancellation or changed evidence prevents writes
 
+  Scenario: A held unchanged rewrite does not block an independently proved new fact
+    Given the complete reviewed plan contains a byte-identical rewrite of a uniquely frozen existing record
+    And another candidate has passed every original source, description, consistency and counterevidence check
+    When complete pair and standalone reviews prove that the new candidate is independent of the persisted held record
+    Then the parent can save only the new candidate after its independent body review and normal mutation guards
+    And the existing record remains byte-identical and held without a write or privacy change
+    And the audit retains the complete original plan, digests, indexes and held operation count
+    And pending review prevents Harness, AGENTS and backlog acknowledgment
+    And missing proof, a changed predecessor, source races, conflict, duplication or dependency prevents admission
+    And this partial persistence does not establish learning effectiveness or full task success
+
   Scenario: Backfill cannot recreate an unselected existing Memory file
     Given an earlier partial application created a Memory entry
     And backfill selects other entries without selecting that file
@@ -906,6 +942,14 @@ Feature: Learn, use, correct and recover across real tasks
     And it does not require a speculative body change
     And only a confirmed contradiction at probability 0.9 and confidence 0.8 requires changed text
 
+  Scenario: A body consistency correction can keep its description coherent
+    Given a bound consistency review holds a Memory body
+    And that record includes an independently retrieved description
+    When the parent prepares the existing single semantic correction
+    Then both description and body may receive source-backed corrections for complete-record consistency
+    And separate source or counterevidence holds do not unlock unrelated fields
+    And identity, privacy, other metadata and all fresh review gates remain mandatory
+
   Scenario: Command-family permission and factual counterevidence both gate application
     Given a parent-proved literal command-family prohibition with complete frozen evidence
     When every original evidence window receives semantic review
@@ -949,7 +993,7 @@ Feature: Learn, use, correct and recover across real tasks
     Given an operator explicitly selects a supported planner thinking level
     When an isolated selector, planner or semantic repair worker is started
     Then its CLI uses that generation level without changing model or frozen evidence
-    And independent complete-record reviewers retain their existing thinking and deadlines
+    And independent complete-record reviewers retain their existing thinking and the recorded Memory correction worker budget
     And malformed or unsafe configuration cannot silently start an unrestricted generation
     And absent configuration preserves the existing model default
     And all original citation, privacy and semantic gates remain mandatory
@@ -1049,10 +1093,18 @@ Feature: Learn, use, correct and recover across real tasks
 
   Scenario: Semantic Memory repair cannot outlive its worker review budget
     Given a completed planner and a held Memory requiring correction
-    When its repair worker exceeds the existing 230 second review worker budget
+    When its repair worker exceeds the recorded Memory correction worker budget
     Then the repair child process group is terminated without another retry
     And the original proposal remains held with all semantic thresholds unchanged
     And parent-controlled lifecycle and partial usage evidence are retained
+
+  Scenario: The recorded Memory correction budget exceeds the historical bound
+    Given the historical independent-worker budget was 230 seconds
+    When the recorded Memory correction worker budget is applied to body review and semantic repair
+    Then it is 600 seconds, larger than the historical bound with every semantic gate unchanged
+    And a repair that needs more than 230 seconds but less than the recorded budget is accepted under the unchanged semantic gates
+    And the semantic repair writes parent-controlled started and closed lifecycle markers with the recorded deadline
+    And the Harness correction path keeps its own 230 second bound
 
   Scenario: Interrupted continuous studies preserve known learning costs
     Given a failed cohort retains pipeline receipts and unfinished worker ledgers
@@ -1129,6 +1181,8 @@ Feature: Learn, use, correct and recover across real tasks
     Given a real candidate confused an input function, a returned callable and its invocation result
     When generation or semantic correction prepares the knowledge output
     Then a shared source-level precision contract precedes the frozen evidence
+    And distinguish an outer function return annotation from the returned callable signature
+    And the outer annotation describes the returned callable while its inner annotation describes its invocation result
     And ambiguous paraphrases yield the exact attributed declaration rather than additional claims
     And no runtime verification, citation support or semantic acceptance is inferred
 
@@ -1476,6 +1530,29 @@ Feature: Learn, use, correct and recover across real tasks
     And complete original windows, all primitive gates and fresh review remain required
     And CREATE-only, retention, Harness and finite historical requests stay unchanged
 
+  Scenario: Explicitly decline an optional new Memory proposal
+    Given a complete held plan contains a never-written new proposal
+    And the parent verifies that no user storage or preservation obligation requires it
+    When the bounded semantic worker declines that exact parent-bound candidate
+    Then retain the original proposal, failure and all costs
+    And do not create, rewrite or delete Memory for that candidate
+    And review all remaining candidates and existing Memory with unchanged gates
+    And verify the exact complete declined set against the final remaining content and user obligations
+    And report the declined candidate as not learned with zero applied operations
+    And unknown, required, already-written and existing-record candidates remain held
+    And omission, cancellation and an empty repair do not decline a candidate
+
+  Scenario: Semantic repair retains the maintenance purpose structure
+    Given a held candidate has non-empty Why and How to apply sections
+    When a semantic repair changes its body or selects a source excerpt
+    Then the final merged content must retain both non-empty sections
+    And the repair can correct their text and applicability with original evidence
+    And a description-only repair retains the original body before this check
+    And quoted headings and empty headings cannot fill these sections
+    And legacy records without these sections remain compatible
+    And authorized deletion uses the existing deletion path
+    And section structure grants no source, privacy, semantic or mutation approval
+
   Scenario: Consistent Memory bodies can still require semantic repair reasoning
     Given independent body consistency passed but source, permission, or preservation holds a body
     When the existing bounded semantic repair child generates its amendment
@@ -1585,3 +1662,98 @@ Feature: Learn, use, correct and recover across real tasks
     Then distinguish work already queued at the completion check from future continuation work
     And do not turn an instantaneous empty state into a guarantee of future quiescence
     And preserve complete original evidence and every semantic approval gate
+
+  Scenario: Fresh continuous studies use the explicitly requested Pi 1.3 runtime
+    Given historical Pi 1.0 and Pi 1.2 evidence remains immutable
+    When preparing a new runtime and paired learning cohort
+    Then pin all seven Pi runtime packages to 1.3.0 and verify actual CLI startup
+    And reject an older runtime before any model request
+    And retain admission failures, complete source bindings and all known or unknown costs
+
+  Scenario: Failed repair lifecycle persistence keeps completed worker costs
+    Given a Memory correction worker returned known usage
+    When the parent cannot retain its closed lifecycle marker
+    Then retain the usage ledger independently and return the known usage with a failed outcome
+    And admit no repaired plan or mutation from that incomplete artifact record
+    And retain activity counts and first/last progress times without reasoning text
+
+  Scenario: Consistency review keeps the assertion level of quoted declarations
+    Given a Memory describes a complete observed type declaration as source text
+    When normal unbounded semantic review checks its internal consistency
+    Then send complete-body consistency questions in a body-only logical job
+    And count that job within the unchanged total request budget before transport
+    And refuse an over-budget matrix with zero calls and no invented token usage
+    And retain every original source, description, permission and preservation question
+    And distinguish quoted declarations from endorsed runtime assertions
+    And compare every explicit runtime assertion with its conditions and consequences
+    And keep complete body, source, description and counterevidence checks
+    And hold contradictory, unclear, missing and below-threshold judgments
+    And preserve finite historical question encodings
+
+  Scenario: A correction preserves purpose written with plain labels
+    Given a proposed Memory has populated plain Why and How to apply labels
+    And Limits for future maintenance is an explicit alias for the application-purpose slot
+    When its semantic correction rewrites the body
+    Then include both purpose slots in the correction instructions
+    And reject a result that removes either slot
+    And do not create slots from code, comments or empty unrelated sections
+    And allow evidence-supported corrections without locking draft wording or a fixed verification command
+    And keep every source, privacy and semantic gate
+
+  Scenario: Harness decisions and actual tool handlers have separate revision evidence
+    Given the current session evaluates an effective Harness rule
+    When a Bash call matches or does not match that rule
+    Then record the exact rule revision and native tool call binding outside model context
+    And record the handler result separately when the native execution event arrives
+    And missing or invalid timing cannot establish that the handler ran
+    And duplicate calls, foreign sessions and incomplete rule coverage cannot prove an effect
+    And command success does not establish task success or that the rule helped
+    And historical mutation records and current protections remain unchanged
+
+  Scenario: Memory discovery and complete result observations remain separate from adoption
+    Given a scoped Memory index is prepared without injecting entry bodies
+    When native Pi completes a read and settles the current task
+    Then record an exact file revision only from complete raw bytes that round-trip as UTF-8
+    And require the native result and unique retained result to match that complete revision
+    And bind the original preparation, call and result through the current branch
+    And partial, changed, failed, duplicate, foreign or unavailable observations establish no complete read
+    And section preparation does not prove wire delivery, physical origin, model adoption or task benefit
+    And observation failure cannot change learning, execution or existing Memory
+
+  Scenario: Retained source evidence can change without retyping frozen knowledge
+    Given an identity-bound complete snapshot and an unchanged retained Memory
+    And no confirmed contradiction requires changing that Memory text
+    When its repair operation omits content and supplies original source citations
+    Then the parent uses the exact frozen predecessor Markdown
+    And the complete corrected plan still requires independent semantic review
+    And a null body, changed predecessor, foreign identity or required text change is rejected
+    And ordinary new operations still require complete replacement content
+    And successful framing alone does not establish corrected knowledge or learning benefit
+
+  Scenario: Fresh source does not hide an acknowledged failed task
+    Given a completed replay has an exact acknowledged original failure prefix
+    And its reviewed dossier also contains fresh source evidence
+    When continuous coverage reports failed-task processing
+    Then use the same complete prefix and receipt proof as replay processing
+    And reject changed ranges, evidence, review digests and acknowledgments
+    And processing alone cannot establish later consumption or learning benefit
+
+  Scenario: Verified post-failure learning has a separate prospective continuation gate
+    Given a new observed-failure study explicitly enables verified failure learning
+    And its normally settled original task remains failed
+    When the control leaves unchanged safe source and the learner completes one bound feedback backfill
+    Then retain the exact original task, complete feedback read and native parent lifecycle
+    And require exact acknowledged backlog range, source digest and zero pending learning
+    And bind the complete source extension to its plan, manifest, observations and usage receipts
+    And independently review safe continuation and substantive failure knowledge at the original individual and joint thresholds
+    And preserve the original type, Harness, privacy, ownership, history and mutation checks
+    And only valid training can admit later equal-source tasks
+    And the default study and all historical failed outcomes remain unchanged
+    And actual later use, correction, retirement and benefit require separate observations
+
+  Scenario: Count early owned Harness corrections outside replay
+    Given an early parent pipeline receipt has no replay job or worker ledger
+    When the study captures all owned learning artifacts
+    Then it counts the receipt cost, tokens and operations once
+    And it preserves failed attempts and unknown usage
+    And duplicate identities with different evidence stop accounting

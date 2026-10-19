@@ -66,3 +66,96 @@ def test_duplicate_worker_identity_inside_one_receipt_is_rejected(tmp_path):
                 dict(usageLedgerId='same', usage=usage(.1 if equal else .2))]))
         with pytest.raises(ValueError, match='duplicate'):
             retained_learning_costs(tmp_path)
+
+
+def test_live_receipt_and_worker_copies_count_once_and_keep_failures():
+    from continuous_failure_retention import learning_cost_summary
+    u=usage(.4,41)
+    receipt=dict(kind='learning-pipeline-receipt',batchId='early',totals=u,
+        attempts=[dict(usageLedgerId='worker',usage=u,outcome='applied')],
+        usageAvailable=True,costAvailable=True,operations=1)
+    ledger=dict(ledgerId='worker',knownUsage=u,complete=True)
+    result=learning_cost_summary([receipt,receipt],[dict(receipt=receipt,outcome='completed')],[ledger,ledger])
+    assert result['knownLearningCost']==.4 and result['knownLearningTokens']==41
+    assert result['actualLearningOperations']==1 and result['interruptedUnknownUsage']==0
+    assert result['allLearningCostsPriced'] and result['learningFailedAttempts']==0
+    failed={**receipt,'batchId':'failed','totals':{k:0 for k in usage(0)},'attempts':[dict(outcome='failed')],
+            'usageAvailable':False,'costAvailable':False,'operations':0}
+    result=learning_cost_summary([receipt,failed],[],[ledger])
+    assert result['knownLearningCost']==.4 and result['learningFailedAttempts']==1
+    assert result['interruptedUnknownUsage']==1 and not result['allLearningCostsPriced']
+
+
+@pytest.mark.parametrize('field,value', [('totals',usage(.9)), ('operations',2),
+    ('input',{'source':'backlog-session'}), ('attempts',[{'outcome':'failed'}])])
+def test_live_conflicting_same_batch_snapshots_block_instead_of_picking_max(field,value):
+    from continuous_failure_retention import learning_cost_summary
+    receipt=dict(kind='learning-pipeline-receipt',batchId='same',totals=usage(.1),attempts=[],operations=0)
+    with pytest.raises(ValueError,match='Conflicting'):
+        learning_cost_summary([receipt,{**receipt,field:value}],[],[])
+
+
+def test_live_worker_mismatch_or_duplicate_receipt_identity_blocks():
+    from continuous_failure_retention import learning_cost_summary
+    receipt=dict(kind='learning-pipeline-receipt',batchId='one',totals=usage(.1),
+                 attempts=[dict(usageLedgerId='worker',usage=usage(.1))])
+    with pytest.raises(ValueError,match='Conflicting'):
+        learning_cost_summary([receipt],[],[dict(ledgerId='worker',knownUsage=usage(.2),complete=True)])
+    with pytest.raises(ValueError,match='duplicate'):
+        learning_cost_summary([receipt,{**receipt,'batchId':'two'}],[],[])
+    with pytest.raises(ValueError,match='Conflicting'):
+        learning_cost_summary([],[],[dict(ledgerId='worker',knownUsage=usage(.1),complete=True),
+                                    dict(ledgerId='worker',knownUsage=usage(.1),complete=False)])
+
+
+@pytest.mark.parametrize('outcome', ['noop','declined','screened','skipped','applied'])
+def test_standalone_settled_nonfailure_outcomes_do_not_count_as_failures(outcome):
+    from continuous_failure_retention import learning_cost_summary
+    receipt=dict(kind='learning-pipeline-receipt',batchId='settled',totals={k:0 for k in usage(0)},
+                 attempts=[dict(outcome=outcome)],operations=0,usageAvailable=True,costAvailable=True)
+    result=learning_cost_summary([receipt],[],[])
+    assert result['learningFailedAttempts']==0
+
+
+def test_receipt_total_cannot_hide_matching_known_worker_usage():
+    from continuous_failure_retention import learning_cost_summary
+    u=usage(.4,41)
+    receipt=dict(kind='learning-pipeline-receipt',batchId='understated',totals=usage(0,0),
+                 attempts=[dict(usageLedgerId='worker',usage=u,outcome='applied')],
+                 usageAvailable=True,costAvailable=True,operations=1)
+    with pytest.raises(ValueError,match='totals'):
+        learning_cost_summary([receipt],[],[dict(ledgerId='worker',knownUsage=u,complete=True)])
+
+
+
+def test_replay_link_does_not_erase_a_failed_phase_before_repair():
+    from continuous_failure_retention import learning_cost_summary
+    receipt=dict(kind='learning-pipeline-receipt',batchId='repaired',totals={k:0 for k in usage(0)},
+                 attempts=[dict(outcome='failed'),dict(outcome='applied')],operations=1,
+                 usageAvailable=False,costAvailable=False)
+    standalone=learning_cost_summary([receipt],[],[])
+    linked=learning_cost_summary([receipt],[dict(receipt=receipt,outcome='completed')],[])
+    assert standalone['learningFailedAttempts']==linked['learningFailedAttempts']==1
+    failed_job=learning_cost_summary([receipt],[dict(receipt=receipt,outcome='failed')],[])
+    assert failed_job['learningFailedAttempts']==1
+    assert failed_job['learningFailedReplayAttempts']==1
+    assert standalone['learningFailedReplayAttempts']==0
+    missing=learning_cost_summary([],[dict(outcome='failed')],[])
+    assert missing['learningFailedAttempts']==1 and missing['learningFailedReplayAttempts']==1
+
+
+
+def test_retained_worker_completion_conflict_is_not_overwritten(tmp_path):
+    for index, complete in enumerate((True,False)):
+        put(tmp_path,f'memory/runs/scope/run{index}/memory-task-usage.json',
+            dict(ledgerId='same',knownUsage=usage(.1),complete=complete))
+    with pytest.raises(ValueError,match='Conflicting'):
+        retained_learning_costs(tmp_path)
+
+
+def test_retained_receipt_totals_must_match_known_attempts(tmp_path):
+    put(tmp_path,'memory/runs/scope/run/learning-pipeline-receipt.json',
+        dict(kind='learning-pipeline-receipt',batchId='hidden',totals={k:0 for k in usage(0)},
+             attempts=[dict(usage=usage(.4),usageLedgerId='known')]))
+    with pytest.raises(ValueError,match='totals'):
+        retained_learning_costs(tmp_path)

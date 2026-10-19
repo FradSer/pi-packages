@@ -66,9 +66,13 @@ MAX_NEW_MEMORY_QUOTE_CHARS = 2_000
 MAX_NEW_MEMORY_TOTAL_BYTES = 256_000
 MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
 
-# Kept in step with SENSITIVE_MEMORY_PATTERNS and ASSIGNED_CREDENTIAL_PATTERN in
+# Kept in step with SENSITIVE_MEMORY_PATTERNS, ASSIGNED_CREDENTIAL_PATTERN,
+# QUOTED_ASSIGNED_CREDENTIAL_PATTERN and placeholderCredentialValue in
 # consolidation-run.ts; the shared corpus in tests/sensitive_memory_corpus.json
-# pins both classifications.
+# pins both classifications. The TypeScript guard additionally decodes JSON text
+# and walks its members, where a credential-named key is judged strictly. This
+# offline validator judges the raw text only, so for JSON-looking text the
+# runtime can refuse more than this validator does.
 SENSITIVE_MEMORY_PATTERNS = (
     re.compile(r"-----BEGIN [^-\r\n]*PRIVATE KEY-----", re.IGNORECASE),
     re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b", re.IGNORECASE),
@@ -85,7 +89,53 @@ SENSITIVE_MEMORY_PATTERNS = (
 # An assigned value must be long enough to be a credential: prose ("token is
 # short-lived") assigns nothing, and URLs are not secrets.
 ASSIGNED_CREDENTIAL_PATTERN = re.compile(
-    r"(?<![A-Za-z])(?P<key>api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*//)(?P<value>[^\s,;]{8,})",
+    r"(?<![A-Za-z])(?P<key>['\"]?api[_ -]?(?:key|token|secret)|['\"]?access[_ -]?token|['\"]?auth(?:orization)?|['\"]?bearer|['\"]?client[_ -]?secret|['\"]?credential|['\"]?password|['\"]?passwd|['\"]?secret|['\"]?token)\s*(?::|=)\s*(?P<value>[^\s,;]{8,})",
+    re.IGNORECASE,
+)
+
+# A delimited value hides punctuation the plain pattern stops at, so a quoted
+# value under either a quoted or an unquoted credential key is matched here with
+# a quote-aware value class and judged by the same placeholder rule. The value
+# admits the other quote type and backslash escapes, and excludes only a real URL
+# scheme.
+QUOTED_ASSIGNED_CREDENTIAL_PATTERN = re.compile(
+    r"(?<![A-Za-z])(?P<key>['\"]?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)['\"]?)\s*(?::|=)\s*(?P<value>\"(?:[^\"\\\r\n]|\\.){7,}\"|'(?:[^'\\\r\n]|\\.){7,}')",
+    re.IGNORECASE,
+)
+
+# Ordinary URL schemes are not credentials. The list is a set of well-known
+# schemes rather than "anything containing `://`", so a secret that merely starts
+# with or contains `://` is still refused. A URL carrying userinfo
+# (scheme://user:pass@host) is a credential-bearing connection string and is
+# refused as well.
+PLAIN_URL_SCHEMES = re.compile(
+    r"^(?:https?|ftps?|ssh|git|git\+ssh|svn|ws|wss|file)://",
+    re.IGNORECASE,
+)
+
+
+def credential_value_is_plain_url(assigned: str) -> bool:
+    text = re.sub(r"^[\"'`]+|[\"'`]+$", "", assigned.strip())
+    if PLAIN_URL_SCHEMES.match(text) is None:
+        return False
+    return re.match(r"^[^@]*:[^/@\s]*@", text[text.index("://") + 3 :]) is None
+
+
+# Documentation-style placeholders so a tracked source sample or doc snippet
+# does not refuse a whole review; a realistic assigned value stays sensitive.
+PLACEHOLDER_CREDENTIAL_VALUES = frozenset({
+    "password", "passwd", "pass", "secret", "token", "credential", "credentials", "apikey", "apitoken",
+    "accesstoken", "clientsecret", "example", "dummy", "placeholder", "changeme", "redacted", "yourpassword",
+    "yourtoken", "notasecret", "string", "value", "none", "null", "undefined",
+    "fixture", "mock", "fake", "stub", "default",
+})
+
+# A code, env or expression reference, never a literal secret. The expression
+# clause requires whitespace around its operator, so a password that merely
+# contains `?` or `&&` is not read as an expression; failing closed here only
+# refuses more, never less.
+CODE_OR_ENV_PATTERN = re.compile(
+    r"^(?:\(?\s*(?:process\.env|os\.environ|System\.getenv|Deno\.env|\$[A-Z_]+|\$\{[A-Z_]+\})|(?:config|options|opts|params|props|settings|this|self|ctx)\.[A-Za-z0-9_]+|\(|.*\s(?:\?|\|\||&&|\+(?=\s*['\"])))",
     re.IGNORECASE,
 )
 
@@ -213,17 +263,39 @@ def normalize_inventory(value: Any, label: str = "inventory") -> tuple[list[str]
     return names, metadata
 
 
-def contains_assigned_credential_material(value: str, depth: int = 0) -> bool:
-    for match in ASSIGNED_CREDENTIAL_PATTERN.finditer(value):
-        assigned = match.group("value")
-        if assigned[:1] in STRUCTURED_LITERAL_OPENERS:
-            start = match.start() + len(match.group(0)) - len(assigned)
-            if depth < MAX_CREDENTIAL_LITERAL_DEPTH and contains_assigned_credential_material(
-                value[start : start + MAX_CREDENTIAL_LITERAL_CHARS], depth + 1
-            ):
-                return True
-            continue
+def placeholder_credential_value(key: str, assigned: str) -> bool:
+    trimmed = assigned.strip()
+    if CODE_OR_ENV_PATTERN.search(trimmed):
         return True
+    unquoted = re.sub(r"^[\"'`\\\\]+|[\"'`\\\\]+$", "", trimmed)
+    value = re.sub(r"[^a-z0-9]", "", unquoted.lower())
+    if not value:
+        return True
+    if value in PLACEHOLDER_CREDENTIAL_VALUES:
+        return True
+    if len(set(value)) == 1:
+        return True
+    if re.fullmatch(r"(?:fixture|mock|fake|stub|test|dummy|example|sample)[0-9a-z_]*", value):
+        return True
+    key_word = re.sub(r"[^a-z0-9]", "", key.lower())
+    return bool(value.startswith(key_word)) and re.fullmatch(r"[0-9]*(?:value|string|here|example|placeholder)?", value[len(key_word) :]) is not None
+
+
+def contains_assigned_credential_material(value: str, depth: int = 0) -> bool:
+    for pattern in (ASSIGNED_CREDENTIAL_PATTERN, QUOTED_ASSIGNED_CREDENTIAL_PATTERN):
+        for match in pattern.finditer(value):
+            assigned = match.group("value")
+            if assigned[:1] in STRUCTURED_LITERAL_OPENERS:
+                start = match.start() + len(match.group(0)) - len(assigned)
+                if depth < MAX_CREDENTIAL_LITERAL_DEPTH and contains_assigned_credential_material(
+                    value[start : start + MAX_CREDENTIAL_LITERAL_CHARS], depth + 1
+                ):
+                    return True
+                continue
+            if credential_value_is_plain_url(assigned):
+                continue
+            if not placeholder_credential_value(match.group("key"), assigned):
+                return True
     return False
 
 

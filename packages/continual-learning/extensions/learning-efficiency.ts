@@ -6,7 +6,7 @@ import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-
 
 export type LearningMode = "automatic" | "manual" | "full";
 export type LearningPhase = "selector" | "memory" | "harness" | "agents";
-export type LearningOutcome = "screened" | "skipped" | "noop" | "applied" | "proposed" | "rejected" | "failed" | "cancelled";
+export type LearningOutcome = "screened" | "skipped" | "noop" | "applied" | "proposed" | "declined" | "rejected" | "failed" | "cancelled";
 
 export interface LearningScreen {
   memory: boolean;
@@ -23,6 +23,8 @@ export interface LearningAttempt {
   operations: number;
   /** Pending original records preserved separately from applied operations. */
   pendingOperations?: number;
+  /** Optional drafts explicitly not learned; never added to applied counts. */
+  declinedOperations?: number;
   usage?: PiWorkerUsage;
   /** False retains known usage while acknowledging interrupted or unreported usage. */
   usageComplete?: boolean;
@@ -410,7 +412,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   const receipt = value as Partial<LearningPipelineReceipt>;
   const modes: LearningMode[] = ["automatic", "manual", "full"];
   const phases: LearningPhase[] = ["selector", "memory", "harness", "agents"];
-  const outcomes: LearningOutcome[] = ["screened", "skipped", "noop", "applied", "proposed", "rejected", "failed", "cancelled"];
+  const outcomes: LearningOutcome[] = ["screened", "skipped", "noop", "applied", "proposed", "declined", "rejected", "failed", "cancelled"];
   const screen = receipt.screen as Partial<LearningScreen> | undefined;
   const input = receipt.input;
   const validInput = input === undefined || Boolean(input && typeof input === "object"
@@ -440,7 +442,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
     Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
     Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
-      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.modelCalls === undefined || attempt.modelCalls === 0) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.usageComplete === undefined || typeof attempt.usageComplete === "boolean") && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
+      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.modelCalls === undefined || attempt.modelCalls === 0) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.declinedOperations === undefined || attempt.phase === "memory" && Number.isSafeInteger(attempt.declinedOperations) && attempt.declinedOperations > 0) && (attempt.outcome !== "declined" || attempt.phase === "memory" && attempt.operations === 0 && (attempt.declinedOperations ?? 0) > 0) && (attempt.usageComplete === undefined || typeof attempt.usageComplete === "boolean") && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
     (receipt.usageAvailable === undefined || typeof receipt.usageAvailable === "boolean") &&
     validUsage(receipt.totals) && finiteNumber(receipt.operations) && typeof receipt.retries === "number" && Number.isSafeInteger(receipt.retries) && receipt.retries >= 0 && typeof receipt.costAvailable === "boolean";
 }
@@ -461,6 +463,11 @@ export function pendingLearningOperations(receipt: LearningPipelineReceipt): num
   return [...latest.values()].reduce((sum, attempt) => sum + (attempt.pendingOperations ?? 0), 0);
 }
 
+export function declinedLearningOperations(receipt: LearningPipelineReceipt): number {
+  const latest = new Map(receipt.attempts.map(attempt => [attempt.phase, attempt]));
+  return [...latest.values()].reduce((sum, attempt) => sum + (attempt.declinedOperations ?? 0), 0);
+}
+
 export function learningSummarySubject(receipt: LearningPipelineReceipt): string {
   const memory = surfaceCount(receipt, "memory");
   const harness = surfaceCount(receipt, "harness");
@@ -471,11 +478,14 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
     ...(agents > 0 ? [surfaceLabel(agents, "AGENTS.md change", "AGENTS.md changes")] : []),
   ];
   const pending = pendingLearningOperations(receipt);
+  const declined = declinedLearningOperations(receipt);
+  const notLearned = declined ? `${surfaceLabel(declined, "new memory proposal", "new memory proposals")} not learned` : "";
   const final = new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome]));
   const issues = [...final].filter(([, outcome]) => ["failed", "rejected", "cancelled"].includes(outcome)).map(([phase, outcome]) => `${phase} ${outcome}`);
-  if (surfaces.length > 0 && issues.length) return `${surfaces.join(" and ")} applied; ${issues.join(", ")}${pending ? `; ${pending} pending review` : ""}`;
-  if (surfaces.length > 0) return `${surfaces.join(" and ")} applied${pending ? `; ${pending} pending review` : ""}`;
-  if (issues.length) return `finished with issues: ${issues.join(", ")}`;
+  if (surfaces.length > 0 && issues.length) return `${surfaces.join(" and ")} applied; ${issues.join(", ")}${pending ? `; ${pending} pending review` : ""}${notLearned ? `; ${notLearned}` : ""}`;
+  if (surfaces.length > 0) return `${surfaces.join(" and ")} applied${pending ? `; ${pending} pending review` : ""}${notLearned ? `; ${notLearned}` : ""}`;
+  if (issues.length) return `finished with issues: ${issues.join(", ")}${notLearned ? `; ${notLearned}` : ""}`;
+  if (notLearned) return notLearned;
   if ([...final.values()].some(outcome => outcome === "proposed")) return "proposals saved for review";
   if (receipt.attempts.length === 0 && receipt.screen.reasons.includes("no-learning-inputs")) return "no learning input";
   return `no durable changes${pending ? `; ${pending} pending review` : ""}`;
@@ -484,7 +494,7 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
 export function learningSummaryTone(receipt: LearningPipelineReceipt): "success" | "warning" | "error" {
   const outcomes = [...new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome])).values()];
   return outcomes.some(outcome => outcome === "failed" || outcome === "rejected") ? "error"
-    : pendingLearningOperations(receipt) > 0 || outcomes.some(outcome => outcome === "cancelled" || outcome === "proposed") ? "warning" : "success";
+    : pendingLearningOperations(receipt) > 0 || declinedLearningOperations(receipt) > 0 || outcomes.some(outcome => outcome === "cancelled" || outcome === "proposed") ? "warning" : "success";
 }
 
 function receiptUsageAvailable(receipt: LearningPipelineReceipt): boolean {
@@ -529,6 +539,8 @@ function formatJevTelemetry(jev: JevTelemetry): string {
     parts.push("same-batch relations");
   } else if (jev.strategy === "standalone-memory") {
     parts.push("standalone meaning");
+  } else if (jev.strategy === "new-memory-no-entry") {
+    parts.push("optional draft obligations; no write authority");
   }
   if (jev.model) parts.push(jev.model);
   if (jev.durationMs > 0) parts.push(formatDurationMs(jev.durationMs));
@@ -558,7 +570,7 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
 
   const phaseLines = receipt.attempts.map((attempt) => {
     const label = attemptPhaseLabel(attempt);
-    return `${label}: ${attempt.outcome} · ${attempt.operations} change(s) · ${formatDurationMs(attempt.durationMs)}`;
+    return `${label}: ${attempt.outcome} · ${attempt.operations} change(s)${attempt.declinedOperations ? ` · ${attempt.declinedOperations} not learned` : ""} · ${formatDurationMs(attempt.durationMs)}`;
   });
   const input = receipt.input;
   const omission = !input?.omittedEntries ? "" : input.omittedEvidenceEntries === undefined
@@ -609,5 +621,5 @@ export function totalLearningUsage(attempts: readonly LearningAttempt[]): PiWork
 
 export function shouldReportLearningReceipt(receipt: LearningPipelineReceipt, requested: boolean): boolean {
   return requested || (receipt.mode === "automatic" && receipt.attempts.some(attempt =>
-    ["proposed", "failed", "rejected", "cancelled"].includes(attempt.outcome) || (attempt.phase !== "selector" && attempt.outcome === "applied")));
+    ["proposed", "declined", "failed", "rejected", "cancelled"].includes(attempt.outcome) || (attempt.phase !== "selector" && attempt.outcome === "applied")));
 }

@@ -39,7 +39,7 @@ def test_actual_pi_generation_delivers_frozen_response_to_parent_parser(tmp_path
       const root=ROOT;const nativeRetry=NATIVE_RETRY;
       fs.mkdirSync(path.join(root,'agent'),{recursive:true});
       fs.writeFileSync(path.join(root,'agent/settings.json'),JSON.stringify({retry:{enabled:true,maxRetries:1,baseDelayMs:1}}));
-      const native=spawnSync('node',[path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/cli.js'),
+      const native=spawnSync('node',[path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'),
         '--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools',
         '-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
         '--generation-json-whitespace','enabled',...(nativeRetry?['--generation-native-retry','enabled']:[]),'--provider','amendment-fixture','--model','fixed','--thinking','off',

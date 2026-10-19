@@ -11,12 +11,13 @@ import { resolveMemoryPaths } from "./memory-paths";
 import { isLearningPipelineReceipt, pendingLearningOperations, type LearningPipelineReceipt, type LearningInputSource } from "./learning-efficiency";
 import { readMemoryReplayFeedback, type MemoryReplayFeedback } from "./learning-replay-feedback";
 
+/** Processing disposition only. NO_ENTRY is not stored knowledge or learning benefit. */
 export function learningReceiptComplete(receipt: LearningPipelineReceipt): boolean {
   if (pendingLearningOperations(receipt) > 0) return false;
   const final = new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome]));
   if ([...final.values()].some(outcome => ["failed", "rejected", "cancelled", "proposed"].includes(outcome))) return false;
   return (["memory", "harness", "agents"] as const).every(phase => !receipt.screen[phase]
-    || ["applied", "noop", "screened"].includes(final.get(phase) ?? ""));
+    || ["applied", "noop", "screened", "declined"].includes(final.get(phase) ?? ""));
 }
 
 type ReplaySourceBinding = Pick<LearningInputSource, "source" | "entryCount" | "sessionId" | "sourceDigest">;

@@ -9,6 +9,8 @@ def test_incremental_knowledge_contract_precedes_untrusted_dossier() -> None:
       const maintenance=buildMemoryConsolidatorPrompt({pkgDir:'/fixture/pkg',runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h',runDir:'/fixture/run',snapshotPath:'/fixture/snapshot',harnessDir:'/fixture/harness',publicDir:'/fixture/public',repoRoot:'/fixture/repo'});
       console.log(JSON.stringify({prompt,maintenance,contract:MEMORY_KNOWLEDGE_GUIDANCE,citation:MEMORY_CITATION_GUIDANCE}));
     ''')
+    assert 'A Promise and a PromiseLike are distinct contracts and must not be conflated.' not in value['citation']
+    assert 'compatible native Promise values remain valid PromiseLike inputs' in value['citation']
     assert value['prompt'].startswith(value['contract'])
     assert value['maintenance'].startswith(value['contract'])
     assert value['maintenance'].count('Knowledge output contract:') == 1
@@ -31,6 +33,39 @@ def test_incremental_knowledge_contract_precedes_untrusted_dossier() -> None:
     assert 'A callable returning a value is not that value.' not in value['contract']
     assert 'Different declared roles do not establish different runtime objects or mutually exclusive values.' in value['contract']
     assert 'Do not copy reviewer cautions into learned knowledge as new claims.' in value['contract']
+    # Declared members are compatible with both own and inherited methods.
+    ownership = isolated_run_bun(r'''
+      interface Ready { ready(): boolean }
+      class Parent { ready() { return true; } }
+      const inherited: Ready = new Parent();
+      const own: Ready = {ready() { return true; }};
+      console.log(JSON.stringify({bothReady: inherited.ready() && own.ready(),
+        inheritedOwn: Object.hasOwn(inherited, 'ready'), ownOwn: Object.hasOwn(own, 'ready')}));
+    ''')
+    assert ownership == {'bothReady': True, 'inheritedOwn': False, 'ownOwn': True}
+    assert 'the members declared on its type' in value['contract']
+    assert 'Structural types do not establish whether a member is an own or inherited property.' in value['contract']
+    assert 'its invocation result and its own properties' not in value['contract']
+
+    # Given V90's real nested-function error, the outer annotation can describe
+    # a callable while only its inner return annotation describes a Promise.
+    roles = isolated_run_bun(r'''
+      import fs from 'node:fs';
+      const fixture=JSON.parse(fs.readFileSync('packages/continual-learning/tests/fixtures/real-description-body-conflict.json','utf8')).nestedReturnRoleCase;
+      const factory=(): (()=>Promise<string>) & {reset():void} => Object.assign(()=>Promise.resolve('ok'),{reset(){}});
+      const returned=factory(),invocation=returned();
+      console.log(JSON.stringify({ambiguousRule:fixture.ambiguousGenerationRule,
+        realWrongRole:fixture.original.content.includes('the return-type annotation describes the invocation result, not the returned callable itself'),
+        realRepairSeparatesRoles:fixture.repair.content.includes('The declared return type describes the returned callable'),
+        returnedCallable:typeof returned==='function',returnedMember:typeof returned.reset==='function',
+        invocationPromise:invocation instanceof Promise,invocationHasReset:'reset' in invocation}));
+    ''')
+    assert roles['realWrongRole'] and roles['realRepairSeparatesRoles']
+    assert roles['returnedCallable'] and roles['returnedMember'] and roles['invocationPromise']
+    assert not roles['invocationHasReset']
+    assert roles['ambiguousRule'] not in value['contract']
+    assert "The outer function's return annotation describes what that function returns" in value['contract']
+    assert "The return annotation inside that callable's signature describes what invoking it returns" in value['contract']
 
 
 def test_known_json_capable_no_tool_planners_request_structured_output() -> None:
@@ -178,7 +213,7 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
             assert 'Do not copy reviewer cautions into learned knowledge as new claims.' in semantic_prompt
             assert 'not a requirement that every runtime property become public' in semantic_prompt
             assert 'body and description' in semantic_prompt
-            assert 'the input function, its return value, the returned callable, its invocation result and its own properties' in semantic_prompt
+            assert 'the input function, its return value, the returned callable, its invocation result and the members declared on its type' in semantic_prompt
             assert semantic_prompt.index('Knowledge output contract:') < semantic_prompt.index('"semanticContext"')
             assert 'Return only the exact attributed declaration when a paraphrase cannot keep those subjects distinct.' in semantic_prompt
             assert value['semantic']['outcome'] == 'repaired'
@@ -222,7 +257,7 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
         else:
             assert received[1]['response_format'] == {'type': 'json_object'}
         version = subprocess.run([workspace_pi(REPO), '--version'], check=True, capture_output=True, text=True)
-        assert version.stdout.strip() == '1.2.0', 'Actual workspace Pi 1.2 is required'
+        assert version.stdout.strip() == '1.3.0', 'Actual workspace Pi 1.3 is required'
     finally:
         server.shutdown()
         server.server_close()
@@ -355,3 +390,27 @@ def test_semantic_amendment_content_requires_complete_markdown_not_body_only() -
         assert re.match(content['pattern'], actual_body) is None
         assert re.match(content['pattern'], complete)
         assert 'content' not in item['required']  # Evidence-only/delete amendments remain valid.
+
+
+def test_no_entry_schema_requires_explicit_parent_reviewed_new_candidate_domain() -> None:
+    # Given complete candidate identities, When only one new draft is optional,
+    # Then the default schema grants no withdrawal and the explicit domain cannot include existing operations.
+    value = isolated_run_bun(r'''
+      import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      const id='newMemories:0:'+ 'a'.repeat(64), op='operations:0:'+ 'b'.repeat(64), foreign='newMemories:1:'+ 'c'.repeat(64);
+      const plain=learningOutputSchema('memory-semantic-amendment',undefined,[id,op]);
+      const opted=learningOutputSchema('memory-semantic-amendment',undefined,[id,op],undefined,[id]);
+      const combined=learningOutputSchema('memory-combined-amendment',undefined,[id,op],undefined,[id]);
+      const rejected=[];
+      for(const [kind,allowed] of [['memory-amendment',[id]],['memory-semantic-amendment',[op]],['memory-semantic-amendment',[foreign]],['memory-semantic-amendment',[id,id]]]) {
+        try{learningOutputSchema(kind,undefined,[id,op],undefined,allowed);rejected.push(false)}catch{rejected.push(true)}
+      }
+      console.log(JSON.stringify({plain:plain.properties,opted:opted.properties.withdrawals,combined:combined.anyOf,rejected}));
+    ''')
+    assert 'withdrawals' not in value['plain']
+    assert value['opted']['items']['properties']['candidateId']['enum'] == ['newMemories:0:' + 'a' * 64]
+    assert value['opted']['items']['properties']['candidateRef']['enum'] == ['newMemories:0']
+    assert value['opted']['maxItems'] == 32
+    assert value['combined'][1]['properties']['withdrawals']['maxItems'] == 0
+    assert value['combined'][2]['properties']['operations']['minItems'] == 1
+    assert value['rejected'] == [True] * 4

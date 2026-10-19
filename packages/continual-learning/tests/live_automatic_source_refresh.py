@@ -19,13 +19,15 @@ from support import REPO
 
 
 def run(output: Path, case: str = 'applied') -> dict:
+    is_mixed=case.startswith('mixed-noop')
     output.mkdir(parents=True, exist_ok=False)
     project, agent = output/'project', output/'agent'
     project.mkdir(); agent.mkdir()
+    if is_mixed:subprocess.run(['git','init','-q',str(project)],check=True,capture_output=True,timeout=10)
     source = project/('packages/a/src/nested/runtime.ts' if case=='deep' else 'runtime.ts')
     source.parent.mkdir(parents=True,exist_ok=True)
     source.write_text('export const mode = "old";\n')
-    tracked = [REPO/'packages/continual-learning/extensions'/name for name in ('incremental-learning.ts','memory-maintenance-audit.ts','inject-memory.ts','learning-history.ts','jev-learning.ts','memory-review-consent.ts','consolidation-run.ts')] + [Path(__file__),Path(__file__).with_name('memory-origin-harness.ts')]
+    tracked = [REPO/'packages/continual-learning/extensions'/name for name in ('incremental-learning.ts','memory-maintenance-audit.ts','inject-memory.ts','learning-history.ts','jev-learning.ts','memory-review-consent.ts','consolidation-run.ts','independent-memory-partition.ts','jev-memory-predecessors.ts','jev-memory-relations.ts','jev-memory-readiness.ts','planner-prompts.ts')] + [Path(__file__),Path(__file__).with_name('memory-origin-harness.ts')]
     source_hashes = {str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
     report = {'status':'failed','case':case,'outputDir':str(output),'sourceHashes':source_hashes,
         'externalRequests':0,'paidRequests':0,'semanticOrLearningBenefitEstablished':False}
@@ -46,7 +48,9 @@ def run(output: Path, case: str = 'applied') -> dict:
                         if question['type']=='noul':answers[key]={'type':'noul','noul':0.99 if key=='memory' else 0.01}
                         elif question['type']=='score':answers[key]={'type':'score','score':3,'confidence':1,'legend':{str(i):str(i) for i in range(4)},'probabilities':{str(i):int(i==3) for i in range(4)}}
                         else:
-                            labels=list(question['criteria']); label=next((x for x in ('compatible','grounded','consistent','unrelated') if x in labels),labels[0])
+                            labels=list(question['criteria']); label=next((x for x in ('independent','selfContained','compatible','grounded','consistent','unrelated') if x in labels),labels[0])
+                            if case=='mixed-noop-uncertain' and key=='relation':label='unclear'
+                            if is_mixed and key=='coherence_0' and len(data.get('state',{}).get('proposedMemoryOperations',[]))==2:label='unclear'
                             if (case=='held-later' or case=='origin-repair' and 'origin-repair' not in kinds) and key.startswith('supported_'):label='unsupported'
                             answers[key]={'type':'choice','choice':label,'confidence':1,'probabilities':{x:int(x==label) for x in labels}}
                     body=json.dumps({'model':'jev-1.13.0','answers':answers,'usage':{'input_tokens':1,'output_tokens':1}}).encode()
@@ -89,13 +93,18 @@ def run(output: Path, case: str = 'applied') -> dict:
                     snapshots=[json.loads(p.read_text()) for p in runs.glob('*/snapshot.json')]
                     snapshot=next(s for s in reversed(snapshots) if any(e.get('message',{}).get('details',{}).get('readOnlyMaintenanceAudit') for e in s['entries']))
                     index=next(i for i,e in enumerate(snapshot['entries']) if e.get('message',{}).get('details',{}).get('readOnlyMaintenanceAudit'))
-                    if case=='source-changed':source.write_text('export const mode = "raced";\n')
+                    if case in ('source-changed','mixed-noop-source-race'):source.write_text('export const mode = "raced";\n')
                     content='---\nname: runtime\ndescription: runtime.ts declares mode new\ntype: project\n---\nObserved source in runtime.ts: `export const mode = "new";`.\n'
                     if case=='origin-repair':content=content.replace('mode new','mode old').replace('mode = "new"','mode = "old"')
                     plan={'kind':'incremental-memory-plan','version':1,'schemaVersion':1,**{k:field(text,k) for k in ('runId','scopeKey','scopeDigest','artifactHash','snapshotDigest')},'operations':[{'name':'runtime.md','kind':'rewrite','classification':'safe','content':content,'evidence':[{'ref':f'e{index}.b0.l1'}]}],'newMemories':[]}
+                    if is_mixed:
+                        plan['operations'][0]['content']=before
+                        plan['newMemories']=[{'name':'mode-value.md','kind':'project','classification':'safe','content':content.replace('name: runtime','name: mode-value'),'evidence':[{'ref':f'e{index}.b0.l1'}]}]
                     stream_response(self,json.dumps(plan))
                 elif 'Review each complete candidate Memory below' in text:
-                    kinds.append('body'); stream_response(self,json.dumps({'reviews':{'0':{'verdict':'consistent','conflictingQuotes':[],'reason':'Controlled framing only'}}}))
+                    kinds.append('body')
+                    targets=json.loads(text.split('\n')[-1])['targets'] if is_mixed else [{'targetIndex':0}]
+                    stream_response(self,json.dumps({'reviews':{str(t['targetIndex']):{'verdict':'consistent','conflictingQuotes':[],'reason':'Controlled framing only'} for t in targets}}))
                 else:
                     tools=[m for m in data['messages'] if m.get('role')=='tool']
                     if case=='read-review' and not tools:
@@ -114,7 +123,7 @@ def run(output: Path, case: str = 'applied') -> dict:
     env=isolated_environment(output/'home',agent)
     env.update(TYPESAFE_BASE_URL=f'http://127.0.0.1:{server.server_port}/jev',TYPESAFE_API_KEY='offline-fixture')
     (agent/'settings.json').write_text(json.dumps({'packages':[],'quietStartup':True,'defaultThinkingLevel':'off','retry':{'enabled':False}}))
-    (agent/'memory').mkdir(); (agent/'memory/settings.json').write_text(json.dumps({'autoMemory':True,'automaticPhases':{'memory':'apply','harness':'apply' if case in ('legacy','held-later') else 'off','agents':'off'}}))
+    (agent/'memory').mkdir(); (agent/'memory/settings.json').write_text(json.dumps({'autoMemory':True,'automaticPhases':{'memory':'apply','harness':'apply' if case in ('legacy','held-later','mixed-noop') else 'off','agents':'off'}}))
     (agent/'continual-learning.json').write_text(json.dumps({'jev':{'enabled':case!='legacy','model':'jev-1.13.0','allowPrivateMemory':True,'requestConcurrency':1,**({'scopes':['memory']} if case=='read-review' else {})}}))
     (agent/'memory.json').write_text('{"provider":"fixture","model":"scripted"}')
     (agent/'models.json').write_text(json.dumps({'providers':{'fixture':{'baseUrl':f'http://127.0.0.1:{server.server_port}/v1','api':'openai-completions','apiKey':'offline-fixture','models':[{'id':'scripted','reasoning':False,'input':['text'],'contextWindow':200000,'maxTokens':4096,'cost':{'input':0,'output':0,'cacheRead':0,'cacheWrite':0}}]}}}))
@@ -122,16 +131,21 @@ def run(output: Path, case: str = 'applied') -> dict:
     paths=json.loads(subprocess.check_output(['node','--import','tsx','--input-type=module','-e',code,str(project)],cwd=REPO,env=env,text=True))
     runs=Path(paths['runsDir']); memory=Path(paths['harnessDir']); memory.mkdir(parents=True)
     before='---\nname: runtime\ndescription: runtime.ts declares mode old\ntype: project\n---\nObserved source in runtime.ts: `export const mode = "old";`.\n'
+    if is_mixed:before='---\nname: runtime\ndescription: runtime.ts exports a mode constant\ntype: project\n---\nruntime.ts exports a mode constant.\n'
     if case in ('origin','origin-repair'):
         code='import {fixture} from '+json.dumps(str(REPO/'packages/continual-learning/tests/memory-origin-harness.ts'))+';await fixture("native-origin",1,"safe",false,false,JSON.parse(process.argv[1]));'
         subprocess.run(['bun','-e',code,json.dumps({'cwd':str(project),'name':'runtime.md','content':before,'sourceText':source.read_text()})],cwd=REPO,env=env,check=True,capture_output=True,timeout=30)
     else:(memory/'runtime.md').write_text(before)
+    if is_mixed:
+        (project/'.memory').mkdir()
+        (project/'.memory/runtime.md').write_text(before)
+    noop_before={str(p):{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'inode':p.stat().st_ino,'mtimeNs':p.stat().st_mtime_ns} for p in [memory/'runtime.md',project/'.memory/runtime.md'] if p.exists()}
     (memory/'MEMORY.md').write_text('# Project memories\n\n- runtime.md — runtime.ts declares mode old\n')
     session=output/'session.jsonl'
-    command=[workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve','--thinking','off','--tools','read,edit,write,bash' if case=='renamed' else 'read,edit','-e',str(REPO/'packages/continual-learning/index.ts'),'--model','fixture/scripted','--session',str(session),'--print','--mode','json','Update runtime.ts mode from old to new.'+(' Add a regression test for onIdle.' if case=='legacy' else ' Never run the retired compiler in future tasks.' if case=='held-later' else '')]
+    command=[workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve','--thinking','off','--tools','read,edit,write,bash' if case=='renamed' else 'read,edit','-e',str(REPO/'packages/continual-learning/index.ts'),'--model','fixture/scripted','--session',str(session),'--print','--mode','json','Update runtime.ts mode from old to new.'+(' Add a regression test for onIdle.' if case=='legacy' else ' Never run the retired compiler in future tasks.' if case in ('held-later','mixed-noop') else '')]
     try:
         report['piVersion']=subprocess.check_output([workspace_pi(REPO),'--version'],cwd=project,env=env,text=True,timeout=10).strip()
-        assert report['piVersion']=='1.2.0',report['piVersion']
+        assert report['piVersion']=='1.3.0',report['piVersion']
         result=subprocess.run(command,cwd=project,env=env,capture_output=True,timeout=90)
         (output/'stdout.jsonl').write_bytes(result.stdout); (output/'stderr.txt').write_bytes(result.stderr)
         assert result.returncode==0,result.stderr.decode()
@@ -167,6 +181,30 @@ def run(output: Path, case: str = 'applied') -> dict:
                 assert 'harness-noop' not in kinds, 'Held Memory launched a later model worker'
                 assert not any(a['phase']=='harness' for a in receipt['attempts'])
                 assert not (project/'.pi/harness.json').exists()
+            elif is_mixed:
+                if case!='mixed-noop':
+                    assert receipt['operations']==0,receipt
+                    assert not (memory/'mode-value.md').exists()
+                    assert (memory/'runtime.md').read_text()==before
+                    assert not any(a['phase']=='harness' for a in receipt['attempts'])
+                    assert not (project/'.pi/harness.json').exists()
+                    assert not (agent/'learning'/paths['scopeKey']/'backlog-completed.json').exists()
+                    report['negativeAdmissionObserved']=True
+                else:
+                    assert (memory/'runtime.md').read_text()==before
+                    assert (memory/'mode-value.md').read_bytes()==(project/'.memory/mode-value.md').read_bytes()
+                    assert 'mode = \"new\"' in (memory/'mode-value.md').read_text()
+                    assert receipt['operations']==1,receipt
+                    assert any(a.get('outcome')=='applied' and a.get('pendingOperations')==1 for a in receipt['attempts']),receipt
+                    assert not any(a['phase']=='harness' for a in receipt['attempts'])
+                    assert not (project/'.pi/harness.json').exists()
+                    audits=[json.loads(p.read_text())['proposal'] for p in (agent/'memory/history'/paths['scopeKey']).glob('change_*.json') if json.loads(p.read_text()).get('proposal',{}).get('kind')=='independent-memory-review']
+                    assert len(audits)==1 and audits[0]['eligibleIndexes']==[1] and audits[0]['heldIndexes']==[0],audits
+                    assert audits[0]['originalPlan']['operations'][0]['content']==before
+                    noop_after={str(Path(p)):{'sha256':hashlib.sha256(Path(p).read_bytes()).hexdigest(),'inode':Path(p).stat().st_ino,'mtimeNs':Path(p).stat().st_mtime_ns} for p in noop_before}
+                    assert noop_before==noop_after,(noop_before,noop_after)
+                    assert not (agent/'learning'/paths['scopeKey']/'backlog-completed.json').exists()
+                    report.update(partialPersistenceOnly=True,unchangedNoopFiles=noop_after)
             elif case=='source-changed':
                 assert (memory/'runtime.md').read_text()==before
                 assert receipt['operations']==0 and any(a['outcome']=='failed' for a in receipt['attempts'])
@@ -213,5 +251,5 @@ def run(output: Path, case: str = 'applied') -> dict:
 
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(); parser.add_argument('output',type=Path); parser.add_argument('--case',choices=('applied','legacy','deep','renamed','source-changed','collector-refused','read-review','held-later','origin','origin-repair'),default='applied')
+    parser=argparse.ArgumentParser(); parser.add_argument('output',type=Path); parser.add_argument('--case',choices=('applied','legacy','deep','renamed','source-changed','collector-refused','read-review','held-later','origin','origin-repair','mixed-noop','mixed-noop-uncertain','mixed-noop-source-race'),default='applied')
     args=parser.parse_args(); print(json.dumps(run(args.output.resolve(),args.case)))

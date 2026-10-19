@@ -1,0 +1,33 @@
+{
+  "kind": "support-over-hold-verification",
+  "version": 1,
+  "recordedAt": "2026-10-19",
+  "claimUnderReview": "A verified tool observation that ran the command is still held at support: uncertain, measured at 8 of 8 samples across three phrasings, two languages and both existing-Memory states (tests/supplement-uncertainty-isolation-results-2026-10-07.json).",
+  "disposition": "Already repaired on 2026-10-07 by changing the support question and criterion text; the retained post-fix measurement shows the class closed. No gate was lowered.",
+  "currentCodeState": {
+    "file": "packages/continual-learning/extensions/jev-learning.ts",
+    "supportQuestion": "line 1477 case text: 'A successful tool result that ran the command grounds the claim that the command works for this project.' plus the failed-verification and partial-output boundaries",
+    "groundedCriterion": "line 1485: 'A successful tool result that ran the command counts as that verified observation for the command it ran. Actual failed verification plus matching inspected source can ground an explicitly unresolved defect limited to that source state.'",
+    "transientCriterion": "line 1487: a temporary event or resolved failure must not become lasting knowledge or a permanent restriction"
+  },
+  "pins": [
+    "tests/test_jev_learning.py:900 asserts the support-question sentence is present in the wire prompt",
+    "tests/test_jev_learning.py:904 asserts the grounded-criterion sentence is present in the wire prompt",
+    "tests/test_jev_learning.py:340-347 asserts grounded allows while speculative, transient, unsupported and unclear do not"
+  ],
+  "retainedPostFixMeasurement": {
+    "file": "packages/continual-learning/tests/adversarial-negative-study-affix-results-2026-10-07.json",
+    "before": {"matched": 12, "falseAllows": 0, "falseHolds": 2, "requests": 14},
+    "after": {"matched": 14, "falseAllows": 0, "falseHolds": 0, "requests": 14},
+    "gate": {"unchanged": true, "YES": 0.9, "CONFIDENCE": 0.8},
+    "whyNotAThreshold": "The diagnostic showed the classes overlap (legitimate supplement probabilities 0.64-0.87 against the negative transient probability 0.68-0.73), so lowering the gate would have admitted a transient failure as durable knowledge. Only the criterion text changed."
+  },
+  "laterLiveHoldIsNotThisClass": {
+    "cohort": "continuous-reviewed-deepseek-pi12-memory-purpose-v73",
+    "evidence": "parent-semantic-hold-observation.json holds counter windows, not support questions: counter_preservation_0_0 compatible 0.73 with confidence 0.59, below the unchanged 0.9/0.8 gate",
+    "whyCorrect": "CONTEXT.md records that the sole semantic repair regenerated a stale declaration, so the held replacement genuinely lost required predecessor knowledge. The hold is the correct outcome, not an over-hold.",
+    "supportDimensionsHeldInThatCohort": "v73 also recorded source-support coherence .83/.74 and grounding .73/.66 for the same stale repaired candidate, which is the same correct hold."
+  },
+  "sampleLimit": "The class is closed on a fixed 14-case bilingual corpus and its isolation samples. That is not a false-hold rate, and it cannot prove the class never recurs on other content. Live confirmation belongs to the paid cohort, where this class would appear as a failed memoryCorrectedAndUsed field accompanied by a support-dimension hold.",
+  "boundary": "No semantic threshold, question weight or evidence bound was changed for this verification. This establishes that the repair is present, pinned and measured; it does not establish learning benefit."
+}

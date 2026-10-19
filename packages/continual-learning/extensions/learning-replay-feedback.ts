@@ -39,7 +39,7 @@ function previousPlan(proposal: Record<string, unknown>): Record<string, unknown
 /** Historical parent source reads bind correction context only. Their bodies
  * never become fresh replay evidence or mutation authority. The complete
  * snapshot hash and original run manifest still authenticate the reviewed set. */
-function reviewedSourceExtension(snapshot: Record<string, unknown>, plan: Record<string, unknown>,
+export function reviewedSourceExtension(snapshot: Record<string, unknown>, plan: Record<string, unknown>,
   entries: readonly unknown[], manifest: unknown, audit: unknown, receipt: LearningPipelineReceipt): boolean {
   if (!record(manifest) || manifest.schemaVersion !== 1 || manifest.contextEnabled !== true
     || manifest.runId !== plan.runId || manifest.scopeKey !== plan.scopeKey || manifest.scopeDigest !== plan.scopeDigest

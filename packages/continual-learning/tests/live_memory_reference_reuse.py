@@ -16,6 +16,8 @@ from live_learning_loop import API_KEY, MODEL, PROVIDER, message_text, pi_versio
 
 class Provider(BaseHTTPRequestHandler):
     requests: list[dict] = []
+    read_path: str | None = None
+    read_limit: int = 100
 
     def log_message(self, *_args: object) -> None:
         pass
@@ -23,13 +25,17 @@ class Provider(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         payload = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         self.requests.append(payload)
-        stream_response(self, 'DONE')
+        has_result = any(message.get('role') == 'tool' for message in payload.get('messages', []))
+        if self.read_path and not has_result:
+            stream_response(self, [{'id': 'reference-read', 'name': 'read', 'arguments': {'path': self.read_path, 'offset': 1, 'limit': self.read_limit}}])
+        else:
+            stream_response(self, 'DONE')
 
 
 def run(parent: Path) -> dict:
     Provider.requests = []
     package = Path(__file__).resolve().parents[1]
-    sources = [package / 'index.ts', package / 'extensions/inject-memory.ts', package / 'extensions/memory-files.ts', Path(__file__)]
+    sources = [package / 'index.ts', Path(__file__), *sorted((package / 'extensions').glob('*.ts')), *sorted((package / 'prompts').glob('*.md')), *sorted((package.parent / 'kit/src').rglob('*.ts'))]
     def source_hashes() -> dict[str, str]:
         return {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
     initial_hashes = source_hashes()
@@ -82,10 +88,47 @@ def run(parent: Path) -> dict:
                 entries = [json.loads(line) for line in session.read_text().splitlines()]
                 references = [entry for entry in entries if entry.get('type') == 'custom_message' and entry.get('customType') == 'continual-learning-memory-reference']
                 assert len(references) == 0, f'legacy discovery messages appended again: {len(references)}'
+        read_cases = []
+        for mode in ('complete', 'partial', 'updated'):
+            if mode == 'updated':
+                (public / 'fact.md').write_text('---\nname: fact\ndescription: corrected scoped fact\ntype: project\n---\nUPDATED_BODY_ON_DEMAND_ONLY\n')
+            Provider.read_path = str(public / 'fact.md')
+            Provider.read_limit = 1 if mode == 'partial' else 100
+            session = root / f'read-{mode}.jsonl'
+            start = len(Provider.requests)
+            completed = run_pi(project, agent, session, 'Read fact.md with the read tool, then reply DONE.', server.server_port)
+            (root / f'read-{mode}.stdout.jsonl').write_text(completed.stdout)
+            (root / f'read-{mode}.stderr').write_text(completed.stderr)
+            assert completed.returncode == 0, completed.stderr
+            branch = [json.loads(line) for line in session.read_text().splitlines()]
+            observed = [row for row in branch if row.get('customType') == 'memory-use-observation']
+            prepared = [row for row in observed if row['data']['phase'] == 'section-prepared']
+            reads = [row for row in observed if row['data']['phase'] == 'full-body-result-observed']
+            assert len(prepared) == 1 and len(reads) == (0 if mode == 'partial' else 1), (mode, observed)
+            assert len(Provider.requests) - start == 2
+            wire_results = [message for message in Provider.requests[-1]['messages'] if message.get('role') == 'tool']
+            assert len(wire_results) == 1
+            if mode != 'partial':
+                expected = (public / 'fact.md').read_bytes()
+                assert wire_results[0]['content'].encode() == expected
+                proof = reads[0]['data']
+                assert proof['revision'] == hashlib.sha256(expected).hexdigest()
+                assert proof['preparationEntryId'] == prepared[0]['id']
+                assert proof['effect'] == 'cannot-attribute' and proof['modelConsumption'] == 'unverified'
+                native_result = next(row for row in branch if row.get('id') == proof['resultEntryId'])
+                assert native_result['message']['toolCallId'] == 'reference-read'
+                assert native_result['message']['content'][0]['text'].encode() == expected
+            wire_start = message_text(Provider.requests[start])
+            assert 'UPDATED_BODY_ON_DEMAND_ONLY' not in wire_start and 'BODY_MUST_NOT_BE_INJECTED' not in wire_start
+            assert not any('BODY_ON_DEMAND' in json.dumps(row) or 'BODY_MUST_NOT_BE_INJECTED' in json.dumps(row) for row in observed)
+            read_cases.append({'mode': mode, 'fullBodyObservations': len(reads), 'revision': reads[0]['data']['revision'] if reads else None,
+                               'wireFullBodyVerified': mode != 'partial', 'efficacyEstablished': False})
+        Provider.read_path = None
+        assert read_cases[0]['revision'] != read_cases[2]['revision']
         assert source_hashes() == initial_hashes, 'Sources changed during verification'
         report.update(status='passed', providerRequests=len(Provider.requests), unchangedReferenceCount=0, structuredDiscoveryPerPayload=1,
                       changedReferenceReplaced=True, deletedReferenceRemoved=True, freshSessionRestored=True,
-                      bodyInjected=False, modelWireMetadata=[model_prompt_observation(payload) for payload in Provider.requests], evidence='actual Pi CLI with deterministic loopback provider; no model learning claim')
+                      bodyInjected=False, nativeReadCases=read_cases, modelWireMetadata=[model_prompt_observation(payload) for payload in Provider.requests], evidence='actual Pi CLI with deterministic loopback provider; no model learning claim')
         return report
     except BaseException as error:
         report['error'] = f'{type(error).__name__}: {error}'

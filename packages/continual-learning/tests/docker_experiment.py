@@ -138,9 +138,9 @@ def build_image(memory_policy: str = "default") -> tuple[str, str]:
         prepare_memory_policy(context / "packages/continual-learning", memory_policy)
         (context / "package.json").write_text(json.dumps({
             "private": True, "type": "module", "packageManager": "pnpm@11.21.0",
-            "dependencies": {"@earendil-works/pi-coding-agent": "1.2.0", "@earendil-works/pi-ai": "1.2.0", "@earendil-works/pi-tui": "1.2.0", "tsx": "4.19.0"},
+            "dependencies": {"@earendil-works/pi-coding-agent": "1.3.0", "@earendil-works/pi-ai": "1.3.0", "@earendil-works/pi-tui": "1.3.0", "tsx": "4.19.0"},
         }))
-        (context / "pnpm-workspace.yaml").write_text('packages:\n  - packages/*\noverrides:\n  "@earendil-works/pi-coding-agent": 1.2.0\n  "@earendil-works/pi-ai": 1.2.0\n  "@earendil-works/pi-agent-core": 1.2.0\n  "@earendil-works/pi-codemode": 1.2.0\n  "@earendil-works/pi-mcp": 1.2.0\n  "@earendil-works/pi-telemetry": 1.2.0\n  "@earendil-works/pi-tui": 1.2.0\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
+        (context / "pnpm-workspace.yaml").write_text('packages:\n  - packages/*\noverrides:\n  "@earendil-works/pi-coding-agent": 1.3.0\n  "@earendil-works/pi-ai": 1.3.0\n  "@earendil-works/pi-agent-core": 1.3.0\n  "@earendil-works/pi-codemode": 1.3.0\n  "@earendil-works/pi-mcp": 1.3.0\n  "@earendil-works/pi-telemetry": 1.3.0\n  "@earendil-works/pi-tui": 1.3.0\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
         shutil.copyfile(PACKAGE / "tests" / "docker" / "Dockerfile", context / "Dockerfile")
         command(["docker", "build", "--tag", image, str(context)], timeout=1200)
     return image, digest

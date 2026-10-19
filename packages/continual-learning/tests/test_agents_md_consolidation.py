@@ -847,6 +847,57 @@ def test_pipeline_plans_harness_and_agents_in_parallel_then_applies_sequentially
     assert "ctx.ui.select" not in agents
 
 
+def test_absent_project_agents_is_noop_but_protected_target_cannot_complete() -> None:
+    # Given successful Memory/Harness, When no project instruction file exists,
+    # Then no planner is launched and the optional consolidation is complete.
+    result = js(r'''
+      import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+      import {planAgentsMdConsolidationPhase} from './packages/continual-learning/extensions/agents-md-consolidation.ts';
+      import {buildLearningReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      import {learningReceiptComplete} from './packages/continual-learning/extensions/learning-replay.ts';
+      const root=fs.mkdtempSync(path.join(os.tmpdir(),'cl-absent-agents-'));
+      const cwd=path.join(root,'project'); const agent=path.join(root,'agent');
+      fs.mkdirSync(cwd);fs.mkdirSync(agent);process.env.PI_CODING_AGENT_DIR=agent;
+      const run=async()=>planAgentsMdConsolidationPhase({ui:{notify(){}}},
+        {active:true,generation:1,cancelled:false},
+        {cwd,pkgDir:process.cwd(),reason:'test',budgetBytes:16384,disabled:false},
+        {manifest:{runDir:path.join(root,'never-created')}},1);
+      const complete=outcome=>learningReceiptComplete(buildLearningReceipt('manual',
+        {memory:true,harness:true,agents:true,reasons:[]},
+        ['memory','harness','agents'].map(phase=>({phase,attempt:0,
+          outcome:phase==='agents'?outcome:'applied',operations:phase==='agents'?0:1,durationMs:1}))));
+      const absent=await run();const wroteAbsent=fs.existsSync(path.join(cwd,'AGENTS.md'));
+      fs.writeFileSync(path.join(agent,'AGENTS.md'),'User-owned instructions.');
+      fs.symlinkSync(path.join(agent,'AGENTS.md'),path.join(cwd,'AGENTS.md'));
+      const protectedTarget=await run();
+      fs.unlinkSync(path.join(cwd,'AGENTS.md'));
+      fs.mkdirSync(path.join(cwd,'AGENTS.md'));const directory=await run();
+      fs.rmdirSync(path.join(cwd,'AGENTS.md'));
+      fs.symlinkSync(path.join(root,'missing'),path.join(cwd,'AGENTS.md'));const dangling=await run();
+      fs.unlinkSync(path.join(cwd,'AGENTS.md'));
+      fs.writeFileSync(path.join(root,'outside.md'),'Outside project.');
+      fs.symlinkSync(path.join(root,'outside.md'),path.join(cwd,'AGENTS.md'));const symlink=await run();
+      fs.unlinkSync(path.join(cwd,'AGENTS.md'));
+      fs.writeFileSync(path.join(cwd,'AGENTS.md'),'x'.repeat(1024*1024+1));const oversized=await run();
+      const out={absent,protectedTarget,directory,dangling,symlink,oversized,wroteAbsent,absentComplete:complete(absent.outcome),
+        protectedComplete:complete(protectedTarget.outcome),legacySkippedComplete:complete('skipped'),
+        heldComplete:complete('proposed'),missingComplete:complete(undefined),
+        protectedUnchanged:fs.readFileSync(path.join(agent,'AGENTS.md'),'utf8')==='User-owned instructions.'};
+      fs.rmSync(root,{recursive:true,force:true});console.log(JSON.stringify(out));
+    ''')
+    assert result['absent']['outcome'] == 'noop'
+    assert result['absentComplete'] is True
+    assert result['wroteAbsent'] is False
+    assert result['protectedTarget']['outcome'] == 'skipped'
+    assert result['protectedComplete'] is False
+    assert result['legacySkippedComplete'] is False
+    assert result['heldComplete'] is False
+    assert result['missingComplete'] is False
+    assert result['protectedUnchanged'] is True
+    for case in ('directory', 'dangling', 'symlink', 'oversized'):
+        assert result[case]['outcome'] == 'failed', (case, result[case])
+
+
 def test_changed_snapshot_bytes_are_rejected_before_agents_planning() -> None:
     result = js(r'''
       import { mock } from 'bun:test';

@@ -52,10 +52,10 @@ them instead of copying a per-file runner or fixture.
 
 ## Learning study and evidence protocols
 
-Current acceptance and fresh continuous studies use Pi 1.2.0. Pin the actual CLI
+Current acceptance and fresh continuous studies use Pi 1.3.0. Pin the actual CLI
 and TUI, including inherited workspace overrides, and verify CLI startup before
-model transport. Keep historical Pi 1.0 cohorts, failures and costs separate; do
-not relabel them as Pi 1.2 evidence. Admission failures before transport must keep
+model transport. Keep historical Pi 1.0 and 1.2 cohorts, failures and costs separate; do
+not relabel them as Pi 1.3 evidence. Admission failures before transport must keep
 owned containers and complete manifest source bindings when archives are absent.
 For loopback model diagnostics, preserve provider-level and model-level compatibility
 settings. A new base URL can change automatic message-role and token-field detection.
@@ -189,6 +189,17 @@ remain counted and may have unknown costs; complete logical requests still need
 every original window and exact checklist. A successful retry must not suppress
 the separate independent body review, and a missing answer or uncertain verdict
 must never acquire completion or mutation authority.
+For the privacy preflight, run @tests/test_jev_learning.py,
+@tests/test_learning_controls.py (TypeScript guard and packed validator pinned
+against the shared corpus) and
+@tests/preflight-false-positive-verification-2026-10-19.json. Documentation
+placeholders are exempt in text only: the Memory guard and the Jev preflight must
+classify the same text identically, a credential-named structured object key stays
+strict, and a quoted value containing punctuation such as `,`, `;`, `?` or `//` is
+refused. Never add a placeholder allowlist entry, widen a pattern class or relax a
+class rule to obtain a write. Re-measure over retained dossiers before claiming a
+false-positive rate.
+
 For isolated semantic-service TLS failures, exercise
 @packages/continual-learning/tests/jev-https-forward.mjs with
 @packages/continual-learning/tests/test_jev_https_forward.py before paid calls.
@@ -255,9 +266,10 @@ studies must explicitly retain their original `maxRequestBytes` and transport
 bound; record an authorized protocol change separately, preserving prior failures
 and costs. Removing a local capacity gate does not establish semantic acceptance
 or learning benefit. Preserve each historical study's count limits. Normal mutation
-review explicitly uses at most 32 candidates and 16 complete windows plus support
-and novelty, or 576 prepared requests; record this separately from the old
-68-request bound. Keep deadlines and 0.9/0.8 thresholds unchanged.
+review explicitly uses at most 32 candidates, 16 complete windows and 576
+prepared requests. The total includes independent body-only consistency, support
+and novelty jobs; the joint maxima need not fit together. Reject excess work
+before transport. Record this separately from the old 68-request bound. Keep deadlines and 0.9/0.8 thresholds unchanged.
 Mutation reviews require operation/preservation intent,
 exact old bodies and same-plan replacement bodies; none of that state authorizes
 the mutation. An all-positive offline judge proves framing and coverage only.
@@ -329,11 +341,31 @@ Bind paid admission to the exact preflight run and wrapper digest. A no-call
 preflight must enforce a zero transport budget. Acquire exclusive budget
 ownership before reading the cumulative ledger, and preserve reservations on
 uncertain interruption rather than reusing unaccounted requests.
+For recovery file identities, run @tests/test_recovery_integrity.py. Fresh live
+captures retain the native history's complete physical revision and compare it
+at every link and endpoint. Archive bytes bind to live digest, mode and size;
+tar does not prove inode identity. Keep historical snapshots and failed outcomes
+unchanged; never strip revision fields or infer missing historical identities.
 The continuous protocol permits one bounded explicit backfill after initial learning
 if pending, retaining the original failures and recovery cost; invalid learning
 then stops dependent tasks. Read actual backlog status rather than inferring pending
 work from attempt files. On interruption retain sessions and ledgers before removing
 owned containers; known summaries may be incomplete, and missing usage is unknown.
+
+For a new prospective observed-failure study, `--verified-failure-learning` adds an
+explicit version-2 path. It separates an original task failure from independently
+validated learning after feedback. Keep the default successful-diagnosis path and
+all historical outcomes unchanged. Require a normally settled original native
+branch, safe unchanged source in both arms, a complete native feedback proof,
+exact backlog acknowledgment, zero pending work, complete receipt-owned physical
+history and substantive failure knowledge. Recompute source-extension proof from
+the complete plan, snapshot, manifest, observations and bound usage ledgers before
+semantic transport. Preserve individual 0.9/0.8 and conservative joint 0.9 gates,
+all type/Harness/privacy checks, and the one-backfill limit. Invalid training still
+stops later tasks. Never reinterpret a failed main as successful, import old learned
+state, rejudge held plans for approval, or infer later use or benefit from admission.
+Exercise `tests/test_continuous_project_protocol.py` and native offline evidence,
+then freeze and independently review a fresh preflight before paid execution.
 The revised study loads @packages/continual-learning/tests/continuous-tool-budget.ts
 only in each arm's parent task process: eighteen admitted calls, then an empty
 active tool set; excess in-flight calls are blocked and make the task fail. This
@@ -396,7 +428,9 @@ For interrupted semantic Memory repair, run
 actual workspace Pi 1.2 child against a loopback provider and accelerates only
 the parent deadline after the provider receives the request. This proves child
 termination and cancellation ownership, not remote learning. Repair uses the
-existing 230-second independent-worker bound; it must retain parent-controlled
+recorded `MEMORY_CORRECTION_WORKER_DEADLINE_MS` budget (600 seconds,
+@docs/adr/0009-record-the-memory-correction-worker-budget.md); the Harness
+correction path keeps its own 230-second bound. It must retain parent-controlled
 started/closed markers and known partial usage without admitting held proposals
 or adding retries. First cancellation reason wins during process cleanup.
 For interrupted study costs, reconcile only parent-owned run receipts, named
@@ -516,7 +550,7 @@ historical semantic verdict was uncertain or demonstrate learning benefit.
 
 For missing semantic-repair envelopes, run @tests/test_memory_repair_envelope.py with the retained real response. Keep kind/version and every parent identity value mandatory at the top level; patch field restrictions apply inside replacements only. Never synthesize missing identity or treat a framing repair as semantic acceptance.
 
-For corrective-generation effort changes, run @tests/test_memory_repair_effort.py. Exercise actual Pi wire delivery (DeepSeek uses thinking.type=disabled, not reasoning_effort=none), preserve held-body xhigh for source, permission and preservation holds even after consistency passed, and the unchanged worker deadline, and require fresh full reviews before writes. Serialization is not evidence of faster service or useful learning.
+For corrective-generation effort changes, run @tests/test_memory_repair_effort.py. Exercise actual Pi wire delivery (DeepSeek uses thinking.type=disabled, not reasoning_effort=none), preserve held-body xhigh for source, permission and preservation holds even after consistency passed, and the recorded Memory correction worker budget (600 seconds, ADR 0009), and require fresh full reviews before writes. Serialization is not evidence of faster service or useful learning.
 
 For preservation repair context, also run @tests/test_memory_semantic_amendment.py.
 Keep complete old/new records and original evidence beside exact line-occurrence
@@ -554,8 +588,33 @@ check old artifacts and use current receipts for changed target files. Retain
 independent-subset audits in run artifacts before publishing their history rows
 after origin guards settle. Exercise the origin cases in
 @tests/live_automatic_source_refresh.py and the origin/subset combination in
-@tests/test_independent_memory_parent_pipeline.py. Keep CREATE-only and finite
-historical wires unchanged. Controlled judgments prove integration only.
+@tests/test_independent_memory_parent_pipeline.py. Keep default CREATE-only
+partition admission and finite historical wires unchanged. Controlled judgments
+prove integration only.
+
+For a mixed subset beside a held unchanged rewrite, run
+@tests/test_independent_memory_partition.py, @tests/test_jev_memory_relations.py
+and @tests/live_automatic_source_refresh.py with --case mixed-noop,
+--case mixed-noop-uncertain and --case mixed-noop-source-race in separate
+disposable output roots. Bind complete original mixed indexes, digests and
+checklists. A unique same-classification, byte-identical frozen predecessor is
+comparison-only and always held; it never becomes an eligible mutation. Require
+complete direct independence against persisted no-ops, standalone and body
+review for each eligible new fact. Standalone proof cannot override conflict,
+dependency, duplicate or uncertainty against a record that remains stored.
+Preserve old bytes, mirrors, ownership, pending review, source/privacy/transaction
+guards and the Harness/AGENTS/backlog hold. Native controlled writes prove
+partial persistence only, not semantic accuracy or downstream benefit.
+
+For failure-label/state confusion, run @tests/test_source_comment_grounding.py
+with @tests/fixtures/real-failure-label-state-conflict.json and
+@tests/test_jev_citation_generation.py. Preserve the complete original snapshot
+and rejected repair. A failure message establishes its observed wording, not
+which callback or work remains unfinished. Trace actual awaits, completed
+callbacks and unreleased work; retain unknown state rather than inventing a
+mechanism. Do not repair the stored fixture or rejudge its historical verdict.
+Prompt delivery and controlled native runs do not establish correct generation
+or improvement on later real tasks.
 
 For current-source comparison in normal Memory mutations, run
 @tests/test_retained_source_context.py and @tests/test_jev_inline_memory_review.py.
@@ -691,3 +750,76 @@ original review window. Line counts include duplicate occurrences and exact line
 endings; they ignore order and never establish semantic preservation. Changed text
 can be superseded or rephrased; unchanged text can change meaning in context.
 Keep each semantic gate and historical bounded wire unchanged.
+
+For plain and Markdown purpose labels, run `tests/test_memory_semantic_amendment.py`.
+Preserve populated Why and How to apply sections during correction. Ignore quoted
+labels and reject removal of their content. Native fixtures prove preservation
+wiring only; retained V82 automatic failure is not a stored correction.
+
+For optional new Memory refusal, run `tests/test_memory_semantic_amendment.py`,
+`tests/test_jev_memory_relations.py`, `tests/test_planner_json_output.py` and
+`tests/test_learning_efficiency.py`. Bind the complete original candidate review,
+then review the exact declined set and effective remaining content together.
+Preserve all user storage and existing correction obligations. Recheck absence
+in both frozen and current roots before mutation. Only an explicit bound refusal
+can finish an optional draft as not learned; empty, cancelled or uncertain
+responses stay pending. Keep failures, usage and unknown costs. Controlled SDK
+and native Pi fixtures prove wiring only, never learning benefit.
+
+For body-consistency repair scope, run `tests/test_memory_body_consistency.py`
+and `tests/test_memory_description_coherence.py`. Preserve V79's submitted and
+parent-merged public descriptions: the old parent restored an ambiguous
+description after body repair. A body coherence hold may permit a paired
+description correction, but does not establish a description failure or source
+truth. Keep other metadata locked and require every fresh review before writes.
+Offline replay proves correction scope only, never real-model learning benefit.
+
+For declaration-level Memory consistency, run `tests/test_memory_body_consistency.py`
+with the retained public V81 candidate. Normal review distinguishes quoted source
+or type declarations from endorsed runtime assertions. A quotation is no blanket
+exemption: explicit runtime claims, conditions and consequences still need complete
+comparison. Keep contradictory, unclear, missing and below-threshold results held,
+all source/description/body gates, and finite historical wires unchanged. V81's
+coherence hold does not establish why Jev was uncertain. Controlled answers prove
+framing and gate wiring only; require a fresh real cohort for efficacy claims.
+
+For absent project instruction documents, run `tests/test_agents_md_consolidation.py`
+and `tests/test_learning_replay.py`. A missing project AGENTS.md is a no-op for
+existing-document consolidation. Protected targets remain skipped and cannot
+complete a screened phase. Use `tests/test_learning_controls.py` for actual FIFO
+and regular-file replacement cases. Bounded readers must not wait on non-regular
+files before their descriptor checks. Do not accept historical skipped receipts, missing
+phases, proposals or pending operations as completed learning. This disposition
+proves no learning benefit.
+
+For revision-bound Harness execution observations, run
+`tests/test_guardrails_extension.py` and the offline
+`tests/live_current_user_harness_correction.py` native runner. Keep decision and
+completion entries non-context and bind exact session, call and canonical rule
+revisions. Hash rule and call IDs; never copy commands or result bodies into the
+observation. Missing timing, reused IDs, incomplete coverage and changed sessions
+remain unverified. Observer failure must not change execution; a stale native
+confirmation must not authorize an old call. Positive handler timing proves
+invocation only. Keep task outcome unverified and effect cannot-attribute until
+separate task evidence supports a conclusion. This runner uses loopback services
+only and proves lifecycle wiring, not real-model learning benefit.
+
+For complete Memory-result observations, run `tests/test_observed_memory_reads.py`,
+`tests/test_memory_index.py` and `tests/live_memory_reference_reuse.py` with a
+fresh disposable output parent. Preserve explicit loader truncation and raw-byte
+UTF-8 round-trip checks; a decoded prefix is not a complete file revision.
+Require native handler evidence plus unique retained call/result rows and the
+full branch to the original preparation. Observer failures must not affect tools
+or learning. Keep preparation separate from actual model wire, and result
+observation separate from attention, source truth and task benefit. The native
+runner checks complete, partial and updated results against actual subsequent
+requests using loopback only; it does not prove real-model learning.
+
+For evidence-only retained Memory correction, run `tests/test_combined_memory_amendment.py`. Only a genuinely omitted rewrite body can reuse the unique parent-frozen predecessor with a complete bound snapshot, unchanged identity/context and no required text changes. Keep ordinary delta content mandatory, delete bodies absent, original privacy and all final structure, citation and semantic checks. The native Pi 1.3 loopback cases prove framing and exact-byte reuse only; retained evidence updates do not prove corrected knowledge or later task benefit.
+
+For continuous-study cost accounting, run `tests/test_retained_learning_costs.py`
+and `tests/test_continuous_project_protocol.py`. Count parent pipeline receipts
+from early current-user Harness correction as well as replay jobs. Missing worker
+ledgers do not erase receipt costs, failures, operations or unknown usage. Deduplicate
+by exact batch and worker identities; conflicting snapshots stop accounting.
+Never infer call identity from equal numeric totals or mark partial costs complete.

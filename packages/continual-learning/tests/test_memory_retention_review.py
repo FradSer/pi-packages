@@ -224,12 +224,18 @@ def test_distillation_requires_complete_bound_description_review_and_never_rewri
       const run=(r=review,p=plan)=>distillReviewedNewMemory(p,candidates,r,evidence,existing,1,'__MODEL__');
       const good=run();
       const bad=[run({...review,model:'jev-1.15.0'}),run({...review,evidenceDigest:'wrong'}),run({...review,candidates:[{...review.candidates[0],passedChecks:['supported_description_0']}]}),run({...review,candidates:[{...review.candidates[0],heldChecks:['supported_0','counter_description_0_0']}]}),run(review,{operations:[{...candidate,kind:'rewrite'}],newMemories:[]})];
-      console.log(JSON.stringify({good,bad,plan}));
+      const purpose={...candidate,content:content+'\n\n**Why**\nKeep updates useful.\n\n**How to apply**\nUse concise updates.'};
+      const purposeReview={...review,candidatesDigest:digest([purpose]),candidates:[{...review.candidates[0],candidateDigest:digest(purpose)}]};
+      const purposePlan={operations:[],newMemories:[purpose]};
+      const purposeResult=distillReviewedNewMemory(purposePlan,[purpose],purposeReview,evidence,existing,1,'__MODEL__');
+      console.log(JSON.stringify({good,bad,plan,purposePlan,purposeResult}));
     '''.replace('__MODEL__', model))
     assert result['good']['names'] == ['fact.md']
     item = result['good']['plan']['newMemories'][0]
     assert item['content'].endswith('\nPrefer concise task updates.\n')
     assert item['evidence'] == result['plan']['newMemories'][0]['evidence']
+    assert result['purposeResult']['names'] == []
+    assert result['purposeResult']['plan'] == result['purposePlan']
     for row in result['bad']:
         assert row['names'] == []
 

@@ -184,7 +184,7 @@ def run(archive: Path, output: Path, real: bool, observation_file: Path | None =
             (agent / 'models.json').write_text(json.dumps(models))
             env = {k: v for k, v in os.environ.items() if k in {'PATH', 'LANG', 'LC_ALL'}}
             env.update(HOME=str(home), PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE='1')
-            pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
+            pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
             report['piVersion'] = subprocess.check_output([shutil.which('node'), str(pi), '--version'], env=env, text=True).strip()
             if report['piVersion'] != '1.0.0':
                 raise ValueError('Pi compatibility baseline changed')

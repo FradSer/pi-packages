@@ -125,9 +125,26 @@ mock.module("../../kit/src/index.ts", () => ({
       repairErrors.push(payload.errors);
       requiredTextChangesReceived = payload.requiredTextChanges;
       repairableFieldsReceived = {names:payload.repairableNames,fields:payload.repairableFields};
-      if (payload.semanticContext && !prompt.includes("existing structural correction slot")) { semanticRepairs += 1; receivedFailureHints = payload.errors.some((error: string) => (error.includes("Candidate failures: 0:support:uncertain") || error.includes("Candidate failures: 0:support:unsupported"))); }
+      if (payload.semanticContext && !prompt.includes("existing structural correction slot")) {
+        semanticRepairs += 1;
+        const dimension = ["partial-review-consistency", "partial-review-compatible", "partial-review-low-contradiction"].includes(fixtureReason ?? "")
+          ? "internal-consistency" : "support";
+        receivedFailureHints = payload.errors.some((error: string) =>
+          error.includes(`Candidate failures: 0:${dimension}:uncertain`) || error.includes(`Candidate failures: 0:${dimension}:unsupported`));
+      }
       else { selectors += 1; structuralContextReceived = !!payload.semanticContext?.frozenEvidence && Array.isArray(payload.semanticContext?.existingMemories); }
       if (fixtureReason === "subset-repair-invalid" && !prompt.includes("existing structural correction slot")) return {exitCode:1,stderr:"",text:""};
+      if (fixtureReason?.startsWith("no-entry")) {
+        const candidate = payload.repairCandidates[0];
+        if (fixtureReason === "no-entry-required") {
+          if (candidate.withdrawalAllowed) throw new Error("Required draft became optional");
+          return {exitCode:0,stderr:"",text:JSON.stringify({kind:"incremental-memory-amendment",version:1,...payload.identity,replacements:[]})};
+        }
+        if (!candidate.withdrawalAllowed) throw new Error("Parent optional review missing");
+        return {exitCode:0,stderr:"",text:JSON.stringify({kind:"incremental-memory-amendment",version:1,...payload.identity,
+          replacements:[],withdrawals:[{candidateRef:candidate.candidateRef,reason:"insufficient-evidence"}]}),
+          usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01}};
+      }
       const repaired = structuredClone(payload.rejectedPlan.malformedPlanText || payload.rejectedPlan.missingPlanEnvelope ? lastMemoryPlan : payload.rejectedPlan);
       if (fixtureReason?.startsWith("distill-fresh")) repaired.newMemories[0].content =
         '---\nname: concise\ndescription: "Prefer concise progress updates."\ntype: feedback\n---\nPrefer concise progress updates. A newly repaired unsupported explanation.\n';
@@ -347,8 +364,25 @@ if (process.env.CL_JEV_FIXTURE) {
         return {telemetry,...(readiness?{readiness,readinessTelemetry:{...telemetry,strategy:"standalone-memory"}}:{}),
           review:{version:1,purpose:"diagnostic-only",complete:true,evidenceDigest:fixtureDigest(evidence),existingDigest:fixtureDigest(existing),candidatesDigest:fixtureDigest(candidates),model:review.model,pairs}};
       },
+      ...(reason.startsWith("no-entry") ? {reviewMemoryWithdrawals: productionJudgeFactory({enabled:true,apiKey:"fixture",allowPrivateMemory:true,
+        defaultModel:fixtureJevModel,fetch:async(_url,init)=>{
+          reviewWireCalls++;
+          const request=JSON.parse(String(init.body));
+          const label=reason === "no-entry-required" || reason === "no-entry-final-held" && request.state.effectiveCandidates !== undefined ? "required" : "optional";
+          return new Response(JSON.stringify({model:request.model,answers:Object.fromEntries(Object.keys(request.questions).map(key=>[key,
+            {type:"choice",choice:label,confidence:1,probabilities:{optional:label === "optional"?1:0,required:label === "required"?1:0,unclear:0}}])),usage:{input_tokens:10,output_tokens:2}}));
+        }}).reviewMemoryWithdrawals} : {}),
       select: async () => ({ selection: reason === "discover" ? {memory:true,harness:false,selected:[]} : null, telemetry: {stage:"selection",status:"fallback",reason:"unavailable",durationMs:1} }),
       validate: async (stage: string, evidence: unknown, candidates: unknown[], existing: unknown[]) => {
+        if (reason.startsWith("no-entry")) {
+          jevValidations.push(stage);
+          return {decision:candidates.length ? "propose" : "allow",telemetry:{stage,status:candidates.length ? "propose" : "decided",reason:candidates.length ? "uncertain" : "supported",durationMs:1,
+            model:fixtureJevModel,evidenceWindows:1,candidateFailures:candidates.map((_,candidateIndex)=>({candidateIndex,dimension:"support",reason:"uncertain"}))},
+            candidateReview:{version:1,purpose:"diagnostic-only",complete:true,sameBatchIndependenceReviewed:false,model:fixtureJevModel,
+              evidenceDigest:fixtureDigest(evidence),existingDigest:fixtureDigest(existing),candidatesDigest:fixtureDigest(candidates),
+              candidates:candidates.map((candidate,index)=>({index,candidateDigest:fixtureDigest(candidate),outcome:"held",heldChecks:[`supported_${index}`],passedChecks:[]}))}};
+        }
+
         if (reason?.startsWith("partial-review-")) {
           jevValidations.push(stage);
           const consistency = ["partial-review-consistency", "partial-review-compatible", "partial-review-low-contradiction"].includes(reason);

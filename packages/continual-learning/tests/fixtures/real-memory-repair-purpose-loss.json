@@ -1,0 +1,282 @@
+{
+  "version": 1,
+  "purpose": "Real V77 semantic repair removed Why and How to apply from a new maintenance contract. This fixture proves structural preservation only, not source authority or learning benefit.",
+  "originSha256": {
+    "semantic-rejected-plan.json": "8e3732a860da971308c5cb0852369139b7ad92d76f31f9a26da96460024c886f",
+    "semantic-repair-plan.json": "de4ebd1564ee5bbfdd4a211a975f4f76c89e04095c0689a0d7919c1420fa6876",
+    "snapshot.json": "9936bec10b5fc4a9bd924e3a8bddbd1010b2da164bb94868b72b05105a052c36"
+  },
+  "original": {
+    "name": "plimit_limitfunction_contract.md",
+    "kind": "project",
+    "classification": "safe",
+    "content": "---\nname: plimit_limitfunction_contract\ndescription: p-limit's limitFunction requires a PromiseLike-returning function and returns a callable with clearQueue\ntype: project\n---\nIn the inspected p-limit checkout, `index.d.ts` declares `limitFunction` as:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\n**Why**: this is the public input/output type contract to preserve for future maintenance of `limitFunction`.\n\n**How to apply**:\n- Input `function_` is declared as `(...arguments_: Arguments) => PromiseLike<ReturnType>`, so the declaration requires a PromiseLike-returning function; a bare synchronous return is not accepted, unlike the `LimitFunction` call signature which accepts `PromiseLike<ReturnType> | ReturnType`. `options` is the required `Options` value.\n- Output is declared as the callable `(...arguments_: Arguments) => Promise<ReturnType>` intersected with `Pick<LimitFunction, 'clearQueue'>` (i.e. `clearQueue: () => void`).\n- The `Promise<ReturnType>` return-type annotation describes the result of invoking the returned callable, not the callable itself.\n- This intersection is a declared type-level contract and does not by itself establish which members exist at runtime. In the inspected `index.js`, `limitFunction` copies only `clearQueue` onto the returned function via `Object.defineProperty`.\n",
+    "evidence": [
+      {
+        "ref": "e5.b0.l135",
+        "endRef": "e5.b0.l138"
+      },
+      {
+        "ref": "e5.b0.l93",
+        "endRef": "e5.b0.l108"
+      },
+      {
+        "ref": "e5.b0.l55",
+        "endRef": "e5.b0.l58"
+      },
+      {
+        "ref": "e5.b0.l27"
+      },
+      {
+        "ref": "e3.b0.l133",
+        "endRef": "e3.b0.l142"
+      },
+      {
+        "ref": "e6.b0.l29"
+      }
+    ]
+  },
+  "repaired": {
+    "name": "plimit_limitfunction_contract.md",
+    "kind": "project",
+    "classification": "safe",
+    "content": "---\nname: plimit_limitfunction_contract\ndescription: p-limit's `limitFunction` in `index.d.ts` is declared to return a callable with `clearQueue`\ntype: project\n---\nIn the inspected p-limit checkout, `index.d.ts` declares `limitFunction` as:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe input `function_` is declared as `(...arguments_: Arguments) => PromiseLike<ReturnType>`, so the declaration requires a PromiseLike-returning function; a bare synchronous return is not accepted, unlike the `LimitFunction` call signature, which accepts `PromiseLike<ReturnType> | ReturnType`. The `options` parameter is declared as the required `Options` value.\n\nThe output is declared as the callable `(...arguments_: Arguments) => Promise<ReturnType>` intersected with `Pick<LimitFunction, 'clearQueue'>` (i.e. `clearQueue: () => void`). The `Promise<ReturnType>` return-type annotation describes the result of invoking the returned callable, not the callable itself.\n\nThis intersection is a declared type-level contract and does not by itself establish which members exist at runtime. In the inspected `index.js`, `limitFunction` defines `clearQueue` on the returned function via `Object.defineProperty`.",
+    "evidence": [
+      {
+        "index": 5,
+        "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+        "role": "toolResult"
+      },
+      {
+        "index": 5,
+        "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;",
+        "role": "toolResult"
+      },
+      {
+        "index": 5,
+        "quote": "\t<Arguments extends unknown[], ReturnType>(\n\t\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType> | ReturnType,\n\t\t...arguments_: Arguments\n\t): Promise<ReturnType>;",
+        "role": "toolResult"
+      },
+      {
+        "index": 5,
+        "quote": "\tclearQueue: () => void;",
+        "role": "toolResult"
+      },
+      {
+        "index": 3,
+        "quote": "export function limitFunction(function_, options) {\n\tconst limit = pLimit(options);\n\n\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});\n\n\treturn limitedFunction;\n}",
+        "role": "toolResult"
+      },
+      {
+        "index": 6,
+        "quote": "expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));",
+        "role": "toolResult"
+      }
+    ]
+  },
+  "originalUserPurpose": "Remember the currently inspected limitFunction public input/output type contract for future maintenance, grounded in the actual declarations.",
+  "additionalCases": [
+    {
+      "cohort": "V78",
+      "case": "Bold purpose labels with the colon inside emphasis",
+      "captureSha256": "999d01360274e3a35df4181821eb15ca194178b8d5707d4e9df9a060ccb0dc37",
+      "originSha256": {
+        "semantic-rejected-plan.json": "8b0fe389d91e08c81b1697bd5f4adf804cf8f5c22d6a371b4f17cdc0c0fd3b21",
+        "semantic-repair-plan.json": "4d82521c669a426f831c7a122d8fac798c748fa0dfc51647fa624bc25990b7c2",
+        "snapshot.json": "79bd4ac93d9e91269116258405e07312e3a48f37160fad4ed3b01163ab6a04b5"
+      },
+      "original": {
+        "name": "project_limitfunction_type_contract.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: project_limitfunction_type_contract\ndescription: index.d.ts declares limitFunction's type-level input/output contract\ntype: project\n---\n\nSource: `index.d.ts` in the p-limit checkout at /work/p-limit. The declared public input/output type contract is:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\n`Options` (the `options` parameter type) is declared as:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\n**Why:** The user asked to remember the currently inspected `limitFunction` public input/output type contract for future maintenance, grounded in the actual declarations.\n\n**How to apply:** Treat this as a declared type contract, not a runtime guarantee. The `function_` parameter declares `PromiseLike<ReturnType>` (a `PromiseLike`, distinct from `Promise`), and the return annotation declares a variadic callable intersected with `Pick<LimitFunction, 'clearQueue'>`, so `clearQueue` is the only `LimitFunction` member in that intersection. Preserve the function-type parentheses and the intersection boundary when future maintenance touches `limitFunction`.\n",
+        "evidence": [
+          {
+            "ref": "e5.b0.l135",
+            "endRef": "e5.b0.l138"
+          },
+          {
+            "ref": "e5.b0.l93",
+            "endRef": "e5.b0.l109"
+          },
+          {
+            "ref": "e0.b0.l13"
+          }
+        ]
+      },
+      "repaired": {
+        "name": "project_limitfunction_type_contract.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: project_limitfunction_type_contract\ndescription: index.d.ts declares limitFunction's type-level input/output contract\ntype: project\n---\n\nSource: `index.d.ts`. The declared public input/output type contract is:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe `options` parameter type is declared as:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\nThe declared input `function_` returns `PromiseLike<ReturnType>`, a `PromiseLike` distinct from `Promise`. The declared returned callable is a variadic function type intersected with `Pick<LimitFunction, 'clearQueue'>`; invoking it with `Arguments` yields `Promise<ReturnType>`.",
+        "evidence": [
+          {
+            "index": 5,
+            "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+            "role": "toolResult"
+          },
+          {
+            "index": 5,
+            "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+            "role": "toolResult"
+          },
+          {
+            "index": 0,
+            "quote": "Read index.js, public declarations and selected existing tests. Run pnpm test once. Do not edit files. Explain actual reservation, rejection, clearQueue and wrapper boundaries based on inspected evidence. Remember the currently inspected limitFunction public input/output type contract for future maintenance, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+            "role": "user"
+          }
+        ]
+      },
+      "limit": "Closed initial correction only; later recovery remained running. Structure evidence, not semantic approval."
+    },
+    {
+      "cohort": "V82",
+      "source": "Original public p-limit automatic Memory used plain labels; the actual repair lost both purpose sections. Not accepted Memory and not an explanation for the independent Jev support hold.",
+      "archiveSha256": "8be0ef65010586a1f96d14fd4cf2967a04cf251ee833fb3136e2d70b18f5df17",
+      "original": {
+        "name": "limitfunction_declared_type_contract.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: limitfunction_declared_type_contract\ndescription: p-limit limitFunction requires a PromiseLike-returning function_ and returns a callable intersected with clearQueue.\ntype: project\n---\nSource: /work/p-limit/index.d.ts declares the `limitFunction` public input/output type contract as:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe referenced `Options` type in the same file is:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n\nThe intersected `Pick<LimitFunction, 'clearQueue'>` uses the `LimitFunction` member `clearQueue: () => void`; the declared return exposes only that member of `LimitFunction`, not its other members.\n\nWhy: The user asked to remember the currently inspected `limitFunction` public input/output type contract for future maintenance, grounded in the actual declarations.\n\nHow to apply: When maintaining `limitFunction`, treat the declaration above as the declared type contract. The `function_` parameter is type-level constrained to return `PromiseLike<ReturnType>` and `options: Options` is required; the returned value is a callable accepting the same argument tuple and returning `Promise<ReturnType>`, intersected with `clearQueue`.\n",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Read index.js, public declarations and selected existing tests. Run pnpm test once. Do not edit files. Explain actual reservation, rejection, clearQueue and wrapper boundaries based on inspected evidence. Remember the currently inspected limitFunction public input/output type contract for future maintenance, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+            "role": "user"
+          },
+          {
+            "index": 5,
+            "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+            "role": "toolResult"
+          },
+          {
+            "index": 5,
+            "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+            "role": "toolResult"
+          }
+        ]
+      },
+      "repaired": {
+        "name": "limitfunction_declared_type_contract.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: limitfunction_declared_type_contract\ndescription: p-limit index.d.ts declares the limitFunction public input/output type contract.\ntype: project\n---\n\nSource: /work/p-limit/index.d.ts declares the `limitFunction` public input/output type contract as:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nThe `function_` parameter is declared as `(...arguments_: Arguments) => PromiseLike<ReturnType>`, so its declared return value is constrained to `PromiseLike<ReturnType>`. The `options` parameter is a required `Options` value.\n\nThe declared return type is the intersection of the callable type `(...arguments_: Arguments) => Promise<ReturnType>` with `Pick<LimitFunction, 'clearQueue'>`. The `Promise<ReturnType>` in the callable type annotates the result of invoking the returned callable and is not the type of the callable itself. The `Pick<LimitFunction, 'clearQueue'>` component declares only the `clearQueue` member of `LimitFunction`.\n\nThe `Options` type referenced in the same file is:\n\n```ts\nexport type Options = {\n\treadonly concurrency: number;\n\treadonly rejectOnClear?: boolean;\n};\n```\n",
+        "evidence": [
+          {
+            "index": 5,
+            "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+            "role": "toolResult"
+          },
+          {
+            "index": 5,
+            "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+            "role": "toolResult"
+          }
+        ]
+      }
+    },
+    {
+      "cohort": "V87",
+      "case": "explicit-maintenance-limits-slot-lost",
+      "source": "Closed initial automatic learning snapshot, before failed-task backfill",
+      "archiveSha256": "9da99f2ad8bc0a46473a2ea91256508f10c1ea0b761a6b7e08d55aece9670650",
+      "original": {
+        "name": "plimit-onidle-early-unresolved.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: plimit-onidle-early-unresolved\ndescription: The p-limit onIdle early-resolution failure remains unresolved\ntype: project\n---\n\nThe `onIdle` early-resolution failure in `/work/p-limit` is unresolved. Running `node observed-idle-failure.mjs` once produced two failing subtests, `limiter completion reaction does not report idle early` and `wrapper completion reaction does not report idle early`; both failed with `AssertionError: onIdle reported while the completion reaction job was held` (`true !== false`) and the command exited with code 1.\n\nA direct runtime trace printed `log after react: [\"idle-reported\",\"reaction-invoke2\"]` and `activeCount: 1 pendingCount: 0`: `onIdle` reported idle before a reaction attached to the job's returned promise enqueued the follow-up job. In the same run, the standalone reproducer failed while `pnpm test` (`xo && ava && tsd`) passed.\n\nCurrent source scope is the `flushIdle`/`next`/`run`/`enqueue` interaction in `/work/p-limit/index.js`. `flushIdle` returns while `activeCount > 0 || queue.size > 0`, so the idle check only accounts for work already enqueued at that moment.\n\nThe source comment at `index.js` lines 44-45 states that any job enqueued while a job was resolving is \"already accounted for here\"; the observed reproducer failure shows `onIdle` resolving before a completion reaction enqueues the follow-up job. This is an unresolved source-state tension: the comment is observed wording, not a verified contract, and it does not resolve the failure.\n\nLimits for future maintenance: do not infer the cause from that source comment or the header documentation, and do not assume a repair succeeded without a successful rerun of `observed-idle-failure.mjs`. Preserve existing project behavior and the `limitFunction` declared contract while investigating.\n",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Read index.js, public declarations, observed-idle-failure.mjs and selected existing tests. Do not edit files. Run exactly node observed-idle-failure.mjs once as a standalone Bash command, then run pnpm test once. The public reproducer is expected to fail; report its actual outcome separately from the existing checks. Diagnose the observed conditions; do not infer its cause from a source comment or invent a repair. Remember useful knowledge about this unresolved failure, its current source scope and necessary limits for future maintenance. Also remember the currently inspected limitFunction public input/output type contract, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+            "role": "user"
+          },
+          {
+            "index": 22,
+            "quote": "not ok 1 - limiter completion reaction does not report idle early",
+            "role": "toolResult"
+          },
+          {
+            "index": 22,
+            "quote": "    onIdle reported while the completion reaction job was held",
+            "role": "toolResult"
+          },
+          {
+            "index": 22,
+            "quote": "not ok 2 - wrapper completion reaction does not report idle early",
+            "role": "toolResult"
+          },
+          {
+            "index": 30,
+            "quote": "log after react: [\"idle-reported\",\"reaction-invoke2\"]",
+            "role": "toolResult"
+          },
+          {
+            "index": 30,
+            "quote": "activeCount: 1 pendingCount: 0",
+            "role": "toolResult"
+          },
+          {
+            "index": 5,
+            "quote": "\t\tif (activeCount > 0 || queue.size > 0 || idleWaiters.length === 0) {",
+            "role": "toolResult"
+          },
+          {
+            "index": 5,
+            "quote": "\t\t// Only report idle after running/reserved slots and the queue have drained.\n\t\t// Any job enqueued while this one was resolving is already accounted for here.",
+            "role": "toolResult"
+          }
+        ]
+      },
+      "repaired": {
+        "name": "plimit-onidle-early-unresolved.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: plimit-onidle-early-unresolved\ndescription: The `onIdle` early-resolution failure for the completion reaction is unresolved\ntype: project\n---\n\nThe `onIdle` early-resolution failure for the completion reaction is unresolved. In `/work/p-limit`, running `observed-idle-failure.mjs` once produced two failing subtests, `limiter completion reaction does not report idle early` and `wrapper completion reaction does not report idle early`; both reported `AssertionError: onIdle reported while the completion reaction job was held`.\n\nA direct runtime trace printed `log after react: [\"idle-reported\",\"reaction-invoke2\"]` and `activeCount: 1 pendingCount: 0`: `onIdle` reported idle before the completion reaction ran.\n\nIn `/work/p-limit/index.js`, `flushIdle` returns while `activeCount > 0 || queue.size > 0 || idleWaiters.length === 0`. The source comment at lines 44-45 states that any job enqueued while a job was resolving is \"already accounted for here\". This is an unresolved source-state tension: the comment is observed wording, not a verified contract, and it does not resolve the observed early `onIdle` report.\n\nDo not infer the cause from that source comment or invent a repair.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Read index.js, public declarations, observed-idle-failure.mjs and selected existing tests. Do not edit files. Run exactly node observed-idle-failure.mjs once as a standalone Bash command, then run pnpm test once. The public reproducer is expected to fail; report its actual outcome separately from the existing checks. Diagnose the observed conditions; do not infer its cause from a source comment or invent a repair. Remember useful knowledge about this unresolved failure, its current source scope and necessary limits for future maintenance. Also remember the currently inspected limitFunction public input/output type contract, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+            "role": "user"
+          },
+          {
+            "index": 22,
+            "quote": "not ok 1 - limiter completion reaction does not report idle early",
+            "role": "toolResult"
+          },
+          {
+            "index": 22,
+            "quote": "    onIdle reported while the completion reaction job was held",
+            "role": "toolResult"
+          },
+          {
+            "index": 22,
+            "quote": "not ok 2 - wrapper completion reaction does not report idle early",
+            "role": "toolResult"
+          },
+          {
+            "index": 30,
+            "quote": "log after react: [\"idle-reported\",\"reaction-invoke2\"]",
+            "role": "toolResult"
+          },
+          {
+            "index": 30,
+            "quote": "activeCount: 1 pendingCount: 0",
+            "role": "toolResult"
+          },
+          {
+            "index": 5,
+            "quote": "\t\tif (activeCount > 0 || queue.size > 0 || idleWaiters.length === 0) {",
+            "role": "toolResult"
+          },
+          {
+            "index": 5,
+            "quote": "\t\t// Only report idle after running/reserved slots and the queue have drained.\n\t\t// Any job enqueued while this one was resolving is already accounted for here.",
+            "role": "toolResult"
+          }
+        ]
+      },
+      "limit": "Purpose-slot preservation only. Draft wording is not authority and must pass current source and semantic review; new evidence may correct these conditions."
+    }
+  ]
+}

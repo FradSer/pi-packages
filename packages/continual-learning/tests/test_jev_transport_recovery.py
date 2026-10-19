@@ -147,3 +147,83 @@ def test_recovered_complete_cited_review_keeps_its_bound_checklist() -> None:
     assert persistent['result']['decision'] == 'propose'
     assert 'candidateReview' not in persistent['result']
     assert 'private transport diagnostic' not in str(rows)
+
+
+PROBE_ANSWERS = """
+      const answer=(init)=>{const r=JSON.parse(String(init.body)),answers={};
+        for(const [key,q] of Object.entries(r.questions)){const labels=Object.keys(q.criteria),choice=['compatible','grounded','consistent','independent','unrelated'].find(x=>labels.includes(x))??labels[0];
+          answers[key]={type:'choice',choice,confidence:1,probabilities:Object.fromEntries(labels.map(x=>[x,+(x===choice)]))};}
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:1}}));};
+"""
+
+MANY_CANDIDATES = """
+      const quote='The public project uses pnpm.';
+      const evidence={contextEnabled:true,entries:[{role:'user',content:quote}]};
+      const candidates=Array.from({length:12},(_,i)=>({name:`c${i}.md`,kind:'project',classification:'safe',content:`---\\nname: c${i}\\ndescription: ${quote}\\ntype: project\\n---\\n${quote}`,evidence:[{index:0,role:'user',quote}]}));
+"""
+
+
+def test_a_failed_request_group_stops_later_groups_of_the_same_review() -> None:
+    # Given separate body and source jobs, When either fails at the connection
+    # level, Then only its bounded exact retry is spent and later jobs stop.
+    values = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+''' + PROBE_ANSWERS + MANY_CANDIDATES + r'''
+      const rows=[];
+      for(const failSource of [false,true]){
+        const seen=[];
+        const held=await createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{
+          const request=JSON.parse(String(init.body)),keys=Object.keys(request.questions);
+          seen.push({keys,wire:String(init.body)});
+          if(!failSource||!keys.every(key=>key.startsWith('coherence_')))throw Error('private transport diagnostic');
+          return answer(init);
+        }}).validate('memory',evidence,candidates,[]);
+        rows.push({failSource,seen,decision:held.decision,telemetry:held.telemetry});
+      }
+      console.log(JSON.stringify(rows));
+    ''', timeout=60)
+    for value in values:
+        source = value['failSource']
+        assert [len(r['keys']) for r in value['seen']] == ([12, 24, 24] if source else [12, 12])
+        assert all(k.startswith('coherence_') for k in value['seen'][0]['keys'])
+        assert value['seen'][-1]['wire'] == value['seen'][-2]['wire']
+        if source:
+            assert all(k.startswith('supported_') for k in value['seen'][1]['keys'])
+        assert value['decision'] == 'propose'
+        telemetry = value['telemetry']
+        assert telemetry['reason'] == 'unavailable' and telemetry['failureKind'] == 'connection'
+        assert telemetry['requestCount'] == (3 if source else 2)
+        assert telemetry['retriedRequests'] == 1 and telemetry['completedRequests'] == int(source)
+        assert telemetry['knownInputTokens'] == int(source)
+        assert 'inputTokens' not in telemetry
+        assert telemetry['evidenceWindows'] == 1 and telemetry['completedWindows'] == 0
+        assert 'private transport diagnostic' not in str(value)
+
+
+def test_bounded_retry_waits_and_yields_to_an_abort() -> None:
+    # Given a connection-level failure, When the bounded retry re-issues the same
+    # frozen request, Then it waits the recorded backoff first, and an abort
+    # arriving during that wait is honoured without the full wait.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+''' + PROBE_ANSWERS + MANY_CANDIDATES + r'''
+      const started=Date.now(),stamps=[];let attempts=0;
+      const recovered=await createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{attempts++;stamps.push(Date.now()-started);if(attempts===1)throw Error('private transport diagnostic');return answer(init);}})
+        .validate('memory',evidence,candidates,[]);
+      const controller=new AbortController(),timer=globalThis.setTimeout;let abortedAttempts=0;
+      timer(()=>controller.abort(),25);
+      const aborted=await createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async()=>{abortedAttempts++;throw Error('private transport diagnostic');}})
+        .validate('memory',evidence,candidates,[],controller.signal);
+      console.log(JSON.stringify({attempts,stamps,recovered:recovered.telemetry,abortedAttempts,abortReason:aborted.telemetry.reason,abortFailureKind:aborted.telemetry.failureKind??null,decision:aborted.decision}));
+    ''', timeout=60)
+    assert value['attempts'] >= 2
+    # The single bounded retry is delayed, not re-issued immediately.
+    assert value['stamps'][1] - value['stamps'][0] >= 400
+    assert value['recovered']['retriedRequests'] == 1
+    # An abort during the backoff is not delayed by the full remeasured wait.
+    assert value['abortedAttempts'] == 1
+    # The caller's own abort is reported as cancellation, so no transport class
+    # is claimed for it.
+    assert value['abortReason'] == 'cancelled' and value['abortFailureKind'] is None
+    assert value['decision'] == 'propose'
+    assert 'private transport diagnostic' not in str(value)

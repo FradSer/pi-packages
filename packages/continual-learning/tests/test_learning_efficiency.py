@@ -5,6 +5,26 @@ import json
 from support import run_bun
 
 
+def test_declined_drafts_are_processed_but_never_reported_as_learning():
+    value = run_bun(r'''
+      import {buildLearningReceipt,isLearningPipelineReceipt,learningSummarySubject,learningSummaryTone} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      import {learningReceiptComplete} from './packages/continual-learning/extensions/learning-replay.ts';
+      const usage={input:3,output:2,cacheRead:0,cacheWrite:0,totalTokens:5,cost:.1};
+      const screen={memory:true,harness:false,agents:false,reasons:[]};
+      const attempt={phase:'memory',attempt:1,outcome:'declined',operations:0,declinedOperations:1,durationMs:4,usage};
+      const receipt=buildLearningReceipt('automatic',screen,[attempt]);
+      const mixed=buildLearningReceipt('automatic',screen,[{...attempt,outcome:'applied',operations:1}]);
+      console.log(JSON.stringify({valid:isLearningPipelineReceipt(receipt),complete:learningReceiptComplete(receipt),operations:receipt.operations,
+        subject:learningSummarySubject(receipt),tone:learningSummaryTone(receipt),mixed:learningSummarySubject(mixed),
+        pending:learningReceiptComplete({...receipt,attempts:[{...attempt,pendingOperations:1}]}),
+        invalid:isLearningPipelineReceipt({...receipt,attempts:[{...attempt,operations:1}]})}));
+    ''')
+    assert value['valid'] and value['complete'] and value['operations'] == 0
+    assert 'not learned' in value['subject'] and value['tone'] == 'warning'
+    assert 'applied' in value['mixed'] and 'not learned' in value['mixed']
+    assert not value['pending'] and not value['invalid']
+
+
 def test_automatic_screen_skips_chitchat_and_routes_durable_evidence() -> None:
     result = run_bun("""
       import { screenLearningEntries } from './packages/continual-learning/extensions/learning-efficiency.ts';

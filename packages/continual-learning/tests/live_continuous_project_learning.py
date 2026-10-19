@@ -14,16 +14,16 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from continuous_failure_retention import retain_failure_container, retained_learning_costs
+from continuous_failure_retention import retain_failure_container, retained_learning_costs, learning_cost_summary
 import tarfile
 import time
 
 import live_real_project_memory as base
-from continuous_project_tasks import COMMON, UNLIMITED_COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES, migrate_public_sync_type_test
+from continuous_project_tasks import COMMON, UNLIMITED_COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES, migrate_public_sync_type_test, failure_first_tasks
 from docker_experiment import InferenceProxy, redact_transport_bytes
 from live_acceptance_support import EvidenceRun
-from continuous_project_evidence import task_deadline_evidence, continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed, observed_memory_reads
-from recovery_integrity import archive_surface_snapshots, verify_recovery_delta, claim_recovery
+from continuous_project_evidence import task_deadline_evidence, continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed, observed_memory_reads, failure_record_audit_input, failure_feedback_audit_input, failure_source_safety_audit_input, failure_transition_audit_input, source_task_audit_input, initial_learning_continuation
+from recovery_integrity import archive_surface_snapshots, verify_recovery_delta, claim_recovery, load_observed_idle_source, source_archive_files
 
 
 def executed_version_probes(messages: list[dict]) -> list[dict[str, str]]:
@@ -87,6 +87,10 @@ def score(c: str, level: int, proxy: InferenceProxy, output: Path, before: dict)
 
 # Main-model time and independent learning time have different owners.
 # This outer guardian is not permission to extend any worker/service deadline.
+# Multiple recorded Memory correction workers (600s each, ADR 0009) can exceed
+# the bounded 900s task guardian, so a bounded cohort can be interrupted while a
+# heavy correction runs; that interruption stays an interrupted observation and
+# never a pass. Correction acceptance runs use the unlimited guardian.
 UNLIMITED_CLI_GUARDIAN_SECONDS = 7200
 
 
@@ -163,6 +167,60 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
 
 
 
+def public_failure_check(c: str, proxy: InferenceProxy, output: Path) -> dict:
+    """Run the fixed public diagnostic without changing existing check settings."""
+    result = base.process(['docker', 'exec', '-w', '/work/p-limit', c,
+                           'node', 'observed-idle-failure.mjs'], timeout=30)
+    output.mkdir(parents=True, exist_ok=True)
+    (output / 'public-reproducer.log').write_bytes(redact_transport_bytes(result.stdout + result.stderr, proxy))
+    return {'passed': result.returncode == 0, 'exitCode': result.returncode}
+
+
+def capture_failure_candidate(c: str, proxy: InferenceProxy, output: Path, session: bytes) -> dict:
+    """Retain the own candidate before any canonical-source import."""
+    if redact_transport_bytes(session, proxy) != session:
+        raise RuntimeError('Sensitive native transport evidence blocks external audit')
+    filtered = lambda values: {key: value for key, value in values.items()
+                              if key != '__configuration_paths__' and not key.startswith(('.memory/', '.pi/'))}
+    before = filtered(base.protected(c, 'p-limit', include_source=True))
+    raw = source_archive(c)
+    files = source_archive_files(raw)
+    after = filtered(base.protected(c, 'p-limit', include_source=True))
+    if before != after or {name: item['sha256'] for name, item in files.items()} != before:
+        raise RuntimeError('Complete source candidate changed during capture')
+    if any(redact_transport_bytes(item['data'], proxy) != item['data'] for item in files.values()):
+        raise RuntimeError('Sensitive source content blocks external audit')
+    sources = {name: item['data'].decode('utf-8') for name, item in files.items()}
+    manifest = {'phase': 'post-main-before-source-convergence', 'canonicalImportApplied': False,
+                'sourceHashes': before, 'archiveSha256': hashlib.sha256(raw).hexdigest(),
+                'sessionSha256': hashlib.sha256(session).hexdigest(),
+                'files': {name: {key: item[key] for key in ('sha256', 'mode', 'size')} for name, item in files.items()}}
+    (output / 'candidate-before-convergence.tar.gz').write_bytes(raw)
+    (output / 'candidate-before-convergence.json').write_text(json.dumps(manifest, indent=2))
+    return {'sources': sources, 'manifest': manifest}
+
+
+def run_memory_audit(c: str, proxy: InferenceProxy, payload: dict, output: Path) -> dict:
+    """Use the existing audit SDK and service transport; never supply task answers."""
+    raw = json.dumps(payload, ensure_ascii=False, indent=2).encode()
+    if redact_transport_bytes(raw, proxy) != raw:
+        raise RuntimeError('Sensitive native transport evidence blocks external audit')
+    output.mkdir(parents=True, exist_ok=True)
+    file = '/home/node/memory-audit.json'
+    (output / 'input.json').write_bytes(raw)
+    base.put(c, file, raw)
+    args = ['docker', 'exec']
+    for key, value in proxy.jev_environment().items():
+        args += ['-e', key + '=' + value]
+    args += [c, 'tsx', '/home/node/continuous-memory-audit.mts', file]
+    try:
+        result = json.loads(base.checked(args))
+        (output / 'result.json').write_text(json.dumps(result, indent=2))
+        return result
+    finally:
+        base.shell(c, 'rm -f ' + file)
+
+
 def install_failure_observation_proof(c: str) -> str:
     """Install read-only parent verification outside the task source/agent roots."""
     for name in ('failure-observation-proof.ts','failure-observation-proof-cli.ts'):
@@ -175,7 +233,7 @@ def install_failure_observation_proof(c: str) -> str:
     return '/home/node/failure-observation-proof-cli.mts'
 
 
-def failure_observation_ready(c: str, original_session: bytes, observation: dict, feedback: dict, source_after: dict) -> dict:
+def failure_observation_ready(c: str, original_session: bytes, observation: dict, feedback: dict, source_after: dict, *, retain_input: bool = False) -> dict:
     """Prove actual feedback evidence, without accepting the failed task itself."""
     queued=feedback.get('queuedFailure')
     if not queued:return {'ready':False,'reason':'no-pending-failure'}
@@ -189,12 +247,17 @@ def failure_observation_ready(c: str, original_session: bytes, observation: dict
            'observationOutcome':'blocked-before-read' if feedback.get('verifierReadBoundaryViolations')==1 else 'successful' if feedback.get('taskPassed') is True else 'failed'}
     base.put(c,input_file,json.dumps(value,ensure_ascii=False).encode())
     try:
-        return json.loads(base.checked(['docker','exec',c,'tsx',
-            proof_cli,input_file]))
+        proof=json.loads(base.checked(['docker','exec',c,'tsx',proof_cli,input_file]))
+        if retain_input and proof.get('ready') is True:
+            raw=base.checked(['docker','exec',c,'cat',queued['sessionFile']])
+            if hashlib.sha256(raw).hexdigest()!=proof.get('sessionDigest'):
+                raise RuntimeError('Native feedback changed after its observation proof')
+            proof['nativeEvidence']={**value,'currentSession':raw.decode('utf-8')}
+        return proof
     finally:base.shell(c,'rm -f '+input_file)
 
 
-def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
+def artifacts(c: str, proxy: InferenceProxy, output: Path, *, source_review: bool = False) -> dict:
     output.mkdir(parents=True,exist_ok=True)
     # Runtime images deliberately omit all tests and hidden task probes.
     base.put(c,'/home/node/learned-surface-metadata.py',Path(__file__).with_name('recovery_integrity.py').read_bytes())
@@ -211,10 +274,13 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
     base.put(c,'/home/node/backlog-probe.mts',probe.encode())
     backlog=json.loads(base.checked(['docker','exec',c,'tsx','/home/node/backlog-probe.mts']))
     base.shell(c,'rm -f /home/node/backlog-probe.mts')
-    receipts=[];states=[];memory_entries=[];history=[];dossiers=[];completed_backlog={};partial_worker_usage=[];raw_dossiers=[];retained_ranges=[]
+    receipts=[];states=[];memory_entries=[];history=[];dossiers=[];completed_backlog={};partial_worker_usage=[];raw_dossiers=[];retained_ranges=[];source_files={}
     for filename in ('memory.tar.gz','backlog.tar.gz'):
         with tarfile.open(output/filename) as archive:
             for item in archive:
+                if source_review and filename=='memory.tar.gz' and Path(item.name).parts[:2]==('runs','--work-p-limit--') and item.name.endswith(('.json','.jsonl')):
+                    if not item.isfile():raise RuntimeError('Source review artifact is not a regular file')
+                    source_files[str(Path(item.name))]=archive.extractfile(item).read().decode('utf-8')
                 if filename=='backlog.tar.gz' and Path(item.name).parts==('backlog.jsonl',):
                     if not item.isfile():raise RuntimeError('Original backlog range archive is not regular')
                     for line in archive.extractfile(item).read().splitlines():
@@ -239,7 +305,9 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
                     usage=value.get('knownUsage',{})
                     if isinstance(usage,dict) and all(isinstance(usage.get(k), (int,float)) and not isinstance(usage.get(k),bool) and 0<=usage[k]<float('inf') for k in ('input','output','cacheRead','cacheWrite','totalTokens','cost')):
                         partial_worker_usage.append({'archive':filename,'path':item.name,**value})
-                if value.get('kind')=='learning-pipeline-receipt':receipts.append(value)
+                if (filename=='memory.tar.gz' and Path(item.name).parts[:2]==('runs','--work-p-limit--')
+                        and Path(item.name).name=='learning-pipeline-receipt.json'
+                        and value.get('kind')=='learning-pipeline-receipt'):receipts.append(value)
                 if value.get('version')==1 and isinstance(value.get('changes'),list) and value.get('phase') in ('memory','harness','agents'):history.append(value)
                 if Path(item.name).name=='backlog-completed.json':completed_backlog.update(value)
                 if value.get('kind')=='incremental-learning-dossier':
@@ -264,21 +332,41 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
     digests=proofs['receiptDigests'];dossiers=proofs['dossiers']
     base.shell(c,'rm -f /home/node/study-receipts.json')
     for attempt,digest in zip(attempts,digests):attempt['receiptDigest']=digest
-    known=[a['receipt'] for a in attempts if a.get('receipt')]
-    included={a.get('usageLedgerId'):a.get('usage') for receipt in known for a in receipt.get('attempts',[]) if a.get('usageLedgerId') and a.get('usage')}
-    unique_ledgers={}
-    for row in partial_worker_usage:
-        previous=unique_ledgers.get(row['ledgerId'])
-        if previous and previous['knownUsage']!=row['knownUsage']:raise RuntimeError('Conflicting worker usage ledger identity')
-        unique_ledgers[row['ledgerId']]=row
-    # Only an actual persistent receipt with matching numeric usage proves
-    # inclusion; a completed worker can crash before the parent records it.
-    partial_worker_usage=[row for identity,row in unique_ledgers.items() if included.get(identity)!=row['knownUsage']]
-    return {'surfaceSnapshots':surface_snapshots,'memoryEntries':memory_entries,'history':history,'dossiers':dossiers,'completedBacklog':completed_backlog,'receipts':receipts,'attempts':attempts,'partialWorkerUsageLedgers':partial_worker_usage,'knownLearningTokens':sum(r['totals']['totalTokens'] for r in known)+sum(row['knownUsage']['totalTokens'] for row in partial_worker_usage),
-            'knownLearningCost':sum(r['totals']['cost'] for r in known)+sum(row['knownUsage']['cost'] for row in partial_worker_usage),'interruptedUnknownUsage':sum(not a.get('receipt') or a['receipt'].get('usageAvailable') is not True for a in attempts),
-            'pendingLearningJobs':backlog['pending'],'backlogStatus':backlog,
-            'actualLearningOperations':sum(r.get('operations',0) for r in known),
-            'allLearningCostsPriced':not partial_worker_usage and all(row.get('complete') is True for row in unique_ledgers.values()) and len(known)==len(attempts) and all(r.get('costAvailable') is True for r in known)}
+    accounting = learning_cost_summary(receipts, attempts, partial_worker_usage)
+    source_reviews=source_review_bindings(source_files,raw_dossiers,attempts) if source_review else []
+    return {'surfaceSnapshots':surface_snapshots,'memoryEntries':memory_entries,'history':history,'dossiers':dossiers,'completedBacklog':completed_backlog,'receipts':receipts,'attempts':attempts,**({'sourceReviewBindings':source_reviews}if source_review else {}),**accounting,
+            'pendingLearningJobs':backlog['pending'],'backlogStatus':backlog}
+
+
+
+def source_review_bindings(source_files: dict[str,str], raw_dossiers: list[dict], attempts: list[dict]) -> list[dict]:
+    """Retain complete archived inputs for the shared native validator."""
+    source_reviews=[]
+    for name,raw in source_files.items():
+        if Path(name).name!='plan.json':continue
+        root=str(Path(name).parent)
+        required=['snapshot.json','manifest.json','memory-task-usage.json']
+        # Generation runs refer to the selector's immutable dossier, while
+        # their own snapshot and usage ledger remain run-local.
+        if any(root+'/'+key not in source_files for key in required):continue
+        plan=json.loads(raw);manifest=json.loads(source_files[root+'/manifest.json']);ledger=json.loads(source_files[root+'/memory-task-usage.json'])
+        matching=[a for a in attempts if a.get('outcome')=='completed' and any(t.get('usageLedgerId')==ledger.get('ledgerId') for t in a.get('receipt',{}).get('attempts',[]))]
+        for attempt in matching:
+            receipt=attempt['receipt']
+            audit_ids={t.get('usageLedgerId') for t in receipt.get('attempts',[]) if t.get('phase')=='memory' and t.get('attempt')==0 and t.get('operations')==0}
+            audits=[key for key,value in source_files.items() if Path(key).name=='receipt.json' and Path(key).parent.name.startswith('maintenance-audit-') and json.loads(value).get('usageLedgerId') in audit_ids]
+            if len(audits)!=1:continue
+            audit=audits[0];observations=str(Path(audit).parent/'observations.jsonl');source_usage=str(Path(audit).parent/'source-audit-usage.json')
+            if observations not in source_files or source_usage not in source_files:continue
+            snapshot=json.loads(source_files[root+'/snapshot.json'])
+            tasks=[task for task in raw_dossiers if task.get('entries')==snapshot.get('entries')]
+            if len(tasks)!=1:continue
+            source_reviews.append({'receiptDigest':attempt['receiptDigest'],'receipt':receipt,'plan':plan,
+                'snapshotText':source_files[root+'/snapshot.json'],'reviewManifest':manifest,'usageLedger':ledger,
+                'taskSlice':tasks[0],'sourceAudit':{'receipt':json.loads(source_files[audit]),
+                    'usageLedger':json.loads(source_files[source_usage]),
+                    'observations':[json.loads(line)for line in source_files[observations].splitlines()if line]}})
+    return source_reviews
 
 
 def harness_probe(c: str, stage: int, enabled: bool) -> dict:
@@ -313,8 +401,9 @@ def totals(report: dict) -> dict:
             'leaderReportedCost':sum(call['reportedCost'] for call in calls),
             'leaderAndRecoverySeconds':sum(call['seconds'] for call in calls),
             'learningTokens':last.get('knownLearningTokens',0),'learningReportedCost':last.get('knownLearningCost',0),
-            'unknownUsageAttempts':last.get('interruptedUnknownUsage',0),'allLearningCostsPriced':last.get('allLearningCostsPriced',False),
-            'learningFailedAttempts':sum(a.get('outcome')!='completed' for a in last.get('attempts',[])),
+            'unknownUsageAttempts':last.get('interruptedUnknownUsage',0),'unknownWorkerUsageLedgers':last.get('unknownWorkerUsageLedgers',0),'allLearningCostsPriced':last.get('allLearningCostsPriced',False),
+            'learningFailedAttempts':last.get('learningFailedAttempts',sum(a.get('outcome')!='completed' for a in last.get('attempts',[]))),
+            'learningFailedReplayAttempts':last.get('learningFailedReplayAttempts',sum(a.get('outcome')!='completed' for a in last.get('attempts',[]))),
             'toolBudgetExceededTasks':sum(row['inference'].get('toolBudgetExceeded',False) for row in rows),
             'leaderPricingVerified':False}
     return result
@@ -322,18 +411,28 @@ def totals(report: dict) -> dict:
 
 def run(args: argparse.Namespace) -> dict:
     unlimited_budget = getattr(args, 'unlimited_budget', False)
+    failure_manifest = getattr(args, 'observed_idle_failure', None)
+    failure_input = load_observed_idle_source(failure_manifest) if failure_manifest else None
+    verified_failure_learning=getattr(args,'verified_failure_learning',False)
+    if verified_failure_learning and (not failure_input or not unlimited_budget):
+        raise RuntimeError('Verified failure learning requires the explicit observed-failure unlimited protocol')
+    tasks = failure_first_tasks() if failure_input else TASKS
+    if failure_input and (not unlimited_budget or failure_input['manifest'].get('sourceCommit') != SOURCE_COMMIT):
+        raise RuntimeError('Observed failure requires its explicit source ancestry and unlimited-count protocol')
     paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('recovery_integrity.py'),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-bash-environment.ts'),Path(__file__).with_name('continuous-task-deadline.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('continuous-dossier-proof.mjs'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('jev-https-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
            *base.PACKAGE.joinpath('extensions').glob('*.ts'),*base.PACKAGE.joinpath('prompts').glob('*.md'),
            *base.REPO.joinpath('packages/kit/src').glob('*.ts')]
+    if failure_input:paths += [failure_manifest, failure_manifest.with_name('source.tar.gz')]
     evidence=EvidenceRun(args.output,{str(p):p for p in paths})
     print(json.dumps({'outputDir':str(evidence.output)},ensure_ascii=False),flush=True)
-    protocol={'project':'p-limit','commit':SOURCE_COMMIT,'tasks':TASKS,'arms':['without-learning','with-learning'],
+    protocol={'project':'p-limit','commit':SOURCE_COMMIT,'tasks':tasks,'arms':['without-learning','with-learning'],
               'sameCodeEachStage':True,'convergence':'first passing candidate, without-learning priority; otherwise without-learning failed source',
               'freshSessions':True,'memorySeeded':False,'harnessSeeded':False,'jev':None,'jevTransport':'host Bun fetch transparent JSON forwarding; original failed Python HTTP cohorts retained',
               'oracle':ORACLE,'types':[TYPES,SIGNAL_TYPES,REASON_TYPES,SYNC_TYPES,MAP_TYPES],
               'invalidLearning':'retained as operational failure; stop dependent stages after any invalid learning',
               'recovery':'one bounded explicit backfill after initial pending, retirement, or actual task verification failure; failures enter source-bound same-session read-only continuation first, no repeat-until-pass',
               'recoveryIntegrity':'complete live hash/mode-bound private/public/project snapshots and new receipt-owned history chains; prior attempts retained; exact feedback slice claimed in the shared output parent before backfill',
+              'recoveryFileIdentityVersion':2,
               'costs':'sum leader usage plus cumulative per-job learning ledger plus Jev usage; missing pricing/interrupt usage remain unknown',
               'failureFeedbackAdmission':'feedback task failure remains failure; one complete same-session verifier read plus byte-bound original and pending slice and proven removed-tool rejection can admit independent backfill without a successful parent summary; no extra parent retries; earlier v18/v19 failures retained',
               'verifierReadBoundary':'exact source/session-bound file, no offset or limit, one admitted read; rejected calls retained, at most three rejected boundary attempts before abort; earlier prompt-only cohort retained',
@@ -342,7 +441,7 @@ def run(args: argparse.Namespace) -> dict:
               'transportRequestBudget':None if unlimited_budget else 600,
               'mainTaskDeadlineSeconds':900,'cliGuardianSeconds':UNLIMITED_CLI_GUARDIAN_SECONDS if unlimited_budget else 900,
               'resourceProtocol':'unlimited-counts-separated-deadlines' if unlimited_budget else 'bounded-18-tools-600-requests',
-              'budgetMechanism':('no ordinary task tool or transport request count cap; exact one-read feedback guard; main900s closes before learning, worker/service bounds unchanged; outer guardian7200s; independent learning workers unchanged' if unlimited_budget else 'identical experimental extension removes active tools after final admitted result and blocks excess in-flight calls; independent learning workers unchanged'),
+              'budgetMechanism':('no ordinary task tool or transport request count cap; exact one-read feedback guard; main900s closes before learning; Memory correction workers use the recorded 600s budget (ADR 0009) with every other worker/service bound unchanged; outer guardian7200s; independent learning workers unchanged' if unlimited_budget else 'identical experimental extension removes active tools after final admitted result and blocks excess in-flight calls; Memory correction workers use the recorded 600s budget (ADR 0009), which can outlast this 900s task guardian, so a guardian interruption stays interrupted and never a pass; other worker/service bounds and independent learning workers unchanged'),
               'priorUnboundedCohorts':'retained separately; this protocol change cannot be compared as an unchanged intervention',
               'commonPrompt':UNLIMITED_COMMON if unlimited_budget else COMMON,
               'versionVerification':'correction and retirement tasks require a unique matching successful standalone npm --version result, not merely an attempted call or a post-learning pure rule probe',
@@ -361,24 +460,32 @@ def run(args: argparse.Namespace) -> dict:
         'countsAsLearning':False,'ordinaryTaskMayEditExistingTests':False,
         'historicalCohortsUnchanged':True}
     protocol['learningAuthorityIntervention']='Explicit separate parent maintenance grant; ordinary tool and existing-test restrictions unchanged. Prior actor-ambiguous cohorts remain separate; this is not evidence of a historical semantic cause.' if unlimited_budget else 'Original bounded actor-ambiguous wording retained.'
-    protocol['piBaseline']='1.2.0'
-    protocol['historicalPiBaseline']='Pi 1.0 cohorts retained separately; not an unchanged runtime comparison'
+    protocol['piBaseline']='1.3.0'
+    protocol['historicalPiBaseline']='Pi 1.0 and 1.2 cohorts retained separately; not an unchanged runtime comparison'
     protocol['coverageVersion']=3
     protocol['memoryEvidence']='index only; actual successful read with exact retained revision; read exposure alone is not behavioral use or benefit'
+    if failure_input:
+        protocol['observedFailureProtocolVersion']=2 if verified_failure_learning else 1
+        protocol['initialFailureLearning']='Separate original task failure from native-feedback-bound, source-safe, complete-corpus learning. Original task outcomes stay immutable; invalid training still stops dependent tasks.' if verified_failure_learning else 'Original successful-diagnosis and all-arms first-task pass gate.'
+        protocol['initialSourceManifest']=failure_input['manifest']
+        protocol['initialSourceManifestSha256']=failure_input['manifestSha256']
+        protocol['knownPublicCaseIsNotUnseenTransfer']=True
+        protocol['failureCorrection']='Require actual meaningful failure knowledge, learner-own repair and owned current-status correction before source convergence; no restored learned state.'
     evidence.write('protocol.json',json.dumps(protocol,ensure_ascii=False,indent=2))
-    report={'status':'running','coverageVersion':3,'stages':[],'preflight':{}};containers=[];proxy=None
+    failure_origins={}
+    report={'status':'running','coverageVersion':3,'stages':[],'preflight':{},**({'observedFailureProtocolVersion':protocol['observedFailureProtocolVersion']} if failure_input else {})};containers=[];proxy=None
     try:
         image=base.runtime_image(args.base_image);report['image']=image
-        pristine=base.checked(['git','-C',str(args.source),'archive',SOURCE_COMMIT])
+        pristine=failure_input['archive'] if failure_input else base.checked(['git','-C',str(args.source),'archive',SOURCE_COMMIT])
         for _ in range(2):
             c=base.container(image);containers.append(c)
             version=base.checked(['docker','exec',c,'node',base.PI,'--version']).decode().strip()
             report.setdefault('piVersions',[]).append(version)
-            if version!='1.2.0':raise RuntimeError('Pi 1.2.0 study baseline required')
+            if version!='1.3.0':raise RuntimeError('Pi 1.3.0 study baseline required')
             base.shell(c,'mkdir -p /work/p-limit; find /work/p-limit -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +; rm -rf /home/node/agent /home/node/results; mkdir -p /home/node/agent/memory /home/node/agent/learning /home/node/results')
-            base.checked(['docker','exec','-i',c,'tar','-xf','-','-C','/work/p-limit'],data=pristine)
+            base.checked(['docker','exec','-i',c,'tar','-xzf' if failure_input else '-xf','-','-C','/work/p-limit'],data=pristine)
             base.shell(c,'cd /work/p-limit && git init -q')
-            base.put(c,'/home/node/continuous-memory-audit.mts',Path(__file__).with_name('continuous-memory-audit.ts').read_text().replace('../extensions/jev-sdk','/opt/experiment/packages/continual-learning/extensions/jev-sdk.ts').encode())
+            base.put(c,'/home/node/continuous-memory-audit.mts',Path(__file__).with_name('continuous-memory-audit.ts').read_text().replace("'../extensions/jev-sdk'","'/opt/experiment/packages/continual-learning/extensions/jev-sdk.ts'").replace("'../extensions/jev-learning'","'/opt/experiment/packages/continual-learning/extensions/jev-learning.ts'").replace("'../extensions/learning-replay-feedback'","'/opt/experiment/packages/continual-learning/extensions/learning-replay-feedback.ts'").replace("'../extensions/planner-read-scope'","'/opt/experiment/packages/continual-learning/extensions/planner-read-scope.ts'").replace("'./failure-observation-proof'","'./failure-observation-proof.mts'").encode())
             if json.loads(base.checked(['docker','exec',c,'tsx','/home/node/continuous-memory-audit.mts','--preflight'])).get('ready') is not True:raise RuntimeError('Memory audit runtime unavailable')
             base.put(c,'/home/node/continuous-task-deadline.ts',Path(__file__).with_name('continuous-task-deadline.ts').read_bytes())
             base.put(c,'/home/node/continuous-tool-budget.ts',Path(__file__).with_name('continuous-tool-budget.ts').read_bytes())
@@ -395,14 +502,21 @@ def run(args: argparse.Namespace) -> dict:
                 enabled=arm=='with-learning'
                 base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoMemory':enabled,'automaticPhases':{'memory':'apply' if enabled else 'off','harness':'apply' if enabled else 'off','agents':'off'}}).encode())
                 before=base.protected(c,'p-limit');pre=score(c,1,proxy,evidence.output/('preflight-'+arm),before)
-                if pre['behavior']['passed'] or pre['types']['passed'] or not pre['upstream']['passed']:raise RuntimeError('Original upstream GREEN / feature RED preflight failed')
+                if failure_input:
+                    pre['publicReproducer']=public_failure_check(c,proxy,evidence.output/('preflight-'+arm))
+                    captured=capture_failure_candidate(c,proxy,evidence.output/('preflight-'+arm),b'')
+                    if ({name:item['sha256'] for name,item in failure_input['files'].items()}!=captured['manifest']['sourceHashes']
+                        or pre['behavior']!={'passed':False,'exitCode':1} or pre['publicReproducer']!={'passed':False,'exitCode':1}
+                        or pre['types']!={'passed':True,'exitCode':0} or not pre['upstream']['passed'] or not pre['existingChecksPreserved']):
+                        raise RuntimeError('Actual failed source / green existing checks preflight failed')
+                elif pre['behavior']['passed'] or pre['types']['passed'] or not pre['upstream']['passed']:raise RuntimeError('Original upstream GREEN / feature RED preflight failed')
                 pre['emptyHarness']=harness_probe(c,-1,False)
                 if not pre['emptyHarness']['passed']:raise RuntimeError('Initial Harness is not empty or probe failed')
                 report['preflight'][arm]=pre
             if not args.preflight_only:
                 if not proxy.jev_key:raise RuntimeError('Real Jev key unavailable; study must not fall back silently')
                 feedback='';valid_learning_so_far=True
-                for index,task in enumerate(TASKS):
+                for index,task in enumerate(tasks):
                     evidence.verify_sources()
                     public_migrations=[]
                     if task['id']=='repair-and-sync-wrapper':
@@ -423,25 +537,54 @@ def run(args: argparse.Namespace) -> dict:
                     stage={'validPairInput':valid_learning_so_far,'id':task['id'],'arms':{},'sameSource':True,'startingSource':filtered(hashes[0])};outputs={}
                     if public_migrations:stage['publicRequirementMigrations']=public_migrations
                     report['stages'].append(stage)
+                    starting_sources={name:item['data'].decode('utf-8') for name,item in source_archive_files(source_archive(containers[0])).items()} if failure_input else None
                     for arm_index in ([0,1] if index%2==0 else [1,0]):
                         arm=protocol['arms'][arm_index];c=containers[arm_index];out=evidence.output/task['id']/arm;outputs[arm]=out
                         before=base.protected(c,'p-limit')
                         prompt=task['prompt']+('\nActual preceding verification results:\n'+feedback if index==4 else '')
+                        empty_state=artifacts(c,proxy,out/'initial-empty-state') if failure_input and index==0 else None
                         jev_start=len(proxy.jev_usage);requests_start=proxy.requests
                         inference=run_session(c,prompt,proxy,out,'stage-'+str(index),unlimited_budget=unlimited_budget)
                         inference['jevUsage']=proxy.jev_usage[jev_start:];inference['allTransportRequests']=proxy.requests-requests_start
                         stage['arms'][arm]={'inference':inference,'passed':False,'validPairInput':valid_learning_so_far}
                         if inference['timedOut'] or inference.get('interrupted') or inference.get('taskDeadlineExceeded') or inference.get('taskDeadlineMissing') or inference.get('modelAborted'):
                             stage['arms'][arm]={'inference':inference,'passed':False};raise RuntimeError('Timed-out candidate stopped; retain failure and stop dependent stages')
-                        verification=score(c,task['level'],proxy,out,before)
+                        verification=score(c,1 if failure_input and index==0 else task['level'],proxy,out,before)
+                        main_session=None;main_observation=None;candidate=None
+                        if failure_input:
+                            verification['publicReproducer']=public_failure_check(c,proxy,out)
+                            main_session=base.checked(['docker','exec',c,'cat',base.AGENT+'/sessions/continuous/stage-'+str(index)+'.jsonl'])
+                            candidate=capture_failure_candidate(c,proxy,out,main_session)
+                            verification['sourceRepairPassed']=verification['passed'] and verification['publicReproducer']['passed']
+                            if index==0:
+                                verification['passed']=(verification['existingChecksPreserved'] and verification['upstream']['passed']
+                                    and verification['types']['passed'] and verification['behavior']=={'passed':False,'exitCode':1}
+                                    and verification['publicReproducer']=={'passed':False,'exitCode':1})
+                                verification['diagnosisTaskPassed']=None
+                            else:verification['passed']=verification['sourceRepairPassed']
                         if index in (2,3):
                             verification['versionExecuted']=bool(inference['executedVersionProbes'])
                             verification['passed']=verification['passed'] and verification['versionExecuted']
                         if index==0:
                             verification['readOnlySourcePreserved']=filtered(hashes[arm_index])==filtered(base.protected(c,'p-limit',include_source=True))
                             verification['passed']=verification['passed'] and verification['readOnlySourcePreserved']
+                        if failure_input:
+                            main_observation=verifier_observation(task['id'],verification,out,base.protected(c,'p-limit',include_source=True),main_session,inference=inference)
+                            (out/'main-observation.json').write_text(json.dumps(main_observation,ensure_ascii=False,indent=2))
+                        task_audit=None
+                        if failure_input:
+                            try:
+                                task_payload=source_task_audit_input(main_observation,candidate['sources'],main_session,
+                                    UNLIMITED_COMMON+prompt,starting_sources,stage['startingSource'])
+                                task_audit=run_memory_audit(c,proxy,task_payload,out/'independent-task-audit')
+                            except ValueError:
+                                task_audit={'passed':False,'reason':'incomplete-or-failed-source-task'}
+                            verification['independentTaskAuditPassed']=bool(task_audit.get('passed'))
+                            verification['passed']=verification['passed'] and verification['independentTaskAuditPassed']
+                            main_observation=verifier_observation(task['id'],verification,out,base.protected(c,'p-limit',include_source=True),main_session,inference=inference)
+                            (out/'main-observation-final.json').write_text(json.dumps(main_observation,ensure_ascii=False,indent=2))
                         initial_state=artifacts(c,proxy,out/'before-recovery') if arm=='with-learning' and index==0 else None
-                        recovery=None;verifier_feedback=None;feedback_state=None
+                        recovery=None;verifier_feedback=None;feedback_state=None;native_feedback_evidence=None
                         if not task_outcome(inference,verification)['passed']:
                             original_session=base.checked(['docker','exec',c,'cat',base.AGENT+'/sessions/continuous/stage-'+str(index)+'.jsonl'])
                             source_before_feedback=base.protected(c,'p-limit',include_source=True)
@@ -465,7 +608,8 @@ def run(args: argparse.Namespace) -> dict:
                             verifier_feedback['taskSourceUnchanged']=source_before_feedback==base.protected(c,'p-limit',include_source=True)
                             verifier_feedback['taskPassed']=feedback_accepted(verifier_feedback)
                             proof=failure_observation_ready(c,original_session,observation,verifier_feedback,
-                                base.protected(c,'p-limit',include_source=True))
+                                base.protected(c,'p-limit',include_source=True),retain_input=verified_failure_learning and index==0 and arm=='with-learning')
+                            native_feedback_evidence=proof.pop('nativeEvidence',None)
                             verifier_feedback['failureObservationProof']=proof
                             if proof.get('ready') is not True:
                                 raise RuntimeError('Actual verifier feedback was not preserved and safely observed')
@@ -490,7 +634,7 @@ def run(args: argparse.Namespace) -> dict:
                             recovery['taskSourceUnchanged']=source_filter(source_before_recovery)==source_filter(source_after_recovery)
                             verification['afterRecovery']=recovered
                             verification['passed']=verification['passed'] and recovered['passed'] and recovery['taskSourceUnchanged']
-                        state=artifacts(c,proxy,out)
+                        state=artifacts(c,proxy,out,source_review=verified_failure_learning and index==0 and arm=='with-learning')
                         if recovery is not None:
                             recovery['historyIntegrity']=verify_recovery_delta(recovery_before,state)
                             if recovery['historyIntegrity'].get('passed') is not True:
@@ -514,13 +658,43 @@ def run(args: argparse.Namespace) -> dict:
                             evidence.write(str(Path(task['id'])/arm/'memory-audit-inputs.json'),json.dumps(memory_audit_inputs,ensure_ascii=False,indent=2))
                             evidence.write(str(Path(task['id'])/arm/'memory-audits.json'),json.dumps(memory_audits,indent=2))
                             base.shell(c,'rm -f /home/node/memory-audit.json')
+                        failure_audit=None;failure_payload=None
+                        if failure_input and index in (0,1):
+                            try:
+                                audit_protocol={'initialSourceManifest':failure_input['manifest'],
+                                    'originalPrompt':UNLIMITED_COMMON+tasks[0]['prompt'],'currentPrompt':UNLIMITED_COMMON+tasks[1]['prompt']}
+                                if index==0:
+                                    if verified_failure_learning and arm!='with-learning':
+                                        payload=failure_source_safety_audit_input(empty_state,state,main_observation,candidate['sources'],main_session,audit_protocol)
+                                    elif verified_failure_learning and verifier_feedback is not None:
+                                        payload=failure_feedback_audit_input(empty_state,state,main_observation,candidate['sources'],main_session,audit_protocol,verifier_feedback,native_feedback_evidence)
+                                    else:payload=failure_record_audit_input(empty_state,state,main_observation,candidate['sources'],main_session,audit_protocol,diagnosis_only=arm!='with-learning')
+                                    failure_payload=payload
+                                elif arm=='with-learning':
+                                    origin=failure_origins[arm]
+                                    payload=failure_transition_audit_input(origin['state'],state,origin['observation'],main_observation,
+                                        origin['sources'],candidate['sources'],origin['session'],main_session,audit_protocol,
+                                        original_feedback_record=origin.get('feedbackRecord'))
+                                else:payload=None
+                                if payload is not None:failure_audit=run_memory_audit(c,proxy,payload,out/'failure-memory-audit')
+                            except (ValueError,KeyError) as error:
+                                failure_audit={'passed':False,'reason':'incomplete-bound-failure-evidence','errorType':type(error).__name__}
+                                (out/'failure-memory-audit-rejected.json').write_text(json.dumps(failure_audit,indent=2))
+                            if index==0:
+                                verification['diagnosisTaskPassed']=verification['passed'] and bool(failure_audit and failure_audit.get('passed'))
+                                verification['passed']=verification['diagnosisTaskPassed']
+                                failure_origins[arm]={'state':state,'observation':main_observation,'sources':candidate['sources'],'session':main_session,
+                                    'feedbackRecord':failure_payload if failure_payload and failure_payload['mode']=='observed-failure-feedback-record' else None}
                         failure_processed=verifier_feedback is None or exact_failure_processed(verifier_feedback,state)
                         if verifier_feedback is not None:verifier_feedback['exactFailureProcessed']=failure_processed
                         valid_learning=arm!='with-learning' or (failure_processed and state['pendingLearningJobs']==0 and bool(state['memoryEntries']) and (index!=0 or any('limitFunction' in entry['content'] and 'PromiseLike' in entry['content'] for entry in state['memoryEntries'])) and state['actualLearningOperations']>0 and harness['passed'] and (index!=4 or bool(memory_audits) and all(audit.get('passed') is True for audit in memory_audits)) and not any(state['backlogStatus'].get(k) for k in ('error','malformed','unlearnable','unscoped')))
-                        stage['arms'][arm]={'inference':inference,'verification':verification,'learning':state,'initialLearning':initial_state,'explicitRecovery':recovery,'verifierFeedback':verifier_feedback,'harness':harness,'memoryAudits':memory_audits,'validLearning':valid_learning,'validPairInput':valid_learning_so_far,
+                        if failure_input and arm=='with-learning' and index in (0,1):valid_learning=valid_learning and bool(failure_audit and failure_audit.get('passed'))
+                        stage['arms'][arm]={'independentTaskAudit':task_audit,'failureMemoryAudit':failure_audit,**({'candidateBeforeConvergence':candidate['manifest']} if candidate else {}),'inference':inference,'verification':verification,'learning':state,'initialLearning':initial_state,'explicitRecovery':recovery,'verifierFeedback':verifier_feedback,'harness':harness,'memoryAudits':memory_audits,'validLearning':valid_learning,'validPairInput':valid_learning_so_far,
                                             'passed':task_outcome(inference,verification)['passed']}
                         print(json.dumps({'stage':task['id'],'arm':arm,'passed':stage['arms'][arm]['passed'],'seconds':inference['seconds']},ensure_ascii=False),flush=True)
                     valid_learning_so_far=valid_learning_so_far and stage['arms']['with-learning']['validLearning']
+                    if failure_input and index==0:
+                        valid_learning_so_far=valid_learning_so_far and initial_learning_continuation(stage,verified_failure_learning=verified_failure_learning)
                     if not valid_learning_so_far:
                         raise RuntimeError('Invalid learning; dependent tasks stopped')
                     chosen=next((i for i,arm in enumerate(protocol['arms']) if stage['arms'][arm]['passed']),0)
@@ -581,5 +755,5 @@ def run(args: argparse.Namespace) -> dict:
     return report
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('output',type=Path);parser.add_argument('--source',type=Path,default=Path('/tmp/cl-real-project-inputs/p-limit'));parser.add_argument('--base-image',default='cl-real-trained:p-limit-20261011-rebuilt');parser.add_argument('--preflight-only',action='store_true');parser.add_argument('--unlimited-budget',action='store_true');parser.add_argument('--capture-jev-envelopes',action='store_true')
+    parser=argparse.ArgumentParser();parser.add_argument('output',type=Path);parser.add_argument('--source',type=Path,default=Path('/tmp/cl-real-project-inputs/p-limit'));parser.add_argument('--base-image',default='cl-real-trained:p-limit-20261011-rebuilt');parser.add_argument('--preflight-only',action='store_true');parser.add_argument('--unlimited-budget',action='store_true');parser.add_argument('--capture-jev-envelopes',action='store_true');parser.add_argument('--observed-idle-failure',type=Path);parser.add_argument('--verified-failure-learning',action='store_true')
     result=run(parser.parse_args());print(json.dumps({'status':result['status'],'error':result.get('error')},ensure_ascii=False));raise SystemExit(0 if result['status'] in ('completed','preflight-passed') else 1)

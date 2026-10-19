@@ -66,6 +66,31 @@ TASKS = [
     {'id':'wrapper-map','prompt':'''Add map(iterable) to the limitFunction wrapper. Each iterable item is an argument tuple passed to the wrapped function, with the same per-wrapper concurrency and FIFO behavior as ordinary calls. Return Promise<Array<Awaited<ReturnType>>> and preserve tuple argument types, synchronous/thenable functions, clearQueue and abortable onIdle. Add new runtime/type tests and docs. Verify the complete behavior once.''','level':5},
 ]
 
+
+def failure_first_tasks() -> list[dict]:
+    """New explicit source-failure protocol; leave historical tasks unchanged."""
+    tasks = [dict(task) for task in TASKS]
+    tasks[0]['prompt'] = (
+        'Read index.js, public declarations, observed-idle-failure.mjs and selected existing tests. '
+        'Do not edit files. Run exactly node observed-idle-failure.mjs once as a standalone Bash command, '
+        'then run pnpm test once. The public reproducer is expected to fail; report its actual outcome '
+        'separately from the existing checks. Diagnose the observed conditions; do not infer its cause '
+        'from a source comment or invent a repair. Remember useful knowledge about this unresolved failure, '
+        'its current source scope and necessary limits for future maintenance. Also remember the currently '
+        'inspected limitFunction public input/output type contract, grounded in the actual declarations. '
+        'Permanent project constraint: Bash commands whose first executable is npm must be blocked; '
+        'use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.'
+    )
+    tasks[1]['prompt'] = (
+        'Repair the existing onIdle implementation using the actual public reproducer and inspected source. '
+        + TASKS[1]['prompt'] +
+        ' Run exactly node observed-idle-failure.mjs as a standalone Bash command after the repair, '
+        'then verify the complete current behavior. Use actual source and verification evidence to correct '
+        'the stored current-failure status. Preserve truthful historical failure facts, source scope, '
+        'maintenance purpose and necessary limits. Do not assert a cause or general benefit without evidence.'
+    )
+    return tasks
+
 ORACLE = r'''
 import test from 'node:test';import assert from 'node:assert/strict';
 import pLimit,{limitFunction} from '/work/p-limit/index.js';
@@ -79,6 +104,24 @@ test('idle, rejection, reservation, queue clear and wrapper',{timeout:4000},asyn
  assert.equal(l.activeCount,0);assert.equal(l.pendingCount,0);
  const held=gate();const first=l(()=>held.promise);l(()=>7);const waiting=l.onIdle();l.clearQueue();held.resolve();await first;await waiting;
  const f=limitFunction(async x=>x*2,{concurrency:1});const p=f(4);await f.onIdle();assert.equal(await p,8);
+});
+test('completion reactions cannot report idle before their follow-up job',{timeout:4000},async()=>{
+ // Given an attached completion reaction, when it enqueues a held job,
+ // then neither limiter nor wrapper may report idle before that job ends.
+ for(const wrapped of [false,true]){
+  const first=gate(),second=gate();let followUp,reported=false;
+  const limit=wrapped?limitFunction(which=>which===0?first.promise:second.promise,{concurrency:1}):pLimit(1);
+  const invoke=which=>wrapped?limit(which):limit(()=>which===0?first.promise:second.promise);
+  try{
+   const initial=invoke(0);
+   const enqueued=initial.then(()=>{followUp=invoke(1)});
+   const idle=limit.onIdle().then(()=>{reported=true});
+   await turn();assert.equal(reported,false);
+   first.resolve();await enqueued;await turn();
+   assert.equal(reported,false,'onIdle reported while the completion reaction job was held');
+   second.resolve();await followUp;await idle;assert.equal(reported,true);
+  }finally{first.resolve();second.resolve()}
+ }
 });
 if(level>=2)test('abort affects only waiters; pre-abort beats idle',{timeout:4000},async()=>{
  const l=pLimit(1),g=gate(),job=l(()=>g.promise),c=new AbortController(),reason={cancel:true};

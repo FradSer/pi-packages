@@ -23,6 +23,32 @@ const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-
 '''
 
 
+def test_no_entry_review_preserves_full_obligations_and_original_thresholds():
+    value = isolated_run_bun(SETUP + r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      let mode='optional',calls=[];
+      const transport=async(_url,init)=>{
+        const req=JSON.parse(String(init.body));calls.push(req);
+        const choice=mode==='required'?'required':'optional',p=mode==='joint'?.94:1;
+        return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:3},answers:Object.fromEntries(Object.keys(req.questions).map(key=>[key,
+          {type:'choice',choice,confidence:mode==='confidence'?.79:1,probabilities:{optional:choice==='optional'?p:0,required:choice==='required'?1:0,unclear:choice==='optional'?1-p:0}}]))}));
+      };
+      const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],allowPrivateMemory:true,fetch:transport});
+      const results=[];for(mode of ['optional','required','confidence','joint'])results.push(await judge.reviewMemoryWithdrawals(evidence,candidates,existing,review,[1]));
+      const before=calls.length;
+      const rejected=[];for(const r of [undefined,{...review,evidenceDigest:'stale'},{...review,complete:false}])rejected.push(await judge.reviewMemoryWithdrawals(evidence,candidates,existing,r,[1]));
+      rejected.push(await judge.reviewMemoryWithdrawals(evidence,candidates,existing,review,[0]));
+      console.log(JSON.stringify({results,calls,rejected,noExtraCalls:calls.length===before}));
+    ''')
+    assert value['results'][0]['allowedIndices'] == [1]
+    assert all(row['allowedIndices'] == [] for row in value['results'][1:])
+    assert all(row['allowedIndices'] == [] for row in value['rejected']) and value['noExtraCalls']
+    state = value['calls'][0]['state']
+    assert state['originalEvidence']['entries']
+    assert len(state['originalCandidates']) == 2
+    assert 'existingMemories' in state
+
+
 @pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
 def test_relation_observation_uses_frozen_question_and_never_grants_write_authority(model: str) -> None:
     value = isolated_run_bun(BASE.replace("jev-1.13.0", model) + r'''
@@ -245,3 +271,83 @@ def test_inflight_cancellation_does_not_start_later_relation_batches() -> None:
     assert 1 <= value['n'] <= 4
     assert 'review' not in value['result']
     assert value['result']['telemetry']['reason'] == 'cancelled'
+
+
+def test_no_entry_refuses_private_stale_missing_and_historical_bounded_inputs_before_transport():
+    value = isolated_run_bun(SETUP + r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      let calls=0;
+      const factory=extra=>createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{calls++;throw Error('No transport allowed')},...extra});
+      const judge=factory({}),results=[];
+      for(const r of [{...review,model:'jev-1.12.0'},{...review,candidates:review.candidates.map((r,i)=>i===1?undefined:r)}])results.push(await judge.reviewMemoryWithdrawals(evidence,candidates,existing,r,[1]));
+      results.push(await factory({maxRequestBytes:64000}).reviewMemoryWithdrawals(evidence,candidates,existing,review,[1]));
+      results.push(await factory({allowPrivateMemory:false}).reviewMemoryWithdrawals(evidence,candidates,existing,review,[1]));
+      results.push(await judge.reviewMemoryWithdrawals({...evidence,entries:[...evidence.entries,{role:'toolResult',content:'ghp_'+'a'.repeat(40)}]},candidates,existing,review,[1]));
+      const controller=new AbortController();controller.abort();results.push(await judge.reviewMemoryWithdrawals(evidence,candidates,existing,review,[1],controller.signal));
+      console.log(JSON.stringify({results,calls}));
+    ''')
+    assert value['calls'] == 0
+    assert all(row['allowedIndices'] == [] for row in value['results'])
+    assert [row['telemetry']['reason'] for row in value['results']] == ['invalid-response', 'invalid-response', 'bounds', 'private-memory-denied', 'sensitive', 'cancelled']
+
+
+def test_no_entry_judges_exact_complete_set_and_final_remaining_content_with_race_checks():
+    value = isolated_run_bun(SETUP + r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const all=candidates.map(c=>({...c,kind:'project',classification:'safe'}));
+      const r={...review,candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,candidateDigest:digest(c),outcome:'held',passedChecks:[],heldChecks:[`supported_${index}`]}))};
+      let calls=[],mutate=false;
+      let remaining=[];
+      const transport=async(_url,init)=>{
+        const request=JSON.parse(String(init.body));calls.push(request);
+        const choice=request.state.withdrawalIndices.length===2 || request.state.effectiveCandidates?.length===0 ? 'required' : 'optional';
+        if(mutate)remaining.push(all[0]);
+        return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:2},answers:Object.fromEntries(Object.keys(request.questions).map(key=>[key,
+          {type:'choice',choice,confidence:1,probabilities:{optional:choice==='optional'?1:0,required:choice==='required'?1:0,unclear:0}}]))}));
+      };
+      const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],allowPrivateMemory:true,fetch:transport});
+      const one=await judge.reviewMemoryWithdrawals(evidence,all,existing,r,[1]);
+      const combined=await judge.reviewMemoryWithdrawals(evidence,all,existing,r,[0,1]);
+      const final=await judge.reviewMemoryWithdrawals(evidence,all,existing,r,[1],undefined,remaining);
+      remaining=[all[0]];mutate=true;
+      const race=await judge.reviewMemoryWithdrawals(evidence,all,existing,r,[1],undefined,remaining);
+      console.log(JSON.stringify({one,combined,final,race,calls}));
+    ''')
+    assert value['one']['allowedIndices'] == [1]
+    assert all(value[key]['allowedIndices'] == [] for key in ['combined', 'final', 'race'])
+    assert value['race']['telemetry']['reason'] == 'invalid-response'
+    assert value['calls'][1]['state']['withdrawalIndices'] == [0, 1]
+    assert value['calls'][2]['state']['effectiveCandidates'] == []
+    assert value['final']['review']['effectiveCandidatesDigest']
+    assert set(value['calls'][1]['questions']) == {'obligation_set', 'preservation_set'}
+
+
+def test_mixed_relation_wire_keeps_persisted_roles_and_complete_original_binding():
+    from test_independent_memory_partition import FROZEN_NOOP
+    value = isolated_run_bun(FROZEN_NOOP + r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const calls=[];
+      const judge=createJevJudge({enabled:true,apiKey:'fixture-only',allowPrivateMemory:true,
+        defaultModel:'jev-1.13.0',scopes:['memory'],independentMemoryApplication:true,composedMemoryApplication:true,
+        fetch:async(_url,init)=>{
+          const req=JSON.parse(String(init.body));calls.push(req);
+          return new Response(JSON.stringify({model:req.model,usage:{input_tokens:10,output_tokens:2},
+            answers:Object.fromEntries(Object.keys(req.questions).map(k=>[k,k==='relation'
+              ? {type:'choice',choice:'independent',confidence:1,probabilities:{independent:1,duplicate:0,conflict:0,dependent:0,unclear:0}}
+              : {type:'choice',choice:'selfContained',confidence:1,probabilities:{selfContained:1,needsOther:0,unresolved:0}}]))}));
+        }});
+      const result=await judge.reviewMemoryRelations(evidence,mixed,known,bound);
+      console.log(JSON.stringify({result,calls,partition:partitionReviewedNewMemory(evidence,mixed,known,bound,
+        result.review,result.readiness,'jev-1.13.0',{allowFrozenNoopComparators:true})}));
+    ''')
+    assert value['partition'] == {'eligible':[1], 'held':[0], 'writeAuthorized':False}
+    assert len(value['calls']) == 3
+    pair = value['calls'][0]
+    assert pair['state']['comparison']['roles'] == ['frozen-noop','new']
+    assert pair['state']['comparison']['frozenExisting'][0]['content'] == pair['state']['originalCandidates'][0]['content']
+    assert pair['state']['frozenNoopsRemainStored'] is True
+    assert 'never assume it is omitted' in pair['questions']['relation']['instructions']['task']
+    for call in value['calls'][1:]:
+        assert call['state']['comparison'] == pair['state']['comparison']
+        assert 'cannot override' in call['questions']['ready']['instructions']['state']
+    assert value['result']['review']['candidatesDigest'] == value['result']['readiness']['candidatesDigest']

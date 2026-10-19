@@ -20,16 +20,25 @@ def test_pair_judgment_retains_original_thresholds_and_unknowns() -> None:
 
 
 def test_pair_research_uses_complete_production_privacy_preflight() -> None:
-    # Given uncited sensitive evidence, When preparing a research call,
-    # Then the production guard rejects it before the external transport.
+    # Given public evidence, an object-key placeholder and uncited realistic
+    # credential shapes, When preparing a research call, Then only safe public
+    # evidence reaches transport. A credential-named structured key is judged
+    # strictly: the documentation-placeholder rule applies to text, not to an
+    # object argument where a real assigned secret travels.
     rows = isolated_run_bun(r'''
       import {ensureMemoryPairResearchPreflight} from './packages/continual-learning/tests/jev-memory-pair-judgment.ts';
       const quote='This project uses pnpm.';const candidates=[0,1].map(i=>({name:'fact-'+i+'.md',kind:'project',classification:'safe',content:'---\nname: fact\ndescription: '+quote+'\ntype: project\n---\n'+quote,evidence:[{index:0,quote,role:'user'}]}));
-      const rows=[];for(const mode of ['public','uncited-secret','private-candidate']){
-       const snapshot={contextEnabled:true,entries:[{role:'user',content:quote}],...(mode==='uncited-secret'?{uncitedMetadata:{api_key:'fixture-private-original-123'}}:{})};
+      const rows=[];for(const mode of ['public','public-placeholder','uncited-secret','quoted-secret','private-candidate']){
+       // This generated value is a shape-only negative control, never a key.
+       const credentialShape='pA7mQ2zX9rK4vN8sU6dF3gH5jL0cB1eR';
+       const snapshot={contextEnabled:true,entries:[{role:'user',content:quote}],
+        ...(mode==='public-placeholder'?{uncitedMetadata:{api_key:'fixture-private-original-123'}}:{}),
+        ...(mode==='uncited-secret'?{uncitedMetadata:{api_key:credentialShape}}:{}),
+        ...(mode==='quoted-secret'?{uncitedMetadata:JSON.stringify({api_key:credentialShape})}:{})};
        const inputs=structuredClone(candidates);if(mode==='private-candidate')inputs[0].classification='private';
        try{const requests=await ensureMemoryPairResearchPreflight(snapshot,inputs);rows.push({mode,accepted:true,mockRequests:requests});}catch{rows.push({mode,accepted:false});}
       }console.log(JSON.stringify(rows));
     ''')
+    assert [row['mode'] for row in rows] == ['public','public-placeholder','uncited-secret','quoted-secret','private-candidate']
     assert rows[0]['accepted'] and rows[0]['mockRequests'] > 0
-    assert not rows[1]['accepted'] and not rows[2]['accepted']
+    assert all(not row['accepted'] for row in rows[1:])

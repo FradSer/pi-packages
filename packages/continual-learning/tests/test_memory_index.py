@@ -592,3 +592,32 @@ def test_block_stays_within_every_budget_it_accepts(tmp_path: Path) -> None:
     assert any(size == -1 for _, size, _ in result["swept"]), "a too-small budget is reported, not silently truncated"
     assert result["roomyRows"] == 20
     assert result["roomyOmitted"] is False
+
+
+@pytest.mark.parametrize('kind', ['utf8', 'bom', 'invalid', 'incomplete-tail', 'truncated'])
+def test_metadata_cache_distinguishes_complete_raw_file_revisions(tmp_path: Path, kind: str) -> None:
+    import hashlib
+    repo, memory, agent = memory_repo(tmp_path)
+    raw = memory_text('exact UTF-8 知识').encode()
+    if kind == 'bom':
+        raw = b'\xef\xbb\xbf' + raw
+    if kind == 'invalid':
+        raw += b'\xff'
+    if kind == 'incomplete-tail':
+        raw += b'\xe4\xb8'
+    if kind == 'truncated':
+        raw += b'x' * 25000
+    (memory / 'revision.md').write_bytes(raw)
+    result = run_bun(f'''
+      import {{loadAndDeduplicateMemories}} from './packages/continual-learning/extensions/memory-files.ts';
+      const first=await loadAndDeduplicateMemories({json.dumps(str(repo))});
+      const cached=await loadAndDeduplicateMemories({json.dumps(str(repo))});
+      console.log(JSON.stringify({{first:first.entries[0],cached:cached.entries[0]}}));
+    ''', agent)
+    assert result['first'] == result['cached']
+    entry = result['first']
+    assert entry['contentTruncated'] is (kind == 'truncated')
+    if kind == 'utf8':
+        assert entry['fileRevision'] == hashlib.sha256(raw).hexdigest()
+    else:
+        assert 'fileRevision' not in entry

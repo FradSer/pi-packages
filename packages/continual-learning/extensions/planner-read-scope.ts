@@ -9,6 +9,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { containsSensitiveMemoryMaterial } from "./consolidation-run";
 
 export interface PlannerReadScope { cwd: string; files: string[]; roots: string[]; indexedEvidence?: boolean; excludedComponents?: string[]; regularFilesOnly?: boolean; excludedPaths?: string[] }
+/** Render an already-authorized source read without changing its byte/line bound. */
+export function formatPlannerFileRead(text: string, offset: number, limit: number): string {
+  const lines = text.split("\n");
+  const selected = lines.slice(offset - 1, offset - 1 + limit).join("\n");
+  const bounded = Buffer.from(selected).subarray(0, 64_000).toString("utf8");
+  return `${bounded}\n[lines ${offset}-${Math.min(lines.length, offset + limit - 1)} of ${lines.length}${bounded.length < selected.length ? "; byte limit reached" : ""}]`;
+}
 const FORBIDDEN = /^(?:\.git|\.env(?:\..*)?|auth\.json|credentials(?:\..*)?|id_(?:rsa|ed25519)|.*\.(?:pem|key))$/i;
 function inside(file: string, root: string): boolean {
   const relative = path.relative(root, file);
@@ -68,10 +75,7 @@ export async function readPlannerFileSnapshot(input: string, scope: PlannerReadS
     const text = bytes.toString("utf8");
     if (text.includes("\0") || containsSensitiveMemoryMaterial(text)) throw new Error("Planner read refused: sensitive or binary content");
     const shown = scope.indexedEvidence ? JSON.stringify(locatedMemoryEvidence(JSON.parse(text)), null, 2) : text;
-    const lines = shown.split("\n");
-    const selected = lines.slice(offset - 1, offset - 1 + limit).join("\n");
-    const bounded = Buffer.from(selected).subarray(0, 64_000).toString("utf8");
-    return {text: `${bounded}\n[lines ${offset}-${Math.min(lines.length, offset + limit - 1)} of ${lines.length}${bounded.length < selected.length ? "; byte limit reached" : ""}]`,
+    return {text: formatPlannerFileRead(shown, offset, limit),
       sha256: createHash("sha256").update(bytes).digest("hex")};
   } finally { await handle.close(); }
 }

@@ -18,7 +18,14 @@
     "`pnpm check` runs skill-lock verification.",
     "plugins.entries.brave = {enabled:true, config:{webSearch:{apiKey:{source:\"file\",provider:\"localfiles\",id:\"/brave_api_key\"}}}}",
     "apiKey={source: \"localfiles\", id: \"/brave_api_key\", cache: \"~/.openclaw/cache/api-keys.json\"}",
-    "apiKey:{source:\"file\",provider:\"localfiles\""
+    "apiKey:{source:\"file\",provider:\"localfiles\"",
+    "Config sample:\n{\"passwd\": \"<password>\"}",
+    "passwd: <password>",
+    "password: \"<password>\"",
+    "apiKey: process.env.API_KEY",
+    "secret: a ? b : c",
+    "{\"authorization\": \"https://login.example.com/oauth\"}",
+    "Auth: \"https://login.example.com/oauth\""
   ],
   "sensitive": [
     "token: sk-test-secret",
@@ -35,6 +42,22 @@
     "pypi-AgEIcHlwaS5vcmcCJDY4ZjZiM2Fi",
     "sk_live_abcdefgh12345678",
     "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-    "password = correcthorsebatterystaple"
+    "password = correcthorsebatterystaple",
+    "Config:\n{\"password\": \"My,Secret1\"}",
+    "Config:\n{\"password\": \"My;Secret1\"}",
+    "Config:\n{\"password\": \"P@ss?word123\"}",
+    "Config:\n{\"password\": \"abc//defgh\"}",
+    "\"password\":\"My,Secret1\"",
+    "{\"password\": \"hunter2long\"}",
+    "Config: {api_key: \"Xq7b,N2mP4kL9vR3s\"}",
+    "Config: {api_key: \"Xq7b//N2mP4kL9vR3s\"}",
+    "Config: {api_key: \"Xq7b;N2mP4kL9vR3s\"}",
+    "Config: {\"password\": \"a'b,cd123\"}",
+    "Config: {\"password\": \"ab\\\"cd,efgh\"}",
+    "token = \"Xq7b//N2mP4kL9vR3s\"",
+    "{\"password\": \"://Xq7bN2mP4kL9vR3s\"}",
+    "{\"password\": \"mongodb+srv://user:Xq7bN2mP4kL9vR3s@h/db\"}",
+    "{\"password\": \"Xq7bN2mP4kL9vR3s://x\"}",
+    "token: abc//defgh"
   ]
 }

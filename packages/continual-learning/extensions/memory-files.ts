@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { constants as fsConstants, type Stats } from "node:fs";
 import path from "node:path";
 import { safeDisplayText } from "@fradser/pi-kit";
@@ -10,6 +11,10 @@ export interface MemoryEntry {
   /** Exact local file to read for the bounded body when metadata is insufficient. */
   readPath: string;
   content: string;
+  /** True when the metadata read retained only a prefix. */
+  contentTruncated?: boolean;
+  /** Full raw-byte SHA only when complete bytes round-trip exactly as UTF-8. */
+  fileRevision?: string;
   /** One-line description parsed from the entry's frontmatter, when present. */
   description?: string;
   descriptionTruncated?: boolean;
@@ -143,6 +148,7 @@ interface MemoryIdentity {
 }
 
 interface MemoryRead {
+  fileRevision?: string;
   content: string;
   truncated: boolean;
   identity: MemoryIdentity;
@@ -151,6 +157,8 @@ interface MemoryRead {
 /** Everything the prompt needs from one entry file, plus how to detect a change. */
 interface CachedMemoryMetadata {
   identity: MemoryIdentity;
+  contentTruncated: boolean;
+  fileRevision?: string;
   content: string;
   description?: string;
   descriptionTruncated?: boolean;
@@ -205,7 +213,11 @@ async function readRegularMemory(root: string, name: string, options: MemoryLoad
     const namedStat = await fs.lstat(path.join(root, name));
     if (namedStat.isSymbolicLink() || !sameIdentity(finalStat, identityOf(stat)) || !sameIdentity(namedStat, identityOf(finalStat))) return undefined;
     const truncated = finalStat.size > bytesRead || content.length > maxFileChars;
-    return { content: truncated ? charPrefix(content, maxFileChars) : content, truncated, identity: identityOf(finalStat) };
+    const raw = buffer.subarray(0, bytesRead);
+    const fileRevision = !truncated && Buffer.from(content, "utf8").equals(raw)
+      ? createHash("sha256").update(raw).digest("hex") : undefined;
+    return { content: truncated ? charPrefix(content, maxFileChars) : content, truncated, identity: identityOf(finalStat),
+      ...(fileRevision ? {fileRevision} : {}) };
   } catch {
     return undefined;
   } finally {
@@ -241,6 +253,8 @@ async function readMemoryMetadata(
   if (!read) return undefined;
   const metadata: CachedMemoryMetadata = {
     identity: read.identity,
+    contentTruncated: read.truncated,
+    ...(read.fileRevision ? {fileRevision: read.fileRevision} : {}),
     content: read.truncated ? `${read.content}\n… [truncated]` : read.content,
     ...parseFrontmatterDescription(read),
   };
@@ -352,6 +366,8 @@ export async function loadAndDeduplicateMemories(cwd: string, options: MemoryLoa
         loaded.push({ owner, entry: {
           filename: name, source: owner.source, readPath: path.resolve(owner.root, name),
           content: metadata.content,
+          contentTruncated: metadata.contentTruncated,
+          ...(metadata.fileRevision ? {fileRevision: metadata.fileRevision} : {}),
           ...(metadata.description === undefined ? {} : { description: metadata.description }),
           ...(metadata.descriptionTruncated ? { descriptionTruncated: true } : {}),
           ...(metadata.metadataIncomplete ? { metadataIncomplete: true } : {}),

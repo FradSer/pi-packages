@@ -83,7 +83,7 @@ def test_semantic_repair_examples_preserve_original_frontmatter_including_absent
       const header=content=>/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content)?.[1];
       const protectedHeader=text=>text.split(/\r?\n/).filter(line=>!line.startsWith('description:')).join('\n');
       for(const named of [false,true])for(const heldDescription of [false,true]){
-        const content='---\n'+(named?'name: Existing display name\n':'')+'description: Existing description\ntype: project\n---\nOld body.';
+        const content='---\n'+(named?'name: Existing display name\n':'')+'description: Existing description\ntype: project\n---\nOld body.\n\n**Why**: Later maintenance.\n\n**How to apply**: Compare current source.';
         const prior={name:'contract.md',kind:'rewrite',classification:'safe',content,evidence:[{index:0,quote:'Current body.'}]};
         const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[prior],newMemories:[]};
         const repaired=await repairIncrementalMemoryPlan({identity,rejectedPlan:original,selectedNames:[prior.name],repairableNames:[prior.name],
@@ -95,7 +95,9 @@ def test_semantic_repair_examples_preserve_original_frontmatter_including_absent
           exampleProtectedHeader:protectedHeader(header(example)),originalProtectedHeader:protectedHeader(header(content)),
           exampleDescription:header(example).split('\n').find(line=>line.startsWith('description:')),
           resultHeader:header(repaired.plan?.operations[0].content??''),originalHeader:header(content),
-          asksInventedName:prompt.includes('complete replacement Markdown content including name/description/type frontmatter')});
+          asksInventedName:prompt.includes('complete replacement Markdown content including name/description/type frontmatter'),
+          purposeSections:JSON.parse(prompt.split('\n').at(-1)).repairCandidates[0].requiredKnowledgeSections,
+          examplePurpose:example.includes('**Why**:')&&example.includes('**How to apply**:')});
       }
       console.log(JSON.stringify(rows));
     ''')
@@ -106,6 +108,8 @@ def test_semantic_repair_examples_preserve_original_frontmatter_including_absent
         if not row['heldDescription']:
             assert row['exampleDescription'] == 'description: Existing description', row
         assert not row['asksInventedName'], row
+        assert row['purposeSections'] == ['Why', 'How to apply'], row
+        assert row['examplePurpose'], row
 
 
 def test_correction_decision_guidance_is_scoped_to_candidate_bound_amendments():

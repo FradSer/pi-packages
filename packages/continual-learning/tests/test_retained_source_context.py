@@ -27,7 +27,7 @@ def test_semantic_repair_receives_real_observed_source_order(native):
         }});
         fs.writeFileSync(path.join(agent,'models.json'),JSON.stringify({providers:{fixture:{baseUrl:`http://127.0.0.1:${server.port}/v1`,api:'openai-completions',apiKey:'offline',models:[{id:'offline',name:'offline',reasoning:false,input:['text'],contextWindow:1000000,maxTokens:4096,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}}]}}}));
         fs.writeFileSync(path.join(agent,'settings.json'),JSON.stringify({packages:[],extensions:[],skills:[],retry:{enabled:false}}));
-        process.env.PI_OFFLINE='1';process.argv[1]=fs.realpathSync('./node_modules/@earendil-works/pi-coding-agent/dist/cli.js');process.execPath=Bun.which('node');
+        process.env.PI_OFFLINE='1';process.argv[1]=fs.realpathSync('./node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');process.execPath=Bun.which('node');
       }else{
         const kit=await import('./packages/kit/src/index.ts');
         mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{calls++;prompt=input.prompt;tools=input.tools;return{exitCode:0,cancelled:false,stderr:'',text:JSON.stringify(f.response)}}}));
@@ -57,7 +57,7 @@ def test_semantic_repair_receives_real_observed_source_order(native):
     assert value['chronologyInstruction'] and value['sourceUnchanged'] and value['unchanged']
     assert value['temporalInstruction'], 'repair offers no source-bound current-versus-earlier clarification'
     assert value['oldFailureRetained'] and not value['sensitive']
-    assert value['calls'] == 1 and value['tools'] == 0 and value['piVersion'] == '1.2.0'
+    assert value['calls'] == 1 and value['tools'] == 0 and value['piVersion'] == '1.3.0'
 
 
 @pytest.mark.parametrize('mode', ['foreign-evidence', 'foreign-entry', 'missing-run',

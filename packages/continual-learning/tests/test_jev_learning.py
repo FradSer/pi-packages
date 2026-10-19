@@ -1186,3 +1186,99 @@ def test_pinned_jev_version_requires_matching_response_and_keeps_usage() -> None
             assert 'candidateReview' not in result and 'incompleteReview' not in result
         else:
             assert result['decision'] == 'allow', row
+
+
+def test_documentation_placeholders_in_text_are_allowed_while_quoted_real_values_refuse() -> None:
+    # Given a tool result printing a JSON config sample with a documentation
+    # placeholder, When the judge preflight and the Memory guard judge the same
+    # text, Then the placeholder is not sensitive; a realistic value in that same
+    # position, a punctuation-bearing quoted value, a provider key and a
+    # credential-named argument key all stay sensitive in both detectors.
+    value = isolated_run_bun(r'''
+      import {sensitiveValue} from './packages/continual-learning/extensions/jev-learning.ts';
+      import {containsSensitiveMemoryMaterial} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const both=(sample)=>[sensitiveValue(sample),typeof sample==='string'?containsSensitiveMemoryMaterial(sample):null];
+      const rows={
+        placeholderText:both('Config sample:\n{"passwd": "<password>"}'),
+        plainPlaceholder:both('passwd: <password>'),
+        providerKey:both('Config:\n{"apiKey": "sk-aaaaaaaaaaaaaaaaaaaa"}'),
+        realJsonText:both('Config:\n{"password": "hunter2long"}'),
+        commaValue:both('Config:\n{"password": "My,Secret1"}'),
+        semicolonValue:both('Config:\n{"password": "My;Secret1"}'),
+        questionValue:both('Config:\n{"password": "P@ss?word123"}'),
+        slashValue:both('Config:\n{"password": "abc//defgh"}'),
+        bareQuoted:both('"password":"My,Secret1"'),
+        unquotedKeyQuotedValue:both('Config: {api_key: "Xq7b,N2mP4kL9vR3s"}'),
+        unquotedKeySlashValue:both('Config: {api_key: "Xq7b//N2mP4kL9vR3s"}'),
+        unquotedKeySemicolonValue:both('Config: {api_key: "Xq7b;N2mP4kL9vR3s"}'),
+        apostropheValue:both('Config: {"password": "a\'b,cd123"}'),
+        escapedQuoteValue:both('Config: {"password": "ab\\"cd,efgh"}'),
+        equalsQuotedValue:both('token = "Xq7b//N2mP4kL9vR3s"'),
+        quotedUrlValue:both('Auth: "https://login.example.com/oauth"'),
+        plainUrlMember:both('{"authorization": "https://login.example.com/oauth"}'),
+        credentialUrlWithoutScheme:both('{"password": "://Xq7bN2mP4kL9vR3s"}'),
+        credentialUserinfoUrl:both('{"password": "mongodb+srv://user:Xq7bN2mP4kL9vR3s@h/db"}'),
+        unknownSchemeSecret:both('{"password": "Xq7bN2mP4kL9vR3s://x"}'),
+        midStringSlashes:both('token: abc//defgh'),
+        parsedObjectMember:[sensitiveValue({apiKey:'sampledata99'}),containsSensitiveMemoryMaterial('{"apiKey": "sampledata99"}')],
+        envReference:both('apiKey: process.env.API_KEY'),
+        expression:both('secret: a ? b : c'),
+        placeholderState:[sensitiveValue({entries:[{message:{role:'toolResult',content:'Config sample:\n{"passwd": "<password>"}'}}]}),null],
+        realJsonState:[sensitiveValue({entries:[{message:{role:'toolResult',content:'Config:\n{"password": "hunter2long"}'}}]}),null],
+        argumentPlaceholder:[sensitiveValue({args:{password:'<password>'}}),null],
+        argumentReal:[sensitiveValue({args:{password:'hunter2long'}}),null],
+        argumentSamplePrefixed:[sensitiveValue({args:{secret:'sampledata99'}}),null],
+        argumentTestPrefixed:[sensitiveValue({args:{apiKey:'test1a2b3c4d'}}),null],
+        argumentQuestion:[sensitiveValue({args:{password:'S3cr3t?Key99'}}),null],
+        argumentAmpersand:[sensitiveValue({args:{token:'a&&bcd123'}}),null],
+        argumentRepeated:[sensitiveValue({args:{password:'aaaaaaaa'}}),null],
+      };
+      console.log(JSON.stringify(rows));
+    ''')
+    # A documentation placeholder in text is not a credential in either detector.
+    assert value['placeholderText'] == [False, False]
+    assert value['plainPlaceholder'] == [False, False]
+    assert value['placeholderState'][0] is False
+    # A quoted realistic value is refused by both, including one whose value
+    # contains punctuation the plain pattern stops at.
+    assert value['realJsonText'] == [True, True]
+    assert value['realJsonState'][0] is True
+    assert value['commaValue'] == [True, True]
+    assert value['semicolonValue'] == [True, True]
+    assert value['questionValue'] == [True, True]
+    assert value['slashValue'] == [True, True]
+    assert value['bareQuoted'] == [True, True]
+    assert value['unquotedKeyQuotedValue'] == [True, True]
+    assert value['unquotedKeySlashValue'] == [True, True]
+    assert value['unquotedKeySemicolonValue'] == [True, True]
+    assert value['apostropheValue'] == [True, True]
+    assert value['escapedQuoteValue'] == [True, True]
+    assert value['equalsQuotedValue'] == [True, True]
+    assert value['providerKey'] == [True, True]
+    # A real URL is still not a credential, in either key form.
+    assert value['quotedUrlValue'] == [False, False]
+    assert value['plainUrlMember'] == [False, False]
+    # A value that merely starts with or contains `://` is not a URL: a secret
+    # with no scheme, a credential-bearing connection string and an unknown
+    # scheme are all refused, matching the pre-change preflight.
+    assert value['credentialUrlWithoutScheme'] == [True, True]
+    assert value['credentialUserinfoUrl'] == [True, True]
+    assert value['unknownSchemeSecret'] == [True, True]
+    assert value['midStringSlashes'] == [True, True]
+    # A credential-named member of a parsed object is strict in BOTH detectors,
+    # so they cannot disagree about the same record.
+    assert value['parsedObjectMember'] == [True, True]
+    # A credential-named structured key stays strict: an argument or parsed
+    # record is not ordinary tracked-source prose, so even a bracketed
+    # placeholder, a fixture-style prefix or a punctuation-bearing value is
+    # refused there.
+    assert value['argumentPlaceholder'][0] is True
+    assert value['argumentReal'][0] is True
+    assert value['argumentSamplePrefixed'][0] is True
+    assert value['argumentTestPrefixed'][0] is True
+    assert value['argumentQuestion'][0] is True
+    assert value['argumentAmpersand'][0] is True
+    assert value['argumentRepeated'][0] is True
+    # A code, env or expression reference stays ordinary.
+    assert value['envReference'] == [False, False]
+    assert value['expression'] == [False, False]

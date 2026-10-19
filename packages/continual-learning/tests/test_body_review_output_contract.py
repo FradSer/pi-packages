@@ -45,3 +45,22 @@ def test_body_worker_loads_opt_in_contract_with_exact_parent_group_count() -> No
     ''')
     assert value['status'] == 'reviewed' and value['tools'] == [] and value['complete']
     assert value['extension'] and value['kind'] == 'memory-body-review' and value['count'] == '1'
+
+
+def test_body_review_cannot_outlive_the_recorded_correction_budget() -> None:
+    # Given an independent body reviewer that never answers, When the recorded
+    # Memory correction budget expires, Then the reviewer is aborted and no
+    # judgment is produced from the unresponsive worker.
+    value = isolated_run_bun(r'''
+      import {mock} from 'bun:test';const kit=await import('./packages/kit/src/index.ts');
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>new Promise((_resolve,reject)=>input.signal.addEventListener('abort',()=>reject(new Error('private worker abort'))))}));
+      const {reviewMemoryBodies,MEMORY_CORRECTION_WORKER_DEADLINE_MS}=await import('./packages/continual-learning/extensions/memory-body-review.ts');
+      const timer=globalThis.setTimeout;let bound=null;
+      globalThis.setTimeout=(fn,ms,...args)=>{if(ms===MEMORY_CORRECTION_WORKER_DEADLINE_MS){bound=ms;return timer(fn,10,...args)}return timer(fn,ms,...args)};
+      const review=await reviewMemoryBodies({candidates:[{name:'fact.md',content:'Full immutable body'}],retained:[]});
+      console.log(JSON.stringify({bound,recorded:MEMORY_CORRECTION_WORKER_DEADLINE_MS,status:review.status,judgments:review.judgments,calls:review.calls}));
+    ''')
+    assert value['recorded'] == 600000 and value['recorded'] > 230000
+    assert value['bound'] == value['recorded']
+    assert value['status'] == 'cancelled' and value['judgments'] == []
+    assert 'private worker abort' not in str(value)

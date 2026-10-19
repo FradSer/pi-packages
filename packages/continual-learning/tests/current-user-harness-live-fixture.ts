@@ -43,6 +43,7 @@ export default function(pi: ExtensionAPI) {
     const rows=ctx.sessionManager.getBranch();
     const results=rows.filter(row=>row.type==='message'&&row.message.role==='toolResult'&&row.message.toolCallId==='native-version');
     const writeResults=rows.filter(row=>row.type==='message'&&row.message.role==='toolResult'&&row.message.toolCallId==='native-write');
-    fs.writeFileSync(output,JSON.stringify({mainCalls,atMain,results,writeResults,externalRequests:0}),{mode:0o600});
+    const behaviorObservations=rows.filter(row=>row.type==='custom'&&row.customType==='harness-behavior-observation');
+    fs.writeFileSync(output,JSON.stringify({mainCalls,atMain,results,writeResults,behaviorObservations,externalRequests:0}),{mode:0o600});
   });
 }

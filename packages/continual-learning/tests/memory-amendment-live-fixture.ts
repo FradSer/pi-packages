@@ -28,11 +28,22 @@ export default function fixture(pi: ExtensionAPI): void {
       const data = JSON.parse(text.split("\n").at(-1)!);
       const bound = pi.getFlag("bound-candidate-response");
       if (typeof bound === "string") {
-        assert.ok(text.includes("Prefer the exact short candidateRef"));
         const response = JSON.parse(bound);
-        for (const patch of response.replacements) {
+        if (response.replacements) assert.ok(text.includes("Prefer the exact short candidateRef"));
+        else assert.ok(data.retainedOperationContract);
+        for (const operation of response.operations ?? []) {
+          const record = data.retainedOperationContract.records.find((record: {name: string}) => record.name === operation.name);
+          assert.ok(record);
+          assert.equal(operation.classification, record.classification);
+          if (operation.kind === "rewrite" && !Object.hasOwn(operation, "content")) assert.equal(record.reuseFrozenContent, true);
+        }
+        for (const patch of response.replacements ?? []) {
           assert.ok(data.repairCandidates.some((candidate: {candidateRef: string}) => candidate.candidateRef === patch.candidateRef));
           assert.equal(Object.hasOwn(patch, "candidateId"), false);
+        }
+        for (const withdrawal of response.withdrawals ?? []) {
+          assert.ok(data.repairCandidates.some((candidate: {candidateRef: string; withdrawalAllowed?: boolean}) => candidate.candidateRef === withdrawal.candidateRef && candidate.withdrawalAllowed === true));
+          assert.equal(Object.hasOwn(withdrawal, "candidateId"), false);
         }
         reply = bound;
       } else {
@@ -41,6 +52,10 @@ export default function fixture(pi: ExtensionAPI): void {
       else assert.equal(data.repairCandidates.length, 1);
       const candidate = missingBody ? {field: "newMemories", index: 0} : data.repairCandidates[0];
       const prior = data.rejectedPlan[candidate.field][candidate.index];
+      if (candidate.requiredKnowledgeSections?.length) {
+        assert.ok(text.includes("Keep each section non-empty in the complete corrected content."));
+        assert.ok(candidate.requiredKnowledgeSections.every((section: string) => ["Why", "How to apply"].includes(section)));
+      }
       if (missingBody) {
         assert.ok(text.includes("non-empty Memory body"));
         assert.ok(JSON.stringify(data).includes("Correct claim"));

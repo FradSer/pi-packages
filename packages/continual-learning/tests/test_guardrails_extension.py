@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -183,3 +184,108 @@ def test_incomplete_evaluation_names_the_unreadable_layer_file_and_error(tmp_pat
     assert recovery['writeAllowed'], recovery
     assert not recovery['plainBlocked'], recovery
     assert recovery['matchedReason'] == 'probe rule', recovery
+
+
+def test_harness_behavior_binds_rule_revision_call_and_actual_handler_observation(tmp_path: Path) -> None:
+    # Given an effective rule revision, When its matching call is allowed or
+    # blocked, Then bind the native call and actual handler observation separately.
+    project = tmp_path / 'project'; (project / '.pi').mkdir(parents=True)
+    rule = {'id': 'version', 'bash': '^npm', 'message': 'Version probe.'}
+    (project / '.pi/harness.json').write_text(json.dumps({'rules': [rule]}))
+    value = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      import fs from 'node:fs';
+      import {{ruleRevision}} from '{ENGINE}';
+      import {{createHash}} from 'node:crypto';
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const hooks={{}},entries=[];let leaf='user-entry';
+      const pi={{on:(n,f)=>(hooks[n]??=[]).push(f),appendEntry:(customType,data)=>{{leaf='entry-'+entries.length;entries.push({{id:leaf,customType,data}})}},registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[]}};
+      register(pi);const ctx={{cwd:{json.dumps(str(project))},hasUI:false,ui:{{notify(){{}}}},sessionManager:{{getSessionId:()=> 'session-a',getLeafId:()=>leaf}}}};
+      const call=async(id)=>{{for(const f of hooks.tool_call??[]){{const r=await f({{toolName:'bash',toolCallId:id,input:{{command:'npm --version'}}}},ctx);if(r?.block)return r}}}};
+      const end=async(id,extra)=>{{for(const f of hooks.tool_execution_end??[])await f({{toolName:'bash',toolCallId:id,result:{{content:[{{type:'text',text:'12.0.0'}}],details:{{exitCode:0}}}},isError:false,...extra}},ctx)}};
+      await call('allowed');await end('allowed',{{durationMs:1}});await end('allowed',{{durationMs:2}});
+      fs.writeFileSync({json.dumps(str(project/'.pi/harness.json'))},JSON.stringify({{rules:[{{...{json.dumps(rule)},action:'block'}}]}}));
+      await call('blocked');await end('blocked',{{}});
+      await end('foreign',{{durationMs:1}});
+      console.log(JSON.stringify({{entries:entries.filter(x=>x.customType==='harness-behavior-observation'),revision:ruleRevision({json.dumps(rule)}),idDigest:createHash('sha256').update(JSON.stringify('version')).digest('hex')}}));
+    ''')
+    events = value['entries']
+    assert len(events) == 4, value
+    decisions = [x for x in events if x['data']['phase'] == 'decision']
+    results = [x for x in events if x['data']['phase'] == 'handler-result']
+    assert [x['data']['toolCallIdDigest'] for x in decisions] == [hashlib.sha256(json.dumps(call).encode()).hexdigest() for call in ('allowed', 'blocked')]
+    assert next(r for r in decisions[0]['data']['rules'] if r.get('idDigest') == value['idDigest'])['revision'] == value['revision']
+    assert next(r for r in decisions[1]['data']['rules'] if r.get('idDigest') == value['idDigest'])['revision'] != value['revision']
+    assert next(r for r in decisions[0]['data']['rules'] if r.get('idDigest') == value['idDigest'])['source'] == 'project'
+    assert [x['data']['handlerInvoked'] for x in results] == [True, None]
+    assert results[0]['data']['decisionEntryId'] == decisions[0]['id']
+    assert results[1]['data']['decisionEntryId'] == decisions[1]['id']
+    assert all(x['data']['effect'] == 'cannot-attribute' for x in results)
+    assert all(x['data']['taskOutcome'] == 'unverified' for x in results)
+    assert 'npm --version' not in json.dumps(events)
+    assert '12.0.0' not in json.dumps(events)
+
+
+@pytest.mark.parametrize('case', ['duplicate', 'reuse', 'foreign-session', 'branch', 'invalid-time', 'capacity'])
+def test_harness_behavior_keeps_ambiguous_or_incomplete_observations_unverified(tmp_path: Path, case: str) -> None:
+    value = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const hooks={{}},rows=[];let leaf='user-entry',session='session-a';
+      register({{on:(n,f)=>(hooks[n]??=[]).push(f),appendEntry:(customType,data)=>{{leaf='entry-'+rows.length;rows.push({{id:leaf,customType,data}})}},registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[]}});
+      const ctx={{cwd:{json.dumps(str(tmp_path))},hasUI:false,ui:{{notify(){{}}}},sessionManager:{{getSessionId:()=>session,getLeafId:()=>leaf}}}};
+      const call=async(id)=>{{for(const f of hooks.tool_call??[])await f({{toolName:'bash',toolCallId:id,input:{{command:'printf safe'}}}},ctx)}};
+      const end=async(id,durationMs)=>{{for(const f of hooks.tool_execution_end??[])await f({{toolName:'bash',toolCallId:id,result:{{content:[]}},isError:false,durationMs}},ctx)}};
+      const mode={json.dumps(case)};await call('a');
+      if(mode==='reuse')await end('a',1);
+      if(mode==='branch')for(const f of hooks.session_tree??[])await f({{}},ctx);
+      if(['duplicate','reuse','branch'].includes(mode)){{await call('a');await end('a',1)}}
+      if(mode==='foreign-session'){{session='session-b';await end('a',1)}}
+      if(mode==='invalid-time')await end('a',NaN);
+      if(mode==='capacity'){{for(let i=0;i<256;i++)await call('extra-'+i);await end('extra-255',1)}}
+      const events=rows.filter(r=>r.customType==='harness-behavior-observation');
+      console.log(JSON.stringify({{decisions:events.filter(r=>r.data.phase==='decision').map(r=>({{tracking:r.data.handlerTracking,coverage:r.data.revisionCoverage}})),results:events.filter(r=>r.data.phase==='handler-result').map(r=>r.data)}}));
+    ''')
+    results = value['results']
+    if case in ('duplicate', 'foreign-session', 'branch', 'capacity'):
+        assert results == [], value
+    elif case == 'reuse':
+        assert len(results) == 1 and results[0]['handlerInvoked'] is True, value
+    else:
+        assert len(results) == 1 and results[0]['handlerInvoked'] is None, value
+        assert results[0]['handlerTiming'] == 'invalid'
+    if case in ('duplicate', 'reuse', 'branch', 'capacity'):
+        assert value['decisions'][-1]['tracking'] == 'unavailable', value
+    assert all(r['effect'] == 'cannot-attribute' and r['taskOutcome'] == 'unverified' for r in results)
+
+
+@pytest.mark.parametrize('case', ['append-failure', 'end-append-failure', 'accessor-failure', 'private-id', 'private-call-id', 'switch-during-confirm'])
+def test_harness_observation_cannot_change_execution_leak_ids_or_rebind_old_calls(tmp_path: Path, case: str) -> None:
+    value = run_bun(f'''
+      import fs from 'node:fs';
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const mode={json.dumps(case)},sentinel='PRIVATE_COMMAND_BODY_MARKER printf private';
+      fs.mkdirSync({json.dumps(str(tmp_path/'.pi'))});
+      fs.writeFileSync({json.dumps(str(tmp_path/'.pi/harness.json'))},JSON.stringify({{rules:[{{id:mode==='private-id'?sentinel:'rule',bash:'^printf',message:'note',...(mode==='switch-during-confirm'?{{action:'confirm'}}:{{}})}}]}}));
+      const hooks={{}},rows=[];let session='session-a',leaf='user-a';
+      register({{on:(n,f)=>(hooks[n]??=[]).push(f),appendEntry:(customType,data)=>{{if(customType==='harness-behavior-observation'&&(mode==='append-failure'||mode==='end-append-failure'&&data.phase==='handler-result'))throw Error('Observation unavailable');leaf='entry-'+rows.length;rows.push({{id:leaf,customType,data}})}},registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[]}});
+      const ctx={{cwd:{json.dumps(str(tmp_path))},hasUI:mode==='switch-during-confirm',ui:{{notify(){{}},select:async()=>{{for(const f of hooks.session_shutdown??[])await f({{}},ctx);session='session-b';leaf='user-b';for(const f of hooks.session_start??[])await f({{}},ctx);return 'Allow once'}}}},sessionManager:{{getSessionId:()=>{{if(mode==='accessor-failure')throw Error('Session unavailable');return session}},getLeafId:()=>leaf}}}};
+      const callId=mode==='private-call-id'?sentinel:'old-call';
+      let call='allowed';try{{for(const f of hooks.tool_call??[]){{const r=await f({{toolName:'bash',toolCallId:callId,input:{{command:'printf safe'}}}},ctx);if(r?.block)call='blocked'}}}}catch{{call='threw'}}
+      for(const f of hooks.tool_execution_end??[])await f({{toolName:'bash',toolCallId:callId,result:{{content:[]}},isError:false,durationMs:1}},ctx);
+      const observations=rows.filter(r=>r.customType==='harness-behavior-observation');
+      console.log(JSON.stringify({{call,leaked:JSON.stringify(observations).includes(sentinel),observations}}));
+    ''')
+    assert value['call'] == ('blocked' if case == 'switch-during-confirm' else 'allowed'), value
+    assert value['leaked'] is False, value
+    if case in ('append-failure', 'accessor-failure', 'switch-during-confirm'):
+        assert value['observations'] == [], value
+    else:
+        rule = next(r for r in value['observations'][0]['data']['rules'] if r['matched'])
+        assert rule['action'] == 'message'
+        assert 'id' not in rule and len(rule['idDigest']) == 64
+        if case == 'end-append-failure':
+            assert len(value['observations']) == 1
+        if case == 'private-call-id':
+            assert all(len(r['data']['toolCallIdDigest']) == 64 for r in value['observations'])
