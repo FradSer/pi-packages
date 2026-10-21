@@ -250,7 +250,7 @@ pi install npm:@fradser/pi-recap
 
 ### [`pi-skill-router`](packages/skill-router/)
 
-Routes to externally hosted skill collections: add GitHub skill repositories through the `/skill-router` menu, exposing selected skills behind a model-visible gateway. Ships no skill content directly.
+Routes to externally hosted skill collections: add GitHub skill repositories through the `/skill-router` menu, expose selected skills behind a model-visible gateway, and register each routed skill as a codemode tool the model searches and calls. Ships no skill content directly.
 
 **Command:** `/skill-router`
 

@@ -18,6 +18,35 @@ python3 -m pytest packages/skill-router/tests/ -q
 pnpm --dir packages/skill-router pack --dry-run
 ```
 
+`features/codemode-skill-tools.feature` is exercised by
+`tests/test_codemode_skill_tools.py` through the same `tests/router_harness.ts`
+entry point as the routing scenarios.
+
+Isolated acceptance in a container, which needs Docker and the network:
+
+```bash
+sh packages/skill-router/tests/skill_router_docker.sh
+```
+
+It packs this package and pi-kit, installs them into an isolated tree inside
+`node:24-bookworm-slim`, asserts that only this package is loaded, runs the package
+gate, installs a collection through the router, and runs both scripted end-to-end
+assemblies (`tests/skill_router_e2e.py` with `tests/skill_router_e2e_fixture.ts`).
+The image must provide the runtimes the suite declares: Bun 1.4.1 (one registry test
+uses `bun -e`) and a warmed corepack (one lock test shells out to `pnpm exec tsx`
+under a 20-second budget). `tests/docker-acceptance-evidence.md` records the run and
+what those requirements cost when they are missing.
+
+Records kept beside the tests:
+
+- `tests/review-codemode-skill-tools.md` — the review brief, every candidate
+  fingerprint, each finding's disposition, and the mutations that showed the new
+  tests can fail.
+- `tests/terminal-row-evidence.md` — the interactive-terminal check of the tool
+  result row and its scope.
+- `tests/docker-acceptance-evidence.md` — the container acceptance and the runtime
+  requirements it exposed.
+
 ## Structure and Invariants
 
 - **Pure router**: the `pi` manifest declares only `extensions`. No `skills/`
@@ -29,9 +58,40 @@ pnpm --dir packages/skill-router pack --dry-run
   `PI_CODING_AGENT_DIR` or `~/.pi/agent`.
 - **Exposure & Routing**: only the collection gateway skill is exposed to Pi's
   `resources_discover` hook, so sub-skills never clutter the `/` command menu.
-  Sub-skills retain natural upstream names without prefixes; the router suggests
-  the exact file path in `before_agent_start`. Explicit `/skill:<name>` and
-  expanded `<skill name="...">` invocations are never rerouted.
+  Sub-skills retain natural upstream names without prefixes. Explicit
+  `/skill:<name>` and expanded `<skill name="...">` invocations are never
+  rerouted.
+- **Tools Channel**: every routed leaf skill of an enabled collection is
+  registered as one codemode tool, named `skill_router__<collection>__<skill>`
+  with every character outside `[A-Za-z0-9_]` replaced by `_`, grouped in one
+  namespace per collection aliased to the collection id. Its searchable text is
+  the workflow summary followed by the upstream description without repeating
+  one inside the other; the namespace description is the capability summary and
+  its `instructions` is the gateway body. Registration happens when the extension
+  loads and again after every `/skill-router` mutation, and never for a disabled
+  collection. Pi cannot unregister a tool, so a refresh withdraws the names a
+  registry change removed by re-registering them with `hidden` exposure.
+- **Channel Selection**: `before_agent_start` resolves the route first and then
+  adds the routing suggestion unless that one skill's tool is reachable: codemode
+  is active, answers a discovery script by naming that tool, and the tool named
+  `skill_router__<collection>__<skill>` is in `pi.getAllTools()`. The registry
+  check is load-bearing: `--tools` and `--exclude-tools` filter an extension tool
+  out of the registry before codemode can see it, so "codemode is active" alone
+  does not make a skill tool reachable. The check stays per skill, because a
+  surviving sibling tool must not stand in for a removed one, and a collection
+  installed by another process has no tool until `/reload`. The router never
+  calls `setActiveTools`.
+- **Call Safety**: a call re-resolves its collection from the registry and reads
+  the materialized leaf only when it resolves inside the real router root and the
+  real `exposed` directory, as a regular file opened with `O_NOFOLLOW` and
+  re-checked on its descriptor against the device and inode that were validated;
+  a removed collection, a missing leaf, or a symlinked instruction file refuses
+  with `isError` and structured content instead of serving content. One call
+  returns at most `MAX_SKILL_BODY_CHARS` characters of instructions, followed by a
+  note naming the file that holds the rest.
+- **Gateway Body**: each workflow line carries the summary, the skill tool name,
+  and the relative leaf path, so a hand-invoked gateway works in either codemode
+  state.
 - **Atomicity**: materialization builds a temporary directory and renames it;
   failures leave no partial exposed directory and do not touch the registry.
 - Lock acquisition must remain asynchronous and cancellable. Await all mutation

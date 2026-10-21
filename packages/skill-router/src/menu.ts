@@ -19,7 +19,15 @@ import {
   type UpstreamSkill,
 } from "./sync";
 
-const RELOAD_HINT = "Run /reload (or restart pi) to apply skill changes.";
+/** Collection changes apply to the tools channel at once; the gateway command and
+ * the prompt's skill list come from Pi's resource discovery, which only runs on
+ * startup and reload. */
+const RELOAD_HINT = "Skill tools updated; run /reload (or restart pi) to refresh the gateway command.";
+
+/** What the menu needs from the extension to keep the tools channel current. */
+export interface SkillRouterHooks {
+  refreshTools: () => void;
+}
 
 function reportOperationError(ctx: ExtensionCommandContext, label: string, error: unknown): void {
   if (error instanceof Error && error.name === "AbortError") {
@@ -114,7 +122,7 @@ async function pickSkills(ctx: ExtensionCommandContext, skills: UpstreamSkill[])
   return selected.length > 0 ? selected : undefined;
 }
 
-async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
+async function addFlow(ctx: ExtensionCommandContext, hooks: SkillRouterHooks): Promise<void> {
   const root = routerRoot();
   const repo = await ctx.ui.input("Add collection", "owner/repo[@ref], GitHub URL, or local path");
   if (!repo) return;
@@ -166,6 +174,7 @@ async function addFlow(ctx: ExtensionCommandContext): Promise<void> {
       `Installing ${repo}...`,
       (signal) => addCollection(root, { repo, id, description, skills: selection, summaries }, signal),
     );
+    hooks.refreshTools();
     notifyPi(ctx.ui, `Installed "${result.id}" with ${result.skills.length} skills. ${RELOAD_HINT}`, "info");
   } catch (error) {
     reportOperationError(ctx, "Failed to install collection", error);
@@ -186,7 +195,7 @@ async function pickCollection(ctx: ExtensionCommandContext, action: string) {
   return collections.find((collection) => choice.startsWith(`${collection.id} (`));
 }
 
-async function selectionFlow(ctx: ExtensionCommandContext): Promise<void> {
+async function selectionFlow(ctx: ExtensionCommandContext, hooks: SkillRouterHooks): Promise<void> {
   const collection = await pickCollection(ctx, "Change routed skills");
   if (!collection) return;
   try {
@@ -209,13 +218,14 @@ async function selectionFlow(ctx: ExtensionCommandContext): Promise<void> {
     if (selected.size === collection.routes.length) return;
     const result = await runWithLoading(ctx, `Changing ${collection.id} skills...`,
       (signal) => updateCollectionSelection(routerRoot(), collection.id, [...selected], signal));
+    hooks.refreshTools();
     notifyPi(ctx.ui, `Updated "${result.id}" with ${result.selected.length} routed skills. ${RELOAD_HINT}`, "info");
   } catch (error) {
     reportOperationError(ctx, "Selection update failed", error);
   }
 }
 
-async function descriptionFlow(ctx: ExtensionCommandContext): Promise<void> {
+async function descriptionFlow(ctx: ExtensionCommandContext, hooks: SkillRouterHooks): Promise<void> {
   const collection = await pickCollection(ctx, "Edit capability summary");
   if (!collection) return;
   const description = await ctx.ui.input("Collection capability summary", collection.description);
@@ -223,13 +233,14 @@ async function descriptionFlow(ctx: ExtensionCommandContext): Promise<void> {
   try {
     await runWithLoading(ctx, `Updating ${collection.id} summary...`,
       (signal) => updateCollectionDescription(routerRoot(), collection.id, description, signal));
+    hooks.refreshTools();
     notifyPi(ctx.ui, `Updated "${collection.id}" capability summary. ${RELOAD_HINT}`, "info");
   } catch (error) {
     reportOperationError(ctx, "Capability summary update failed", error);
   }
 }
 
-async function updateFlow(ctx: ExtensionCommandContext): Promise<void> {
+async function updateFlow(ctx: ExtensionCommandContext, hooks: SkillRouterHooks): Promise<void> {
   const collection = await pickCollection(ctx, "Update collection");
   if (!collection) return;
   try {
@@ -238,6 +249,7 @@ async function updateFlow(ctx: ExtensionCommandContext): Promise<void> {
       `Updating ${collection.id}...`,
       (signal) => updateCollection(routerRoot(), collection.id, signal),
     );
+    hooks.refreshTools();
     const notes = [`Updated "${result.id}": ${result.kept.length} skills re-materialized.`];
     if (result.dropped.length > 0) notes.push(`Removed upstream: ${result.dropped.join(", ")}.`);
     if (result.newUpstream.length > 0) notes.push(`New upstream skills not routed: ${result.newUpstream.join(", ")}.`);
@@ -247,7 +259,7 @@ async function updateFlow(ctx: ExtensionCommandContext): Promise<void> {
   }
 }
 
-async function removeFlow(ctx: ExtensionCommandContext): Promise<void> {
+async function removeFlow(ctx: ExtensionCommandContext, hooks: SkillRouterHooks): Promise<void> {
   const collection = await pickCollection(ctx, "Remove collection");
   if (!collection) return;
   const confirmed = await ctx.ui.confirm("Remove collection", `Remove "${collection.id}" and its exposed skills? The cached clone is kept.`);
@@ -255,18 +267,20 @@ async function removeFlow(ctx: ExtensionCommandContext): Promise<void> {
   try {
     await runWithLoading(ctx, `Removing ${collection.id}...`,
       (signal) => removeCollection(routerRoot(), collection.id, signal));
+    hooks.refreshTools();
     notifyPi(ctx.ui, `Removed "${collection.id}". ${RELOAD_HINT}`, "info");
   } catch (error) {
     reportOperationError(ctx, "Remove failed", error);
   }
 }
 
-async function toggleFlow(ctx: ExtensionCommandContext): Promise<void> {
+async function toggleFlow(ctx: ExtensionCommandContext, hooks: SkillRouterHooks): Promise<void> {
   const collection = await pickCollection(ctx, "Enable/disable collection");
   if (!collection) return;
   try {
     const updated = await runWithLoading(ctx, `Updating ${collection.id}...`,
       (signal) => setCollectionEnabled(routerRoot(), collection.id, !collection.enabled, signal));
+    hooks.refreshTools();
     notifyPi(ctx.ui, `"${updated.id}" is now ${updated.enabled ? "enabled" : "disabled"}. ${RELOAD_HINT}`, "info");
   } catch (error) {
     reportOperationError(ctx, "Enable/disable failed", error);
@@ -288,7 +302,7 @@ async function listFlow(ctx: ExtensionCommandContext): Promise<void> {
   );
 }
 
-export async function showSkillRouterMenu(ctx: ExtensionCommandContext): Promise<void> {
+export async function showSkillRouterMenu(ctx: ExtensionCommandContext, hooks: SkillRouterHooks): Promise<void> {
   for (;;) {
     const action = await ctx.ui.select("Skill Router", [
       "Add collection",
@@ -300,12 +314,12 @@ export async function showSkillRouterMenu(ctx: ExtensionCommandContext): Promise
       "List collections",
     ]);
     if (action === undefined) return;
-    if (action === "Add collection") await addFlow(ctx);
-    else if (action === "Update collection") await updateFlow(ctx);
-    else if (action === "Change routed skills") await selectionFlow(ctx);
-    else if (action === "Edit capability summary") await descriptionFlow(ctx);
-    else if (action === "Remove collection") await removeFlow(ctx);
-    else if (action === "Enable/disable collection") await toggleFlow(ctx);
+    if (action === "Add collection") await addFlow(ctx, hooks);
+    else if (action === "Update collection") await updateFlow(ctx, hooks);
+    else if (action === "Change routed skills") await selectionFlow(ctx, hooks);
+    else if (action === "Edit capability summary") await descriptionFlow(ctx, hooks);
+    else if (action === "Remove collection") await removeFlow(ctx, hooks);
+    else if (action === "Enable/disable collection") await toggleFlow(ctx, hooks);
     else await listFlow(ctx);
   }
 }

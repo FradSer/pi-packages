@@ -17,7 +17,7 @@ import {
 } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { cacheDir, exposedDir, gatewayDir, leafSkillFile, legacyExposedDir } from "./paths";
+import { cacheDir, exposedDir, gatewayDir, leafSkillFile, legacyExposedDir, skillToolName } from "./paths";
 import { isCollectionId, isSafeGitRef, isSlug, loadCollections, saveCollections, type RegistryCollection, type RegistryRoute } from "./registry";
 
 export interface RepoSpec {
@@ -343,7 +343,7 @@ function gatewayContent(root: string, collection: RegistryCollection, leaves: Up
   const gateway = gatewayDir(root, collection.id, collection.gateway);
   const workflows = leaves.map((skill) => [
     `- \`${skill.name}\` — ${collection.routes.find((route) => route.skill === skill.name)?.summary ?? fallbackWorkflowSummary(skill.description)}`,
-    `  Read \`${relative(gateway, leafSkillFile(root, collection.id, skill.name))}\` before applying this workflow.`,
+    `  Tool \`${skillToolName(collection.id, skill.name)}\`, file \`${relative(gateway, leafSkillFile(root, collection.id, skill.name))}\`.`,
   ]).flat();
 
   return [
@@ -354,7 +354,7 @@ function gatewayContent(root: string, collection: RegistryCollection, leaves: Up
     "",
     "## Available workflows",
     "",
-    "Select the one workflow that best fits the user's request, then read its SKILL.md before proceeding.",
+    "Select the one workflow that best fits the user's request, call its tool, and follow the returned instructions. The listed file holds the same instructions and resolves the workflow's own files.",
     "",
     ...workflows,
     "",

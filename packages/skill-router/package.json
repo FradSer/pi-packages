@@ -10,6 +10,7 @@
   ],
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/FradSer/pi-packages.git"
@@ -26,7 +27,8 @@
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*"
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   },
   "pi": {
     "extensions": [

@@ -234,7 +234,7 @@ pi install npm:@fradser/pi-recap
 
 ### [`pi-skill-router`](packages/skill-router/)
 
-路由到外部托管的 skill 集合：通过 `/skill-router` 菜单添加 GitHub skill 仓库，将所选 skill 挂载在模型可见的网关之后。包本身不直接附带 skill 内容。
+路由到外部托管的 skill 集合：通过 `/skill-router` 菜单添加 GitHub skill 仓库，将所选 skill 挂载在模型可见的网关之后，并把每个已路由的 skill 注册为 codemode 工具，由模型搜索后调用。包本身不直接附带 skill 内容。
 
 **命令：** `/skill-router`
 
