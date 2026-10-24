@@ -424,3 +424,35 @@ def test_current_maintenance_action_is_separate_review_context_never_factual_or_
     assert value['held']['decision'] == 'propose'
     assert value['invalid']['decision'] == 'propose' and value['invalid']['telemetry']['reason'] == 'invalid-response'
     assert value['invalidCalls'] == 0
+
+
+def test_memory_command_phase_preserves_source_entries_and_rejects_unbound_capture(tmp_path):
+    value=isolated_run_bun(r'''
+      import {captureMemoryCommandPhase,captureConsolidationSnapshot,resolveConsolidationRunPaths,readCurrentMemoryCommandPhase,sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {manualMemoryTaskSlice} from './packages/continual-learning/extensions/learning-input.ts';
+      import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
+      const cwd=await fs.mkdtemp(path.join(os.tmpdir(),'memory-phase-'));
+      try {
+        const prefix=[{role:'user',content:'Change only examples. Do not edit Memory directly. Never remember temporary tokens.'}];
+        const task=manualMemoryTaskSlice('organize memory',prefix);
+        const ctx={cwd,sessionManager:{getSessionId:()=> 'session',getBranch:()=>task.entries}};
+        const phase=captureMemoryCommandPhase(ctx,'organize memory',task);
+        const entries=[...task.entries,{role:'toolResult',content:'Fresh source audit'}];
+        const frozen={cwd,sessionManager:{getBranch:()=>entries}};
+        const first=await captureConsolidationSnapshot(frozen,resolveConsolidationRunPaths(cwd,'run_one'),undefined,undefined,phase);
+        const second=await captureConsolidationSnapshot(frozen,resolveConsolidationRunPaths(cwd,'run_two'),undefined,undefined,phase);
+        const plain=await captureConsolidationSnapshot(frozen,resolveConsolidationRunPaths(cwd,'run_plain'));
+        let fakeRejected=false,changedRejected=false,unknownRejected=false;
+        try {await captureConsolidationSnapshot(frozen,resolveConsolidationRunPaths(cwd,'run_fake'),undefined,undefined,JSON.parse(JSON.stringify(phase)));}catch{fakeRejected=true;}
+        try {await captureConsolidationSnapshot({sessionManager:{getBranch:()=>[{role:'user',content:'changed'},...entries.slice(1)]}},resolveConsolidationRunPaths(cwd,'run_changed'),undefined,undefined,phase);}catch{changedRejected=true;}
+        try {readCurrentMemoryCommandPhase({...first.snapshot,currentMemoryCommandPhase:{...first.snapshot.currentMemoryCommandPhase,extra:true}});}catch{unknownRejected=true;}
+        console.log(JSON.stringify({entries,first:first.snapshot,second:second.snapshot,plain:plain.snapshot,phase:readCurrentMemoryCommandPhase(first.snapshot),fakeRejected,changedRejected,unknownRejected}));
+      } finally {await fs.rm(cwd,{recursive:true,force:true});}
+    ''')
+    assert value['first']['entries']==value['entries']==value['second']['entries']
+    assert value['phase']['origin']=='current-handler' and value['phase']['requestEntryIndex']==1
+    assert value['first']['currentMemoryCommandPhase']['runId']=='run_one'
+    assert value['second']['currentMemoryCommandPhase']['runId']=='run_two'
+    assert value['first']['currentMemoryCommandPhase']['invocationId']==value['second']['currentMemoryCommandPhase']['invocationId']
+    assert 'currentMemoryCommandPhase' not in value['plain']
+    assert value['fakeRejected'] and value['changedRejected'] and value['unknownRejected']

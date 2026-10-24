@@ -578,13 +578,14 @@ Feature: Learn, use, correct and recover across real tasks
     And the complete original patch and unchanged semantic gates remain available
 
   Scenario: A no-tool correction worker constrains known-capable model output on the wire
-    Given an isolated no-tool correction worker using documented Qwen3.8-Flash OpenAI completions
+    Given an isolated no-tool correction worker using documented Qwen3.8-Flash or DeepSeek OpenAI completions
     And its gateway has explicit plannerJsonOutput capability opt-in
     When it sends a request for a JSON plan
     Then request JSON object output at the provider boundary
     And preserve the messages, model, reasoning configuration and all parent validation
     And leave other APIs, unknown models, inspection workers and existing output constraints unchanged
     And a text tool-call imitation is still rejected rather than executed or salvaged
+    And DeepSeek JSON syntax support does not enable Qwen-only strict JSON Schema output
 
   Scenario: Passing code checks do not hide an aborted task from failure learning
     Given both study arms use the same tool budget and a task exhausts that budget
@@ -898,6 +899,9 @@ Feature: Learn, use, correct and recover across real tasks
     And it preserves unrelated knowledge and conditions
     And each citation is necessary for a specific proposed claim or mutation
     And all original evidence still receives semantic review
+    And a task-reporting request alone does not create a durable Memory storage obligation
+    And coverage preserves material applicability conditions without expanding every referenced type or member
+    And an observed failure distinguishes completed callbacks from unfinished work and later cleanup
 
   Scenario: A later review failure preserves bound correction feedback without partial admission
     Given an immutable Memory mutation plan and complete original evidence
@@ -907,6 +911,9 @@ Feature: Learn, use, correct and recover across real tasks
     And only digest-bound held fields may enter the existing single semantic correction slot
     And the corrected entire plan requires fresh complete review before any write
     And no passed field, subset admission or partial-review application proof is inferred
+    And an original check held by its coverage conjunction is labelled with its separate original-check, coverage and joint bounds
+    And correction feedback does not present that held conjunction as an intrinsic source failure
+    And the label does not approve any field or change correction scope, thresholds or mutation authority
 
   Scenario: Both correction shapes receive parent-bound consistency requirements
     Given incomplete review confirms a candidate body contradiction at the original thresholds
@@ -985,8 +992,10 @@ Feature: Learn, use, correct and recover across real tasks
     And it verifies the same regular non-symlink source still contains those bytes
     And changed source, foreign paths, Memory readbacks and fabricated or failed reads are rejected
     And existing identity, privacy, citation, consistency and complete semantic checks still gate every write
-    And generation uses the existing complete content format when evidenced purpose or applicability must accompany the declaration
-    And that format retains exact source with concise supported Why and How to apply sections
+    And generation uses the existing complete content format when evidenced purpose or applicability must accompany the knowledge
+    And only an inspected declared API contract requires its complete exact declaration inline
+    And behavior and failure observations retain explicit subjects, dependencies and applicable conditions without a required declaration excerpt
+    And that format retains the supported knowledge with concise supported Why and How to apply sections
     And no purpose, currentness guarantee or runtime behavior is invented
 
   Scenario: Bound generation effort independently from full knowledge validation
@@ -1205,6 +1214,15 @@ Feature: Learn, use, correct and recover across real tasks
     And closing admission prevents queued handlers from admitting another request
     And an unconfirmed termination retains its reservation and unknown costs
 
+  Scenario: A confirmed caller reset cancels only its owned study forwarder
+    Given one counted Node forwarding process is waiting for the semantic response
+    When the actual downstream socket reports a connection reset
+    Then stop and reap only that request's owned process within the original total bound
+    And retain its admitted count, cancellation status and unknown cost
+    And preserve any complete response and usage that arrived before cancellation
+    And never treat a legal write half-close as cancellation
+    And preserve normal shutdown draining, deadlines and semantic gates
+
   Scenario: A Memory description cannot substitute for its knowledge body
     Given a real proposal contains only discovery frontmatter and whitespace
     When generation, rewrite or apply validates its content
@@ -1330,7 +1348,10 @@ Feature: Learn, use, correct and recover across real tasks
     Given a complete original task and an immutable reviewed snapshot
     And the parent appended only validated read-only current-source observations
     When later same-task failure evidence is processed by explicit backfill
-    Then the original raw task remains an exact unchanged prefix
+    Then it continues the same owned native source session with its verified prior digest
+    And the original raw task remains an exact unchanged prefix
+    And the separate recovery artifact counts only new native usage without inventing a conversation
+    And a missing, refused or changed source session still fails evidence capture
     And the complete prior snapshot remains bound to its parent run manifest
     And every appended read matches the original parent source-audit receipt, usage ledger identity and complete observation log
     And missing, ambiguous or symlinked audit evidence is refused
@@ -1665,6 +1686,13 @@ Feature: Learn, use, correct and recover across real tasks
     When generating or correcting a reusable Memory
     Then distinguish work already queued at the completion check from future continuation work
     And do not turn an instantaneous empty state into a guarantee of future quiescence
+    And align the source claim's subject, execution phase and conditions before reporting a discrepancy
+    And preserve an observed failure without inventing a conflict when that comparison is unestablished
+    And derive material setup values and reached-check conditions from complete evidence before drafting
+    And write supported subject, dependency and reached-state relations in the body
+    And descriptions and citations do not substitute for those body relations
+    And citations for corrected claims cover their added premises rather than only the previous wording
+    And atomic body and citation framing retains the shared knowledge output contract exactly once
     And preserve complete original evidence and every semantic approval gate
 
   Scenario: Fresh continuous studies use the explicitly requested Pi 1.3 runtime
@@ -1732,6 +1760,13 @@ Feature: Learn, use, correct and recover across real tasks
     And the complete corrected plan still requires independent semantic review
     And a null body, changed predecessor, foreign identity or required text change is rejected
     And ordinary new operations still require complete replacement content
+    And a confirmed retained-body contradiction rejects copied bodies and description-only changes
+    And required body changes compare against the frozen predecessor, not only the original delta
+    And boundary whitespace or line-ending changes do not count as body correction
+    And comparison preserves stored Markdown, internal spacing and every attempt cost
+    And an admitted description-and-evidence patch changes only that frontmatter scalar
+    And its body bytes remain exact before the full independent corrected-plan review
+    And an unadmitted description or competing content field is rejected
     And successful framing alone does not establish corrected knowledge or learning benefit
 
   Scenario: Fresh source does not hide an acknowledged failed task
@@ -1763,3 +1798,89 @@ Feature: Learn, use, correct and recover across real tasks
     And duplicate identities with different evidence stop accounting
     And exact totals use the parent's ordered JavaScript Number additions
     And a one-ULP change to a reported total still stops accounting
+    And retained latest, canonical batch, legacy and replay receipt views share exact batch deduplication
+
+  Scenario: A separate automatic policy task preserves command-initialized Memory
+    Given a completed actual Memory command and its processing-only source closure
+    When a distinct original user policy task creates an automatic Harness rule
+    Then bind the exact native user branch and no-tools invocation to its receipt
+    And bind the production task projection, worker ledger and snapshot to the applied rule
+    And preserve prior Memory revisions, physical history, receipts and costs
+    And require the rule to have a new consolidation-owned revision
+    And grant no mutation authority or learning benefit from this provenance proof
+
+  Scenario: A held initial Memory command retains evidence without an applied proof
+    Given the complete native command returns only held Memory proposals
+    When the continuous study captures its actual artifacts
+    Then retain its receipts, history, worker usage and original failed outcomes
+    And provide no applied Memory proof or dependent closure, policy or later task
+    And any initialization exception invalidates the stage and every existing arm for paired attribution
+    And a malformed origin or ambiguous applied receipt remains an error
+
+  Scenario: A rejected reviewer citation retains its source location for existing correction
+    Given a complete retained coverage response cites an unbindable original source line
+    And a separate original source or body review admits the existing correction attempt
+    When the parent prepares that correction
+    Then retain the rejected response and its bounded source selector
+    And identify it as a reviewer citation error rather than an established candidate defect
+    And keep the coverage account invalid without prior context or mutation proof
+    And require every original source, body and coverage gate after correction
+    And add no review retry, correction attempt or protected field permission
+    And feedback delivery alone does not establish corrected knowledge or later task benefit
+
+  Scenario: A settled public-source control hold preserves the independent initial learner
+    Given two fresh isolated containers have the same initial source task
+    And prospective explicit initialization observes the learner first with unchanged gates
+    And the control settles normally with an unchanged source and a held safe-choice audit
+    And its complete tool trajectory uses only recognized public-source inspection actions
+    And fixed-root metadata listing permits only nonrecursive short display flags
+    And recursive listing, symlink following and other directory targets are refused
+    And read-only inspection atoms may be joined with logical AND only if every atom is recognized
+    And verification commands remain standalone and unsafe or unknown chain operands are refused
+    When explicit command initialization evaluates the initial arms
+    Then retain the control hold and skip its dependent policy task
+    And run the independent learner under its own unchanged gates and source
+    And mark both arms and the stage invalid for paired attribution
+    And keep all five later tasks blocked even if the learner stores valid knowledge
+    And stop the whole cohort on missing evidence or a hard safety anomaly
+    And preserve every failed call, cost and original semantic verdict
+    And report the learner as no longer pending if it already ran
+    And preserve order effects and shared-budget exhaustion without crediting an absent control
+
+  Scenario: An unavailable initial control audit stops before the independent learner
+    Given the automatic failure-learning study has retained the complete control result and costs
+    And its source-safety audit is unavailable or has no valid safe-choice judgment
+    When the initial control arm settles
+    Then mark that arm and the stage invalid for paired attribution
+    And stop before starting the independent learner or any later task
+    And retain all original evidence, failed calls and known or unknown costs
+    And preserve the separate normally settled public-source safe-choice hold exception
+
+  Scenario: Initial paired source tasks cannot discover configuration or learning artifacts
+    Given both arms have the same frozen public-source inventory
+    When their initial read-only task requests a native tool
+    Then the parent permits only declared public-file reads and the two exact standalone checks
+    And it advertises the same authority on the actual provider request
+    And it blocks environment discovery, other commands and writes before execution
+    And rejected attempts and all their costs remain in the original task outcome
+    And later source, safety and learning gates are not relaxed by this boundary
+
+  Scenario: Initial source capabilities agree in native context and model transport
+    Given identical declared public files and standalone verification commands in both arms
+    When Pi registers the initial source tools and sends an OpenAI-compatible request
+    Then native read and Bash definitions advertise the same bounded parameters and descriptions as the request
+    And invalid arguments fail before native execution
+    And the independent execution guard still refuses undeclared tools
+    And later ordinary tasks retain their original tool definitions
+    And every rejected call remains part of the original failed task evidence
+
+  Scenario: A schema refusal has a native source and execution attribution
+    Given a fresh cohort binds the actual Pi validation implementation and initial tool definitions
+    And the complete original session retains a rejected public read-only command
+    When the parent establishes that only the command enum rejected its exact arguments before execution
+    Then retain the original error, task failure, semantic hold and all costs
+    And expose the actual tool boundary and bound no-execution fact to the existing safety review
+    And permit only the separate initial learner exception under every other original prerequisite
+    And keep paired attribution and all five later tasks blocked by the control hold
+    And stop on missing or conflicting provenance, runtime errors, private reads, mutations or unknown commands
+    And do not apply this prospective attribution to historical cohorts

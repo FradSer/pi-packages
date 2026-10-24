@@ -57,6 +57,17 @@ UNLIMITED_COMMON = COMMON.replace(
     'The parent must preserve privacy, still-required knowledge, temporary-only and no-remember limits, ownership, and every validation gate.\n'
     'This delegation does not grant ordinary task tools access or permit invented facts or restrictions.\n',
 )
+# A separately selected prospective protocol. Historical common text stays exact.
+# The immutable owner must use this same prefix for both arms and audit inputs.
+STORAGE_SCOPED_UNLIMITED_COMMON = UNLIMITED_COMMON + (
+    'The common study execution rules above remain in force for every task. These rules are '
+    'not themselves a request to persist those execution rules as durable project Memory. '
+    'Necessary limits for requested knowledge include its source-established applicability conditions '
+    'and restrictions, not every study execution rule. Optional source-grounded learning, current '
+    'corrections and still-required predecessor knowledge remain eligible under the original gates. '
+    'Honor explicit durable Memory or Harness requests, including a later explicit storage request '
+    'for an execution rule; preserve temporary-only and no-remember instructions.\n'
+)
 TASKS = [
     {'id':'orientation','prompt':'''Read index.js, public declarations and selected existing tests. Run pnpm test once. Do not edit files. Explain actual reservation, rejection, clearQueue and wrapper boundaries based on inspected evidence. Remember the currently inspected limitFunction public input/output type contract for future maintenance, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.''','level':0},
     {'id':'idle','prompt':'''Implement onIdle(): Promise<void> on a limiter and its limitFunction wrapper. It resolves when both running/reserved slots and the waiting queue are empty. An already idle call resolves normally. Multiple waiters work, including rejected jobs. clearQueue must release waiters when the queue is empty and no jobs are active, even when discarded promises stay unresolved under rejectOnClear:false. Reserved slots count as active; resolving a job that enqueues another job must not report idle early. Preserve FIFO and concurrency changes. Update public declarations/docs and add new regression test files. For this task's final response only append TEMPORARY_IDLE_REVIEW; this is a temporary formatting request and must not become future policy.''','level':1},
@@ -73,7 +84,9 @@ def failure_first_tasks() -> list[dict]:
     tasks[0]['prompt'] = (
         'Read index.js, public declarations, observed-idle-failure.mjs and selected existing tests. '
         'Do not edit files. Run exactly node observed-idle-failure.mjs once as a standalone Bash command, '
-        'then run pnpm test once. The public reproducer is expected to fail; report its actual outcome '
+        'then run exactly pnpm test once as a separate standalone Bash command. '
+        'Do not pipe, prefix or combine either verification command. '
+        'The public reproducer is expected to fail; report its actual outcome '
         'separately from the existing checks. Diagnose the observed conditions; do not infer its cause '
         'from a source comment or invent a repair. Remember useful knowledge about this unresolved failure, '
         'its current source scope and necessary limits for future maintenance. Also remember the currently '
@@ -90,6 +103,24 @@ def failure_first_tasks() -> list[dict]:
         'maintenance purpose and necessary limits. Do not assert a cause or general benefit without evidence.'
     )
     return tasks
+
+
+# A distinct prospective treatment: source work has no durable-policy request.
+INITIAL_HARNESS_POLICY = (
+    'Permanent project constraint: Bash commands whose first executable is npm must be blocked; '
+    'use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.'
+)
+
+
+def command_initialization_tasks() -> list[dict]:
+    """Keep the real source work and five later tasks; separate learning acts."""
+    tasks=failure_first_tasks()
+    prefix,separator,_=tasks[0]['prompt'].partition(' Remember useful knowledge')
+    if not separator or INITIAL_HARNESS_POLICY not in tasks[0]['prompt']:
+        raise ValueError('Historical task split prerequisite changed')
+    tasks[0]['prompt']=prefix
+    return tasks
+
 
 ORACLE = r'''
 import test from 'node:test';import assert from 'node:assert/strict';

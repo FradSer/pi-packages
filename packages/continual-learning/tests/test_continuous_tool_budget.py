@@ -1,4 +1,5 @@
 from support import run_bun
+import pytest
 
 
 def test_real_pi_keeps_learning_credentials_out_of_bash_without_disabling_parent_review(tmp_path) -> None:
@@ -194,7 +195,8 @@ def test_removed_budget_sets_explicit_no_tool_choice_only_on_empty_openai_reques
     assert value.get('conflicting') is None
 
 
-def test_actual_pi_verifier_wire_declares_exact_full_read_and_rejects_a_foreign_call(tmp_path) -> None:
+@pytest.mark.parametrize("boundary", ["verifier", "initial-source"])
+def test_actual_pi_verifier_wire_declares_exact_full_read_and_rejects_a_foreign_call(tmp_path, boundary) -> None:
     import json
     import subprocess
     import threading
@@ -208,6 +210,7 @@ def test_actual_pi_verifier_wire_declares_exact_full_read_and_rejects_a_foreign_
     verifier.write_text('{"observed":true}\n')
     outside = project/'unrelated.txt'
     outside.write_text('foreign content must not be read')
+    (project/'index.js').write_text('{"observed":true}\n')
     requests = []
 
     class Provider(BaseHTTPRequestHandler):
@@ -219,7 +222,7 @@ def test_actual_pi_verifier_wire_declares_exact_full_read_and_rejects_a_foreign_
             requests.append(body)
             call = len(requests)
             if call <= 2:
-                target = str(outside if call == 1 else verifier)
+                target = str(outside) if call == 1 else ('index.js' if boundary == 'initial-source' else str(verifier))
                 delta = {'tool_calls': [{'index': 0, 'id': f'read-{call}', 'type': 'function',
                          'function': {'name': 'read', 'arguments': json.dumps({'path': target})}}]}
                 finish = 'tool_calls'
@@ -246,11 +249,14 @@ def test_actual_pi_verifier_wire_declares_exact_full_read_and_rejects_a_foreign_
         'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}]}}}))
     session = tmp_path/'session.jsonl'
     command = [workspace_pi(REPO), '--offline', '--no-extensions', '--no-context-files', '--no-skills',
-               '--no-prompt-templates', '--no-themes', '--no-approve', '--thinking', 'off', '--tools', 'read',
-               '-e', str(Path(__file__).with_name('continuous-tool-budget.ts')), '--model', 'fixture/fixed',
+               '--no-prompt-templates', '--no-themes', '--no-approve', '--thinking', 'off', '--tools', 'read,bash' if boundary == 'initial-source' else 'read',
+               '-e', str(Path(__file__).with_name('continuous-bash-environment.ts' if boundary == 'initial-source' else 'continuous-tool-budget.ts')), '--model', 'fixture/fixed',
                '--session', str(session), '--print', '--mode', 'json', 'continue']
     env = isolated_environment(tmp_path, agent)
-    env.update(PI_STUDY_TASK_TOOL_LIMIT='1', PI_STUDY_VERIFIER_FILE=str(verifier))
+    if boundary == 'initial-source':
+        env['PI_STUDY_INITIAL_SOURCE_FILES'] = json.dumps(['index.js'])
+    else:
+        env.update(PI_STUDY_TASK_TOOL_LIMIT='1', PI_STUDY_VERIFIER_FILE=str(verifier))
     try:
         result = subprocess.run(command, cwd=project, env=env, capture_output=True, timeout=15)
     finally:
@@ -258,13 +264,26 @@ def test_actual_pi_verifier_wire_declares_exact_full_read_and_rejects_a_foreign_
     assert result.returncode == 0, result.stderr.decode()
     assert len(requests) == 3
     for body in requests[:2]:
+        if boundary == 'initial-source':
+            tools = {t['function']['name']: t['function'] for t in body['tools']}
+            assert set(tools) == {'read', 'bash'}
+            assert tools['bash']['parameters']['properties']['command']['enum'] == ['node observed-idle-failure.mjs', 'pnpm test']
+            assert tools['read']['parameters']['properties']['path']['enum'] == ['index.js', '/work/p-limit/index.js']
+            assert 'verification commands' in tools['bash']['description']
+            assert 'declared public project file' in tools['read']['description']
+            continue
         assert len(body['tools']) == 1
         parameters = body['tools'][0]['function']['parameters']
         assert parameters['properties']['path']['enum'] == [str(verifier)]
         assert set(parameters['properties']) == {'path'}
         assert parameters['required'] == ['path'] and parameters['additionalProperties'] is False
-    assert requests[-1].get('tools', []) == [] and requests[-1]['tool_choice'] == 'none'
+    if boundary == 'verifier':
+        assert requests[-1].get('tools', []) == [] and requests[-1]['tool_choice'] == 'none'
     rows = [json.loads(line) for line in session.read_text().splitlines()]
+    if boundary == 'initial-source':
+        definitions = {t['name']: t for row in rows for t in row.get('message', {}).get('toolsAdded', [])}
+        wire = {t['function']['name']: t['function'] for t in requests[0]['tools']}
+        assert all(definitions[name]['description'] == wire[name]['description'] and definitions[name]['parameters'] == wire[name]['parameters'] for name in ('read', 'bash'))
     results = [row['message'] for row in rows if row.get('message', {}).get('role') == 'toolResult']
     assert len(results) == 2 and results[0]['isError'] is True and results[1]['isError'] is False
     assert all('foreign content must not be read' not in json.dumps(body) for body in requests)
@@ -355,3 +374,92 @@ def test_real_pi_unlimited_task_keeps_tools_after_eighteen_results(tmp_path) -> 
     assert len(results) == 20 and all(r.get('isError') is False for r in results)
     assert all((project/f'result-{i}').read_text()=='observed' for i in range(1,21))
     assert not any(r.get('customType')=='continuous-study-tool-budget' for r in rows)
+
+
+def test_initial_source_boundary_blocks_environment_and_artifact_discovery() -> None:
+    """Given V121 metadata discovery, When requested, Then parent blocks before execution in both arms."""
+    value = run_bun(r'''
+      import {installInitialSourceBoundary} from './packages/continual-learning/tests/continuous-bash-environment.ts';
+      const handlers={},entries=[];
+      installInitialSourceBoundary({on:(n,f)=>handlers[n]=f,appendEntry:(n,d)=>entries.push({n,d})},['index.js','observed-idle-failure.mjs','package.json']);
+      const call=(toolName,input)=>handlers.tool_call({toolName,input,toolCallId:'x'});
+      const allowed=[call('read',{path:'index.js'}),call('read',{path:'/work/p-limit/index.js',offset:1,limit:10}),call('bash',{command:'pnpm test'}),call('bash',{command:'node observed-idle-failure.mjs'})];
+      const denied=[call('bash',{command:"env | grep -iE 'memory|harness|plugin|PI_' | sed 's/=.*/=<set>/'"}),call('bash',{command:'ls -a /work/p-limit'}),call('bash',{command:'pnpm test; env'}),call('read',{path:'/home/node/agent/settings.json'}),call('read',{path:'.memory/MEMORY.md'}),call('read',{path:'./index.js'}),call('write',{path:'index.js',content:'changed'})];
+      const payload={messages:[],tools:[{type:'function',function:{name:'bash',parameters:{}}},{type:'function',function:{name:'read',parameters:{}}}]};
+      const wire=handlers.before_provider_request({payload},{model:{api:'openai-completions'}});
+      console.log(JSON.stringify({allowed:allowed.map(x=>x??null),denied,entries,wire}));
+    ''')
+    assert value['allowed'] == [None]*4
+    assert all(row['block'] for row in value['denied'])
+    assert len(value['entries']) == 7
+    schemas = {row['function']['name']: row['function']['parameters'] for row in value['wire']['tools']}
+    assert schemas['bash']['properties']['command']['enum'] == ['node observed-idle-failure.mjs', 'pnpm test']
+    assert '/home/node/agent/settings.json' not in schemas['read']['properties']['path']['enum']
+
+
+@pytest.mark.parametrize('public_only',[False,True])
+def test_real_pi_blocks_initial_source_boundary_before_native_tools(tmp_path,public_only) -> None:
+    import json
+    import subprocess
+    from pathlib import Path
+    from live_acceptance_support import isolated_environment, workspace_pi
+    from support import REPO
+    project, agent = tmp_path/'project', tmp_path/'agent'
+    project.mkdir(); agent.mkdir()
+    (agent/'settings.json').write_text('{"packages":[],"quietStartup":true}')
+    (agent/'private.txt').write_text('PRIVATE_BOUNDARY_SENTINEL')
+    (project/'index.js').write_text('export const publicValue = 1;\n')
+    session = tmp_path/'session.jsonl'
+    command = [workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates',
+               '--no-themes','--no-approve','--thinking','off','--tools','read,bash' if public_only else 'read,bash,write',
+               '-e',str(Path(__file__).with_name('continuous-tool-budget-fixture.ts')),
+               '-e',str(Path(__file__).with_name('continuous-bash-environment.ts')),
+               '--model','study-budget-fixture/deterministic','--session',str(session),'--print','--mode','json','inspect']
+    env = isolated_environment(tmp_path,agent)
+    env.update(STUDY_INITIAL_SOURCE_PROBE='1', PI_STUDY_INITIAL_SOURCE_FILES=json.dumps(['index.js']))
+    if public_only:env['STUDY_INITIAL_SOURCE_PUBLIC_ONLY']='1'
+    process = subprocess.run(command,cwd=project,env=env,capture_output=True,timeout=20)
+    assert process.returncode == 0, process.stderr.decode()
+    rows = [json.loads(line) for line in session.read_text().splitlines()]
+    results = [row['message'] for row in rows if row.get('message',{}).get('role') == 'toolResult']
+    definitions = {tool['name']: tool for row in rows for tool in row.get('message', {}).get('toolsAdded', [])}
+    assert definitions['bash']['parameters']['properties']['command']['enum'] == ['node observed-idle-failure.mjs', 'pnpm test']
+    assert definitions['read']['parameters']['properties']['path']['enum'] == ['index.js', '/work/p-limit/index.js']
+    assert 'verification commands' in definitions['bash']['description']
+    assert 'declared public project file' in definitions['read']['description']
+    assert len(results) == (2 if public_only else 6)
+    assert sum(result['isError'] for result in results) == (1 if public_only else 5)
+    public_grep=next(result for result in results if result['toolCallId']=='public-grep')
+    assert public_grep['isError'] is True and 'validat' in json.dumps(public_grep).lower()
+    assert 'export const publicValue' not in json.dumps(public_grep)
+    # Native schemas refuse even a public grep, plus the three invalid calls before the
+    # execution hook. The extra write is still refused by the existing guard.
+    assert [row['data']['toolCallId'] for row in rows if row.get('customType') == 'continuous-study-source-boundary'] == ([] if public_only else ['mutation'])
+    assert all('validat' in json.dumps(result).lower() for result in results[:1 if public_only else 3])
+    assert 'PRIVATE_BOUNDARY_SENTINEL' not in json.dumps(results)
+    assert 'export const publicValue' in json.dumps(results)
+    assert not (project/'boundary-leak.txt').exists()
+    assert (project/'index.js').read_text() == 'export const publicValue = 1;\n'
+
+
+def test_initial_native_validation_reads_the_actual_executed_cli_chain(monkeypatch) -> None:
+    import json,subprocess
+    from pathlib import Path
+    import live_continuous_project_learning as study
+    from continuous_project_evidence import INITIAL_NATIVE_VALIDATION
+    from support import REPO
+    cli=REPO/'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
+    monkeypatch.setattr(study.base,'PI',str(cli))
+    observed=[]
+    def checked(args):
+        assert args[:3]==['docker','exec','owned-fixture']
+        observed.append(args)
+        return subprocess.run(args[3:],check=True,capture_output=True).stdout
+    monkeypatch.setattr(study.base,'checked',checked)
+    assert study.initial_native_validation('owned-fixture','1.3.0')==INITIAL_NATIVE_VALIDATION
+    assert len(observed)==1
+    with pytest.raises(RuntimeError,match='runtime'):
+        study.initial_native_validation('owned-fixture','1.2.0')
+    monkeypatch.setattr(study.base,'checked',lambda _args:json.dumps({'cli.js':'0'*64}).encode())
+    with pytest.raises(RuntimeError,match='runtime'):
+        study.initial_native_validation('owned-fixture','1.3.0')

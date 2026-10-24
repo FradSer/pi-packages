@@ -9,6 +9,18 @@ import { canonicalProjectCwd, resolveMemoryPaths } from "./memory-paths";
 export const MAX_BACKLOG_BYTES = 4 * 1024 * 1024;
 const MAX_BACKLOG_RECORD_BYTES = 4_096;
 export type BacklogReason = "auto-memory-off" | "screen-found-nothing" | "no-session-reference" | "learning-failed" | "learning-proposed" | "learning-pending";
+export interface ManualMemoryReference {
+  entryId: string;
+  invocationId: string;
+  requestDigest: string;
+}
+export function validManualMemoryReference(value: unknown): value is ManualMemoryReference {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as ManualMemoryReference;
+  return Object.keys(item).length === 3 && typeof item.entryId === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(item.entryId)
+    && typeof item.invocationId === "string" && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(item.invocationId)
+    && typeof item.requestDigest === "string" && /^[a-f0-9]{64}$/.test(item.requestDigest);
+}
 export interface BacklogEntry {
   version: 1;
   sessionFile: string;
@@ -19,10 +31,12 @@ export interface BacklogEntry {
   queuedAt: string;
   /** Absent in older records; bind those only through a session header. */
   scopeKey?: string;
+  manualRequest?: ManualMemoryReference;
 }
 
-export function backlogIdentity(scopeKey: string, entry: Pick<BacklogEntry, "sessionFile" | "from" | "to" | "digest">): string {
-  return createHash("sha256").update(JSON.stringify([scopeKey, entry.sessionFile, entry.from, entry.to, entry.digest])).digest("hex");
+export function backlogIdentity(scopeKey: string, entry: Pick<BacklogEntry, "sessionFile" | "from" | "to" | "digest" | "manualRequest">): string {
+  return createHash("sha256").update(JSON.stringify([scopeKey, entry.sessionFile, entry.from, entry.to, entry.digest,
+    ...(entry.manualRequest ? [[entry.manualRequest.entryId,entry.manualRequest.invocationId,entry.manualRequest.requestDigest]] : [])])).digest("hex");
 }
 
 function acknowledgments(cwd: string, agentDir: string): { file: string; ids: Record<string, string> } {
@@ -159,12 +173,13 @@ function validEntry(value: unknown): value is BacklogEntry {
     && ["auto-memory-off", "screen-found-nothing", "no-session-reference", "learning-failed", "learning-proposed", "learning-pending"].includes(entry.reason)
     && typeof entry.queuedAt === "string" && Number.isFinite(Date.parse(entry.queuedAt))
     && (entry.scopeKey === undefined || (typeof entry.scopeKey === "string" && Buffer.byteLength(entry.scopeKey) <= 240))
-    && Object.keys(entry).every(key => ["version", "sessionFile", "from", "to", "digest", "reason", "queuedAt", "scopeKey"].includes(key));
+    && (entry.manualRequest === undefined || validManualMemoryReference(entry.manualRequest))
+    && Object.keys(entry).every(key => ["version", "sessionFile", "from", "to", "digest", "reason", "queuedAt", "scopeKey", "manualRequest"].includes(key));
 }
 
 /** pi-kit appendJsonlLine has no descriptor-bound no-follow or corpus cap. */
 export function enqueueBacklog(input: {
-  cwd: string; sessionFile?: string; from: number; to: number; digest: string; reason: BacklogReason; agentDir?: string;
+  cwd: string; sessionFile?: string; from: number; to: number; digest: string; reason: BacklogReason; agentDir?: string; manualRequest?: ManualMemoryReference;
 }): boolean {
   if (!input.sessionFile) return false;
   try { return withBacklogLock(input.cwd, input.agentDir, () => appendBacklog(input)); }
@@ -172,7 +187,7 @@ export function enqueueBacklog(input: {
 }
 
 function appendBacklog(input: {
-  cwd: string; sessionFile?: string; from: number; to: number; digest: string; reason: BacklogReason; agentDir?: string;
+  cwd: string; sessionFile?: string; from: number; to: number; digest: string; reason: BacklogReason; agentDir?: string; manualRequest?: ManualMemoryReference;
 }): boolean {
   if (!input.sessionFile) return false;
   let fd: number | undefined;
@@ -181,12 +196,13 @@ function appendBacklog(input: {
     const entry: BacklogEntry = {
       version: 1, sessionFile: input.sessionFile, from: input.from, to: input.to,
       digest: input.digest, reason: input.reason, queuedAt: new Date().toISOString(), scopeKey: paths.scopeKey,
+      ...(input.manualRequest ? {manualRequest:input.manualRequest} : {}),
     };
     if (!validEntry(entry)) return false;
     const prior = readBacklog(input.cwd, input.agentDir);
     if (prior.error) return false;
     if ([...prior.entries, ...prior.unlearnable].some(old => old.scopeKey === entry.scopeKey && old.sessionFile === entry.sessionFile
-      && old.from === entry.from && old.to === entry.to && old.digest === entry.digest)) return true;
+      && backlogIdentity(paths.scopeKey, old) === backlogIdentity(paths.scopeKey, entry))) return true;
     const bytes = Buffer.from(`${JSON.stringify(entry)}\n`);
     if (bytes.length > MAX_BACKLOG_RECORD_BYTES) return false;
     const file = backlogFile(input.cwd, input.agentDir);

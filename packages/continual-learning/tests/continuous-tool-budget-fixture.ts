@@ -4,6 +4,8 @@ import { installStudyToolBudget } from "./continuous-tool-budget.ts";
 
 export default function fixture(pi: ExtensionAPI): void {
   const environmentProbe = process.env.STUDY_BASH_ENVIRONMENT_PROBE === "1";
+  const sourceProbe = process.env.STUDY_INITIAL_SOURCE_PROBE === "1";
+  const sourcePublicOnly = process.env.STUDY_INITIAL_SOURCE_PUBLIC_ONLY === "1";
   if (environmentProbe) {
     pi.on("agent_settled", async () => {
       const {createJevJudge} = await import("../extensions/jev-learning.ts");
@@ -35,7 +37,7 @@ export default function fixture(pi: ExtensionAPI): void {
     pi.on("tool_call", event => {toolObservations.push({role:"assistant",content:[{type:"toolCall",id:event.toolCallId,name:event.toolName,arguments:event.input}]});});
     pi.on("tool_result", event => {toolObservations.push({role:"toolResult",toolCallId:event.toolCallId,toolName:event.toolName,isError:event.isError,content:event.content});});
   }
-  installStudyToolBudget(pi, 2);
+  if (!sourceProbe) installStudyToolBudget(pi, 2);
   let calls = 0;
   pi.registerProvider("study-budget-fixture", {
     api: "study-budget-fixture", baseUrl: "http://127.0.0.1", apiKey: "offline-fixture",
@@ -47,7 +49,15 @@ export default function fixture(pi: ExtensionAPI): void {
       if (environmentProbe && calls === 1) pi.appendEntry("study-bash-environment-wire", {tools:getCurrentTools(context.messages)});
       const message: AssistantMessage = {
         role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(),
-        content: environmentProbe && calls === 1 ? [{type:"toolCall",id:"environment",name:"bash",arguments:{command:"env | grep -i -E 'PI_|MEMORY|PLUGIN' | sort"}}] : calls === 1 || process.env.STUDY_BUDGET_REPEAT_TOOLS === "1" ? (calls === 1 ? ["one", "two", "forbidden"] : ["forbidden"]).map(name => ({
+        content: sourceProbe ? calls === 1 ? [
+          {type:"toolCall",id:"environment",name:"bash",arguments:{command:"env > boundary-leak.txt"}},
+          {type:"toolCall",id:"metadata",name:"bash",arguments:{command:"ls -a /work/p-limit"}},
+          {type:"toolCall",id:"public-grep",name:"bash",arguments:{command:"grep -n public index.js | head -50"}},
+          {type:"toolCall",id:"private",name:"read",arguments:{path:process.env.PI_CODING_AGENT_DIR+"/private.txt"}},
+          {type:"toolCall",id:"mutation",name:"write",arguments:{path:"index.js",content:"changed"}},
+          {type:"toolCall",id:"source",name:"read",arguments:{path:"index.js"}},
+        ].filter(call => !sourcePublicOnly || ["public-grep", "source"].includes(call.id)) : [{type:"text",text:"Summarized permitted source and retained rejected attempts."}]
+        : environmentProbe && calls === 1 ? [{type:"toolCall",id:"environment",name:"bash",arguments:{command:"env | grep -i -E 'PI_|MEMORY|PLUGIN' | sort"}}] : calls === 1 || process.env.STUDY_BUDGET_REPEAT_TOOLS === "1" ? (calls === 1 ? ["one", "two", "forbidden"] : ["forbidden"]).map(name => ({
           type: "toolCall" as const, id: name, name: "bash", arguments: { command: `printf observed > ${name}` },
         })) : [{ type: "text", text: "Summarized existing observations." }],
         stopReason: calls === 1 || process.env.STUDY_BUDGET_REPEAT_TOOLS === "1" ? "toolUse" : "stop",

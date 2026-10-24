@@ -21,8 +21,22 @@ const isAgents = scenario.startsWith("agents-");
 const isManual = scenario.startsWith("manual-");
 const isRemember = scenario.startsWith("remember-");
 const isModelFreeze = scenario === "model-freeze" || scenario === "session-model-freeze";
+const manualReplayProbe = process.env.CL_MANUAL_REPLAY_PROBE;
+let manualReplayObservation: unknown;
+let interruptManualRead: (() => Promise<void>) | undefined;
+let manualReadInterrupted = false;
+let manualBackfillActive = false;
+let emitManualInput: (() => Promise<void>) | undefined;
+let manualWorkerInterrupted = false;
+let manualAbortObserved = false;
+const interruptManualWorker = async (signal?: AbortSignal): Promise<void> => {
+  manualWorkerInterrupted = true;
+  cancellation = emitManualInput?.();
+  await Promise.resolve();
+  manualAbortObserved = signal?.aborted === true;
+};
 const laterAfterMemory = process.env.CL_LATER_AFTER_MEMORY === "1";
-if (isDeleteReconsideration || process.env.CL_MEMORY_PREFIX_FAILURE || isModelFreeze || scenario === "remember-declined" || (process.env.CL_JEV_FIXTURE?.startsWith("retention-") || process.env.CL_JEV_FIXTURE === "structural-retention-mixed-both-fixed" || process.env.CL_JEV_FIXTURE === "subset-retention-fallback")) {
+if (isDeleteReconsideration || ["coverage-real-repair-joint","coverage-real-repair-retained-only","coverage-real-repair-mixed-retained"].includes(process.env.CL_JEV_FIXTURE ?? "") || process.env.CL_JEV_FIXTURE === "coverage-real-proof-io-failure" || process.env.CL_MEMORY_PREFIX_FAILURE || isModelFreeze || scenario === "remember-declined" || (process.env.CL_JEV_FIXTURE?.startsWith("retention-") || process.env.CL_JEV_FIXTURE === "structural-retention-mixed-both-fixed" || process.env.CL_JEV_FIXTURE === "subset-retention-fallback")) {
   // These cases specifically exercise model selection, not empty-index routing.
   fs.mkdirSync(path.join(cwd, ".memory"));
   fs.writeFileSync(path.join(cwd, ".memory", "known.md"), "---\nname: known\ndescription: Existing project knowledge\ntype: project\n---\nExisting knowledge.\n");
@@ -41,7 +55,9 @@ if (process.env.CL_JEV_FIXTURE?.startsWith("subset-name-collision")) {
 }
 fs.writeFileSync(path.join(agent, "memory", "settings.json"), JSON.stringify({ autoMemory: !isRemember, automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
 if (isModelFreeze) fs.writeFileSync(path.join(agent, "memory.json"), JSON.stringify(scenario === "model-freeze" ? { provider: "old", model: "one" } : {}));
-const quote = laterAfterMemory ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry. I prefer concise progress updates. Never run the retired compiler. The AGENTS.md workflow instruction is wrong; use pnpm test instead." : scenario === "remember-private-maintenance" ? "整理记忆" : scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
+const coverageRepairFixture = process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-repair-") === true;
+const quote = (process.env.CL_JEV_FIXTURE === "coverage-real-correction" || process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? `Remember that the project build convention is CL_MANUAL_SHARED.${(process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? "\n" : " "}Apply this convention only during releases.` : laterAfterMemory ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry. I prefer concise progress updates. Never run the retired compiler. The AGENTS.md workflow instruction is wrong; use pnpm test instead." : scenario === "remember-private-maintenance" ? "整理记忆" : scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
+const coverageLimit = "Apply this convention only during releases.";
 const oldAgents = "- Run tests with npm test\n";
 if (isAgents || isModelFreeze || isRemember || laterAfterMemory) fs.writeFileSync(path.join(cwd,"AGENTS.md"),oldAgents);
 // Attribution and pluggability seam: install the absence before any extension
@@ -50,27 +66,36 @@ if (process.env.CL_ABSENT_TYPESAFE_SDK === "1") {
   mock.module("@typesafe-ai/sdk", () => { throw new Error("Cannot find module '@typesafe-ai/sdk'"); });
 }
 const kit = await import("../../kit/src/index.ts");
-if (process.env.CL_JEV_FIXTURE === "body-artifact-failure") {
+if (["body-artifact-failure", "coverage-real-proof-io-failure", "coverage-real-invalid-response-io-failure", "coverage-real-invalid-diagnostic-io-failure"].includes(process.env.CL_JEV_FIXTURE ?? "")) {
   const persistence = await import("../extensions/consolidation-run.ts");
   const originalWriteFileAtomic = persistence.writeFileAtomic;
   mock.module("../extensions/consolidation-run.ts", () => ({...persistence,writeFileAtomic: async (file, ...args) => {
+    if (process.env.CL_JEV_FIXTURE === "coverage-real-proof-io-failure" && path.basename(file).startsWith("memory-coverage-semantic-")) throw new Error("Controlled semantic proof persistence failure");
+    if (process.env.CL_JEV_FIXTURE === "coverage-real-invalid-response-io-failure" && path.basename(file).startsWith("memory-coverage-response-")) throw new Error("Controlled rejected coverage persistence failure");
+    if (process.env.CL_JEV_FIXTURE === "coverage-real-invalid-diagnostic-io-failure" && path.basename(file).startsWith("memory-coverage-rejected-diagnostic-")) throw new Error("Controlled source diagnosis persistence failure");
     if (path.basename(file).startsWith("memory-body-review-")) throw new Error("Controlled evidence persistence failure");
     return originalWriteFileAtomic(file, ...args);
   }}));
 }
 let maintenanceClaimChecks = 0;
-if (process.env.CL_MEMORY_PREFIX_FAILURE || scenario === "manual-backfill") {
+if (process.env.CL_MEMORY_PREFIX_FAILURE || scenario === "manual-backfill" || manualReplayProbe) {
   const audit = await import("../extensions/memory-maintenance-audit.ts");
   // This fixture isolates planner recovery and command binding; real source auditing is exercised
   // separately by the native reader and private project runners.
   mock.module("../extensions/memory-maintenance-audit.ts", () => ({...audit,
     isMemoryMaintenanceRequest: request => request === "整理记忆",
-    auditMemoryMaintenanceSources: async () => ({outcome:"observed",entries:[],durationMs:0,assertSourcesUnchanged:async()=>{},assertClaimsUnchanged:async()=>{maintenanceClaimChecks++;}}),
+    auditMemoryMaintenanceSources: async ({signal}: {signal?: AbortSignal}) => {
+      if (manualReplayProbe === "input-during-collector") await interruptManualWorker(signal);
+      return {outcome:"observed",entries:[],durationMs:0,assertSourcesUnchanged:async()=>{},assertClaimsUnchanged:async()=>{maintenanceClaimChecks++;}};
+    },
   }));
 }
 let selectors = 0;
 let semanticRepairs = 0;
+const coverageRepairContracts: {knowledgeChangeRequired: boolean; unchangedKnowledgePolicy: boolean}[] = [];
 let bodyReviewCalls = 0;
+const coverageRepairTransports: unknown[] = [];
+const coverageRepairReviews: unknown[] = [];
 const repairErrors: string[][] = [];
 let structuralContextReceived = false;
 let receivedFailureHints = false;
@@ -82,6 +107,19 @@ let cancellation: Promise<void> | undefined;
 let cancelRun: (() => Promise<void>) | undefined;
 const structuralFirst = ["structural-retention-mixed-both-fixed", "structural-repair-cancel", "structural-tamper-second", "structural-subset-repair-invalid"].includes(process.env.CL_JEV_FIXTURE ?? "");
 const fixtureReason = structuralFirst ? process.env.CL_JEV_FIXTURE!.slice("structural-".length) : process.env.CL_JEV_FIXTURE;
+if (manualReplayProbe?.startsWith("interrupt-") || manualReplayProbe === "input-during-backfill-read") {
+  const originalInput = await import("../extensions/learning-input");
+  const originalRead = originalInput.recentProjectLearningInput;
+  mock.module("../extensions/learning-input", () => ({...originalInput, recentProjectLearningInput: async (...args: Parameters<typeof originalInput.recentProjectLearningInput>) => {
+    if (!manualReadInterrupted && (manualReplayProbe !== "input-during-backfill-read" || manualBackfillActive)) {
+      manualReadInterrupted = true;
+      if (manualReplayProbe === "input-during-backfill-read") await emitManualInput?.();
+      else await interruptManualRead?.();
+    }
+    return originalRead(...args);
+  }}));
+}
+
 const effectiveRepairFixture = new Set(["repair-supported", "structural-held", "tamper-second",
   "partial-review-held", "partial-review-compatible", "partial-review-low-contradiction",
   "subset-production-after-repair", "located-repair", "referenced-repair", "patch-repair"]).has(fixtureReason ?? "");
@@ -95,10 +133,68 @@ const initialMemoryInputs: {noTools:boolean;hasToolAllowlist:boolean;scopedReadE
 const plannerSystemInstructions: boolean[] = [];
 const modelCalls: string[] = [];
 let requestCaptured = false;
+// Valid initial project producers follow the current knowledge contract. Keep
+// fixture construction and semantic repairs in the parent's materialized format
+// so each negative case still changes the same body, classification or citation.
+function freshProjectFixture(plan: any): any {
+  if (!Array.isArray(plan.newMemories)) return plan;
+  return {...plan, newMemories: plan.newMemories.map((item: any) => {
+    if (item.kind !== "project" || typeof item.content !== "string") return item;
+    const header = /^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n)/.exec(item.content);
+    if (!header) return item; // Deliberate malformed-content fixtures stay invalid.
+    let description = /^description:[ \t]*(.*)$/m.exec(header[2])?.[1];
+    if (!description) return item;
+    if (description.startsWith('"')) description = JSON.parse(description);
+    const {content, evidence, ...metadata} = item;
+    return {...metadata, description, knowledge: {sourceCitations: evidence,
+      units: [{text: content.slice(header[0].length), citationIndexes: evidence.map((_: unknown, index: number) => index)}]}};
+  })};
+}
+
+const bodyReference = (content: string, quote: string, prefix: string) => {
+  const frontmatter = /^\uFEFF*---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(content);
+  const start = content.indexOf(quote, frontmatter?.[0].length ?? 0);
+  if (start < 0) return {ref: `${prefix}.b0.l99999`};
+  const first = content.slice(0, start).split("\n").length;
+  const last = first + quote.split("\n").length - 1;
+  return {ref: `${prefix}.b0.l${first}`, ...(last !== first ? {endRef: `${prefix}.b0.l${last}`} : {})};
+};
 mock.module("../../kit/src/index.ts", () => ({
   ...kit,
   resolvePiCli: () => ({ command: process.execPath, args: [] }),
-  runPiWorker: async ({ prompt, model }: { prompt: string; model?: string }) => {
+  runPiWorker: async ({ prompt, model, signal }: { prompt: string; model?: string; signal?: AbortSignal }) => {
+    if (prompt.includes("Review knowledge coverage, separately from internal consistency and source truth.")) {
+      if (manualReplayProbe === "input-during-coverage" && !manualWorkerInterrupted) await interruptManualWorker(signal);
+      const usage={input:40,output:5,cacheRead:0,cacheWrite:0,totalTokens:45,cost:.004};
+      if(fixtureReason === "coverage-unavailable") return {exitCode:1,text:"",usage,usageLedger:{knownUsage:usage,complete:true}};
+      if (fixtureReason?.startsWith("coverage-real") || privateAccepted || isDeleteReconsideration || process.env.CL_ABSENT_TYPESAFE_SDK === "1") {
+        const input=JSON.parse(prompt.split("\n").at(-1)!);
+        const firstRef=/"ref":"(e\d+\.b\d+\.l\d+)"/.exec(JSON.stringify(input.frozenEvidence))?.[1];
+        if(!firstRef)throw Error("Controlled coverage has no original reference");
+        const incomplete=(fixtureReason === "coverage-real-correction" || fixtureReason?.startsWith("coverage-real-invalid")) && input.targets.some(target=>!target.content.includes(coverageLimit));
+        const reviews=Object.fromEntries(input.targets.map(target=>{
+          const body=target.content.split(/\r?\n---(?:\r?\n|$)/).at(-1).trim();
+          const quote=body.split(/\r?\n/)[0];
+          const condition={statement:coverageLimit,evidence:[{ref:fixtureReason?.startsWith("coverage-real-invalid")?firstRef.replace(/\.l\d+$/,".l2"):firstRef}],bodyQuote:incomplete?null:target.bodyLocations?bodyReference(target.content,coverageLimit,`m${target.targetIndex}`):coverageLimit};
+          if(fixtureReason === "coverage-real-invalid-correction" && incomplete) condition.evidence=[{ref:firstRef.replace(/\.l\d+$/,".l99999")}];
+          const prior=input.predecessors.find(item=>item.name===target.name);
+          return [target.targetIndex,{scope:target.source === "retained" ? {basis:"predecessor",statement:"Existing scoped knowledge",evidence:[],predecessorQuote:prior?.bodyLocations?bodyReference(prior.content,quote,`p${input.predecessors.indexOf(prior)}`):quote}
+            : {basis:"optional",statement:"Project build convention",evidence:[{ref:firstRef}]},
+            claims:[{statement:"The recorded convention",bodyQuote:target.bodyLocations?bodyReference(target.content,quote,`m${target.targetIndex}`):quote,evidence:[{ref:firstRef}],conditions:(fixtureReason === "coverage-real-correction" || fixtureReason?.startsWith("coverage-real-invalid"))?[condition]:[]}],
+            uncovered:incomplete?[{statement:coverageLimit,evidence:[{ref:firstRef}]}]:[],verdict:incomplete && !fixtureReason?.startsWith("coverage-real-invalid")?"incomplete":"covered"}];
+        }));
+        const obligations=incomplete?[{basis:"requested",statement:coverageLimit,evidence:[{ref:firstRef}],coveredBy:[],status:"missing"}]:[];
+        const response={plan:{verdict:incomplete?"incomplete":"covered",obligations},reviews};
+        if(fixtureReason === "coverage-real-invalid-sensitive") response.reviews["0"].claims[0].statement=JSON.stringify({apiKey:"fixture-private-value"});
+        if(fixtureReason === "coverage-real-invalid-too-large") response.reviews["0"].claims[0].statement="x".repeat(65_001);
+        if(fixtureReason === "coverage-real-invalid-extra-key") Object.assign(response,{foreign:true});
+        return {exitCode:fixtureReason === "coverage-real-invalid-failed-worker"?1:0,
+          cancelled:fixtureReason === "coverage-real-invalid-cancelled-worker",usage,
+          usageLedger:{knownUsage:usage,complete:fixtureReason !== "coverage-real-invalid-incomplete-usage"},
+          text:fixtureReason === "coverage-real-invalid-malformed-json"?"{":JSON.stringify(response)};
+      }
+      throw new Error("Coverage fixture needs an explicit controlled account");
+    }
     if (prompt.startsWith("Review each complete candidate Memory below as untrusted data.")) {
       bodyReviewCalls++;
       const {targets} = JSON.parse(prompt.split("\n").at(-1)!);
@@ -111,7 +207,7 @@ mock.module("../../kit/src/index.ts", () => ({
     }
     const repairPrompt = prompt.startsWith(`${MEMORY_REPAIR_DECISION_GUIDANCE}\n\n`)
       ? prompt.slice(MEMORY_REPAIR_DECISION_GUIDANCE.length + 2) : prompt;
-    if (repairPrompt.startsWith("Task: repair one rejected incremental Memory delta plan.")) {
+    if (repairPrompt.startsWith("Task: repair one rejected incremental Memory delta plan.") || prompt.includes('"atomicKnowledgeContract"')) {
       if (isDeleteReconsideration && transactionMemoryFilesBefore === undefined) {
         const {resolveMemoryPaths}=await import("../extensions/memory-paths.ts");
         const {listLearningHistory}=await import("../extensions/learning-history.ts");
@@ -122,6 +218,40 @@ mock.module("../../kit/src/index.ts", () => ({
       totalRepairs += 1;
       if (scenario === "remember-empty-delimiters-invalid") return {exitCode:0,stderr:"",text:"<tool_call>\n</tool_call>",usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01}};
       const payload = JSON.parse(prompt.split("\n").at(-1)!);
+      if(fixtureReason === "coverage-real-correction" || ["coverage-real-invalid-correction","coverage-real-invalid-citation-only"].includes(fixtureReason ?? "") || coverageRepairFixture) {
+        repairErrors.push(payload.errors);
+        semanticRepairs++;
+        coverageRepairContracts.push({knowledgeChangeRequired: payload.atomicKnowledgeContract?.coverageKnowledgeChangeRequired === true,
+          unchangedKnowledgePolicy: prompt.includes("Citation-only edits do not permit another coverage draw")});
+        repairableFieldsReceived={names:payload.repairableNames,fields:payload.repairableFields};
+        requiredTextChangesReceived=payload.requiredTextChanges;
+        if(fixtureReason === "coverage-real-correction" && !payload.independentKnowledgeCoverage?.recordAccounts?.some(account=>account.uncovered.length))throw Error("Missing frozen coverage diagnosis");
+        if(fixtureReason === "coverage-real-invalid-correction" && payload.independentKnowledgeCoverage)throw Error("Invalid account acquired validated prior identity");
+        if(["coverage-real-repair-retained-only","coverage-real-repair-mixed-retained"].includes(fixtureReason ?? "")) {
+          const retained={name:"known.md",kind:"rewrite",classification:"safe",content:payload.semanticContext.existingMemories.find(item=>item.name==="known.md").content,evidence:[{ref:"e0.b0.l1",endRef:"e0.b0.l2"}]};
+          const answer=fixtureReason === "coverage-real-repair-retained-only"
+            ? {kind:"incremental-memory-plan",version:1,schemaVersion:1,...payload.identity,operations:[retained],newMemories:[]}
+            : {kind:"incremental-memory-amendment",version:1,...payload.identity,replacements:payload.repairCandidates.map(candidate=>({candidateId:candidate.candidateId,evidence:[{ref:"e0.b0.l1",endRef:"e0.b0.l2"}]})),operations:[retained]};
+          return {exitCode:0,text:JSON.stringify(answer),usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01}};
+        }
+        const corrected=structuredClone(payload.rejectedPlan);
+        const repairTarget=coverageRepairFixture ? [...corrected.operations,...corrected.newMemories][0] : corrected.newMemories[0];
+        if(fixtureReason === "coverage-real-invalid-citation-only") corrected.newMemories[0].evidence=[{ref:"e0.b0.l1"}];
+        else if(coverageRepairFixture && fixtureReason !== "coverage-real-repair-body") {
+          repairTarget.evidence=[{ref:"e0.b0.l1",endRef:"e0.b0.l2"}];
+          if(fixtureReason === "coverage-real-repair-description") repairTarget.content=repairTarget.content.replace(/^description: (?:"Project build convention"|Project build convention)$/m,"description: Project build convention for later maintenance");
+        }
+        else repairTarget.content += coverageLimit+"\n";
+        const usage={input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01};
+        const answer=payload.atomicKnowledgeContract?{kind:"incremental-memory-amendment",version:1,...payload.identity,
+          replacements:[{candidateId:payload.repairCandidates[0].candidateId,
+            ...((fixtureReason === "coverage-real-invalid-citation-only" || coverageRepairFixture && fixtureReason !== "coverage-real-repair-body")?{evidence:repairTarget.evidence,...(fixtureReason === "coverage-real-repair-description"?{content:repairTarget.content}:{})}:
+              {knowledge:{sourceCitations:corrected.newMemories[0].evidence,
+                units:corrected.newMemories[0].content.split(/\r?\n---\r?\n/).at(-1).split(/\n\n+/).filter(Boolean)
+                  .map(text=>({text,citationIndexes:corrected.newMemories[0].evidence.map((_,index)=>index)}))}})}]}:corrected;
+        return {exitCode:0,usage,text:JSON.stringify(answer)};
+      }
+
       repairErrors.push(payload.errors);
       requiredTextChangesReceived = payload.requiredTextChanges;
       repairableFieldsReceived = {names:payload.repairableNames,fields:payload.repairableFields};
@@ -184,7 +314,7 @@ mock.module("../../kit/src/index.ts", () => ({
         return {exitCode:0,stderr:"",text:"",cancelled:true};
       }
       if (process.env.CL_JEV_FIXTURE === "repair-private") repaired.newMemories[0].classification = "private";
-      return { exitCode: 0, stderr: "", text: JSON.stringify(repaired), usage: {input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01} };
+      return { exitCode: 0, stderr: "", text: JSON.stringify(prompt.includes("existing structural correction slot") ? freshProjectFixture(repaired) : repaired), usage: {input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01} };
     }
     selectors += 1;
     if (isRemember) requestCaptured = prompt.includes(quote);
@@ -194,7 +324,7 @@ mock.module("../../kit/src/index.ts", () => ({
     }
     return { exitCode: 0, stderr: "", text: JSON.stringify({
       kind: "incremental-memory-selection", version: 1,
-      contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)![1], selected: fixtureReason === "retention-delete" ? ["known.md","replacement.md"] : isDeleteReconsideration || process.env.CL_MEMORY_ORIGIN === "1" || process.env.CL_MEMORY_PREFIX_FAILURE || fixtureReason?.startsWith("retention-") || fixtureReason === "subset-retention-fallback" ? ["known.md"] : [],
+      contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)![1], selected: fixtureReason === "retention-delete" ? ["known.md","replacement.md"] : isDeleteReconsideration || ["coverage-real-repair-joint","coverage-real-repair-retained-only","coverage-real-repair-mixed-retained"].includes(fixtureReason ?? "") || fixtureReason === "coverage-real-proof-io-failure" || process.env.CL_MEMORY_ORIGIN === "1" || process.env.CL_MEMORY_PREFIX_FAILURE || fixtureReason?.startsWith("retention-") || fixtureReason === "subset-retention-fallback" ? ["known.md"] : [],
       // Request every phase to prove policy masks override the selector. Manual
       // scenarios instead decline every phase after reviewing the slice.
       memory: !isManual && scenario !== "remember-declined", harness: !isManual, agents: !isManual,
@@ -240,6 +370,13 @@ mock.module("../../kit/src/index.ts", () => ({
         evidence: [{index:0,quote:scenario === "remember-invalid" ? "No such request evidence" : quote}],
       }],
     };
+    if (coverageRepairFixture && !harness && !agents) {
+      plan.newMemories[0].evidence=[{ref:"e0.b0.l1"}];
+      if(fixtureReason === "coverage-real-repair-joint") {
+        plan.operations=[{...plan.newMemories[0],name:"known.md",kind:"rewrite"}];plan.newMemories=[];
+      }
+      if(fixtureReason === "coverage-real-repair-retained-only") plan.newMemories=[];
+    }
     if (isDeleteReconsideration && !harness && !agents) {
       Object.assign(plan,{operations:[{name:"known.md",kind:"delete",classification:"safe",verdict:"SUPERSEDED",preservedIn:["missing.md"],evidence:[{index:99,quote}]}],newMemories:[]});
     }
@@ -264,7 +401,10 @@ mock.module("../../kit/src/index.ts", () => ({
     }
     if (fixtureReason === "retention-mixed-both-fixed" && !harness && !agents) (plan as {newMemories:Array<{content:string}>}).newMemories[0].content += "Unsupported causal explanation.";
     if (!harness && !agents && process.env.CL_MEMORY_REJECTED_PLAN_SECRET === "1") plan.newMemories[0].content += "api_key=sk-" + "x".repeat(40);
-    if (!harness && !agents) lastMemoryPlan = plan;
+    if (!harness && !agents) {
+      lastMemoryPlan = structuredClone(plan);
+      Object.assign(plan, freshProjectFixture(plan));
+    }
     const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), killed: false, exitCode: null as number | null, signalCode: null });
     queueMicrotask(() => {
       // A planner that reports a model error without any plan. The attribution seam
@@ -322,16 +462,53 @@ if (process.env.CL_JEV_FIXTURE) {
   mock.module("../extensions/jev-learning.ts", () => ({ ...jevModule,
     createJevJudge: (options?: {independentMemoryApplication?: boolean; composedMemoryApplication?: boolean}) => {
       productionJudgeOptions = options;
-      if (isDeleteReconsideration) {
+      if (isDeleteReconsideration || reason?.startsWith("coverage-real")) {
         const judge=productionJudgeFactory({...options,defaultModel:fixtureJevModel,enabled:true,apiKey:"fixture",allowPrivateMemory:true,fetch:async(_url,init)=>{
           reviewWireCalls++;const request=JSON.parse(String(init.body));
           const answers=Object.fromEntries(Object.entries(request.questions).map(([key,q])=>{
-            const keys=Object.keys(q.criteria);const label=keys.find(k=>["grounded","compatible","unrelated"].includes(k))??keys[0];
+            const keys=Object.keys(q.criteria);
+            const missing=reason === "coverage-real-correction" && request.state.memoryKnowledgeCoverage === true
+              && request.state.completeCurrentPlan.newMemories.some(item=>!item.content.includes(coverageLimit));
+            const label=manualReplayProbe && key === "supported_0" ? "unsupported" : ["coverage-real-invalid-correction","coverage-real-invalid-citation-only"].includes(reason ?? "") && key === "supported_0" && semanticRepairs === 0 ? "unsupported" : key.startsWith("coverage_issue_") ? missing?"material_missing":"dismissed"
+              : key.startsWith("coverage_") ? missing?"missing":"complete"
+              : keys.find(k=>["grounded","compatible","unrelated"].includes(k))??keys[0];
+            if(coverageRepairFixture && semanticRepairs === 0) {
+              // Keep intrinsic facts independent from the coverage conjunction.
+              // An evidence-only repair is legitimate for a real support hold.
+              if(reason === "coverage-real-repair-source" && key === "supported_0")
+                return [key,{type:"choice",choice:"unsupported",confidence:1,probabilities:Object.fromEntries(keys.map(k=>[k,k==="unsupported"?1:0]))}];
+              if(reason === "coverage-real-repair-counter" && key === "counter_0_0")
+                return [key,{type:"choice",choice:"compatible",confidence:.83,probabilities:Object.fromEntries(keys.map(k=>[k,k==="compatible"?.89:k==="contradicts"?.06:.05]))}];
+              if(reason === "coverage-real-repair-joint" && ["counter_0_0","counter_permission_0_0","counter_preservation_0_0"].includes(key))
+                return [key,{type:"choice",choice:label,confidence:1,probabilities:Object.fromEntries(keys.map(k=>[k,k===label?.96:k==="unclear"?.04:0]))}];
+              const coverageHeld = process.env.CL_COVERAGE_INITIAL_RESULT
+                ? process.env.CL_COVERAGE_INITIAL_RESULT === "held" : reason !== "coverage-real-repair-source";
+              if(coverageHeld && key.startsWith("coverage_"))
+                return [key,{type:"choice",choice:"complete",confidence:.72,probabilities:Object.fromEntries(keys.map(k=>[k,k==="complete"?.81:k==="missing"?.18:.01]))}];
+            }
             return [key,{type:"choice",choice:label,confidence:1,probabilities:Object.fromEntries(keys.map(k=>[k,k===label?1:0]))}];
-          }));return new Response(JSON.stringify({model:request.model,answers,usage:{input_tokens:1,output_tokens:1}}));
+          }));
+          if(coverageRepairFixture && request.state.memoryKnowledgeCoverage === true) coverageRepairTransports.push({
+            requestSha256:fixtureDigest(request),answers,usage:{input_tokens:1,output_tokens:1},
+            body:request.state.targets.map(item=>item.content).join("\n\n"),
+            sourceDigest:fixtureDigest(request.state.originalEvidence),
+          });
+          return new Response(JSON.stringify({model:request.model,answers,usage:{input_tokens:1,output_tokens:1}}));
         }});
         return {...judge,memoryReviewEnabled:!reason.endsWith("scope-off") && !reason.endsWith("disabled"),selectionEnabled:false,validate:async(...args)=>{
           jevValidations.push(args[0]);const verdict=await judge.validate(...args);
+          if(coverageRepairFixture && semanticRepairs === 0 && verdict.coverageReview && process.env.CL_COVERAGE_GUARD_PROOF) {
+            const proof=verdict.coverageReview;
+            switch(process.env.CL_COVERAGE_GUARD_PROOF) {
+              case "missing":proof.checks.pop();break;
+              case "duplicate":proof.checks[1]={...proof.checks[0]};break;
+              case "location":proof.checks[1].candidateIndex=99;break;
+              case "distribution":delete proof.checks[0].probabilities!.complete;break;
+              case "context":proof.contextDigest="0".repeat(64);break;
+              case "model":proof.model="jev-foreign";break;
+            }
+          }
+          if(coverageRepairFixture) coverageRepairReviews.push({checks:verdict.candidateReview?.checkObservations,coverage:verdict.coverageReview,telemetry:verdict.telemetry});
           if(reason.endsWith("wrong-predecessor"))return {...verdict,candidateReview:{...verdict.candidateReview,existingDigest:"0".repeat(64)}};
           if(reason.endsWith("wrong-evidence"))return {...verdict,candidateReview:{...verdict.candidateReview,evidenceDigest:"0".repeat(64)}};
           if(reason.endsWith("missing-proof"))return {...verdict,candidateReview:undefined};
@@ -341,6 +518,7 @@ if (process.env.CL_JEV_FIXTURE) {
       }
       return { enabled: true, requestedModel: fixtureJevModel, selectionEnabled: true, historicalMemoryReviewEnabled: process.env.CL_MEMORY_ORIGIN === "1",
       independentMemoryBodyReviewEnabled: reason?.startsWith("body-") || reason?.startsWith("distill-fresh"),
+      independentMemoryCoverageReviewEnabled: reason?.startsWith("coverage-"),
       independentMemoryApplicationEnabled: reason.startsWith("subset-production") ? options?.independentMemoryApplication === true : reason.startsWith("subset-") && reason !== "subset-disabled",
       composedMemoryApplicationEnabled: reason.startsWith("subset-production") ? options?.composedMemoryApplication === true : reason === "subset-composed",
       reviewMemoryRelations: async (evidence: unknown, candidates: unknown[], existing: unknown[], review: {evidenceDigest:string;existingDigest:string;candidatesDigest:string;model:string}) => {
@@ -450,8 +628,8 @@ if (process.env.CL_JEV_FIXTURE) {
         if (reason === "tamper-first" || reason === "tamper-dossier") tamperFrozen(reason === "tamper-dossier");
         if (reason === "tamper-second" && jevValidations.length === 2) tamperFrozen();
         const combinedHeld = reason === "retention-mixed-both-fixed" && (!candidates.length || candidates.some(value => JSON.stringify(value).includes("Unsupported causal explanation.")));
-        const allowed = !combinedHeld && ((reason === "retention-fixed" || reason === "retention-delete" || reason.startsWith("retention-mixed-")) && candidates.length > 0 || reason === "patch-supported" || reason === "patch-repair" && jevValidations.length === 2 || reason === "located-supported" || reason === "located-repair" && jevValidations.length === 2 || reason === "referenced-supported" || reason === "referenced-repair" && jevValidations.length === 2 || reason === "supported" || reason === "syntax-privacy-downgrade" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2);
-        const judgment = reason.startsWith("retention-") ? allowed ? "supported" : "conflict" : (reason.startsWith("repair-") || reason === "patch-repair" || reason === "located-repair" || reason === "referenced-repair" || reason === "structural-held" || reason === "tamper-second" || reason === "tamper-repair") ? allowed ? "supported" : "uncertain" : reason;
+        const allowed = !combinedHeld && (reason === "coverage-unavailable" || (reason === "retention-fixed" || reason === "retention-delete" || reason.startsWith("retention-mixed-")) && candidates.length > 0 || reason === "patch-supported" || reason === "patch-repair" && jevValidations.length === 2 || reason === "located-supported" || reason === "located-repair" && jevValidations.length === 2 || reason === "referenced-supported" || reason === "referenced-repair" && jevValidations.length === 2 || reason === "supported" || reason === "syntax-privacy-downgrade" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2);
+        const judgment = reason === "coverage-unavailable" ? "supported" : reason.startsWith("retention-") ? allowed ? "supported" : "conflict" : (reason.startsWith("repair-") || reason === "patch-repair" || reason === "located-repair" || reason === "referenced-repair" || reason === "structural-held" || reason === "tamper-second" || reason === "tamper-repair") ? allowed ? "supported" : "uncertain" : reason;
         const telemetry = {stage,status:allowed ? "decided" : "propose",reason:judgment,durationMs:2,model:fixtureJevModel,inputTokens:10,outputTokens:2,...(!allowed ? {candidateIndex:0,dimension:"support",candidateFailures:(reason === "retention-delete" ? [0,1] : [0]).map(candidateIndex=>({candidateIndex,dimension:"support",reason:"uncertain"}))} : {}),requestCount:jevValidations.length,completedRequests:jevValidations.length};
         reviewTelemetry.push(telemetry);
         return {decision:allowed ? "allow" : "propose",telemetry};
@@ -532,12 +710,13 @@ try {
     fs.writeFileSync(path.join(agent,"continual-learning.json"),JSON.stringify({jev:{enabled:true,apiKey:"fixture-only",scopes:["memory"],allowPrivateMemory:false}}));
   }
   const { listLearningHistory } = await import("../extensions/learning-history.ts");
+  let manualReplayManager: import("@earendil-works/pi-coding-agent").SessionManager | undefined;
   const hooks = new Map();
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void> | void>();
   const notices: string[] = [];
   register({ on: (name, fn) => hooks.set(name, [...(hooks.get(name) ?? []), fn]),
     registerCommand: (name, definition) => commands.set(name, definition.handler),
-    sendMessage: (message) => {if(message.customType==="continual-learning-result")receiptDelivered?.();}, appendEntry: () => {}, getCommands: () => [],
+    sendMessage: (message) => {if(message.customType==="continual-learning-result")receiptDelivered?.();}, appendEntry: (kind,data) => {if(manualReplayProbe !== "unpersisted-marker")manualReplayManager?.appendCustomEntry(kind,data);}, getCommands: () => [],
     registerEntryRenderer: () => {},
     exec: async () => ({ stdout: "", stderr: "", code: 0 }) } as unknown as Parameters<typeof register>[0]);
   const tool = (content: string, extra: Record<string, unknown> = {}) => ({ message: { role: "toolResult", toolName: "bash", content, ...extra } });
@@ -557,11 +736,22 @@ try {
     {message:{role:"toolResult",toolCallId:"environment",toolName:"bash",isError:false,
       content:"TYPESAFE_API_KEY=CL_BASH_LEARNING_SECRET_0123456789"}} as typeof entries[number]);
   const ctx = {cwd,mode:"json",hasUI:privateAccepted,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{},confirm:async()=>{consentCount++;return true;}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries}};
+  if (manualReplayProbe && manualReplayProbe !== "no-session") {
+    const {SessionManager} = await import("@earendil-works/pi-coding-agent");
+    const sessionDir=path.join(agent,"sessions","manual-request");fs.mkdirSync(sessionDir,{recursive:true});
+    manualReplayManager=SessionManager.create(cwd,sessionDir);
+    manualReplayManager.appendMessage({role:"user",content:quote,timestamp:1});
+    manualReplayManager.appendMessage({role:"assistant",content:[{type:"text",text:"Original source task complete."}],api:"openai-completions",provider:"fixture",model:"fixture",usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}},stopReason:"stop",timestamp:2});
+    entries.splice(0,entries.length,...manualReplayManager.buildContextEntries());
+    Object.assign(ctx.sessionManager,{getSessionFile:()=>manualReplayManager!.getSessionFile(),getSessionId:()=>manualReplayManager!.getSessionId(),getLeafId:()=>manualReplayManager!.getLeafId()});
+  }
   (globalThis as { changeMemoryModel?: () => Promise<void> }).changeMemoryModel = async () => {
     await commands.get("memory")!("model new/two", ctx);
   };
   const runHook = async (name: string, event: unknown): Promise<void> => { for (const fn of hooks.get(name) ?? []) await fn(event, ctx); };
   cancelRun = () => runHook("session_shutdown", {});
+  emitManualInput = () => runHook("input",{source:"interactive",text:"Cancel the earlier Memory request; do not store it."});
+  interruptManualRead = () => runHook(manualReplayProbe === "interrupt-start" ? "session_start" : "session_shutdown", {});
   await runHook("session_start", {});
   await runHook("input", { source: "interactive" });
   const snapshotMemoryFiles = () => {
@@ -570,7 +760,49 @@ try {
   };
   const memoryFilesBefore = snapshotMemoryFiles();
   const historyIdsBefore = new Set((await listLearningHistory(cwd)).map(record=>record.id));
-  if (scenario === "manual-backfill") {
+  if (manualReplayProbe) {
+    const {readBacklog,backlogStatus}=await import("../extensions/learning-backlog");
+    const {currentTaskSlice}=await import("../extensions/incremental-learning");
+    const {resolveMemoryPaths}=await import("../extensions/memory-paths");
+    const originalRows=JSON.stringify(entries);
+    await runHook("agent_settled",{});
+    const before=readBacklog(cwd,agent);
+    await commands.get("memory")!("整理记忆",ctx);
+    const learningPaths=resolveMemoryPaths(cwd,agent);
+    const receiptFile=path.join(learningPaths.runsDir,"learning-pipeline-receipt.json");
+    const firstReceipt=fs.existsSync(receiptFile)?JSON.parse(fs.readFileSync(receiptFile,"utf8")):undefined;
+    const replayDir=path.join(agent,"learning",learningPaths.scopeKey);
+    const attempts=fs.existsSync(replayDir)?fs.readdirSync(replayDir).filter(name=>/^replay-[a-f0-9]{64}\.json$/.test(name)).map(name=>JSON.parse(fs.readFileSync(path.join(replayDir,name),"utf8"))):[];
+    const plannerCountBefore=planners.length;
+    if(manualReplayProbe === "source-changed" && manualReplayManager) {
+      const file=manualReplayManager.getSessionFile()!;
+      const lines=fs.readFileSync(file,"utf8").trimEnd().split("\n").map(line=>JSON.parse(line));
+      const row=lines.find(row=>row.type==="message" && row.message.role==="user");row.message.content="Different original task.";
+      fs.writeFileSync(file,lines.map(row=>JSON.stringify(row)).join("\n")+"\n");
+    }
+    if (["request-tampered","duplicate-marker","foreign-session"].includes(manualReplayProbe) && manualReplayManager) {
+      const file=manualReplayManager.getSessionFile()!;
+      const lines=fs.readFileSync(file,"utf8").trimEnd().split("\n").map(line=>JSON.parse(line));
+      const marker=lines.find(row=>row.type==="custom" && row.customType==="continual-learning-memory-request");
+      if(manualReplayProbe === "request-tampered")marker.data.request="Remember a different request.";
+      if(manualReplayProbe === "foreign-session")lines[0].id="foreign-session";
+      if(manualReplayProbe === "duplicate-marker")lines.push({...marker,id:"duplicate-marker",parentId:marker.id});
+      fs.writeFileSync(file,lines.map(row=>JSON.stringify(row)).join("\n")+"\n");
+    }
+    if (manualReplayProbe === "later-user" && manualReplayManager) {
+      manualReplayManager.appendMessage({role:"user",content:"Cancel the earlier Memory request; do not store it.",timestamp:3});
+    }
+    if (manualReplayProbe === "alternate-branch" && manualReplayManager) {
+      const marker=manualReplayManager.getEntries().find(row=>row.type==="custom" && row.customType==="continual-learning-memory-request");
+      manualReplayManager.branch(marker!.parentId!);
+      manualReplayManager.appendMessage({role:"assistant",content:[{type:"text",text:"A separate branch."}],api:"openai-completions",provider:"fixture",model:"fixture",usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}},stopReason:"stop",timestamp:3});
+    }
+    if ((!manualReplayProbe.startsWith("interrupt-") && !manualReplayProbe.startsWith("input-during-")) || manualReplayProbe === "input-during-backfill-read") {
+      manualBackfillActive = true;
+      await commands.get("consolidate")!("backfill",{...ctx,sessionManager:{...ctx.sessionManager,getSessionId:()=>"different-current-backfill-invocation"}});
+    }
+    manualReplayObservation={manualWorkerInterrupted,manualAbortObserved,manualReadInterrupted,leaseRetained:fs.existsSync(path.join(replayDir,"replay.lock")),nativeRequestMarkers:manualReplayManager?.getEntries().filter(row=>row.type==="custom" && row.customType==="continual-learning-memory-request").length??0,firstReceipt,attempts,originalRows:JSON.parse(originalRows),originalTaskRows:currentTaskSlice(JSON.parse(originalRows)).entries,sourceRowsUnchanged:originalRows===JSON.stringify(entries),beforePending:before.pendingEntries.length,pending:backlogStatus(cwd,agent).pending,backfillPlanners:planners.length-plannerCountBefore};
+  } else if (scenario === "manual-backfill") {
     const {SessionManager} = await import("@earendil-works/pi-coding-agent");
     const {enqueueBacklog} = await import("../extensions/learning-backlog");
     const {currentTaskSlice} = await import("../extensions/incremental-learning");
@@ -613,13 +845,23 @@ try {
     dossier: receiptOf(path.join(paths.runsDir, dir, "incremental-learning-dossier.json")),
     snapshot: receiptOf(path.join(paths.runsDir, dir, "snapshot.json")),
   }));
+  const coverageDiagnosticProofs=runs.flatMap(run=>run.files.filter(name=>name.startsWith("memory-coverage-rejected-diagnostic-")).map(name=>{
+    const value=receiptOf(path.join(paths.runsDir,run.dir,name));
+    return {proofAvailable:value.proofAvailable,writeAuthorized:value.writeAuthorized,
+      runId:value.runId,snapshotDigest:value.snapshotDigest,planDigest:value.planDigest,
+      rejectedAccount:value.rejectedAccount,source0:value.reviewed?.candidateReview?.checkObservations?.supported_0};
+  }));
+  const coverageRepairResponses=coverageRepairFixture ? runs.flatMap(run=>run.files.filter(name=>name.startsWith("memory-coverage-response-")).map(name=>{
+    const response=receiptOf(path.join(paths.runsDir,run.dir,name));
+    return {file:name,responseSha256:fixtureDigest(response),response};
+  })) : [];
   if (isRemember) requestCaptured = runs.some(run => run.dossier?.taskSlice?.entries[run.dossier?.memoryRequest?.entryIndex]?.message?.content === quote);
-  console.log(JSON.stringify({ originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:!privateAccepted || JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev.allowPrivateMemory===false,newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
+  console.log(JSON.stringify({ coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:!privateAccepted || JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev.allowPrivateMemory===false,newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
     privateFiles: fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir) : [],
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
     numericUsageLedgers: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("memory-task-usage.json")).map(name=>{const file=path.join(paths.runsDir,String(name));return {mode:fs.statSync(file).mode & 0o777,...JSON.parse(fs.readFileSync(file,"utf8"))};}) : [],
     runs, registryReceipt: savedReceipt, receiptComplete: !!savedReceipt && learningReceiptComplete(savedReceipt),
-    bodyReviewCalls, conciseMemory: fs.existsSync(path.join(paths.harnessDir,"concise.md")) ? fs.readFileSync(path.join(paths.harnessDir,"concise.md"),"utf8") : undefined, semanticRepairs, totalRepairs, maintenanceClaimChecks, receivedFailureHints, requiredTextChangesReceived, repairableFieldsReceived, structuralContextReceived, repairErrors,
+    bodyReviewCalls, correctedKnownMemory:fs.existsSync(path.join(paths.harnessDir,"known.md"))?fs.readFileSync(path.join(paths.harnessDir,"known.md"),"utf8"):undefined, conciseMemory: fs.existsSync(path.join(paths.harnessDir,"concise.md")) ? fs.readFileSync(path.join(paths.harnessDir,"concise.md"),"utf8") : undefined, semanticRepairs, coverageRepairContracts, totalRepairs, maintenanceClaimChecks, receivedFailureHints, requiredTextChangesReceived, repairableFieldsReceived, structuralContextReceived, repairErrors,
     initialMemoryPlanDigest: lastMemoryPlan ? createHash("sha256").update(JSON.stringify(lastMemoryPlan)).digest("hex") : undefined,
     structuralRejections: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("structural-rejection.json")).map(name=>JSON.parse(fs.readFileSync(path.join(paths.runsDir,String(name)),"utf8"))) : [],
     structuralRejectionRecorded: fs.existsSync(path.join(agent,"memory","runs")) && fs.readdirSync(path.join(agent,"memory","runs"), {recursive:true}).some(name => String(name).endsWith("structural-rejection.json")),

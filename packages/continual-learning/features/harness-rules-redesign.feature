@@ -290,6 +290,13 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       When the same rule matches again without changing
       Then no additional copy is appended
       And a session-global already-seen flag is not the authority
+      And each matching run still receives the current structured system section
+      And unchanged text delivery does not append duplicate lifecycle or ledger rows
+      And skill-only deliveries retain their own metadata
+      And a historical delivery without an ordinary retained match does not re-inject guidance
+      And a rule identity mentioned alongside ordinary work cannot hide its matching subject
+      And only identified configuration operations and linked results are excluded as self-material
+      And mixed shell commands and ordinary text mentioning configuration paths remain eligible
 
     Scenario: Replace guidance through a new tail update
       Given the current branch retains a delivered rule revision

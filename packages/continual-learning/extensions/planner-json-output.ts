@@ -9,18 +9,42 @@ export default function plannerJsonOutput(pi: ExtensionAPI): void {
   pi.registerFlag("learning-candidate-ids", {type: "string", description: "Complete parent-owned eligible Memory amendment identities"});
   pi.registerFlag("learning-withdrawal-candidate-ids", {type: "string", description: "Parent-reviewed optional never-written new Memory drafts"});
   pi.registerFlag("learning-body-count", {type: "string", description: "Complete parent-owned independent Memory review group size"});
+  pi.registerFlag("learning-body-references", {type: "string", description: "Use disjoint parent-labelled body witness positions"});
+  pi.registerFlag("learning-atomic-knowledge", {type: "string", description: "Bind corrected knowledge units and original citations together"});
   pi.on("before_provider_request", (event, ctx) => {
     // Enable only the documented model/API combination. OpenAI compatibility
     // alone does not establish JSON-mode support for an arbitrary provider.
     // A gateway must be explicitly verified and opted in by the operator.
     // https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output
-    if (ctx.model?.api !== "openai-completions"
-      || !/(?:^|\/)qwen3\.8-flash(?:-\d{4}-\d{2}-\d{2})?$/.test(ctx.model.id)
-      || pi.getActiveTools().length !== 0) return;
+    // https://api-docs.deepseek.com/guides/json_mode/
+    if (!ctx.model || pi.getActiveTools().length !== 0) return;
+    // Sol tool workflows use Responses. JSON syntax remains a separate,
+    // explicit opt-in for these isolated no-tool workers, never source proof.
+    // https://developers.openai.com/api/docs/models/gpt-6.1-sol
+    if (ctx.model.api === "openai-responses" && ctx.model.id === "gpt-6.1-sol") {
+      const payload = event.payload;
+      if (!plannerJsonOutputEnabled() || !payload || typeof payload !== "object" || Array.isArray(payload)) return;
+      const request = payload as Record<string, unknown>;
+      if (!Array.isArray(request.input)) return;
+      if (request.text !== undefined && (!request.text || typeof request.text !== "object" || Array.isArray(request.text))) return;
+      const text = request.text as Record<string, unknown> | undefined;
+      if (text?.format !== undefined) return;
+      return {...request, text: {...text, format: {type: "json_object"}}};
+    }
+    if (ctx.model.api !== "openai-completions") return;
+    const qwen = /(?:^|\/)qwen3\.8-flash(?:-\d{4}-\d{2}-\d{2})?$/.test(ctx.model.id);
+    const deepseek = /(?:^|\/)(?:deepseek-flash|deepseek-v4-pro|deepseek-v4\.1-flash)$/.test(ctx.model.id);
+    if (!qwen && !deepseek) return;
     const payload = event.payload;
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
     const request = payload as Record<string, unknown>;
     if (!Array.isArray(request.messages) || request.response_format !== undefined) return;
+    // DeepSeek Chat Completions documents JSON Object, not Qwen's strict
+    // JSON Schema contract. Keep the two capability opt-ins independent.
+    if (deepseek) {
+      if (plannerJsonOutputEnabled()) return {...request, response_format: {type: "json_object"}};
+      return;
+    }
     // The worker prompt already requires JSON. Constrain syntax at the service;
     // the parent still validates the unique plan, citations and mutation intent.
     const outputKind = pi.getFlag("learning-output-schema");
@@ -67,12 +91,17 @@ export default function plannerJsonOutput(pi: ExtensionAPI): void {
       withdrawalCandidateIds = parsed;
     }
     let bodyCount: number | undefined;
-    if (plannerStructuredOutputEnabled() && outputKind === "memory-body-review") {
+    if (plannerStructuredOutputEnabled() && (outputKind === "memory-body-review" || outputKind === "memory-coverage-review")) {
       const encoded = pi.getFlag("learning-body-count");
-      if (typeof encoded !== "string" || !/^(?:[1-9]|[12]\d|3[0-2])$/.test(encoded)) throw new Error("Invalid complete Memory body count");
+      if (typeof encoded !== "string" || !(outputKind === "memory-coverage-review"
+        ? /^(?:0|[1-9]|[12]\d|3[0-2])$/ : /^(?:[1-9]|[12]\d|3[0-2])$/).test(encoded)) throw new Error("Invalid complete Memory body count");
       bodyCount = Number(encoded);
     }
-    const schema = plannerStructuredOutputEnabled() ? learningOutputSchema(outputKind, domain, candidateIds, bodyCount, withdrawalCandidateIds) : undefined;
+    const bodyReferences = pi.getFlag("learning-body-references") === "true";
+    if (bodyReferences && outputKind !== "memory-coverage-review") throw new Error("Body references require coverage review");
+    const atomicKnowledge = pi.getFlag("learning-atomic-knowledge") === "true";
+    if (atomicKnowledge && !["memory-semantic-amendment", "memory-combined-amendment", "memory-retained-amendment"].includes(String(outputKind))) throw new Error("Atomic knowledge requires semantic correction");
+    const schema = plannerStructuredOutputEnabled() ? learningOutputSchema(outputKind, domain, candidateIds, bodyCount, withdrawalCandidateIds, bodyReferences, atomicKnowledge) : undefined;
     if (schema) return {...request, response_format: {type: "json_schema", json_schema: {
       name: String(outputKind).replaceAll("-", "_"), strict: true, schema,
     }}};

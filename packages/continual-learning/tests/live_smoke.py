@@ -7,6 +7,8 @@ with fixtures; runtime fixtures are tested separately.
 
 from __future__ import annotations
 
+from continuous_failure_retention import deduplicate_receipt_views
+
 from live_acceptance_support import workspace_pi
 
 import json
@@ -430,7 +432,7 @@ def verify_learning() -> dict:
             (agent / "memory" / "runs").rglob("learning-pipeline-receipt.json"),
             key=lambda path: path.stat().st_mtime,
         )
-        receipts = [json.loads(file.read_text()) for file in receipt_files]
+        receipts = deduplicate_receipt_views([json.loads(file.read_text()) for file in receipt_files])
         assert receipts, result["notifications"]
         receipt = receipts[-1]
         attempts = {(attempt["phase"], attempt["outcome"]) for attempt in receipt["attempts"]}

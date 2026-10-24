@@ -1,3 +1,4 @@
+import {memoryDeclarationViews} from "./memory-declaration-view";
 import { memoryReferenceResults } from "./memory-evidence-provenance";
 import { MAX_NEW_MEMORY_EVIDENCE, normalizeSnapshotEvidence, snapshotEditPatchText } from "./consolidation-run";
 
@@ -69,13 +70,37 @@ function projectEntry(entry: unknown, snapshotIndex: number): unknown {
 
 /** Lossless model-only projection. Every original text character remains in a
  * numbered line; raw snapshots, digests and semantic review inputs stay intact. */
-export function locatedMemoryEvidence(value: unknown): unknown {
+export function locatedMemoryEvidence(value: unknown, options: {declarationViews?: true} = {}): unknown {
   const outer = record(value);
   if (!outer) return value;
-  if (outer.kind === "incremental-learning-dossier") return {...outer, taskSlice: locatedMemoryEvidence(outer.taskSlice)};
+  if (outer.kind === "incremental-learning-dossier") return {...outer, taskSlice: locatedMemoryEvidence(outer.taskSlice, options)};
   if (!Array.isArray(outer.entries)) return value;
   const memoryReferences = memoryReferenceResults(outer.entries);
-  return {...outer, entries: outer.entries.map((entry, snapshotIndex) => ({snapshotIndex, citationEligible: eligible(entry) && !memoryReferences.has(snapshotIndex), entry: memoryReferences.has(snapshotIndex) ? entry : projectEntry(entry, snapshotIndex)}))};
+  let viewBytes = 0, inspectedEntries = 0, overBudget = false;
+  const entries = outer.entries.map((entry, snapshotIndex) => {
+    const memory = memoryReferences.has(snapshotIndex), content = message(entry)?.content;
+    const blocks = memory || !options.declarationViews || overBudget ? [] : Array.from({length: Array.isArray(content) ? content.length : 1}, (_, block) => {
+      const text = textBlock(entry, block);
+      return text === undefined ? [] : [{block, text, lines: lineView(text, block, snapshotIndex).lines as RecordValue[]}];
+    }).flat();
+    let declarationViews: RecordValue[] | undefined;
+    if (options.declarationViews && !memory && !overBudget) {
+      inspectedEntries++;
+      declarationViews = memoryDeclarationViews(outer.entries as unknown[], snapshotIndex, blocks);
+      if (declarationViews?.length) {
+        viewBytes += Buffer.byteLength(JSON.stringify({declarationViews}));
+        if (viewBytes > 32_000) {overBudget = true;declarationViews = undefined;}
+      }
+    }
+    return {snapshotIndex, citationEligible: eligible(entry) && !memory,
+      entry: memory ? entry : projectEntry(entry, snapshotIndex), ...(declarationViews?.length ? {declarationViews} : {})};
+  });
+  if (overBudget) {
+    for (const entry of entries) delete entry.declarationViews;
+    return {...outer, entries, declarationViewSummary: {status: "omitted", reason: "projection-size-limit",
+      inspectedEntries, totalEntries: entries.length, maximumMetadataBytes: 32_000}};
+  }
+  return {...outer, entries};
 }
 
 /** Complete positional catalog, without source text or evidence selection. */
@@ -249,4 +274,64 @@ export function hasMemoryCitationLocations(raw: unknown): boolean {
       return Array.isArray(evidence) && evidence.some(ref => !!record(ref)
         && ["lines", "ref", "endRef"].some(key => key in record(ref)!));
     }));
+}
+
+/** A corrected body unit and its original-source references are one proposal.
+ * This binds positions only. Complete source/body/coverage review still follows. */
+export class MemoryKnowledgeCitationError extends Error {}
+
+/** Replace admitted discovery metadata without copying or rewriting the body. */
+export function materializeMemoryDescription(priorContent: string, description: unknown): string {
+  const header = /^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n)/.exec(priorContent);
+  if (!header || typeof description !== "string" || !description.trim() || /[\r\n]/.test(description)
+    || !/^description:[^\r\n]*/m.test(header[0])) throw new Error("Invalid Memory description correction");
+  return header[0].replace(/^description:[^\r\n]*/m, () => `description: ${description}`)
+    + priorContent.slice(header[0].length);
+}
+
+export function materializeMemoryKnowledge(priorContent: string, knowledge: unknown, snapshot: unknown,
+  description?: string): {content: string; evidence: ReturnType<typeof normalizeSnapshotEvidence>} {
+  const header = /^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n)/.exec(priorContent);
+  if (!header) throw new Error("Invalid atomic Memory frontmatter");
+  const catalog = record(knowledge);
+  if (!catalog || Object.keys(catalog).some(key => !["sourceCitations", "units"].includes(key))
+    || !Array.isArray(catalog.sourceCitations) || !catalog.sourceCitations.length
+    || catalog.sourceCitations.length > MAX_NEW_MEMORY_EVIDENCE) {
+    throw new MemoryKnowledgeCitationError(`Atomic Memory source catalog requires 1..${MAX_NEW_MEMORY_EVIDENCE} citations`);
+  }
+  if (!Array.isArray(catalog.units) || !catalog.units.length || catalog.units.length > 32) {
+    throw new MemoryKnowledgeCitationError("Atomic Memory knowledge requires 1..32 cited body units");
+  }
+  let frontmatter = header[0];
+  if (description !== undefined) {
+    frontmatter = materializeMemoryDescription(frontmatter, description);
+  }
+  let evidence: ReturnType<typeof normalizeSnapshotEvidence>;
+  try {
+    const resolved = record(resolveMemoryPlanCitations({newMemories: [{evidence: catalog.sourceCitations}]}, snapshot));
+    const candidate = record((resolved!.newMemories as unknown[])[0]);
+    evidence = normalizeSnapshotEvidence(candidate!.evidence, snapshot);
+  } catch (cause) {
+    // The repair worker receives this message, not Error.cause. Keep the
+    // parent's position/category diagnostics; never expose an unexpected error.
+    // The temporary resolver's candidate index is not an actual plan index.
+    const detail = cause instanceof MemoryCitationLocationError
+      ? ": " + cause.message.replace("Memory citation locations are invalid: ", "")
+        .replaceAll("newMemories[0].evidence", "knowledge.sourceCitations") : "";
+    throw new MemoryKnowledgeCitationError("Atomic Memory source catalog has an invalid original-source citation" + detail, {cause});
+  }
+  const bodies = catalog.units.map(value => {
+    const unit = record(value);
+    if (!unit || Object.keys(unit).some(key => !["text", "citationIndexes"].includes(key))
+      || typeof unit.text !== "string" || !unit.text.trim() || !Array.isArray(unit.citationIndexes)
+      || !unit.citationIndexes.length || unit.citationIndexes.length > MAX_NEW_MEMORY_EVIDENCE
+      || new Set(unit.citationIndexes).size !== unit.citationIndexes.length
+      || unit.citationIndexes.some(index => !Number.isSafeInteger(index) || Number(index) < 0 || Number(index) >= evidence.length)) {
+      throw new MemoryKnowledgeCitationError("Atomic Memory body unit has an invalid source-catalog selection");
+    }
+    return unit.text;
+  });
+  // Retain every selected catalog citation. Never trim or merge selections to
+  // recover the bound. All complete-body semantic gates still run afterward.
+  return {content: frontmatter + bodies.join("\n\n"), evidence};
 }

@@ -22,6 +22,65 @@ def _valid_revision(value: object, size: int) -> bool:
             and int(value.split(':')[2]) == size)
 
 
+PROTECTED_ACCOUNTING_NAMES = frozenset(('cost-ledger.jsonl','authorized-real-study-budget-600.json','600-active-reservation.json'))
+
+
+def _read_study_artifact(root: Path, relative: str, bound: int, expected: dict | None, immutable: bool) -> tuple[bytes, dict]:
+    """Read anchored regular evidence without following any path component."""
+    if (not root.is_absolute() or not isinstance(relative,str) or not relative
+            or Path(relative).is_absolute() or '\\' in relative
+            or str(Path(relative)) != relative or any(part in ('..','.') for part in (*root.parts,*Path(relative).parts))
+            or any(part in PROTECTED_ACCOUNTING_NAMES for part in (*root.parts,*Path(relative).parts))
+            or type(bound) is not int or not 0 < bound <= 32*1024*1024):
+        raise ValueError('Unsafe study artifact path or bound')
+    if expected is not None and (not isinstance(expected,dict) or set(expected)!={'sha256','size','mode','revision'}
+            or not isinstance(expected['sha256'],str) or re.fullmatch(r'[a-f0-9]{64}',expected['sha256']) is None
+            or type(expected['size']) is not int or not 0 <= expected['size'] <= bound
+            or type(expected['mode']) is not int or not 0 <= expected['mode'] <= 0o777
+            or not _valid_revision(expected['revision'],expected['size'])):
+        raise ValueError('Invalid expected study artifact identity')
+    descriptors=[];links=[];file_fd=None
+    try:
+        descriptors.append(os.open('/',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW))
+        parts=[*root.parts[1:],*Path(relative).parts]
+        for part in parts[:-1]:
+            parent=descriptors[-1]
+            child=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=parent)
+            descriptors.append(child);links.append((parent,part,child))
+        parent=descriptors[-1];name=parts[-1]
+        file_fd=os.open(name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=parent)
+        with os.fdopen(file_fd,'rb') as stream:
+            file_fd=None;before=os.fstat(stream.fileno())
+            if (not stat.S_ISREG(before.st_mode) or before.st_size>bound
+                    or immutable and before.st_mode & 0o222):raise ValueError('Artifact is not bounded regular data')
+            data=stream.read(bound+1);after=os.fstat(stream.fileno())
+        current=os.stat(name,dir_fd=parent,follow_symlinks=False)
+        if (len(data)>bound or len(data)!=after.st_size or _revision(before)!=_revision(after)
+                or _revision(after)!=_revision(current) or before.st_mode!=after.st_mode or after.st_mode!=current.st_mode):
+            raise ValueError('Study artifact changed during capture')
+        for parent,part,child in links:
+            linked=os.stat(part,dir_fd=parent,follow_symlinks=False);opened=os.fstat(child)
+            if not stat.S_ISDIR(linked.st_mode) or (linked.st_dev,linked.st_ino)!=(opened.st_dev,opened.st_ino):
+                raise ValueError('Study artifact parent changed')
+        binding={'sha256':hashlib.sha256(data).hexdigest(),'size':len(data),'mode':after.st_mode & 0o777,'revision':_revision(after)}
+        if expected is not None and binding!=expected:raise ValueError('Study artifact identity differs')
+        return data,binding
+    except OSError as error:raise ValueError('Study artifact is unavailable or unsafe') from error
+    finally:
+        if file_fd is not None:os.close(file_fd)
+        for descriptor in reversed(descriptors):os.close(descriptor)
+
+
+def read_study_artifact(root: Path, relative: str, *, bound: int, expected: dict | None = None, immutable: bool = False) -> bytes:
+    """Read complete scoped evidence; a matching hash alone is not identity."""
+    return _read_study_artifact(root,relative,bound,expected,immutable)[0]
+
+
+def bind_study_artifact(root: Path, relative: str, *, bound: int) -> dict:
+    """Capture an owner-created artifact's exact bytes and physical identity."""
+    return _read_study_artifact(root,relative,bound,None,False)[1]
+
+
 def source_archive_files(raw: bytes) -> dict[str, dict]:
     """Validate a complete, bounded source-only archive before extraction."""
     import gzip
@@ -71,22 +130,7 @@ def source_archive_files(raw: bytes) -> dict[str, dict]:
 def load_observed_idle_source(manifest: Path) -> dict:
     """Read admitted immutable inputs; this does not authenticate their origin."""
     def read(file: Path, bound: int) -> bytes:
-        if any(parent.is_symlink() for parent in (file, *file.parents)):
-            raise ValueError('Input path contains a symlink')
-        try:
-            with os.fdopen(os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
-                before = os.fstat(stream.fileno())
-                if not stat.S_ISREG(before.st_mode) or before.st_mode & 0o222 or before.st_size > bound:
-                    raise ValueError('Source input is not immutable bounded regular data')
-                data = stream.read(bound + 1)
-                after = os.fstat(stream.fileno())
-            if (len(data) > bound or _revision(before) != _revision(after)
-                    or _revision(after) != _revision(file.lstat())
-                    or any(parent.is_symlink() for parent in (file, *file.parents))):
-                raise ValueError('Source input changed')
-            return data
-        except OSError as error:
-            raise ValueError('Source input is unavailable') from error
+        return read_study_artifact(file.parent,file.name,bound=bound,immutable=True)
     try:
         manifest_raw = read(manifest, 2 * 1024 * 1024)
         value = json.loads(manifest_raw)
@@ -193,6 +237,18 @@ def collect_surface_metadata(private: Path, project: Path) -> dict:
 
 def verify_recovery_delta(before: dict, after: dict) -> dict:
     """Only new receipt-owned history may explain a recovery's full endpoint."""
+    return _verify_recovery_delta(before, after)
+
+
+def verify_command_recovery_delta(before: dict, after: dict, receipt: dict) -> dict:
+    """Check direct command ownership, without manufacturing replay attempts.
+
+    Native invocation and receipt authenticity remain separate required proofs.
+    """
+    return _verify_recovery_delta(before, after, command_receipt=receipt)
+
+
+def _verify_recovery_delta(before: dict, after: dict, *, command_receipt: dict | None = None) -> dict:
     try:
         encode = lambda attempt: json.dumps(attempt, sort_keys=True, separators=(',', ':'))
         old_attempts = Counter(encode(attempt) for attempt in before['attempts'])
@@ -210,11 +266,33 @@ def verify_recovery_delta(before: dict, after: dict) -> dict:
         owners = {attempt['receipt']['batchId'] for attempt in after['attempts']
                   if attempt.get('receiptDigest') and attempt['receiptDigest'] not in old_digests
                   and (attempt.get('receipt') or {}).get('batchId') and attempt['receipt']['batchId'] not in old_batches}
+        if command_receipt is not None:
+            batch = command_receipt.get('batchId')
+            matching = [value for value in after['receipts'] if value.get('batchId') == batch]
+            attempt_rows = command_receipt.get('attempts')
+            memory_attempts = [value for value in attempt_rows if isinstance(value,dict) and value.get('phase') == 'memory'] if isinstance(attempt_rows,list) else []
+            if (command_receipt.get('kind') != 'learning-pipeline-receipt' or command_receipt.get('version') != 1
+                    or command_receipt.get('mode') != 'manual' or not isinstance(batch, str) or not batch
+                    or type(command_receipt.get('operations')) is not int or command_receipt['operations'] < 1
+                    or not isinstance(command_receipt.get('attempts'), list)
+                    or any(not isinstance(value,dict) for value in attempt_rows)
+                    or any(value.get('pendingOperations', 0) > 0 for value in command_receipt['attempts'])
+                    or not memory_attempts or memory_attempts[-1].get('outcome') != 'applied'
+                    or not any(value.get('phase') == 'memory' and value.get('outcome') == 'applied'
+                               and value.get('operations', 0) > 0 for value in command_receipt['attempts'])
+                    or matching != [command_receipt]
+                    or any(value.get('batchId') == batch for value in before['receipts'])
+                    or batch in old_batches or batch in owners):
+                return {'passed': False, 'reason': 'invalid-direct-command-owner'}
+            # Keep cumulative costs and prior direct receipts exactly, too.
+            if Counter(encode(value) for value in before['receipts']) - Counter(encode(value) for value in after['receipts']):
+                return {'passed': False, 'reason': 'prior-command-receipt-changed-or-lost'}
+            owners.add(batch)
         histories = [record for id, record in new.items() if id not in old and record.get('status') == 'applied']
         if any(record.get('status') not in ('applied', 'proposed', 'abandoned') for id, record in new.items() if id not in old):
             return {'passed': False, 'reason': 'unfinished-history'}
         return verify_recovery_chains(before['surfaceSnapshots'], after['surfaceSnapshots'], histories, owners)
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError, AttributeError):
         return {'passed': False, 'reason': 'incomplete-recovery-state'}
 
 

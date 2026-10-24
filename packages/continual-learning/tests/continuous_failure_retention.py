@@ -109,6 +109,30 @@ def valid_learning_usage(value: Any) -> bool:
         for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens', 'cost'))
 
 
+
+
+def _receipt_view_identity(value: dict) -> str:
+    # Python compares False == 0. JSON type tags must remain distinct.
+    try:return json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)
+    except (ValueError,TypeError) as error:raise ValueError('Invalid receipt value') from error
+
+def deduplicate_receipt_views(values: list[dict]) -> list[dict]:
+    """Collapse exact batch views; unkeyed legacy receipts retain unknown identity."""
+    seen={};result=[]
+    for value in values:
+        if not isinstance(value,dict) or value.get('kind')!='learning-pipeline-receipt':
+            raise ValueError('Invalid parent receipt')
+        identity=value.get('batchId')
+        if identity is None:
+            result.append(value)
+            continue
+        if not isinstance(identity,str) or not identity:raise ValueError('Invalid receipt batch identity')
+        if identity in seen:
+            if _receipt_view_identity(seen[identity])!=_receipt_view_identity(value):raise ValueError('Conflicting retained receipt identity')
+        else:
+            seen[identity]=value;result.append(value)
+    return result
+
 def unique_learning_receipts(values: list[dict]) -> dict[str, dict]:
     """Reconcile parent snapshots by batch identity, never by numeric totals.
 
@@ -122,7 +146,7 @@ def unique_learning_receipts(values: list[dict]) -> dict[str, dict]:
         identity = value.get('batchId')
         if not isinstance(identity, str) or not identity or not valid_learning_usage(value.get('totals')):
             raise ValueError('Invalid retained receipt')
-        if identity in receipts and receipts[identity] != value:
+        if identity in receipts and _receipt_view_identity(receipts[identity]) != _receipt_view_identity(value):
             raise ValueError('Conflicting retained receipt identity')
         receipts[identity] = value
     return receipts
@@ -206,13 +230,16 @@ def retained_learning_costs(target: Path) -> dict:
     def collect(value: Any) -> None:
         receipts.update(unique_learning_receipts([*receipts.values(), value]))
 
-    paths = [*target.glob('memory/runs/*/*/*.json'), *target.glob('learning/*/replay-*.json')]
+    paths = [*target.glob('memory/runs/*/*/*.json'),
+             *target.glob('memory/runs/*/learning-pipeline-receipt.json'),
+             *target.glob('memory/runs/*/receipts/*/learning-pipeline-receipt.json'),
+             *target.glob('learning/*/replay-*.json')]
     for path in sorted(paths):
         relative = path.relative_to(target)
         name = path.name
         replay = relative.parts[0] == 'learning'
         receipt = name == 'learning-pipeline-receipt.json'
-        worker = name.startswith(('memory-task-usage', 'memory-repair-usage', 'memory-body-usage',
+        worker = name.startswith(('memory-task-usage', 'memory-repair-usage', 'memory-body-usage', 'memory-coverage-usage',
                                   'harness-task-usage', 'harness-repair-usage')) or name == 'source-audit-usage.json'
         if not (replay or receipt or worker):
             continue
@@ -234,7 +261,7 @@ def retained_learning_costs(target: Path) -> dict:
         if not isinstance(value, dict) or not valid_usage(value.get('knownUsage')):
             continue
         name = path.name
-        if not (name.startswith(('memory-task-usage', 'memory-repair-usage', 'memory-body-usage',
+        if not (name.startswith(('memory-task-usage', 'memory-repair-usage', 'memory-body-usage', 'memory-coverage-usage',
                                  'harness-task-usage', 'harness-repair-usage')) or name == 'source-audit-usage.json'):
             continue
         row = {'path': str(path.relative_to(target)), **value}

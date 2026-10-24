@@ -1,6 +1,8 @@
 """Explicit real-model experiment on pinned GitHub projects, never collected by CI."""
 from __future__ import annotations
 
+from continuous_failure_retention import deduplicate_receipt_views
+
 import argparse
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -414,7 +416,7 @@ def verify_container(name: str, expected_digest: str, jev_mode: str = "off", mem
         (RESULTS / "project-diff.patch").write_text(command(["git", "-C", str(project), "diff"]))
         report["checks"]["regressionChanged"] = True
 
-        receipts = [json.loads(file.read_text()) for file in sorted((AGENT / "memory" / "runs").rglob("learning-pipeline-receipt.json"))]
+        receipts = deduplicate_receipt_views([json.loads(file.read_text()) for file in sorted((AGENT / "memory" / "runs").rglob("learning-pipeline-receipt.json"))])
         report["receipts"] = receipts
         # Freeze learning before independent probes, including held Memory.
         memory_settings.write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))

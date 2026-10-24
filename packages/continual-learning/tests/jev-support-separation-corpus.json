@@ -1,0 +1,160 @@
+{
+  "kind": "jev-support-separation-corpus",
+  "version": 2,
+  "purpose": "Authored diagnostic cases for the unchanged production Memory source-support question. These labels are test expectations, not calibrated ground truth or proof of learning benefit. No threshold or mutation authority follows from this corpus.",
+  "rule": "Send one captured production supported_0 question per case. Keep expected labels and case IDs outside the request. Retain all distributions, failures, usage and unknown costs. Every full Memory gate stays unchanged.",
+  "cases": [
+    {
+      "id": "positive-verified-tool-observation",
+      "expected": "grounded",
+      "kind": "verified tool observation",
+      "note": "Authored tool output, not a replay of the held V96 request.",
+      "candidate": "One observed run of node observed-idle-failure.mjs exited with code 1. Both subtests failed with AssertionError, expected false and actual true, and the message onIdle reported while the completion reaction job was held. This output does not establish a cause.",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "node observed-idle-failure.mjs\nnot ok 1 - limiter\nAssertionError: onIdle reported while the completion reaction job was held\nexpected: false\nactual: true\nnot ok 2 - wrapper\nAssertionError: onIdle reported while the completion reaction job was held\nexpected: false\nactual: true\n# tests 2\n# pass 0\n# fail 2\nexit code 1"
+        }
+      ]
+    },
+    {
+      "id": "positive-inspected-declaration",
+      "expected": "grounded",
+      "kind": "inspected source declaration",
+      "note": "Complete declaration. Options is required. The returned callable retains its Pick intersection. This is a source-support diagnostic, not permission to reconsider a held plan.",
+      "candidate": "The inspected index.d.ts declares:\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "Read index.d.ts:\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;"
+        }
+      ]
+    },
+    {
+      "id": "positive-user-stated-preference",
+      "expected": "grounded",
+      "kind": "user statement",
+      "candidate": "\nThis project runs its test suite with `pnpm test`.\n",
+      "evidence": [
+        {
+          "role": "user",
+          "quote": "Standing project preference for future tasks: use pnpm test to run this project test suite."
+        }
+      ]
+    },
+    {
+      "id": "positive-command-exit-observation",
+      "expected": "grounded",
+      "kind": "verified tool observation",
+      "candidate": "\n`pnpm test` completed successfully in this checkout.\n",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "pnpm test\nTests 12 passed\nexit code 0"
+        }
+      ]
+    },
+    {
+      "id": "negative-speculation",
+      "expected": "negative",
+      "kind": "unverified inference",
+      "candidate": "\nThe idle report is probably caused by a scheduling race in the promise queue.\n",
+      "evidence": [
+        {
+          "role": "user",
+          "quote": "Something looks wrong with idle handling."
+        }
+      ]
+    },
+    {
+      "id": "negative-transient-generalised",
+      "expected": "negative",
+      "kind": "temporary failure as lasting knowledge",
+      "candidate": "\nThe test suite is broken and `pnpm test` does not work in this project.\n",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "pnpm test\nfetch failed: ECONNRESET\nexit code 1"
+        }
+      ]
+    },
+    {
+      "id": "negative-cause-from-message",
+      "expected": "negative",
+      "kind": "cause inferred from an assertion message",
+      "candidate": "\n`onIdle` reports before queued work settles because the completion reaction is registered late, so the queue never waits for it.\n",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "AssertionError: onIdle reported while the completion reaction job was held"
+        }
+      ]
+    },
+    {
+      "id": "negative-permanent-from-single-failure",
+      "expected": "negative",
+      "kind": "permanent conclusion from one failure",
+      "candidate": "\nThe project's idle handling is permanently broken and cannot be fixed without replacing the queue.\n",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "# fail 2\nexit code 1"
+        }
+      ]
+    },
+    {
+      "id": "negative-unsupported-obligation",
+      "expected": "negative",
+      "kind": "obligation absent from evidence",
+      "candidate": "\nEvery contributor must add a queue regression test whenever they touch `index.js`.\n",
+      "evidence": [
+        {
+          "role": "user",
+          "quote": "Please look at the idle handling in this checkout."
+        }
+      ]
+    },
+    {
+      "id": "negative-comment-as-behaviour",
+      "expected": "negative",
+      "kind": "source comment treated as observed behaviour",
+      "candidate": "Every actual call to clearQueue() discards all pending promises. This runtime behavior has been verified.",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "// pending promises are discarded here"
+        }
+      ]
+    },
+    {
+      "id": "positive-failed-verification-with-source",
+      "expected": "grounded",
+      "kind": "failed verification plus inspected source",
+      "candidate": "In this observation, pnpm test exited with code 1 on the idle subtest. The inspected index.js declares function trackIdle() { return activeCount === 0; }. The cause of the failure and any repair remain unverified.",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "pnpm test\nidle subtest failed\nexit code 1"
+        },
+        {
+          "role": "toolResult",
+          "quote": "Read index.js:\nlet activeCount = 1;\nfunction trackIdle() { return activeCount === 0; }"
+        }
+      ]
+    },
+    {
+      "id": "negative-quoted-claim-from-doc",
+      "expected": "negative",
+      "kind": "documentation claim as verified fact",
+      "candidate": "The implementation has been verified to enforce FIFO ordering in every execution of queued jobs.",
+      "evidence": [
+        {
+          "role": "toolResult",
+          "quote": "readme.md: jobs are started in the order they were submitted"
+        }
+      ]
+    }
+  ],
+  "supersededCorpusSha256": "8743b4326dfab54da135cbb4a8c901373be5ca9225f5114afff0c544360bb598",
+  "repairNote": "The first corpus had incomplete positive evidence and ambiguous attributed claims. Its original bytes and independent findings remain in the handoff review artifacts. This version supplies complete authored observations and distinguishes runtime claims from quotations."
+}

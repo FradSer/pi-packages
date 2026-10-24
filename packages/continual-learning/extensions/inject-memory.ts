@@ -1,3 +1,5 @@
+import {assertFreshMemoryProjectOutput} from "./planner-output-schema";
+import {reviewMemoryCoverage, memoryCoverageReviewDigest, prepareMemoryCoverageJudgment, type MemoryCoverageContext, type MemoryCoverageReview} from "./memory-knowledge-coverage";
 import {MemoryUseTracker, type MemoryUseScope} from "./memory-retrieval";
 import {materializeSourceExcerptPlan, assertSourceExcerptBindings} from "./source-excerpt-memory";
 import {independentMemoryRoles, memoryRewriteTextComparisons} from "./jev-memory-predecessors";
@@ -7,12 +9,12 @@ import { currentUserCorrectionEntry, ownedCorrectionPlan } from "./current-user-
 import { assertHarnessTargetContained } from "./guardrails";
 import { incompleteEvidencePolicies } from "./learning-controls";
 import { shouldReportLearningReceipt, learningSummaryTone } from "./learning-efficiency";
-import { MemoryCitationLocationError, locatedMemoryEvidence, resolveMemoryPlanCitations, MEMORY_LOCATION_GUIDANCE } from "./memory-citation-locations";
+import { MemoryCitationLocationError, MemoryKnowledgeCitationError, locatedMemoryEvidence, resolveMemoryPlanCitations, materializeMemoryKnowledge, materializeMemoryDescription, MEMORY_LOCATION_GUIDANCE } from "./memory-citation-locations";
 import { plannerReadArgs } from "./planner-read-scope";
 import { auditMemoryMaintenanceSources, isMemoryMaintenanceRequest, memorySourceAuditRequest } from "./memory-maintenance-audit";
 import { confirmPrivateMemoryReview } from "./memory-review-consent";
 import {partitionReviewedNewMemory} from "./independent-memory-partition";
-import { createJevJudge, jevModelMatchesRequest, assertMemoryOriginReviewContext, sensitiveValue, isConfirmedMemoryContradiction, judgeCannotRun, jevRepairFailureHints, memorySourceReadOrder, memoryDescriptionClaim, type BoundMemoryOriginContext, type BoundMemorySourceContext, type JevJudge, type JevTelemetry, type JevCandidateReview, type JevIncompleteReview } from "./jev-learning";
+import { createJevJudge, jevModelMatchesRequest, assertMemoryOriginReviewContext, sensitiveValue, isConfirmedMemoryContradiction, judgeCannotRun, jevRepairFailureHints, memorySourceReadOrder, memoryDescriptionClaim, type BoundMemoryOriginContext, type BoundMemorySourceContext, type JevJudge, type JevTelemetry, type JevCandidateReview, type JevIncompleteReview, type JevMemoryCoverageReview } from "./jev-learning";
 import {reviewMemoryBodies, heldMemoryBodies, memoryBodiesAllow, memoryBodyRepairFields, MEMORY_CORRECTION_WORKER_DEADLINE_MS, type MemoryBodyReview} from "./memory-body-review";
 /**
  * pi-continual-learning — native Pi /memory command.
@@ -83,7 +85,7 @@ import {
 import { registerAutomaticLearning } from "./automatic-learning";
 import { buildLearningReceipt, formatLearningSummary, hasLearningInput, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, manualIncrementalScreen, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
 import { currentTaskSlice, currentTaskRange, requestedMemoryTaskSlice, appendMemorySourceObservations, taskSourceEditPaths, taskSliceMetadata, indexMemoryMetadata, observedIndexedMemoryReadNames, selectIncrementalLearning, type TaskSlice } from "./incremental-learning";
-import { recentProjectLearningInput } from "./learning-input";
+import { recentProjectLearningInput, resolveManualMemoryRequest, manualMemoryTaskSlice, MANUAL_MEMORY_REQUEST_ENTRY, type ManualMemoryRequestMarker } from "./learning-input";
 import type { LearningInputSource } from "./learning-efficiency";
 import { normalizeJsonStringWhitespace } from "./json-string-whitespace";
 import { enqueueBacklog, backlogStatus, readBacklog, backlogIdentity, acknowledgeBacklog, type BacklogEntry, type BacklogReason } from "./learning-backlog";
@@ -129,13 +131,16 @@ import {
   normalizeSnapshotEvidence,
   snapshotEditPatchText,
   MAX_STDERR_BYTES,
+  MAX_NEW_MEMORY_EVIDENCE,
   releaseConsolidationRun,
   resolveConsolidationRunPaths,
   writeConsolidationReceipt,
   writeFileAtomic,
   snapshotSessionContext,
   captureMaintenanceCommand,
+  captureMemoryCommandPhase,
   type MaintenanceCommandInvocation,
+  type MemoryCommandPhaseInvocation,
   summarizeMemoryChanges,
   hashMemoryRoot,
   type ConsolidationRun,
@@ -1496,6 +1501,18 @@ export function bindMemoryCitationAmendment(original: unknown, amendment: unknow
     const patch = asRecord(value)!, candidate = candidates.get(String(patch.candidateId))!;
     const prior = (plan[candidate.field] as Record<string, unknown>[])[candidate.index];
     let replacement: Record<string, unknown> = {...prior, evidence: patch.evidence};
+    if (Object.hasOwn(prior, "knowledge")) {
+      const knowledge = asRecord(prior.knowledge);
+      if (candidate.field !== "newMemories" || prior.kind !== "project" || !knowledge
+        || Object.hasOwn(prior, "content") || Object.hasOwn(prior, "evidence")
+        || !Array.isArray(knowledge.sourceCitations) || !Array.isArray(knowledge.units)
+        || (patch.evidence as unknown[]).length !== knowledge.sourceCitations.length
+        || Object.hasOwn(patch, "content")) throw new Error("Invalid knowledge catalog citation patch");
+      // Catalog positions are also body-unit references. Keep their count,
+      // every unit, discovery metadata and privacy; full source materialization
+      // and all semantic gates still follow in the caller.
+      replacement = {...prior, knowledge: {...knowledge, sourceCitations: patch.evidence}};
+    }
     if (Object.hasOwn(patch, "content")) {
       if (candidate.field !== "operations" || prior.kind !== "delete" || typeof patch.content !== "string"
         || !patch.content.length || typeof prior.name !== "string" || !reconsiderClassifications
@@ -1578,10 +1595,29 @@ export async function loadFrozenMemoryRepairContext(input: {
 
 /** Materialization does not grant write authority; ordinary expansion and all
  * semantic/privacy gates still review the complete generated record. */
-async function materializeSourceMemoryPlan(run: ConsolidationRun, raw: unknown): Promise<unknown> {
+function memorySourceBindings(snapshot: unknown, sourceEntries?: readonly unknown[]): BoundMemorySourceContext | undefined {
+  return sourceEntries?.length ? {
+    evidenceDigest: sha256Digest(JSON.stringify(snapshot)),
+    entryDigests: sourceEntries.map(entry => sha256Digest(JSON.stringify(entry))),
+  } : undefined;
+}
+
+/** Retain parsed generation data before materialization; never transport or reasoning. */
+export async function retainOriginalMemoryGenerationPlan(outputDir: string,
+  identity: IncrementalMemoryRepairInput["identity"], plan: unknown): Promise<void> {
+  const text = JSON.stringify(plan);
+  const sensitive = generationOutputContainsSensitiveMaterial("", plan);
+  await writeFileAtomic(path.join(outputDir, "generation-original-plan.json"), JSON.stringify({
+    version: 1, ...identity, originalPlanDigest: sha256Digest(text), originalPlanBytes: Buffer.byteLength(text, "utf8"),
+    sensitive, originalPlanRetained: !sensitive, ...(sensitive ? {} : {originalPlan: plan}),
+  }));
+}
+
+async function materializeSourceMemoryPlan(run: ConsolidationRun, raw: unknown, sourceEntries?: readonly unknown[]): Promise<unknown> {
   const snapshot = await fs.readFile(run.paths.snapshotFile);
   if (sha256Digest(snapshot) !== run.manifest.snapshotDigest) throw new Error("Frozen Memory citation snapshot changed");
-  return materializeSourceExcerptPlan(run, raw, JSON.parse(snapshot.toString("utf8")));
+  const evidence = JSON.parse(snapshot.toString("utf8")) as unknown;
+  return materializeSourceExcerptPlan(run, raw, evidence, memorySourceBindings(evidence, sourceEntries));
 }
 
 /** Initial, structural-repair and semantic-repair plans share one citation gate. */
@@ -1598,11 +1634,19 @@ export async function expandCitedIncrementalMemoryPlan(run: ConsolidationRun, se
 export interface IncrementalMemoryRepairInput {
   rejectedPlan: unknown;
   errors: readonly string[];
+  /** Normal Memory feedback formatting only; grants no repair fields or authority. */
+  boundedSemanticDiagnostics?: true;
+  /** Body corrections and their source selections form one atomic proposal. */
+  atomicBodyEvidence?: true;
+  /** Parent-bound no-redraw policy; feedback only, never repair authority. */
+  unchangedCoverageHeld?: true;
   selectedNames: readonly string[];
   identity: { runId: string; scopeKey: string; scopeDigest: string; artifactHash: string; snapshotDigest: string };
   model?: string;
   signal?: AbortSignal;
   structuralCorrection?: boolean;
+  /** Only the current initial producer chain, before source materialization. */
+  requireNewProjectKnowledge?: true;
   /** Parent admission category only; never selected by model output. */
   citationOnly?: boolean;
   /** Parent opt-in only with mandatory complete Memory semantic review. */
@@ -1618,6 +1662,9 @@ export interface IncrementalMemoryRepairInput {
   retainedRepairNames?: readonly string[];
   /** Parent-bound consistency observations; never source evidence or authority. */
   bodyReview?: MemoryBodyReview;
+  /** Bound rejected coverage questions, not source facts or write authority. */
+  coverageContext?: MemoryCoverageContext;
+  coverageSemanticReview?: JevMemoryCoverageReview;
   /** Exact parent source-audit binding already used by the semantic reviewer. */
   memorySources?: BoundMemorySourceContext;
   /** Parent-authorized private historical data; never serialized callbacks. */
@@ -1658,7 +1705,19 @@ function sourceExcerptCandidates(input: IncrementalMemoryRepairInput): Set<strin
  * protected fields and complete preservation/semantic checks still follow. */
 async function materializeSemanticSourceAmendment(input: IncrementalMemoryRepairInput, amendment: unknown,
   allowed: ReadonlySet<string>, sources?: MemoryAmendmentSourceContext): Promise<unknown> {
-  const resolved = resolveSemanticCandidateReferences(input.rejectedPlan, amendment, input.identity, input.repairableNames, sources);
+  let resolved = resolveSemanticCandidateReferences(input.rejectedPlan, amendment, input.identity, input.repairableNames, sources);
+  if (input.atomicBodyEvidence) {
+    const response = asRecord(resolved);
+    if (!input.semanticContext || !boundSemanticSourceSnapshot(input.semanticContext.frozenEvidence, input.identity)) throw new Error("Unbound atomic Memory source");
+    const candidates = new Map(semanticMemoryRepairCandidates(input.rejectedPlan, input.repairableNames).map(candidate => [candidate.candidateId, candidate]));
+    if (Array.isArray(response?.replacements)) resolved = {...response, replacements: response.replacements.map(value => {
+      const patch = asRecord(value), candidate = candidates.get(String(patch?.candidateId));
+      if (!patch || !candidate) throw new Error("Unknown atomic Memory candidate");
+      const prior = (asRecord(input.rejectedPlan)![candidate.field] as Record<string, unknown>[])[candidate.index];
+      return materializeAtomicKnowledgePatch(input, patch, String(prior.content), candidate.name,
+        candidate.contentAllowed && input.repairableFields?.[candidate.name]?.includes("body") === true, ["candidateId"]);
+    })};
+  }
   const response = asRecord(resolved);
   if (!Array.isArray(response?.replacements) || !response.replacements.some(value => Object.hasOwn(asRecord(value) ?? {}, "sourceExcerpt"))) return resolved;
   const original = asRecord(input.rejectedPlan)!;
@@ -1689,6 +1748,42 @@ async function materializeSemanticSourceAmendment(input: IncrementalMemoryRepair
   })};
 }
 
+function materializeAtomicKnowledgePatch(input: IncrementalMemoryRepairInput, patch: Record<string, unknown>,
+  prior: string, name: string, bodyAllowed: boolean, identityKeys: readonly string[]): Record<string, unknown> {
+  const body = (value: string) => value.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+  if (!Object.hasOwn(patch, "knowledge")) {
+    if (Object.hasOwn(patch, "description")) {
+      if (!input.repairableFields?.[name]?.includes("description")
+        || Object.keys(patch).some(key => ![...identityKeys, "description", "evidence"].includes(key))) {
+        throw new Error("Atomic Memory changed protected fields");
+      }
+      return {...Object.fromEntries(identityKeys.map(key => [key, patch[key]])),
+        content: materializeMemoryDescription(prior, patch.description), evidence: patch.evidence};
+    }
+    if (typeof patch.content === "string" && body(patch.content) !== body(prior)) throw new Error("Changed Memory body requires bound knowledge units");
+    return patch;
+  }
+  if (!bodyAllowed || Object.keys(patch).some(key => ![...identityKeys, "knowledge", "description"].includes(key))
+    || patch.description !== undefined && !input.repairableFields?.[name]?.includes("description")) throw new Error("Atomic Memory changed protected fields");
+  const result = materializeMemoryKnowledge(prior, patch.knowledge, input.semanticContext!.frozenEvidence,
+    patch.description === undefined ? undefined : typeof patch.description === "string" ? patch.description : "");
+  return {...Object.fromEntries(identityKeys.map(key => [key, patch[key]])), ...result};
+}
+
+/** Preserve core existing observations within the final worker's 16-line budget.
+ * Historical/structural callers retain their exact original slicing behavior. */
+function memoryRepairErrors(errors: readonly string[], bounded: boolean | undefined): string[] {
+  const lines = errors.map(error => error.slice(0, 800));
+  if (!bounded || lines.length <= 16) return lines.slice(0, 16);
+  const core = lines.filter(line => line.startsWith("Retained review index map:") || line.startsWith("Semantic verification:"));
+  const observations = lines.filter(line => line.startsWith("Candidate failures:"));
+  const rest = lines.filter(line => !core.includes(line) && !observations.includes(line));
+  return [...core, ...observations, ...rest].slice(0, 15).concat(
+    "Additional correction diagnostics omitted; full controlled diagnostics remain in the run receipt. No omitted check has passed.");
+}
+
+const MEMORY_SOURCE_ORDER_REPAIR_GUIDANCE = "Existing Memory is a correction target, not authoritative source. sourceReadOrder identifies only uniquely paired successful original reads of the exact same supplied path, including later parent-bound audit reads. Compare their complete original text in frozenEvidence before copying a predecessor declaration or removing a newly observed member. Earlier source can describe a previous state; retain still-valid knowledge but correct an obsolete declaration only when later verified same-subject source supports that exact change. The index order alone establishes neither semantic supersession nor file identity, current truth, runtime/test success or user permission. Original user corrections, later reverts and unresolved contradictions still govern; return no correction if the evidence cannot resolve them. Do not restore old text merely because it is already in Memory. Optional temporal clarification: when both actual original source observations support it and the original task intent permits it, distinguish the current as observed in this task from a short earlier-observed fact. Cite both actual source observations through the supplied original-source refs; stored Memory or assistant quotations cannot authenticate history. Do not infer dates, releases, versions, continuous historical truth, runtime success or original Memory purpose from read order. Keep stable facts and material conditions once; do not copy the whole predecessor, accumulate arbitrary history or remove required history for convenience. History is not a loophole for user revocations, forget requests, privacy or temporary-only restrictions. This clarification is optional: do not change an already correct body merely because a verdict is uncertain. If evidence, source identity or intended scope remains unresolved, return no correction. Every correction still requires fresh complete review.";
+
 export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepairInput): Promise<{
   outcome: "repaired" | "failed" | "cancelled";
   durationMs: number;
@@ -1702,6 +1797,9 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   declinedNewMemories?: string[];
 }> {
   const startedAt = Date.now();
+  if (input.atomicBodyEvidence && (input.structuralCorrection || input.citationOnly || !input.semanticContext
+    || !boundSemanticSourceSnapshot(input.semanticContext.frozenEvidence, input.identity))) return {outcome: "failed", durationMs: 0,
+    failureKind: "intent", error: "Atomic Memory correction requires the complete bound semantic snapshot"};
   const historicalDigest = input.memoryOrigins?.originsDigest;
   if (input.memoryOrigins) {
     try {
@@ -1824,8 +1922,12 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   // Evidence-only retained repairs copy parent-frozen bytes, not worker prose.
   // Capture before generation and recheck the complete context before reuse.
   const retainedContext = () => ({identity: input.identity, rejectedPlan: input.rejectedPlan,
-    semanticContext: input.semanticContext, requiredTextChanges: input.requiredTextChanges});
+    semanticContext: input.semanticContext, requiredTextChanges: input.requiredTextChanges, coverageContext: input.coverageContext});
   const retainedContextDigest = input.retainedRepairNames ? digest(retainedContext()) : undefined;
+  const retainedOriginals = new Map((input.semanticContext?.existingMemories ?? [])
+    .filter(item => input.retainedRepairNames?.includes(item.name))
+    .map(item => [item.name, {...item}]));
+  const coverageRepairDigest = input.coverageContext ? digest({context: input.coverageContext, review: input.coverageSemanticReview}) : undefined;
   const retainedPredecessors = new Map((input.retainedRepairNames ?? []).flatMap(name => {
     const matches = input.semanticContext!.existingMemories.filter(item => item.name === name);
     const prior = matches[0];
@@ -1876,12 +1978,19 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     artifactHash: input.identity.artifactHash,
     snapshotDigest: input.identity.snapshotDigest,
     operations: retainedRepairExamples,
-    newMemories: sparseSemantic || input.retainedRepairNames ? [] : [{
+    newMemories: sparseSemantic || input.retainedRepairNames ? [] : [input.structuralCorrection ? {
       name: "project_fact_example.md",
       kind: "project",
       classification: "safe",
+      description: "The project uses the documented workflow.",
+      knowledge: {
+        sourceCitations: [{ref: "copy one exact displayed source ref"}],
+        units: [{sourceCitationIndex: 0}, {text: "Why: Source-backed purpose. How to apply: Source-backed conditions.", citationIndexes: [0]}],
+      },
+    } : {
+      name: "project_fact_example.md", kind: "project", classification: "safe",
       content: "---\nname: project_fact\ndescription: The project uses the documented workflow.\ntype: project\n---\nThe project uses the documented workflow.\n",
-      evidence: [{ ref: "copy one exact displayed source ref" }],
+      evidence: [{ref: "copy one exact displayed source ref"}],
     }],
   }, null, 2);
   const citationRepairCandidates = sparseCitation ? semanticMemoryRepairCandidates(input.rejectedPlan).map(candidate => {
@@ -1890,12 +1999,12 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
       && selectedClassifications[candidate.name] === asRecord(original)?.classification;
     return {...candidate, contentAllowed: reconsider, original};
   }) : [];
-  const prompt = sparseCitation ? [
+  let prompt = sparseCitation ? [
     "Task: correct source citations for a frozen Memory candidate plan. Return exactly one incremental-memory-amendment JSON object and no prose.",
     ...(reconsiderDeletion ? [MEMORY_KNOWLEDGE_GUIDANCE] : []),
     reconsiderDeletion
       ? "The parent locks every unaffected candidate, name, privacy, observation and order. Return only candidateId/evidence patches. Sole exception: for an original delete in selectedClassifications, optional content supplies a complete cited same-name rewrite, including the complete original frontmatter and the full replacement body, preserving absent metadata fields, preserving still-valid predecessor knowledge; the parent removes verdict/preservedIn and restores original privacy. Never patch other bodies, invent names or emit kinds/classifications. This is the existing delete to rewrite reconsideration, not deletion authority. Every original-source and predecessor-preservation semantic gate still follows. Omitted candidates remain unchanged and still must pass every check. Do not regenerate the complete plan."
-      : "The parent locks all bodies, names, kinds, privacy, observations, deletion/preservation intent and candidate order. Do not output content, operations, newMemories, names or any field except the supplied identity and replacements of candidateId plus evidence. Each ID is bound to the complete original candidate. Omitted candidates remain unchanged and still must pass every check; omission is not acceptance.",
+      : "The parent locks all bodies, names, kinds, privacy, observations, deletion/preservation intent and candidate order. Do not output content, operations, newMemories, names or any field except the supplied identity and replacements of candidateId plus evidence. For a knowledge proposal, evidence replaces only its same-length ordered source catalog; all body units and metadata remain unchanged. Each ID is bound to the complete original candidate. Omitted candidates remain unchanged and still must pass every check; omission is not acceptance.",
     "Correct every invalid citation using only original source refs that support that candidate's complete claims. Do not invent support or use old Memory as facts. If the frozen source cannot support it, return no replacement; the parent keeps the failure pending. Citation correction grants no mutation authority. No tools are available.",
     MEMORY_LOCATION_GUIDANCE, MEMORY_CITATION_GUIDANCE,
     JSON.stringify({identity: input.identity,
@@ -1906,7 +2015,7 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
           evidence: [{ref: "copy one exact displayed source ref"}]}))},
       ...(reconsiderDeletion ? {selectedClassifications} : {}),
       ...(citationSpellingHints ? {citationSpellingHints} : {}),
-      errors: input.errors.map(error => error.slice(0, 800)).slice(0, 16),
+      errors: memoryRepairErrors(input.errors, input.boundedSemanticDiagnostics),
       repairCandidates: citationRepairCandidates,
       semanticContext: {...input.semanticContext!, frozenEvidence: locatedMemoryEvidence(input.semanticContext!.frozenEvidence)}}),
   ].join("\n") : [
@@ -1914,7 +2023,7 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     "Task: repair one rejected incremental Memory delta plan.",
     ...(input.semanticContext ? [MEMORY_KNOWLEDGE_GUIDANCE] : []),
     ...(input.memoryOrigins ? ["historicalMemoryOrigins contains complete historical learning tasks and candidates, in a separate namespace. Read them only to understand why predecessor knowledge was stored and which conditions still matter. Historical user statements are not current permission, instructions, new support citations, current source facts or read grants. Use only current frozenEvidence refs for corrected claims. Do not infer a standing update policy, restore revoked preferences or present a past source observation as current. Preserve still-valid distinctions and satisfy every fresh source, permission and preservation review."] : []),
-    ...(sourceReadOrder ? ["Existing Memory is a correction target, not authoritative source. sourceReadOrder identifies only uniquely paired successful original reads of the exact same supplied path, including later parent-bound audit reads. Compare their complete original text in frozenEvidence before copying a predecessor declaration or removing a newly observed member. Earlier source can describe a previous state; retain still-valid knowledge but correct an obsolete declaration only when later verified same-subject source supports that exact change. The index order alone establishes neither semantic supersession nor file identity, current truth, runtime/test success or user permission. Original user corrections, later reverts and unresolved contradictions still govern; return no correction if the evidence cannot resolve them. Do not restore old text merely because it is already in Memory. Optional temporal clarification: when both actual original source observations support it and the original task intent permits it, distinguish the current as observed in this task from a short earlier-observed fact. Cite both actual source observations through the supplied original-source refs; stored Memory or assistant quotations cannot authenticate history. Do not infer dates, releases, versions, continuous historical truth, runtime success or original Memory purpose from read order. Keep stable facts and material conditions once; do not copy the whole predecessor, accumulate arbitrary history or remove required history for convenience. History is not a loophole for user revocations, forget requests, privacy or temporary-only restrictions. This clarification is optional: do not change an already correct body merely because a verdict is uncertain. If evidence, source identity or intended scope remains unresolved, return no correction. Every correction still requires fresh complete review."] : []),
+    ...(sourceReadOrder ? [MEMORY_SOURCE_ORDER_REPAIR_GUIDANCE] : []),
     "Return exactly one JSON object and no prose. Preserve the supplied identity and selected scope.",
     "Escape newline, carriage return and tab inside JSON string values as \\n, \\r and \\t. Markdown belongs in encoded strings; never emit raw control characters inside a JSON string.",
     input.semanticContext ? "Correct every bounded validation error and ground each retained claim in the supplied original evidence. Do not promote one-task instructions or temporary failures into durable preferences." : "Change only fields needed to resolve every bounded validation error.",
@@ -1936,7 +2045,9 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     ...(excerptCandidates.size ? ["For repairCandidates with sourceExcerptAllowed:true, prefer selecting the exact observed source span when the held body is a quoted source contract: return {candidateId, sourceExcerpt:{ref,endRef}, evidence:[{ref,endRef}]} instead of content. Use only displayed original source refs; evidence is mandatory and must cover the entire selection. Never output both content and sourceExcerpt. The parent copies the selected current source bytes into a neutral excerpt record and preserves locked frontmatter. This selects proposal data only: it does not establish behavior, supersession, completeness, approval or write authority. Complete predecessor preservation and every fresh semantic/source/privacy gate still apply. If an excerpt would lose still-valid knowledge, provide a complete content correction instead or return no correction."] : []),
     "The schema example is not evidence: never copy its name, fact or citation into a real candidate. Write each index description as one independently supported clause, not a compressed bundle. Preserve the evidence level: a type declaration establishes a type-level restriction, not necessarily a runtime restriction; label declared or type-level claims accordingly. A Promise and a PromiseLike are distinct contracts. Write it as a concrete supported fact from that candidate, not an assurance that it is grounded or useful. Preserve material conditions and exceptions; the complete body remains authoritative and every description claim still needs original evidence.",
     ...(!sparseSemantic ? ['newMemories[].kind must be exactly "preference" or "project"; "project-fact" and every other alias are invalid.',
-    "Each newMemories item requires name, kind, content, and non-empty evidence; classification is only safe or private, and evidence items select parent-labelled original-source refs."] : []),
+    input.structuralCorrection
+      ? "Each new project Memory uses name, kind, classification, description and knowledge with its original-source catalog and ordered source/text units. Keep the complete declarations and supported usage conditions; repair invalid fields in place instead of converting knowledge to content/evidence. Preference items retain content and non-empty evidence. Classification is only safe or private; all citations select parent-labelled original-source refs."
+      : "Each newMemories item requires name, kind, content, and non-empty evidence; classification is only safe or private, and evidence items select parent-labelled original-source refs."] : []),
     ...(sourceRepairContext ? ["For a repairCandidates entry with reuseOriginalEvidence:true, a content patch may omit evidence to retain only that exact candidate's original citations. The parent resolves and validates them against the unchanged frozen snapshot. Omission never supplies new support or approves a claim; every corrected field receives fresh complete review. To change citations, include a complete non-empty evidence array. Explicit empty or invalid evidence is rejected, not inherited. A patch with no effective change to held content cannot use this omission. Candidate IDs, complete top-level identity and full Markdown remain mandatory. Citation-only patches must provide evidence."] : []),
     ...(input.semanticContext ? [MEMORY_LOCATION_GUIDANCE] : []),
     "Model-facing frozenEvidence.entries wraps each original as {snapshotIndex, citationEligible, entry}. Refs encode the original snapshotIndex; do not generate evidence.index or substitute array positions. citationEligible:false entries are context only: assistant claims cannot establish knowledge or support a new Memory. For citationEligible:true, inspect entry.message.role (or entry.role) and select refs only from user/toolResult content; eligibility does not establish truth or authorize mutation. Labels are not evidence, and array positions from other lists are not snapshot indexes.",
@@ -1944,7 +2055,7 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     "citationSpellingHints, when present, contain unique verbatim source substrings restoring only line indentation at the same index. Use them only to identify source text and select its displayed refs; do not regenerate quotes. They do not establish claims or repair other citations. Tool-output line numbers and comment indentation are part of the original text: never remove them inside a verbatim quote.",
     ...(!sparseSemantic ? ["Every rewrite/delete operation requires evidence: [{ref: copy one exact displayed source ref}]. Operations may only use rewrite or delete for the supplied selected names; never add parent-derived fields such as selected, inventory, clusters, staleness, grounding, or report."] : []),
     input.retainedRepairNames && !combinedSemantic ? "Return the retained-record amendment only. Original proposals in rejectedPlan are immutable context, not output to regenerate."
-      : candidateBoundSemantic ? (combinedSemantic ? "Return the complete amendment envelope with candidate-bound replacements plus operations for retainedRepairNames. " : "Return the complete amendment envelope with candidate-bound replacement patches. ") + "Those disjoint lists refer to original proposed candidates and previously unchanged existing records respectively; their review indexes must never be interchanged. Omitted operations and newMemories are retained byte-for-byte by the parent; omission never deletes a proposal. Do not rewrite unflagged candidates. Keep exact names, kinds and privacy. repairableFields lists admitted body/description correction fields, including a description paired with a body consistency repair; the parent preserves every other field and its original citations. Do not infer a factual failure or force a paraphrase from that correction scope. Do not rewrite locked fields; preservation is not proof that a field passed an incomplete review. A rewrite body may contain multiple independently supported facts. Do not discard still-valid predecessor knowledge to shorten a body; use existingMemories and the original operation to preserve its supported distinctions, conditions and usage guidance. Preserve independently supported unresolved failure observations and their valid citations; remove unsupported causes or claimed fixes instead of removing the observation. Do not blindly append an obsolete predecessor body. Shortening is not a reason to discard knowledge; change only the held content requiring correction. A repaired description must be at most 120 characters and express exactly one source-backed claim. For a guarded state transition, retain exact source identifiers and comparison operators instead of vague condition shorthand. Do not append a second mechanism or timing claim to that description; its body remains authoritative. An observed function call or assignment does not establish when an asynchronous operation completes. In particular, resolve(taskPromise) adopts that promise; it does not show the caller observes completion before the task settles. A source comment about resolving immediately does not override that distinction. Do not introduce new explanations while correcting an existing claim." : "Retain every recognizable original selected operation and new proposal by its exact name; preserve an original rewrite as rewrite and an original delete as delete. Apply only the supplied newProposalNameCorrections spelling exceptions; otherwise correct invalid fields in place instead of dropping, renaming, or replacing an intent, and do not introduce new names or unrelated knowledge.",
+      : candidateBoundSemantic ? "repairableFields lists admitted body/description fields; it does not establish that either field is false. The parent preserves locked fields. Original proposal indexes and retained-record indexes are separate; never interchange them. Omitted candidates remain unresolved and are retained by the parent. Do not rewrite unflagged candidates. Preserve still-valid predecessor facts, conditions, unresolved observations and usage guidance; do not blindly append obsolete text. A repaired description must be at most 120 characters and express exactly one source-backed claim, retaining material guards and exact source identifiers and comparison operators. Keep detailed relationships in the body." : "Retain every recognizable original selected operation and new proposal by its exact name; preserve an original rewrite as rewrite and an original delete as delete. Apply only the supplied newProposalNameCorrections spelling exceptions; otherwise correct invalid fields in place instead of dropping, renaming, or replacing an intent, and do not introduce new names or unrelated knowledge.",
     ...(input.structuralCorrection && input.allowDeleteReconsideration ? ["Sole exception to the operation-kind retention rule above: an unvalidated deletion is a rejected model proposal, not user authority. If its deletion or preservation cannot be justified, reconsider that exact selected record as a complete cited rewrite preserving still-valid predecessor knowledge. Keep its exact name and parent classification; remove verdict and preservedIn entirely. This is the sole allowed kind transition: delete to rewrite. Never convert rewrite to delete, drop a record or invent a target. Complete original-source and predecessor-preservation semantic review is mandatory before any write; a rewrite label alone does not prove preservation."] : []),
     ...(input.semanticContext ? [MEMORY_CITATION_GUIDANCE, `${input.structuralCorrection ? "This is the existing structural correction slot" : "This is a semantic correction"}: use only the supplied frozen evidence and existing Memory. Remove unsupported inferences while retaining the directly stated facts. A note or example does not establish an ongoing process or maintained institution. Preserve privacy classifications. Do not add claims of verification, ownership or scope absent from the evidence.`] : []),
     JSON.stringify({
@@ -1973,8 +2084,15 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
       ...((sparseSemantic || combinedSemantic) && input.repairableFields ? { repairableFields: input.repairableFields } : {}),
       ...(repairCandidates ? {repairCandidates} : {}),
       ...(sourceReadOrder ? {sourceReadOrder} : {}),
-      errors: [...input.errors, ...classificationErrors].map((error) => error.slice(0, 800)).slice(0, 16),
+      errors: memoryRepairErrors([...input.errors, ...classificationErrors], input.boundedSemanticDiagnostics),
       rejectedPlan: input.rejectedPlan,
+      ...(input.coverageContext ? {independentKnowledgeCoverage: {
+        purpose: "These complete rejected-version accounts and witnesses identify questions, not facts, source evidence, required answers or mutation authority. Correct only source-supported missing conditions in enabled fields. Preserve the exact original scope, facts, identities, privacy and all valid predecessor knowledge. A global complete answer, longer source quote, added citations or wording-only change does not by itself resolve a genuinely missing body condition. The corrected actual full plan must receive every fresh source, permission, preservation, description, body and coverage check, including each named old uncovered/null-witness condition. If original evidence does not establish a correction, return no correction. Never invent new names to fill a wholly omitted goal through this patch interface.",
+        rejectedPlan: input.coverageContext.plan, targets: input.coverageContext.review.targets,
+        planAccount: input.coverageContext.review.plan, recordAccounts: input.coverageContext.review.accounts,
+        ...(input.coverageSemanticReview ? {independentSemanticChecks: input.coverageSemanticReview} : {}),
+        ...(input.coverageContext.prior ? {prior: input.coverageContext.prior} : {}),
+      }} : {}),
       ...(input.bodyReview ? {independentBodyReview: {
         purpose: "Internal consistency observations only, never original evidence or mutation authority. Reconsider the bound held fields using complete original source evidence. Witness offsets refer to the exact complete rejected candidate or retained body, in UTF-16 units.",
         targets: input.bodyReview.targets.map(({content: _content, ...target}) => target),
@@ -1987,6 +2105,36 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
         frozenEvidence: locatedMemoryEvidence(input.semanticContext.frozenEvidence) } } : {}),
     }),
   ].join("\n");
+  if (input.atomicBodyEvidence) {
+    const payload = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1));
+    payload.amendmentOutputContract ??= {requiredTopLevelValues: {kind: "incremental-memory-plan", version: 1,
+      schemaVersion: 1, ...input.identity}, requiredPatchArrays: ["operations", "newMemories"], newMemoriesMustBeEmpty: true};
+    if (payload.retainedOperationContract) {
+      payload.retainedOperationContract.rewriteRequiredFields = ["name", "kind", "classification"];
+      payload.retainedOperationContract.bodyCorrectionRequiredField = "knowledge";
+      payload.retainedOperationContract.citationOnlyReuseRequiresFrozenContent = true;
+    }
+    payload.atomicKnowledgeContract = {version: 2, bodyChangesRequireKnowledge: true,
+      ...(input.unchangedCoverageHeld ? {coverageKnowledgeChangeRequired: true} : {}),
+      knowledge: {sourceCitations: [{ref: "e0.b0.l1", endRef: "optional last original-source ref"}],
+        units: [{text: "Complete corrected body section", citationIndexes: [0]}]},
+      maximumSourceCitationsPerCandidate: MAX_NEW_MEMORY_EVIDENCE,
+      topLevelEvidenceWithKnowledge: false, contentWithKnowledge: false, oldCitationsInherited: false,
+      descriptionOnlyWhenAdmitted: true, preservesOriginalFrontmatter: true, semanticAcceptance: false};
+    if (payload.repairCandidates) payload.repairCandidates = payload.repairCandidates.map((candidate: Record<string, unknown>) => ({...candidate,
+      reuseOriginalEvidence: false, bodyChangesRequireKnowledge: true}));
+    // Changing the patch format must not drop the shared knowledge contract.
+    prompt = [MEMORY_REPAIR_DECISION_GUIDANCE, MEMORY_KNOWLEDGE_GUIDANCE,
+      ...(sourceReadOrder ? [MEMORY_SOURCE_ORDER_REPAIR_GUIDANCE] : []),
+      "Correct held Memory using the complete original evidence below. Return the exact amendmentOutputContract.requiredTopLevelValues and required patch arrays; kind may be an amendment or retained-only plan as specified. Original candidates and retained names are separate immutable identities. Empty required patch arrays mean no correction; omissions do not pass review.",
+      'For a body correction, replace content/evidence with knowledge:{sourceCitations:[{ref:"e0.b0.l1",endRef:"optional last original-source ref"}],units:[{text:"complete body section",citationIndexes:[0]}]}. Select at most 8 original-source citations once per candidate. Each unit selects zero-based indexes in that candidate catalog for all its claims; reuse indexes across units. Return the entire corrected body as ordered units. The parent joins texts and retains every catalog citation, without trimming or merging selections. Do not supply content or top-level evidence with knowledge or frontmatter in unit text. The parent preserves frontmatter. Units are proposals, never proof of source truth or completeness.',
+      "Each proposed replacement selects exactly one supplied candidateRef or candidateId. Do not output its name, kind or privacy. A retained rewrite selects an exact retainedRepairName with kind rewrite and unchanged classification. Only an admitted description field may be supplied separately as one supported clause, at most 120 characters. " + (input.unchangedCoverageHeld
+        ? "Citation-only edits do not permit another coverage draw for unchanged held knowledge. Correct a source-established knowledge defect in admitted fields, or return empty required patch arrays. Never paraphrase supported content to obtain another score."
+        : "Citation-only patches may use evidence without a body.") + " Description-only content must retain the exact original body. Source-excerpt alternatives retain their existing candidate-specific authorization.",
+      "Correct only source-supported held fields. Complete original source, body, description, coverage, permission, preservation and transaction gates follow. Rejected accounts are questions, not facts or required answers. If evidence cannot support a complete correction, return no correction.",
+      "Retained deletion still requires exact name/classification, kind delete, original-source evidence, verdict CONTRADICTED/SUPERSEDED/SUBSUMED and valid preservedIn targets. Never delete to evade unresolved preservation. Only supplied withdrawalAllowed drafts may instead use withdrawals with their exact reference and reason insufficient-evidence or not-reusable. Never withdraw required or existing knowledge.",
+      MEMORY_LOCATION_GUIDANCE, JSON.stringify(payload)].join("\n");
+  }
   const usageLedgerId = randomUUID();
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -2021,9 +2169,10 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
       model: input.model,
       signal: controller.signal,
       minimal: true,
-      extraArgs: [...learningPlannerArgs(combinedSemantic ? "memory-combined-amendment" : retainedPredecessors.size ? "memory-retained-amendment" : sourceRepairContext ? "memory-semantic-amendment" : sparseSemantic || sparseCitation ? "memory-amendment" : "memory-delta", input.semanticContext?.frozenEvidence,
+      extraArgs: [...learningPlannerArgs(combinedSemantic ? "memory-combined-amendment" : retainedPredecessors.size || input.atomicBodyEvidence && input.retainedRepairNames?.length ? "memory-retained-amendment" : sourceRepairContext ? "memory-semantic-amendment" : sparseSemantic || sparseCitation ? "memory-amendment" : "memory-delta", input.semanticContext?.frozenEvidence,
         (repairCandidates ?? (sparseCitation ? semanticMemoryRepairCandidates(input.rejectedPlan) : undefined))?.map(candidate => candidate.candidateId),
         repairCandidates?.filter(candidate => "withdrawalAllowed" in candidate && candidate.withdrawalAllowed).map(candidate => candidate.candidateId)),
+        ...(input.atomicBodyEvidence ? ["--learning-atomic-knowledge", "true"] : []),
         ...(semanticBodyHeld || input.bodyReview?.status === "reviewed" && heldMemoryBodies(input.bodyReview).length
           ? ["--thinking", "xhigh"]
           // Only known description-only semantic patches can use this shortcut.
@@ -2059,6 +2208,9 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   if (timedOut) return {outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId, failureKind: "timeout", error: "Memory repair worker exceeded the review budget"};
   if (result.cancelled) return { outcome: "cancelled", durationMs, usage: repairUsage, usageComplete, usageLedgerId, error: result.stderr };
   if (result.exitCode !== 0) return { outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId, error: result.stderr };
+  if (coverageRepairDigest !== undefined && digest({context: input.coverageContext, review: input.coverageSemanticReview}) !== coverageRepairDigest) return {
+    outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId, failureKind: "intent",
+    error: "Memory coverage repair context changed"};
   let plan = parseIncrementalPlanText(result.text, candidateBoundSemantic || sparseCitation);
   const normalization = plan ? undefined : normalizeJsonStringWhitespace(result.text, MAX_PLAN_BYTES);
   if (normalization) plan = parseIncrementalPlanText(normalization.text, candidateBoundSemantic || sparseCitation);
@@ -2097,6 +2249,27 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     } catch { return {outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId, failureKind: "intent", error: "Historical Memory repair context changed"}; }
   }
   if (!plan) return { outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId, failureKind: "framing", error: "repair returned no unique bounded incremental-memory-plan object" };
+  if (input.requireNewProjectKnowledge && input.structuralCorrection) {
+    try { assertFreshMemoryProjectOutput(plan); }
+    catch (error) { return {outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId,
+      failureKind: "framing", error: (error as Error).message}; }
+  }
+  if (input.atomicBodyEvidence) {
+    try {
+      if (!input.semanticContext || !boundSemanticSourceSnapshot(input.semanticContext.frozenEvidence, input.identity)) throw new Error("Unbound atomic source");
+      const response = asRecord(plan)!;
+      if (candidateBoundSemantic && (response.kind !== "incremental-memory-amendment" || !Array.isArray(response.replacements))) throw new Error("Atomic candidate correction requires bound replacements");
+      if (Array.isArray(response.operations)) plan = {...response, operations: response.operations.map(value => {
+        const operation = asRecord(value);
+        const prior = input.semanticContext!.existingMemories.filter(item => item.name === operation?.name);
+        if (!operation || !input.retainedRepairNames?.includes(String(operation.name)) || prior.length !== 1) return value;
+        return materializeAtomicKnowledgePatch(input, operation, prior[0].content, prior[0].name,
+          operation.kind === "rewrite", ["name", "kind", "classification"]);
+      })};
+    } catch (error) { return {outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId,
+      failureKind: error instanceof MemoryKnowledgeCitationError ? "citation" : "intent",
+      error: error instanceof MemoryKnowledgeCitationError ? error.message : "Memory body correction changed protected fields"}; }
+  }
   if (Object.hasOwn(asRecord(plan)!, "withdrawals") && !candidateBoundSemantic) return {outcome: "failed", durationMs,
     usage: repairUsage, usageComplete, usageLedgerId, failureKind: "intent", error: "Memory withdrawal is outside semantic correction"};
   if (candidateBoundSemantic && Array.isArray(asRecord(plan)?.replacements)) {
@@ -2105,8 +2278,9 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
         const {operations, ...amendment} = asRecord(plan)!;
         plan = {...asRecord(await materializeSemanticSourceAmendment(input, amendment, excerptCandidates, sourceRepairContext)), operations};
       } else plan = await materializeSemanticSourceAmendment(input, plan, excerptCandidates, sourceRepairContext);
-    } catch { return {outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId,
-      failureKind: "intent", error: "Memory source excerpt correction is not parent-bound"}; }
+    } catch (error) { return {outcome: "failed", durationMs, usage: repairUsage, usageComplete, usageLedgerId,
+      failureKind: error instanceof MemoryKnowledgeCitationError ? "citation" : "intent",
+      error: error instanceof MemoryKnowledgeCitationError ? error.message : "Memory source excerpt correction is not parent-bound"}; }
     if (sourceRepairContext) inheritedEvidenceCandidateIds = (asRecord(plan)!.replacements as unknown[]).flatMap(value => {
       const patch = asRecord(value);
       return patch && !Object.hasOwn(patch, "evidence") && typeof patch.candidateId === "string" ? [patch.candidateId] : [];
@@ -2239,14 +2413,20 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     const originalCandidates = [...originalRecord.operations as unknown[], ...originalRecord.newMemories as unknown[]];
     const correctedCandidates = [...correctedRecord.operations as unknown[], ...correctedRecord.newMemories as unknown[]];
     if (Object.entries(input.requiredTextChanges ?? {}).some(([name, fields]) => {
-      const before = asRecord(originalCandidates.find(value => asRecord(value)?.name === name));
+      // Retained records are absent from the original delta. Their required
+      // text correction must be compared with the exact frozen predecessor.
+      const before = asRecord(originalCandidates.find(value => asRecord(value)?.name === name)
+        ?? retainedOriginals.get(name));
       const after = asRecord(correctedCandidates.find(value => asRecord(value)?.name === name));
       // Deletion/preservation corrections have no body fields. Their ordinary
       // operation and complete semantic gates remain the authority.
       if (typeof before?.content !== "string" || typeof after?.content !== "string") return false;
       const parts = (content: string) => {
-        const match = /^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))([\s\S]*)$/.exec(content);
-        return {body: match ? match[4] : content, description: match ? /(?:^|\r?\n)description:[ \t]*([^\r\n]*)/.exec(match[2])?.[1] : undefined};
+        const match = /^(?:\uFEFF)*(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))([\s\S]*)$/.exec(content);
+        // Compare knowledge text, not serialization-only changes. Keep the
+        // actual returned Markdown and its internal whitespace unchanged.
+        return {body: (match ? match[4] : content).replaceAll("\r\n", "\n").trim(),
+          description: match ? /(?:^|\r?\n)description:[ \t]*([^\r\n]*)/.exec(match[2])?.[1] : undefined};
       };
       const previous = parts(before.content), corrected = parts(after.content);
       return fields.some(field => previous[field] === corrected[field]);
@@ -2329,6 +2509,91 @@ export function deletionReconsiderationReviewed(names: readonly string[], eviden
         ...(!Number.isFinite(review.maxRequestBytes) ? Array.from({length: windows}, (_, window) => [`counter_preservation_${index}_${window}`, `counter_permission_${index}_${window}`]).flat() : [])]
         .every(key => review.candidates[index].passedChecks.includes(key));
   });
+}
+
+/** Raw checks precede the coverage conjunction. A joined hold alone does not
+ * establish an independent source, permission or preservation problem. */
+function intrinsicMemoryReviewPassed(verdict: Awaited<ReturnType<JevJudge["validate"]>> | undefined,
+  evidence: unknown, candidates: readonly unknown[], existing: readonly unknown[], model: string): boolean {
+  const review = verdict?.candidateReview;
+  if (!review?.complete || review.purpose !== "diagnostic-only" || !jevModelMatchesRequest(model, review.model)
+    || review.evidenceDigest !== sha256Digest(JSON.stringify(evidence))
+    || review.existingDigest !== sha256Digest(JSON.stringify(existing))
+    || review.candidatesDigest !== sha256Digest(JSON.stringify(candidates))
+    || review.candidates.length !== candidates.length || !review.checkObservations
+    || !Number.isSafeInteger(verdict?.telemetry.evidenceWindows) || !verdict?.telemetry.evidenceWindows
+    || verdict.telemetry.completedWindows !== verdict.telemetry.evidenceWindows
+    || verdict.telemetry.coveredEntries !== verdict.telemetry.evidenceEntries
+    || verdict.telemetry.requestCount !== (verdict.telemetry.completedRequests ?? -1) + (verdict.telemetry.retriedRequests ?? 0)) return false;
+  const keys: string[] = [];
+  for (const [index, candidate] of candidates.entries()) {
+    const item = review.candidates[index];
+    if (!item || item.index !== index || item.candidateDigest !== sha256Digest(JSON.stringify(candidate))) return false;
+    const checks = [...item.passedChecks, ...item.heldChecks];
+    if (!checks.length || new Set(checks).size !== checks.length) return false;
+    keys.push(...checks);
+  }
+  const observations = review.checkObservations;
+  if (new Set(keys).size !== keys.length || Object.keys(observations).length !== keys.length
+    || keys.some(key => !Object.hasOwn(observations, key))) return false;
+  const meets = (value: unknown, minimum: number): value is number => typeof value === "number"
+    && Number.isFinite(value) && value >= 0 && value <= 1 && value + Number.EPSILON >= minimum;
+  if (!keys.every(key => {
+    const check = observations[key];
+    return meets(check.positiveProbabilityLowerBound, .9)
+      && (check.choice !== undefined ? meets(check.confidence, .8) : meets(check.noul, .9));
+  })) return false;
+  return keys.every(key => {
+    const counter = /^counter_(\d+)_(\d+)$/.exec(key);
+    if (!counter) return true;
+    const preservation = observations[`counter_preservation_${counter[1]}_${counter[2]}`];
+    const permission = observations[`counter_permission_${counter[1]}_${counter[2]}`];
+    if (!preservation) return !permission;
+    return Math.max(0, observations[key].positiveProbabilityLowerBound + preservation.positiveProbabilityLowerBound
+      + (permission?.positiveProbabilityLowerBound ?? 1) - 2) + Number.EPSILON >= .9;
+  });
+}
+
+/** Compare the whole expanded plan, excluding only selected source citations.
+ * A no-op rewrite of an untouched, exact frozen predecessor changes no knowledge.
+ * Every other field, operation and surviving record remains in the comparison. */
+function sameMemoryKnowledgePlan(before: unknown, after: unknown, existing: readonly {name: string; classification: string; content: string}[]): boolean {
+  const previous = asRecord(before), corrected = asRecord(after);
+  if (!previous || !corrected) return false;
+  const originalNames = new Set((Array.isArray(previous.operations) ? previous.operations : []).map(item => asRecord(item)?.name));
+  const view = (plan: Record<string, unknown>, allowRetainedNoop: boolean) => {
+    const strip = (value: unknown) => {
+      const item = asRecord(value);
+      if (!item) return value;
+      const {evidence: _evidence, ...knowledge} = item;
+      return knowledge;
+    };
+    const unchangedRetained = new Set<string>();
+    const operations = (Array.isArray(plan.operations) ? plan.operations : []).filter(value => {
+        const item = asRecord(value);
+        if (!allowRetainedNoop || !item || originalNames.has(item.name) || item.kind !== "rewrite"
+          || Object.keys(item).some(key => !["name", "kind", "classification", "content", "evidence"].includes(key))) return true;
+        const predecessors = existing.filter(entry => entry.name === item.name);
+        if (predecessors.length !== 1 || predecessors[0].classification !== item.classification || predecessors[0].content !== item.content) return true;
+        unchangedRetained.add(predecessors[0].name);
+        return false;
+      }).map(strip);
+    // Expansion changes this parent-generated display row for an added rewrite.
+    // Restore only that exact mechanical difference, never arbitrary report text.
+    const report = Array.isArray(plan.report) ? plan.report.map(value => {
+      const item = asRecord(value);
+      if (!item || !unchangedRetained.has(String(item.name)) || item.status !== "KEEP"
+        || item.summary !== "Parent validated a bounded incremental rewrite."
+        || Object.keys(item).some(key => !["name", "status", "summary"].includes(key))) return value;
+      const prior = (Array.isArray(previous.report) ? previous.report : []).filter(value => asRecord(value)?.name === item.name);
+      const original = asRecord(prior[0]);
+      return prior.length === 1 && original?.status === "KEEP"
+        && original.summary === "No incremental operation was proposed; Memory remains unchanged." ? prior[0] : value;
+    }) : plan.report;
+    return {...plan, ...(plan.report !== undefined ? {report} : {}), operations,
+      newMemories: (Array.isArray(plan.newMemories) ? plan.newMemories : []).map(strip)};
+  };
+  return JSON.stringify(view(previous, false)) === JSON.stringify(view(corrected, true));
 }
 
 export function missingConsolidationEvidence(evidence: ConsolidationEvidence): string[] {
@@ -2562,6 +2827,7 @@ async function spawnAsyncConsolidation(
     assertMaintenanceClaimsUnchanged?: () => Promise<void>;
     maintenanceSourceEntries?: readonly unknown[];
     maintenanceCommand?: MaintenanceCommandInvocation;
+    memoryCommandPhase?: MemoryCommandPhaseInvocation;
     /** Explicit maintenance may independently replan one incomplete response. */
     allowIncompletePlanRetry?: boolean;
     /** Frozen once for the pipeline, including repair attempts. */
@@ -2572,6 +2838,9 @@ async function spawnAsyncConsolidation(
   const attempt = opts.attempt ?? 0;
   const incremental = opts.mode !== "full";
   const attemptStartedAt = Date.now();
+  // A cancelled predecessor keeps its own cost sink when a successor replaces
+  // state.attempts. Usage is never attributed by equal numeric totals.
+  const phaseAttempts = state.attempts;
   if (state.active && attempt === 0) {
     notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
     return false;
@@ -2587,7 +2856,7 @@ async function spawnAsyncConsolidation(
 
   let run: ConsolidationRun;
   try {
-    run = await createConsolidationRun(ctx, opts.cwd, opts.applyChanges === false ? false : normalizeTrackedMemory, opts.maintenanceCommand);
+    run = await createConsolidationRun(ctx, opts.cwd, opts.applyChanges === false ? false : normalizeTrackedMemory, opts.maintenanceCommand, opts.memoryCommandPhase);
   } catch (err: unknown) {
     if (isGenerationCurrent()) {
       state.active = false;
@@ -2649,7 +2918,7 @@ async function spawnAsyncConsolidation(
         throw new Error("Frozen Memory dossier contains sensitive material");
       }
       citationEvidence = JSON.parse(text);
-      inlineDossier = JSON.stringify(locatedMemoryEvidence(citationEvidence));
+      inlineDossier = JSON.stringify(locatedMemoryEvidence(citationEvidence, {declarationViews: true}));
     }
     procedure = incremental
       ? buildIncrementalMemoryConsolidatorPrompt({
@@ -3069,9 +3338,19 @@ async function spawnAsyncConsolidation(
         let incrementalError: string | undefined = malformedText ? "Incremental plan JSON syntax is invalid."
           : missingPlanEnvelope ? "Planner returned empty provider tool delimiters instead of a plan." : undefined;
         let originalIncrementalError: string | undefined = incrementalError;
+        let freshProjectOutputPending = !fixedMemoriesPath;
         if (rawPlan && incremental) {
+          if (!fixedMemoriesPath) {
+            await retainOriginalMemoryGenerationPlan(run.manifest.runDir, {
+              runId: run.manifest.runId, scopeKey: run.manifest.scopeKey, scopeDigest: run.manifest.scopeDigest,
+              artifactHash: run.manifest.snapshotDigest, snapshotDigest: run.manifest.snapshotDigest,
+            }, rawPlan);
+            if (!ownsCurrentRun()) return;
+          }
           try {
-            rawPlan = await materializeSourceMemoryPlan(run, rawPlan);
+            if (!fixedMemoriesPath) assertFreshMemoryProjectOutput(rawPlan);
+            rawPlan = await materializeSourceMemoryPlan(run, rawPlan, opts.maintenanceSourceEntries);
+            freshProjectOutputPending = false;
             rejectedPlan = rawPlan;
             plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);
           } catch (error) {
@@ -3091,7 +3370,9 @@ async function spawnAsyncConsolidation(
             }
             incrementalError = (error as Error).message;
             originalIncrementalError = incrementalError;
-            structuralRejection = error instanceof MemoryCitationLocationError || /quote is not present in the cited snapshot entry|^Citations are invalid:/.test(incrementalError) ? "citation" : "plan";
+            structuralRejection = error instanceof MemoryCitationLocationError
+              || error instanceof MemoryKnowledgeCitationError && error.cause instanceof MemoryCitationLocationError
+              || /quote is not present in the cited snapshot entry|^Citations are invalid:/.test(incrementalError) ? "citation" : "plan";
           }
         } else {
           plan = rawPlan;
@@ -3113,6 +3394,7 @@ async function spawnAsyncConsolidation(
           const repair = await repairIncrementalMemoryPlan({
             outputDir: run.manifest.runDir,
             structuralCorrection: true,
+            ...(freshProjectOutputPending ? {requireNewProjectKnowledge: true as const} : {}),
             citationOnly: structuralRejection === "citation" && !!frozenRepair,
             allowDeleteReconsideration: opts.jevJudge?.memoryReviewEnabled === true,
             ...(frozenRepair ? { semanticContext: frozenRepair.context } : {}),
@@ -3145,7 +3427,7 @@ async function spawnAsyncConsolidation(
           await frozenRepair?.assertFrozen();
           if (repair.outcome === "repaired" && repair.plan) {
             try {
-              rawPlan = await materializeSourceMemoryPlan(run, repair.plan);
+              rawPlan = await materializeSourceMemoryPlan(run, repair.plan, opts.maintenanceSourceEntries);
               plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);
               reconsideredDeletions = repair.reconsideredDeletions ?? [];
               if (reconsideredDeletions.length) await writeFileAtomic(path.join(run.manifest.runDir, "reconsidered-deletions.json"),
@@ -3202,8 +3484,10 @@ async function spawnAsyncConsolidation(
           if (!ownsCurrentRun()) return;
           let semanticProposal = false;
           let heldMemoryReview: Record<string, unknown> | undefined;
+          const rejectedCoverageReviews: NonNullable<LearningAttempt["coverageReviewArtifact"]>[] = [];
           let assertSemanticInputsFrozen: ((pending?: LearningPendingMutation) => Promise<void>) | undefined;
           let assertPostApplyInputsFrozen: ((pending: LearningPendingMutation) => Promise<void>) | undefined;
+          let assertKnowledgeCoverageFrozen: (() => void) | undefined;
           if (opts.jevJudge?.enabled) {
             const snapshotBytes = await fs.readFile(run.paths.snapshotFile);
             if (sha256Digest(snapshotBytes) !== run.manifest.snapshotDigest) throw new Error("Jev frozen evidence changed");
@@ -3265,12 +3549,69 @@ async function spawnAsyncConsolidation(
             let bodyReview: MemoryBodyReview | undefined;
             const bodyReviews = new Map<string, MemoryBodyReview>();
             let bodyReviewUnavailable = false;
+            let coverageReview: MemoryCoverageReview | undefined;
+            let coverageBindingFailureHint: string | undefined;
+            let coverageContext: MemoryCoverageContext | undefined;
+            let coverageVerdict: Awaited<ReturnType<JevJudge["validate"]>> | undefined;
+            let coverageRetention: Awaited<ReturnType<JevJudge["validate"]>> | undefined;
+            let coverageCandidates: readonly unknown[] = [];
+            let coverageRetained: typeof existing = [];
+            const coverageEnabled = opts.jevJudge.independentMemoryCoverageReviewEnabled === true;
+            const coverageAllows = () => {
+              if (!coverageEnabled) return true;
+              const proof = coverageVerdict?.coverageReview;
+              if (!coverageContext || !proof || !proof.complete || proof.protocol !== "memory-knowledge-coverage-v2"
+                || !proof.planPassed || !jevModelMatchesRequest(opts.jevJudge?.requestedModel ?? "jev-1.13.0", proof.model)
+                || proof.evidenceDigest !== sha256Digest(JSON.stringify(frozenEvidence))
+                || proof.candidatesDigest !== sha256Digest(JSON.stringify(coverageCandidates))
+                || proof.existingDigest !== sha256Digest(JSON.stringify(existing))) return false;
+              try {
+                if (prepareMemoryCoverageJudgment(frozenEvidence, coverageCandidates, existing, coverageContext).contextDigest !== proof.contextDigest) return false;
+              } catch {return false;}
+              const meets = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1 && value + Number.EPSILON >= .9;
+              if (proof.candidateProbabilityLowerBounds.length !== coverageCandidates.length
+                || proof.retainedProbabilityLowerBounds.length !== coverageRetained.length
+                || !proof.candidateProbabilityLowerBounds.every(meets) || !proof.retainedProbabilityLowerBounds.every(meets)) return false;
+              // The main review already composes source checks for its own
+              // candidates (or all-retained input). Join the separate untouched
+              // retention review without paying for duplicate coverage judgments.
+              if (coverageCandidates.length && coverageRetained.length) {
+                const old = coverageRetention?.candidateReview;
+                const retainedCandidates = coverageRetained.map(item => ({...item, kind: "retain", evidence: []}));
+                if (coverageRetention?.decision !== "allow" || !old?.complete || old.model !== proof.model
+                  || old.evidenceDigest !== proof.evidenceDigest || old.existingDigest !== sha256Digest(JSON.stringify(coverageRetained))
+                  || old.candidatesDigest !== sha256Digest(JSON.stringify(retainedCandidates)) || old.candidates.length !== coverageRetained.length) return false;
+                for (const [index, candidate] of old.candidates.entries()) {
+                  if (candidate.index !== index || candidate.outcome !== "passed" || candidate.heldChecks.length
+                    || candidate.candidateDigest !== sha256Digest(JSON.stringify(retainedCandidates[index])) || !candidate.passedChecks.length) return false;
+                  for (const key of candidate.passedChecks) {
+                    const score = old.passedCheckProbabilities?.[key];
+                    if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 1
+                      || Math.max(0, score + proof.retainedProbabilityLowerBounds[index] - 1) + Number.EPSILON < .9) return false;
+                  }
+                }
+              }
+              return true;
+            };
+            const coverageRepairFields = (): MemoryRepairFields => {
+              const proof = coverageVerdict?.coverageReview;
+              if (!coverageEnabled || !proof) return {};
+              return Object.fromEntries(coverageCandidates.flatMap((candidate, index) => {
+                const item = asRecord(candidate), score = proof.candidateLocalProbabilityLowerBounds[index];
+                if (typeof item?.name !== "string" || typeof score !== "number" || score + Number.EPSILON >= .9) return [];
+                return [[item.name, memoryDescriptionClaim(candidate) !== undefined ? ["body", "description"] : ["body"]]];
+              }));
+            };
+            assertKnowledgeCoverageFrozen = () => {
+              if (!coverageEnabled) return;
+              if (!ownsCurrentRun() || !coverageAllows() || !coverageContext
+                || sha256Digest(JSON.stringify(plan)) !== sha256Digest(JSON.stringify(coverageContext.plan))) {
+                throw new Error("Memory coverage no longer binds the actual mutation plan");
+              }
+            };
             const bodyAllows = () => !opts.jevJudge?.independentMemoryBodyReviewEnabled || bodyReviewUnavailable || memoryBodiesAllow(bodyReview);
-            const memorySources = opts.maintenanceSourceEntries?.length ? {
-              evidenceDigest: sha256Digest(JSON.stringify(frozenEvidence)),
-              entryDigests: opts.maintenanceSourceEntries.map(entry => sha256Digest(JSON.stringify(entry))),
-            } : undefined;
-            const validateKnowledge = async (reviewedCandidates: readonly unknown[]) => {
+            const memorySources = memorySourceBindings(frozenEvidence, opts.maintenanceSourceEntries);
+            const validateKnowledge = async (reviewedCandidates: readonly unknown[], reviewedPlan: unknown = plan, priorCoverage?: MemoryCoverageContext) => {
               await assertSemanticInputsFrozen!();
               retainedRepairNames = undefined;
               mutationReview = undefined;
@@ -3279,11 +3620,69 @@ async function spawnAsyncConsolidation(
               bodyReviewUnavailable = false;
               const touched = new Set(reviewedCandidates.map(item => asRecord(item)?.name));
               const retained = existing.filter(item => !touched.has(item.name));
+              coverageReview = undefined;
+              coverageBindingFailureHint = undefined;
+              coverageContext = undefined;
+              coverageVerdict = undefined;
+              coverageRetention = undefined;
+              coverageCandidates = reviewedCandidates;
+              coverageRetained = retained;
+              let rejectedCoverageDiagnostics = false;
+              let coverageAttempt: LearningAttempt | undefined;
+              if (coverageEnabled) {
+                coverageReview = await reviewMemoryCoverage({candidates: reviewedCandidates, retained, plan: reviewedPlan,
+                  bodyReferences: true,
+                  evidence: frozenEvidence, predecessors: existing, model: opts.model, signal: state.controller?.signal,
+                  outputDir: run.manifest.runDir, ...(priorCoverage ? {priorAccounts: priorCoverage.review.accounts,
+                    priorTargets: priorCoverage.review.targets, priorPlan: priorCoverage.review.plan,
+                    priorEffectivePlan: priorCoverage.plan, expectedPriorDigest: priorCoverage.expectedReviewDigest} : {})});
+                coverageAttempt = {phase: "memory", attempt: semanticRepair ? 1 : 0,
+                  outcome: coverageReview.status === "reviewed" ? "noop" : "failed", operations: 0,
+                  durationMs: coverageReview.durationMs, usage: coverageReview.usage,
+                  usageComplete: coverageReview.usageComplete, usageLedgerId: coverageReview.usageLedgerId,
+                  ...(coverageReview.calls === 0 ? {modelCalls: 0 as const, costAvailable: true} : {}),
+                  diagnostic: `Independent Memory coverage account: ${coverageReview.status}; diagnostic only.`};
+                phaseAttempts?.push(coverageAttempt);
+                if (!ownsCurrentRun()) throw new Error("Memory coverage review ownership changed");
+                await assertSemanticInputsFrozen!();
+                await writeFileAtomic(path.join(run.manifest.runDir, `memory-coverage-review-${coverageReview.usageLedgerId ?? randomUUID()}.json`), JSON.stringify(coverageReview));
+                if (!ownsCurrentRun()) throw new Error("Memory coverage persistence ownership changed");
+                await assertSemanticInputsFrozen!();
+                if (coverageReview.status !== "reviewed" || !coverageReview.plan) {
+                  const reason = coverageReview.status === "reviewed" ? "invalid-response" : coverageReview.status;
+                  const continuation = coverageReview.diagnosticContinuation;
+                  rejectedCoverageDiagnostics = reason === "invalid-response"
+                    && continuation?.kind === "complete-account-binding-rejection"
+                    && coverageReview.calls === 1 && coverageReview.usageComplete
+                    && continuation.usageLedgerId === coverageReview.usageLedgerId
+                    && continuation.evidenceDigest === sha256Digest(JSON.stringify(frozenEvidence))
+                    && continuation.planDigest === sha256Digest(JSON.stringify(reviewedPlan))
+                    && continuation.candidatesDigest === sha256Digest(JSON.stringify(reviewedCandidates))
+                    && continuation.predecessorsDigest === sha256Digest(JSON.stringify(existing))
+                    && /^[a-f0-9]{64}$/.test(continuation.responseSha256);
+                  if (!rejectedCoverageDiagnostics) return {decision: "propose" as const,
+                    telemetry: {stage: "memory" as const, status: "propose" as const,
+                      reason, durationMs: 0, requestCount: 0, completedRequests: 0}};
+                  const failure = continuation?.bindingFailure;
+                  if (failure) coverageBindingFailureHint = `Rejected coverage reviewer account references unbound original source ${failure.ref}${failure.endRef ? ` through ${failure.endRef}` : ""}. The account remains invalid and supplies no coverage proof. This identifies a reviewer citation error, not an established defect in the candidate's citations or knowledge. Reconsider only independently held candidate fields against complete original evidence; every fresh gate remains required.`;
+                } else coverageContext = {protocol: "memory-knowledge-coverage-v2", questionContractVersion: 2, plan: structuredClone(reviewedPlan),
+                  review: coverageReview, expectedReviewDigest: memoryCoverageReviewDigest(coverageReview),
+                  ...(priorCoverage ? {prior: structuredClone(priorCoverage)} : {})};
+              }
               retainedReviewIndexNames = (reviewedCandidates.length ? retained : existing).map(item => item.name);
               let retentionReviewAll: Awaited<ReturnType<JevJudge["validate"]>> | undefined;
+              let retentionCostRow: LearningAttempt | undefined;
               if (reviewedCandidates.length && retained.length) {
                 const retention = await opts.jevJudge!.validate("memory", frozenEvidence, [], retained, state.controller?.signal, undefined, undefined, memorySources, memoryOrigins);
                 retentionReviewAll = retention;
+                // Own the returned retention cost before source/ownership checks
+                // or another worker/SDK call can fail. Transfer this same row
+                // synchronously below if the main attempt owns this verdict.
+                retentionCostRow = {phase: "memory", attempt: semanticRepair ? 1 : 0,
+                  outcome: retention.decision === "allow" ? "noop" : "proposed", operations: 0,
+                  durationMs: retention.telemetry.durationMs, jev: retention.telemetry,
+                  diagnostic: `Jev retained Memory: ${retention.telemetry.reason}`};
+                phaseAttempts?.push(retentionCostRow);
                 if (!ownsCurrentRun()) throw new Error("Memory review ownership changed");
                 await assertSemanticInputsFrozen!();
                 if (retention.decision === "propose") {
@@ -3292,8 +3691,47 @@ async function spawnAsyncConsolidation(
                   retentionReview = retention;
                 }
               }
+              const preparedCoverageForRetention = coverageContext
+                ? prepareMemoryCoverageJudgment(frozenEvidence, reviewedCandidates, existing, coverageContext) : undefined;
+              const expectedCoverageContextDigest = preparedCoverageForRetention?.contextDigest;
               const reviewed = await opts.jevJudge!.validate("memory", frozenEvidence,
-                reviewedCandidates, existing, state.controller?.signal, undefined, undefined, memorySources, memoryOrigins);
+                reviewedCandidates, existing, state.controller?.signal, undefined, undefined, memorySources, memoryOrigins, coverageContext);
+              // Capture numeric source costs before any fallible retention I/O.
+              if (semanticRepair && repairAttempt) repairAttempt.jev = reviewed.telemetry;
+              else jev = reviewed.telemetry;
+              if (coverageEnabled && coverageContext) {
+                const file = `memory-coverage-semantic-${randomUUID()}.json`;
+                const text = JSON.stringify({
+                  version: 1, runId: run.manifest.runId, snapshotDigest: run.manifest.snapshotDigest,
+                  planDigest: sha256Digest(JSON.stringify(reviewedPlan)), expectedAccountDigest: coverageContext.expectedReviewDigest,
+                  expectedContextDigest: expectedCoverageContextDigest,
+                  proofAvailable: reviewed.coverageReview !== undefined, reviewed,
+                  coverageContext, existingMemories: existing,
+                  coverageQuestions: preparedCoverageForRetention?.questions,
+                  coverageIssueBindings: asRecord(preparedCoverageForRetention?.state)?.namedIssueBindings,
+                  ...(retentionReviewAll ? {retentionReview: retentionReviewAll} : {}), writeAuthorized: false,
+                });
+                await writeFileAtomic(path.join(run.manifest.runDir, file), text);
+                if (!ownsCurrentRun()) throw new Error("Memory semantic coverage retention ownership changed");
+                await assertSemanticInputsFrozen!();
+                if (coverageAttempt && reviewed.coverageReview?.checks.length
+                  && reviewed.coverageReview.checks.every(check => check.probabilities)) {
+                  const binding = {file, sha256: sha256Digest(text), reviewedPlanDigest: sha256Digest(JSON.stringify(reviewedPlan))};
+                  coverageAttempt.coverageReviewArtifact = binding;
+                  rejectedCoverageReviews.push(binding);
+                }
+              }
+              if (coverageEnabled && rejectedCoverageDiagnostics) {
+                await writeFileAtomic(path.join(run.manifest.runDir, `memory-coverage-rejected-diagnostic-${randomUUID()}.json`), JSON.stringify({
+                  version: 1, runId: run.manifest.runId, snapshotDigest: run.manifest.snapshotDigest,
+                  planDigest: sha256Digest(JSON.stringify(reviewedPlan)),
+                  rejectedAccount: coverageReview!.diagnosticContinuation,
+                  proofAvailable: false, reviewed,
+                  ...(retentionReviewAll ? {retentionReview: retentionReviewAll} : {}), writeAuthorized: false,
+                }));
+                if (!ownsCurrentRun()) throw new Error("Rejected coverage diagnosis retention ownership changed");
+                await assertSemanticInputsFrozen!();
+              }
               if (reconsideredDeletions.length) {
                 const accepted = deletionReconsiderationReviewed(reconsideredDeletions, frozenEvidence, reviewedCandidates, existing, reviewed, memoryOrigins?.originsDigest);
                 const digest = sha256Digest(JSON.stringify(reviewedCandidates));
@@ -3302,6 +3740,13 @@ async function spawnAsyncConsolidation(
                   const finalCandidates = [...(current.operations ?? []), ...normalizeNewMemoryProposals(plan, frozenEvidence, preSelected)];
                   if (!accepted || sha256Digest(JSON.stringify(finalCandidates)) !== digest) throw new Error("Reconsidered deletion lacks complete current semantic preservation review");
                 };
+              }
+              coverageVerdict = reviewed;
+              coverageRetention = retentionReviewAll;
+              if (coverageEnabled && reviewed.coverageReview) {
+                const heldRetained = retained.filter((_item, index) =>
+                  reviewed.coverageReview!.retainedLocalProbabilityLowerBounds[index] + Number.EPSILON < .9).map(item => item.name);
+                if (heldRetained.length) retainedRepairNames = [...new Set([...(retainedRepairNames ?? []), ...heldRetained])];
               }
               mutationReview = reviewedCandidates.length ? reviewed : undefined;
               if (!reviewedCandidates.length && reviewed.decision === "propose") {
@@ -3319,18 +3764,18 @@ async function spawnAsyncConsolidation(
               // The caller records the returned review. Record its sibling once,
               // including a successful mutation review when retention was held.
               const sibling = result === reviewed ? retentionReviewAll : reviewed;
-              if (sibling) state.attempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0,
+              if (sibling && retentionCostRow) Object.assign(retentionCostRow, {
                 outcome: sibling.decision === "allow" ? "noop" : "proposed", operations: 0,
                 durationMs: sibling.telemetry.durationMs, jev: sibling.telemetry,
                 diagnostic: `Jev ${result === retentionReview ? "mutation" : "retained"} Memory: ${sibling.telemetry.reason}`});
               // A complete Jev source review is necessary, but a real accepted
               // candidate showed it is insufficient for internal consistency.
               // Keep this independent result separate; never forge Jev answers.
-              if (opts.jevJudge!.independentMemoryBodyReviewEnabled && reviewed.candidateReview?.complete
+              if (opts.jevJudge!.independentMemoryBodyReviewEnabled && (reviewed.candidateReview?.complete || !reviewedCandidates.length && !retained.length)
                 && (!retentionReviewAll || retentionReviewAll.candidateReview?.complete)) {
                 bodyReview = await reviewMemoryBodies({candidates: reviewedCandidates, retained,
                   model: opts.model, signal: state.controller?.signal, outputDir: run.manifest.runDir});
-                for (const bodyAttempt of bodyReview.batches?.length ? bodyReview.batches : [bodyReview]) state.attempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0,
+                for (const bodyAttempt of bodyReview.batches?.length ? bodyReview.batches : [bodyReview]) phaseAttempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0,
                   outcome: memoryBodiesAllow(bodyReview) ? "noop" : bodyReview.status === "reviewed" ? "proposed" : "failed",
                   operations: 0, durationMs: bodyAttempt.durationMs, usage: bodyAttempt.usage,
                   usageComplete: bodyAttempt.usageComplete, usageLedgerId: bodyAttempt.usageLedgerId,
@@ -3343,9 +3788,13 @@ async function spawnAsyncConsolidation(
                 const heldRetained = heldMemoryBodies(bodyReview).filter(item => item.source === "retained").map(item => item.name);
                 if (heldRetained.length) retainedRepairNames = [...new Set([...(retainedRepairNames ?? []), ...heldRetained])];
               }
+              if (coverageEnabled && result.decision === "allow" && !coverageAllows()) return {
+                ...result, decision: "propose" as const, telemetry: {...result.telemetry, status: "propose" as const,
+                  reason: rejectedCoverageDiagnostics ? "invalid-response" as const : "uncertain" as const}};
               return result;
             };
             const verdict = await validateKnowledge(candidates);
+            const originalCoverageContext = coverageContext ? structuredClone(coverageContext) : undefined;
             heldMemoryReview = {kind: "independent-memory-review", version: 1, originalPlan: plan,
               reviewedPlanDigest: sha256Digest(JSON.stringify(plan)), eligibleIndexes: [],
               heldIndexes: candidates.map((_, index) => index),
@@ -3354,7 +3803,50 @@ async function spawnAsyncConsolidation(
                 held: heldMemoryBodies(bodyReview).map(({id, name, source, bodySha256}) => ({id, name, source, bodySha256}))}} : {})};
             const originalRetentionHeld = retainedRepairNames !== undefined;
             jev = verdict.telemetry;
-            semanticProposal = verdict.decision === "propose" || !bodyAllows();
+            semanticProposal = verdict.decision === "propose" || !bodyAllows() || !coverageAllows();
+            // A held coverage question cannot acquire another draw merely
+            // because a different source/counter check also needs repair.
+            // Evidence-only repair remains available when coverage itself passed.
+            const originalRetained = existing.filter(item => !candidates.some(candidate => asRecord(candidate)?.name === item.name));
+            const retainedCandidates = (items: typeof existing) => items.map(item => ({...item, kind: "retain", evidence: []}));
+            const coverageProof = coverageVerdict?.coverageReview;
+            const boundCoverage = coverageEnabled && semanticProposal && originalCoverageContext !== undefined
+              && coverageProof?.complete === true && coverageProof.protocol === "memory-knowledge-coverage-v2"
+              && jevModelMatchesRequest(opts.jevJudge.requestedModel ?? "jev-1.13.0", coverageProof.model)
+              && coverageProof.evidenceDigest === sha256Digest(JSON.stringify(frozenEvidence))
+              && coverageProof.candidatesDigest === sha256Digest(JSON.stringify(candidates))
+              && coverageProof.existingDigest === sha256Digest(JSON.stringify(existing))
+              && coverageProof.contextDigest === prepareMemoryCoverageJudgment(frozenEvidence, candidates, existing, originalCoverageContext).contextDigest;
+            if (coverageEnabled && semanticProposal && originalCoverageContext && coverageProof?.complete && !boundCoverage)
+              throw new Error("Invalid bound Memory coverage proof");
+            let independentCoverageHeld = false;
+            if (boundCoverage) {
+              const expected = prepareMemoryCoverageJudgment(frozenEvidence, candidates, existing, originalCoverageContext!).questions;
+              const checks = coverageProof!.checks;
+              const validProbability = (value: unknown): value is number => typeof value === "number"
+                && Number.isFinite(value) && value >= 0 && value <= 1;
+              if (!Array.isArray(checks) || checks.length !== expected.length
+                || new Set(checks.map(check => check.key)).size !== expected.length
+                || expected.some(question => {
+                  const check = checks.find(item => item.key === question.key);
+                  return !check || check.candidateIndex !== question.candidateIndex || check.retainedIndex !== question.retainedIndex
+                    || !validProbability(check.confidence) || !check.probabilities
+                    || Object.keys(check.probabilities).length !== Object.keys(question.criteria).length
+                    || Object.keys(question.criteria).some(key => !validProbability(check.probabilities![key]))
+                    || !Object.hasOwn(question.criteria, check.choice) || check.probability !== check.probabilities[check.choice];
+                })) throw new Error("Invalid bound Memory coverage checks");
+              independentCoverageHeld = expected.some(question => {
+                const check = checks.find(item => item.key === question.key)!;
+                return check.choice !== question.positive || check.probabilities![question.positive] < .9 || check.confidence < .8;
+              });
+            }
+            const unchangedCoverageHeld = boundCoverage && (independentCoverageHeld
+              || (!opts.jevJudge.independentMemoryBodyReviewEnabled || bodyReview?.status === "reviewed" && memoryBodiesAllow(bodyReview))
+              && intrinsicMemoryReviewPassed(coverageVerdict, frozenEvidence, candidates.length ? candidates : retainedCandidates(existing), existing,
+                opts.jevJudge.requestedModel ?? "jev-1.13.0")
+              && (!candidates.length || !originalRetained.length || coverageRetention?.decision === "allow"
+                && intrinsicMemoryReviewPassed(coverageRetention, frozenEvidence, retainedCandidates(originalRetained), originalRetained,
+                  opts.jevJudge.requestedModel ?? "jev-1.13.0")));
             if (!ownsCurrentRun()) return;
             await assertSemanticInputsFrozen();
             // Apply only complete, unchanged independent knowledge, including
@@ -3363,7 +3855,7 @@ async function spawnAsyncConsolidation(
             let lastSubsetReviewInput: string | undefined;
             const applyReviewedSubset = async (reviewedPlan: typeof candidate,
               reviewedCandidates: readonly unknown[], reviewed: Awaited<ReturnType<JevJudge["validate"]>>): Promise<boolean> => {
-              if (reconsideredDeletions.length || retainedRepairNames !== undefined || !incremental || opts.applyChanges === false
+              if (coverageEnabled || reconsideredDeletions.length || retainedRepairNames !== undefined || !incremental || opts.applyChanges === false
                 || !opts.jevJudge?.independentMemoryApplicationEnabled
                 || !opts.jevJudge.reviewMemoryRelations || !reviewed.candidateReview
                 || reviewedCandidates.length <= 1
@@ -3381,11 +3873,11 @@ async function spawnAsyncConsolidation(
               lastSubsetReviewInput = reviewInput;
               const relations = await opts.jevJudge.reviewMemoryRelations(frozenEvidence, reviewedCandidates, existing,
                 reviewed.candidateReview, state.controller?.signal);
-              state.attempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0, outcome: "noop", durationMs: relations.telemetry.durationMs,
+              phaseAttempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0, outcome: "noop", durationMs: relations.telemetry.durationMs,
                 operations: 0, jev: relations.telemetry, diagnostic: `Jev relationships: ${relations.telemetry.reason}`});
               if (!ownsCurrentRun()) return false;
               await assertFrozenSubsetInputs();
-              if (relations.readinessTelemetry) state.attempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0, outcome: "noop",
+              if (relations.readinessTelemetry) phaseAttempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0, outcome: "noop",
                 durationMs: relations.readinessTelemetry.durationMs, operations: 0, jev: relations.readinessTelemetry,
                 diagnostic: `Jev standalone: ${relations.readinessTelemetry.reason}`});
               const partition = partitionReviewedNewMemory(frozenEvidence, reviewedCandidates, existing, reviewed.candidateReview, relations.review,
@@ -3433,14 +3925,25 @@ async function spawnAsyncConsolidation(
             const incompleteRepairFields = incompleteMemoryRepairFields(candidates, mutationReview?.incompleteReview, frozenEvidence, existing, opts.jevJudge?.requestedModel);
             const confirmedContradictions = incompleteRepairFields
               ? (mutationReview?.incompleteReview?.failures ?? []).filter(isConfirmedMemoryContradiction) : [];
-            const requiredTextChanges: MemoryRepairFields | undefined = confirmedContradictions.length
+            let requiredTextChanges: MemoryRepairFields | undefined = confirmedContradictions.length
               ? Object.fromEntries(confirmedContradictions.map(failure =>
                 [String(asRecord(candidates[failure.candidateIndex])?.name), ["body"]])) : undefined;
+            if (coverageEnabled && coverageVerdict?.coverageReview) {
+              const confirmedCoverageMissing = coverageVerdict.coverageReview.checks.filter(check =>
+                ["missing", "material_missing"].includes(check.choice) && check.probability >= .9 && check.confidence >= .8);
+              for (const check of confirmedCoverageMissing) {
+                const name = check.candidateIndex !== undefined ? asRecord(coverageCandidates[check.candidateIndex])?.name
+                  : check.retainedIndex !== undefined ? coverageRetained[check.retainedIndex]?.name : undefined;
+                if (typeof name === "string") requiredTextChanges = {...requiredTextChanges, [name]: ["body"]};
+              }
+            }
             if (semanticProposal && incremental && opts.applyChanges !== false && !semanticRepair
+              && !(coverageEnabled && !candidates.length && !existing.length)
               && (repairTriggersSemantics(verdict.telemetry.reason)
                 || incompleteRepairFields !== undefined
                 || retainedRepairNames !== undefined && verdict.telemetry.reason === "conflict"
-                || bodyReview?.status === "reviewed" && heldMemoryBodies(bodyReview).length > 0)) {
+                || bodyReview?.status === "reviewed" && heldMemoryBodies(bodyReview).length > 0
+                || Object.keys(coverageRepairFields()).length > 0)) {
               semanticRepair = true;
               if (structuralRepairAttempt) structuralRepairAttempt.outcome = "proposed";
               repairAttempt = { phase: "memory", attempt: structuralRepairAttempt ? 2 : 1, outcome: "failed", durationMs: 0, operations: 0 };
@@ -3450,7 +3953,8 @@ async function spawnAsyncConsolidation(
                 const repairableNames = [...new Set([...(mutationReview?.decision === "propose"
                   ? (mutationReview.telemetry.candidateFailures?.map(failure => asRecord(candidates[failure.candidateIndex])?.name).filter((name): name is string => typeof name === "string")
                     ?? (mutationReview.telemetry.reason === "bounds" ? candidates.map(item => String(asRecord(item)?.name)) : [])) : []),
-                  ...(bodyReview?.status === "reviewed" ? heldMemoryBodies(bodyReview).filter(item => item.source === "candidate").map(item => item.name) : [])])];
+                  ...(bodyReview?.status === "reviewed" ? heldMemoryBodies(bodyReview).filter(item => item.source === "candidate").map(item => item.name) : []),
+                  ...Object.keys(coverageRepairFields())])];
                 const assertDraftsUnwritten = async (names: readonly string[]) => {
                   await assertSemanticInputsFrozen!();
                   const current = {harness: await hashMemoryRoot(run.manifest.harnessDir),
@@ -3469,7 +3973,7 @@ async function spawnAsyncConsolidation(
                   await assertDraftsUnwritten(optionalIndexes.map(index => String(asRecord(candidates[index])?.name)));
                   const optional = await opts.jevJudge.reviewMemoryWithdrawals(frozenEvidence, candidates, existing,
                     originalWithdrawalReview, optionalIndexes, state.controller?.signal);
-                  state.attempts?.push({phase: "memory", attempt: repairAttempt.attempt, outcome: "noop", operations: 0,
+                  phaseAttempts?.push({phase: "memory", attempt: repairAttempt.attempt, outcome: "noop", operations: 0,
                     durationMs: optional.telemetry.durationMs, jev: optional.telemetry,
                     diagnostic: "Optional new Memory obligation review; not a learned change."});
                   if (!ownsCurrentRun()) return;
@@ -3481,10 +3985,15 @@ async function spawnAsyncConsolidation(
                     originalPlanDigest: sha256Digest(JSON.stringify(rawPlan)), ...optional, writeAuthorized: false}));
                 }
                 const repaired = await repairIncrementalMemoryPlan({ rejectedPlan: rawPlan,
+                  ...(coverageEnabled ? {atomicBodyEvidence: true as const} : {}),
+                  ...(unchangedCoverageHeld ? {unchangedCoverageHeld: true as const} : {}),
+                  ...(verdict.telemetry.candidateFailures?.some(item => item.check !== undefined)
+                    ? {boundedSemanticDiagnostics: true as const} : {}),
                   errors: [`Retained review index map: ${JSON.stringify(retainedReviewIndexNames)}. Proposed review index map: ${JSON.stringify(candidates.map(item => asRecord(item)?.name))}. The following selected verdict indexes address ${verdict === retentionReview || !candidates.length ? "retained records" : "proposed candidates"}.`,
+                    ...(coverageBindingFailureHint ? [coverageBindingFailureHint] : []),
                     ...(retentionReview ? ["Retained existing records: " + (retainedRepairNames ?? []).join(", "),
                       ...(retentionReview !== verdict ? jevRepairFailureHints(retentionReview.telemetry) : [])] : []),
-                    `Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.candidateIndex !== undefined && verdict.telemetry.dimension ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}. Keep each index description to one supported clause. Rewrite bodies must preserve still-valid predecessor knowledge and independently supported unresolved failure observations; they need not be one sentence. Correct only unsupported claims and retain explicit exceptions and privacy instructions. Remove uncited source-layout, dependency-resolution, execution-result and workflow claims. Do not infer a maintained process from a note or add contextual explanations.`,
+                    `Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.candidateIndex !== undefined && verdict.telemetry.dimension ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}. Keep each index description to one supported clause. Bodies need not be one sentence. Preserve still-valid predecessor knowledge, observed failures, applicability conditions, privacy and exceptions. Source-supported missing conditions may be added only in admitted repair fields. Missing selected citations alone do not make a claim false: inspect complete original evidence and repair citations for supported facts. Correct unsupported or obsolete claims against original evidence. Do not invent a maintained process or unsupported contextual explanation.`,
                     ...(verdict.telemetry.reason === "bounds"
                       ? [`The review was refused at the ${verdict.telemetry.boundsKind ?? "request"} bound; the measured size was ${verdict.telemetry.boundsCount ?? "unknown"}. Keep every original candidate intent; shorten unsupported wording and cite the shortest exact quotation that supports each retained fact. Do not trim frozen evidence or omit candidates to evade the bound.`]
                       : []),
@@ -3495,6 +4004,8 @@ async function spawnAsyncConsolidation(
                   outputDir: run.manifest.runDir,
                   ...(retainedRepairNames !== undefined ? { retainedRepairNames } : {}),
                   bodyReview,
+                  ...(coverageContext ? {coverageContext: structuredClone(coverageContext),
+                    ...(coverageVerdict?.coverageReview ? {coverageSemanticReview: structuredClone(coverageVerdict.coverageReview)} : {})} : {}),
                   ...(memorySources ? {memorySources} : {}),
                   sourceExcerptRun: run,
                   ...(requiredTextChanges ? {requiredTextChanges} : {}),
@@ -3503,10 +4014,12 @@ async function spawnAsyncConsolidation(
                   repairableFields: Object.fromEntries([...new Set([
                     ...Object.keys(semanticMemoryRepairFields(candidates, mutationReview?.candidateReview) ?? {}),
                     ...Object.keys(memoryBodyRepairFields(bodyReview)),
+                    ...Object.keys(coverageRepairFields()),
                     ...Object.keys(incompleteRepairFields ?? {}),
                   ])].map(name => [name, [...new Set([
                     ...(semanticMemoryRepairFields(candidates, mutationReview?.candidateReview)?.[name] ?? []),
                     ...(memoryBodyRepairFields(bodyReview)[name] ?? []),
+                    ...(coverageRepairFields()[name] ?? []),
                     ...(incompleteRepairFields?.[name] ?? []),
                   ])]])),
                   ...(memoryOrigins ? {memoryOrigins} : {}),
@@ -3532,7 +4045,15 @@ async function spawnAsyncConsolidation(
                   await fs.writeFile(correctedPath, correctedText, { encoding: "utf8", mode: 0o600 });
                   await runConsolidationValidator(opts.pkgDir, run, correctedPath, "plan", preSelected);
                   if (!ownsCurrentRun()) return;
-                  let correctedVerdict = await validateKnowledge(correctedCandidates);
+                  if (unchangedCoverageHeld && sameMemoryKnowledgePlan(originalCoverageContext!.plan, corrected, existing)) {
+                    await writeFileAtomic(path.join(run.manifest.runDir, "semantic-repair-unchanged-coverage.json"), JSON.stringify({
+                      version: 1, runId: run.manifest.runId, snapshotDigest: run.manifest.snapshotDigest,
+                      originalPlanDigest: sha256Digest(JSON.stringify(originalCoverageContext!.plan)),
+                      repairedPlanDigest: sha256Digest(correctedText), originalReviewDigest: sha256Digest(JSON.stringify(coverageVerdict)),
+                      reason: "coverage-hold-with-unchanged-knowledge", independentCoverageHeld, writeAuthorized: false}));
+                    throw new Error("Coverage repair did not change the held knowledge");
+                  }
+                  let correctedVerdict = await validateKnowledge(correctedCandidates, corrected, originalCoverageContext);
                   if (!ownsCurrentRun()) return;
                   await assertSemanticInputsFrozen();
                   // A model correction has a different review binding. Its fresh
@@ -3544,7 +4065,7 @@ async function spawnAsyncConsolidation(
                     if (narrowed.names.length) {
                       // Transfer ownership before another fallible stage can
                       // replace repairAttempt.jev, preserving costs on failure too.
-                      state.attempts?.push({phase: "memory", attempt: repairAttempt.attempt,
+                      phaseAttempts?.push({phase: "memory", attempt: repairAttempt.attempt,
                         outcome: correctedVerdict.decision === "allow" ? "noop" : "proposed", operations: 0,
                         durationMs: correctedVerdict.telemetry.durationMs, jev: correctedVerdict.telemetry,
                         diagnostic: "Jev corrected Memory before deterministic narrowing"});
@@ -3561,21 +4082,21 @@ async function spawnAsyncConsolidation(
                       await runConsolidationValidator(opts.pkgDir, run, narrowedPath, "plan", preSelected);
                       if (!ownsCurrentRun()) return;
                       await assertSemanticInputsFrozen();
-                      correctedVerdict = await validateKnowledge(correctedCandidates);
+                      correctedVerdict = await validateKnowledge(correctedCandidates, corrected, originalCoverageContext);
                     }
                   }
                   repairAttempt.jev = correctedVerdict.telemetry;
                   repairAttempt.diagnostic = `Jev ${correctedVerdict.telemetry.status}: ${correctedVerdict.telemetry.reason}`;
                   if (!ownsCurrentRun()) return;
                   await assertSemanticInputsFrozen();
-                  if (correctedVerdict.decision === "allow" && bodyAllows()) {
+                  if (correctedVerdict.decision === "allow" && bodyAllows() && coverageAllows()) {
                     if (repaired.declinedNewMemories?.length) {
                       const declined = repaired.declinedNewMemories;
                       await assertDraftsUnwritten(declined);
                       const indices = declined.map(name => candidates.findIndex(candidate => asRecord(candidate)?.name === name));
                       const finalWithdrawal = await opts.jevJudge!.reviewMemoryWithdrawals!(frozenEvidence, candidates, existing,
                         originalWithdrawalReview, indices, state.controller?.signal, correctedCandidates);
-                      state.attempts?.push({phase: "memory", attempt: repairAttempt.attempt, outcome: "noop", operations: 0,
+                      phaseAttempts?.push({phase: "memory", attempt: repairAttempt.attempt, outcome: "noop", operations: 0,
                         durationMs: finalWithdrawal.telemetry.durationMs, jev: finalWithdrawal.telemetry,
                         diagnostic: "Final complete new Memory withdrawal set review; not a learned change."});
                       if (!ownsCurrentRun()) return;
@@ -3636,7 +4157,9 @@ async function spawnAsyncConsolidation(
           if (opts.applyChanges === false || semanticProposal) {
             const candidate = plan as { operations?: unknown[]; newMemories?: unknown[] };
             proposed = (candidate.operations?.length ?? 0) + (candidate.newMemories?.length ?? 0) > 0;
-            if (proposed) await recordLearningProposal(opts.cwd, "memory", semanticProposal ? heldMemoryReview ?? plan : plan);
+            if (proposed) await recordLearningProposal(opts.cwd, "memory", semanticProposal && heldMemoryReview
+              ? {...heldMemoryReview, ...(rejectedCoverageReviews.length ? {rejectedCoverageReviews} : {})}
+              : plan);
             if (!ownsCurrentRun()) return;
             // A held zero-operation retention review is not a successful no-op.
             state.outcome = semanticProposal && !proposed ? "unverified" : "completed";
@@ -3653,6 +4176,7 @@ async function spawnAsyncConsolidation(
           if (!ownsCurrentRun()) return;
           await writeConsolidationReceipt(run, preReceipt, "pre");
           if (!ownsCurrentRun()) return;
+          assertKnowledgeCoverageFrozen?.();
           const mutationStartedAt = Date.now();
           if (reconsideredDeletions.length) {
             if (!assertDeletionReconsiderationReviewed) throw new Error("Reconsidered deletion requires complete Memory semantic review");
@@ -3668,6 +4192,7 @@ async function spawnAsyncConsolidation(
             await opts.assertMaintenanceSourcesUnchanged?.();
             await assertSourceExcerptBindings(run);
             await assertSemanticInputsFrozen?.(pending);
+            assertKnowledgeCoverageFrozen?.();
             return applyConsolidationPlan(run, plan, ownsCurrentRun, async applied => {
               const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest, applied.created, summarizeMemoryChanges(plan));
               const receiptPath = await writeConsolidationReceipt(run, receipt);
@@ -3675,6 +4200,7 @@ async function spawnAsyncConsolidation(
               await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath, mutationStartedAt);
               await assertSourceExcerptBindings(run);
               await assertPostApplyInputsFrozen?.(pending);
+              assertKnowledgeCoverageFrozen?.();
             });
           }, plan, {run, planPath, planDigest});
           mutatedMemory = true;
@@ -3736,7 +4262,7 @@ async function spawnAsyncConsolidation(
             deferredAuditFailed = true;
             if (ownsCurrentRun()) {
               state.outcome = "unverified";
-              state.attempts?.push({phase: "memory", attempt, outcome: "failed", operations: 0, durationMs: 0,
+              phaseAttempts?.push({phase: "memory", attempt, outcome: "failed", operations: 0, durationMs: 0,
                 diagnostic: "Independent Memory review audit remains in run artifacts; history publication failed."});
             }
           }
@@ -3754,7 +4280,7 @@ async function spawnAsyncConsolidation(
           : state.cancelled ? "cancelled" : state.outcome === "completed" ? appliedOperationCount > 0 ? "applied" : proposed ? "proposed" : "noop" : state.outcome === "unverified" ? "rejected" : "failed";
         const attemptDiagnostic = independentlyReplanned ? "Incomplete Memory planner response; independent maintenance replan requested."
           : memoryAttemptDiagnostic({ outcome: attemptOutcome, jev, stopReason: memoryStopReason(memoryStopFlags), structuralRejection });
-        state.attempts?.push({
+        phaseAttempts?.push({
           phase: "memory",
           attempt,
           outcome: attemptOutcome,
@@ -3772,7 +4298,7 @@ async function spawnAsyncConsolidation(
             structuralRepairAttempt.operations = state.outcome === "completed" && !state.cancelled ? appliedOperationCount : 0;
             if (subsetPendingOperations) structuralRepairAttempt.pendingOperations = subsetPendingOperations;
           }
-          state.attempts?.push(structuralRepairAttempt);
+          phaseAttempts?.push(structuralRepairAttempt);
         }
         if (repairAttempt) {
           if (state.cancelled || !semanticRepair || semanticRepairAccepted) repairAttempt.outcome = state.cancelled
@@ -3783,7 +4309,7 @@ async function spawnAsyncConsolidation(
           if (subsetPendingOperations) repairAttempt.pendingOperations = subsetPendingOperations;
           repairAttempt.operations = (!semanticRepair || semanticRepairAccepted) && state.outcome === "completed" ? appliedOperationCount : 0;
           if (semanticRepairAccepted && declinedMemoryDrafts.length) repairAttempt.declinedOperations = declinedMemoryDrafts.length;
-          state.attempts?.push(repairAttempt);
+          phaseAttempts?.push(repairAttempt);
         }
         resolveCompletion();
         if (state.completion === completion) state.completion = undefined;
@@ -3808,7 +4334,7 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; reason: string; availableSkills: readonly string[]; mode: LearningMode; currentUserHarnessRevisions?: Readonly<Record<string, string>>; currentUserHarnessCurrent?: () => boolean; memoryRequest?: string; maintenanceCommand?: MaintenanceCommandInvocation; memoryReplayFeedback?: MemoryReplayFeedback; inputSource?: LearningInputSource; onReceipt?: (receipt: LearningPipelineReceipt) => void; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
+  opts: { pkgDir: string; cwd: string; reason: string; availableSkills: readonly string[]; mode: LearningMode; currentUserHarnessRevisions?: Readonly<Record<string, string>>; currentUserHarnessCurrent?: () => boolean; memoryRequest?: string; preparedMemoryTaskSlice?: TaskSlice; memoryCommandPhase?: MemoryCommandPhaseInvocation; maintenanceCommand?: MaintenanceCommandInvocation; memoryReplayFeedback?: MemoryReplayFeedback; inputSource?: LearningInputSource; onReceipt?: (receipt: LearningPipelineReceipt) => void; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
 ): Promise<void> {
   if (opts.currentUserHarnessCurrent && !opts.currentUserHarnessCurrent()) return;
   if (state.pipeline) return state.pipeline;
@@ -3845,7 +4371,9 @@ async function startConsolidationPipeline(
   let learningInput: LearningInputSource | undefined;
   setDreamingWidget(ctx, opts.mode === "full" ? "preparing full maintenance" : "selecting current task");
   state.cleanup = () => clearDreamingWidget(ctx);
+  let pipelineBatchId: string | undefined;
   const pipeline = withLearningBatch(async () => {
+    pipelineBatchId = currentLearningBatch();
     // Freeze the invocation before recovery or settings reads yield to new input.
     let invocationContext = snapshotSessionContext(ctx);
     const fullMode = opts.mode === "full";
@@ -3869,9 +4397,9 @@ async function startConsolidationPipeline(
         }
       }
     }
-    let taskSlice = opts.memoryRequest !== undefined
+    let taskSlice = opts.preparedMemoryTaskSlice ?? (opts.memoryRequest !== undefined
       ? requestedMemoryTaskSlice(opts.memoryRequest, completeEntries)
-      : currentTaskSlice(completeEntries);
+      : currentTaskSlice(completeEntries));
     let frozenContext = snapshotSessionContext(invocationContext, fullMode ? undefined : taskSlice.entries);
     const recoveryLock = await acquireConsolidationLock(resolveConsolidationRunPaths(opts.cwd));
     try {
@@ -3938,7 +4466,7 @@ async function startConsolidationPipeline(
       && (policies.memory !== "off" || policies.harness !== "off");
     if (semanticReview) screen.reasons.push("Jev semantic review");
     if (!screen.memory && !screen.harness && !screen.agents && !semanticReview) {
-      const receipt = buildLearningReceipt(opts.mode, screen, [], learningInput, currentLearningBatch());
+      const receipt = buildLearningReceipt(opts.mode, screen, [], learningInput, pipelineBatchId);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt); opts.onReceipt?.(receipt);
       if (!isCurrent()) return;
       if (shouldReportLearningReceipt(receipt, Boolean(opts.reportResult))) opts.reportReceipt?.(receipt);
@@ -3950,9 +4478,9 @@ async function startConsolidationPipeline(
     const reportReceipt = (receipt: LearningPipelineReceipt): void => {
       if (shouldReportLearningReceipt(receipt, Boolean(opts.reportResult))) opts.reportReceipt?.(receipt);
     };
-    const writeCurrentReceipt = async (directory = resolveMemoryPaths(opts.cwd).runsDir): Promise<void> => {
-      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? [], learningInput, currentLearningBatch());
-      await writeLearningReceipt(directory, receipt);
+    const writeCurrentReceipt = async (): Promise<void> => {
+      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? [], learningInput, pipelineBatchId);
+      await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
       opts.onReceipt?.(receipt);
       if (!isCurrent()) return;
       reportReceipt(receipt);
@@ -4026,10 +4554,9 @@ async function startConsolidationPipeline(
     }
     if (!fullMode && !opts.currentUserHarnessRevisions) {
       setDreamingActivity("selecting related memory");
-      selectorRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false, opts.maintenanceCommand);
+      selectorRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false, opts.maintenanceCommand, opts.memoryCommandPhase);
       if (!isCurrent()) return;
       selectedSourceDigest = digest(selectorRun.manifest.sourceHashes);
-      const selectorReceiptDirectory = resolveMemoryPaths(opts.cwd).runsDir;
       try {
         incrementalSelection = await selectIncrementalLearning({
           cwd: opts.cwd,
@@ -4061,7 +4588,7 @@ async function startConsolidationPipeline(
         });
         if (incrementalSelection.outcome !== "selected" || !incrementalSelection.selection) {
           if (!state.cancelled) notifyPi(ctx.ui, `Learning selector failed: ${incrementalSelection.error ?? "invalid selection"}`, "warning");
-          await writeCurrentReceipt(selectorReceiptDirectory);
+          await writeCurrentReceipt();
           return;
         }
         // The deterministic parent screen is authoritative for durable task
@@ -4164,7 +4691,7 @@ async function startConsolidationPipeline(
       await releaseConsolidationRun(selectorRun, { keepArtifacts: true });
       selectorRun = undefined;
     }
-    const laterRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false, opts.maintenanceCommand);
+    const laterRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false, opts.maintenanceCommand, opts.memoryCommandPhase);
     acquiredLaterRun = laterRun;
     if (!isCurrent()) return;
     if (incrementalSelection?.dossierPath && incrementalSelection.dossierDigest) {
@@ -4319,7 +4846,7 @@ async function startConsolidationPipeline(
           }
         }
       }
-      await writeCurrentReceipt(laterRun.manifest.runDir);
+      await writeCurrentReceipt();
     } finally {
       state.laterStates = undefined;
       await releaseConsolidationRun(laterRun, { keepArtifacts: true });
@@ -4340,7 +4867,7 @@ async function startConsolidationPipeline(
       const attempts = state.attempts ?? [];
       // Record this terminal error even when an earlier phase recovered from rejection.
       attempts.push({phase:attempts.at(-1)?.phase ?? "selector", attempt:attempts.length, outcome:"failed", durationMs:0, operations:0});
-      const receipt = buildLearningReceipt(opts.mode, pipelineScreen ?? {memory:false,harness:false,agents:false,reasons:["Parent preflight failed"]}, attempts, learningInput, currentLearningBatch());
+      const receipt = buildLearningReceipt(opts.mode, pipelineScreen ?? {memory:false,harness:false,agents:false,reasons:["Parent preflight failed"]}, attempts, learningInput, pipelineBatchId);
       try { await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt); opts.onReceipt?.(receipt); } catch { /* Ownership failure must not escape the pipeline rejection handler. */ }
       if (shouldReportLearningReceipt(receipt, Boolean(opts.reportResult))) opts.reportReceipt?.(receipt);
     }
@@ -4350,8 +4877,8 @@ async function startConsolidationPipeline(
       const attempts = [...(state.attempts ?? [])];
       attempts.push({phase:attempts.at(-1)?.phase ?? "selector", attempt:attempts.length, outcome:"cancelled", durationMs:0, operations:0,
         ...(opts.currentUserHarnessRevisions ? {modelCalls: 0 as const} : {})});
-      const receipt = buildLearningReceipt(opts.mode, pipelineScreen ?? {memory:false,harness:false,agents:false,reasons:["Cancelled before screening"]}, attempts, learningInput, currentLearningBatch());
-      try { await writeLearningReceipt(path.join(resolveMemoryPaths(opts.cwd).runsDir, `interrupted-${randomUUID()}`), receipt); opts.onReceipt?.(receipt); } catch { /* Pending WAL retains the interrupted attempt when receipt storage is unavailable. */ }
+      const receipt = buildLearningReceipt(opts.mode, pipelineScreen ?? {memory:false,harness:false,agents:false,reasons:["Cancelled before screening"]}, attempts, learningInput, pipelineBatchId);
+      try { await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt); opts.onReceipt?.(receipt); } catch { /* Pending WAL retains the interrupted attempt when receipt storage is unavailable. */ }
     }
     const cleanup = state.cleanup;
     state.cleanup = undefined;
@@ -4450,6 +4977,7 @@ export default function (pi: ExtensionAPI) {
     });
   }
   let sessionGeneration = 0;
+  let activeManualRequest: object | undefined;
   let settingsDiagnostic: string | undefined;
   const runtimeSettings = async (ctx: ExtensionContext) => {
     const settings = await readSettings(ctx.cwd || process.cwd());
@@ -4504,18 +5032,25 @@ export default function (pi: ExtensionAPI) {
 
   const replayPending = async (ctx: ExtensionContext, force: boolean, maintenanceCommand?: MaintenanceCommandInvocation): Promise<void> => {
     if (dreamState.pipeline || dreamState.active) return;
-    const generation = sessionGeneration;
+    const generation = sessionGeneration, inputGeneration = earlyInputGeneration;
     const result = await replayLearningBacklog({cwd:ctx.cwd, force, learn:async input => {
-      if (generation !== sessionGeneration) return undefined;
+      if (generation !== sessionGeneration || input.memoryRequest !== undefined && inputGeneration !== earlyInputGeneration) return undefined;
       const frozen = snapshotSessionContext(ctx, input.entries);
       let receipt: LearningPipelineReceipt | undefined;
+      const requestToken = input.memoryRequest !== undefined ? {} : undefined;
+      if (requestToken) activeManualRequest = requestToken;
+      try {
       await startConsolidationPipeline(frozen, dreamState, {pkgDir:resolvePackageDir(), cwd:ctx.cwd,
         availableSkills:pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")),
         reason:"Replay the verified original task evidence; do not repeat task execution.", mode:force ? "manual" : "automatic", reportResult:force, onReceipt:value => {receipt=value;},
         memoryReplayFeedback:input.memoryReplayFeedback,
+        ...(input.memoryRequest !== undefined ? {memoryRequest:input.memoryRequest, preparedMemoryTaskSlice:input.preparedMemoryTaskSlice, memoryCommandPhase:input.commandPhase} : {}),
         ...(force && maintenanceCommand ? {maintenanceCommand} : {}),
-        inputSource:{source:"backlog-session", entryCount:input.entries.length, sessionId:input.sessionId, sourceDigest:input.sourceDigest, backlogId:input.id, ...(input.backlogRange ? {backlogRange:input.backlogRange} : {}), ...(input.omittedEntries ? {omittedEntries:input.omittedEntries, omittedEvidenceEntries:input.omittedEvidenceEntries ?? input.omittedEntries} : {}), ...(input.backlogCoverage ? {backlogCoverage:input.backlogCoverage} : {})},
+        inputSource:{source:"backlog-session", entryCount:input.entries.length, sessionId:input.sessionId, sourceDigest:input.sourceDigest, backlogId:input.id, ...(input.manualRequest ? {manualRequest:input.manualRequest} : {}), ...(input.backlogRange ? {backlogRange:input.backlogRange} : {}), ...(input.omittedEntries ? {omittedEntries:input.omittedEntries, omittedEvidenceEntries:input.omittedEvidenceEntries ?? input.omittedEntries} : {}), ...(input.backlogCoverage ? {backlogCoverage:input.backlogCoverage} : {})},
         reportReceipt:reportLearningReceipt});
+      } finally {
+        if (requestToken && activeManualRequest === requestToken) activeManualRequest = undefined;
+      }
       return receipt;
     }});
     if (force || result.error) notifyPi(ctx.ui, result.error === "Malformed backlog requires review" ? `Malformed references: ${readBacklog(ctx.cwd).malformed}. Learning replay requires review.` : result.error ?? `Learning replay: ${result.outcomes.map(row => row.reason === "newer-slice-deferred" ? "deferred: newer feedback requires review" : row.outcome).join(", ") || (result.busy ? "busy" : "nothing pending")}`, result.error ? "error" : "info");
@@ -4575,7 +5110,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("input", async (event) => {
     const inputGeneration = ++earlyInputGeneration;
     earlyUserInput = undefined;
-    if (activeEarlyCorrection !== undefined) await stopPipeline();
+    if (activeEarlyCorrection !== undefined || activeManualRequest !== undefined) await stopPipeline();
     if (inputGeneration !== earlyInputGeneration) return;
     if ((event.source !== "interactive" && event.source !== "rpc") || typeof event.text !== "string" || event.images?.length) return;
     // Pi emits before_agent_start before appending this user message. Bind the
@@ -4722,17 +5257,80 @@ export default function (pi: ExtensionAPI) {
           notifyPi(ctx.ui, "Memory requests cannot contain secrets or credentials.", "error");
           return;
         }
-        const completion = startConsolidationPipeline(ctx, dreamState, {
+        const generation = sessionGeneration, inputGeneration = earlyInputGeneration;
+        const requestIsCurrent = (): boolean => generation === sessionGeneration && inputGeneration === earlyInputGeneration;
+        const cwd = ctx.cwd || process.cwd();
+        // Freeze before the native marker is appended. The marker authenticates
+        // the historical command; it is not human/tool source evidence.
+        const frozen = snapshotSessionContext(ctx);
+        const prefix = snapshotEntries(frozen);
+        const requestSlice = manualMemoryTaskSlice(command, prefix);
+        const memoryCommandPhase = captureMemoryCommandPhase(frozen, command, requestSlice);
+        let queued: BacklogEntry | undefined;
+        let inputSource: LearningInputSource | undefined;
+        let release: (() => void) | undefined;
+        try {
+          const sessionFile = frozen.sessionManager.getSessionFile?.();
+          const sessionId = frozen.sessionManager.getSessionId?.();
+          if (sessionFile && sessionId) {
+            const paths = resolveMemoryPaths(cwd);
+            const range = currentTaskRange(prefix) ?? null;
+            const marker: ManualMemoryRequestMarker = {version:1, invocationId:memoryCommandPhase.invocationId, scopeKey:paths.scopeKey,
+              sessionId, request:command, prefixCount:prefix.length, prefixDigest:sha256Digest(JSON.stringify(prefix)),
+              range, taskDigest:sha256Digest(JSON.stringify(currentTaskSlice(prefix))), projectedDigest:sha256Digest(JSON.stringify(requestSlice))};
+            pi.appendEntry(MANUAL_MEMORY_REQUEST_ENTRY, marker);
+            const entryId = ctx.sessionManager.getLeafId?.();
+            if (entryId) {
+              const candidate: BacklogEntry = {version:1, sessionFile, from:range?.from ?? prefix.length,
+                to:range?.to ?? prefix.length, digest:marker.taskDigest, reason:"learning-pending", queuedAt:new Date().toISOString(), scopeKey:paths.scopeKey,
+                manualRequest:{entryId,invocationId:marker.invocationId,requestDigest:sha256Digest(command)}};
+              const source = await recentProjectLearningInput({cwd,agentDir:paths.agentDir,sessionDir:path.dirname(sessionFile),requestedSessionFile:sessionFile});
+              if (!requestIsCurrent()) return;
+              if (source && resolveManualMemoryRequest(source,candidate,paths.scopeKey)) {
+                release = claimLearningLease(cwd);
+                if (!release) { notifyPi(ctx.ui,"Learning is already owned by another run.","warning"); return; }
+                inputSource = {source:"current-session",entryCount:requestSlice.entries.length,sessionId,sourceDigest:source.sourceDigest,
+                  backlogId:backlogIdentity(paths.scopeKey,candidate),backlogRange:{from:candidate.from,to:candidate.to,digest:candidate.digest},manualRequest:candidate.manualRequest};
+                if (!requestIsCurrent()) { release(); release=undefined; return; }
+                if (!enqueueBacklog({cwd,...candidate}) || !beginBacklogAttempt(cwd,candidate,undefined,inputSource)) {
+                  release(); release=undefined;
+                  notifyPi(ctx.ui,"Memory request could not retain its replay reference; no learning started.","warning"); return;
+                }
+                queued=candidate;
+              }
+            }
+          }
+        } catch { release?.(); release=undefined; }
+        if (!requestIsCurrent()) { release?.(); return; }
+        if (!queued) notifyPi(ctx.ui,"This Memory request has no verified persisted command reference and cannot be replayed.","warning");
+        let receipt: LearningPipelineReceipt | undefined;
+        const requestToken = {};
+        activeManualRequest = requestToken;
+        const completion = startConsolidationPipeline(frozen, dreamState, {
           pkgDir: resolvePackageDir(),
-          cwd: ctx.cwd || process.cwd(),
+          cwd,
           reason: "Remember the user's explicit Memory request without changing Harness or AGENTS.md.",
           availableSkills: [],
           mode: "manual",
           memoryRequest: command,
+          preparedMemoryTaskSlice:requestSlice,
+          memoryCommandPhase,
+          ...(inputSource ? {inputSource} : {}),
+          onReceipt:value => {receipt=value;},
           reportResult: true,
           reportReceipt: reportLearningReceipt,
         });
-        if (!ctx.hasUI) await completion;
+        const settled = completion.then(() => {
+          if (queued && receipt) {
+            if (!recordBacklogAttempt(cwd,queued,receipt)) notifyPi(ctx.ui,"Memory attempt could not be retained; its request remains pending.","warning");
+            else if (learningReceiptComplete(receipt)) acknowledgeBacklog(cwd,queued,sha256Digest(JSON.stringify(receipt)));
+          }
+        }).finally(() => {
+          if (activeManualRequest === requestToken) activeManualRequest = undefined;
+          release?.();
+        });
+        if (!ctx.hasUI) await settled;
+        else void settled.catch(() => notifyPi(ctx.ui,"Memory attempt finalization failed; its request remains pending.","warning"));
         return;
       }
 

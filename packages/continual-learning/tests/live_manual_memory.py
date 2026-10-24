@@ -13,6 +13,8 @@ Run manually with::
 
 from __future__ import annotations
 
+from continuous_failure_retention import deduplicate_receipt_views
+
 from live_acceptance_support import workspace_pi
 
 import errno
@@ -180,16 +182,25 @@ def _is_manual_memory_receipt(value: dict | None) -> bool:
     )
 
 
+
+def _changed_receipt_views(agent: Path, before: dict[Path, tuple[int,int]]) -> list[dict]:
+    files=_receipt_files(agent);all_values=[];changed=[]
+    for file in files:
+        value=_read_receipt(file)
+        if value is None:return []
+        all_values.append(value)
+        stat=file.stat()
+        if before.get(file)!=(stat.st_mtime_ns,stat.st_size):changed.append(value)
+    try:
+        # An unchanged compatibility copy can still conflict with a new archive.
+        deduplicate_receipt_views(all_values)
+        return deduplicate_receipt_views(changed)
+    except ValueError:return []
+
 def _wait_receipt(tui: NativeTui, agent: Path, before: dict[Path, tuple[int, int]], timeout: float = 480) -> dict:
     def find() -> dict | None:
-        for path in reversed(_receipt_files(agent)):
-            current = (path.stat().st_mtime_ns, path.stat().st_size)
-            if before.get(path) == current:
-                continue
-            value = _read_receipt(path)
-            if _is_manual_memory_receipt(value):
-                return value
-        return None
+        matches=[value for value in _changed_receipt_views(agent,before) if _is_manual_memory_receipt(value)]
+        return matches[0] if len(matches)==1 else None
 
     found: list[dict | None] = [None]
 

@@ -39,6 +39,7 @@
     "typebox": "*"
   },
   "dependencies": {
+    "@babel/parser": "^7.29.9",
     "@fradser/pi-kit": "workspace:*"
   },
   "optionalDependencies": {

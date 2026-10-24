@@ -282,7 +282,8 @@ def test_phase_corrections_stop_on_failure_cancellation_drift_and_second_hold() 
         if reason == 'structural-failed':
             assert result['totalRepairs'] == 1 and result['jevValidations'] == []
         elif reason == 'structural-repair-cancel':
-            assert result['totalRepairs'] == 2 and 'registryReceipt' not in result
+            assert result['totalRepairs'] == 2 and not result['receiptComplete']
+            assert any(a['outcome']=='cancelled' for a in result['registryReceipt']['attempts'])
         elif reason == 'structural-held':
             assert result['totalRepairs'] == 2 and result['jevValidations'] == ['memory', 'memory']
             attempts = [a for a in result['registryReceipt']['attempts'] if a['phase'] == 'memory']

@@ -95,7 +95,10 @@ Feature: Outcome-based harness authoring without speculative writes
     Then the read-only parent preview rejects it without filesystem or service mutations
     And write remains blocked until the exact candidate passes fixtures for each changed enabled rule
     And preview does not bypass effective configuration, replacement authorization or file containment checks
-    And its tool is removed when the authoring turn ends
+    And its tool stays available across user and assistant turns of that authoring request
+    And session changes, branch switches, shutdown or a replacement request invalidate its preview
+    And each write still requires a fresh exact candidate and predecessor match
+    And pending authoring does not block ordinary source writes or authorize another Harness target
 
   Scenario: Resource guidance remains scoped on same-action counterexamples
     Given a Harness request for one named resource

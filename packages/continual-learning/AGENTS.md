@@ -56,6 +56,119 @@ them instead of copying a per-file runner or fixture.
 
 ## Learning study and evidence protocols
 
+For direct command source provenance, run the `manual-initialization`,
+`manual-initialization-repair` and `manual-initialization-held` cases in
+`tests/live_automatic_source_refresh.py`.
+`tests/continuous-command-proof.ts` binds the actual owner invocation, complete
+native prefix, unique native receipt, generation/source usage and current reads.
+It uses production `requestedMemoryTaskSlice` and `reviewedSourceExtension`.
+Memory arguments are appended by that projection; `/memory` has no ordinary
+chat user node or `/consolidate`-only `currentMaintenanceRequest` field.
+Capture `currentMemoryCommandPhase` only from the actual handler or a fully
+verified native replay marker. Bind each selector and worker snapshot separately
+to its run, scope, exact task prefix and request entry. Preserve original entries;
+plain source text, a dossier index and recomputed JSON hashes cannot capture a
+phase. This identifies procedure ownership, never storage or privacy permission.
+Keep the command origin distinct from completed replay ownership. This adapter
+does not authenticate its owner by itself, approve initialization, or replace
+independent source safety, semantic review, physical history and corpus checks.
+Frozen exclusive owner admission and all later learning gates remain required.
+For command-origin capture and archive loading, run the existing launcher and
+loader cases in `tests/test_continuous_project_protocol.py` and the bounded-reader
+cases in `tests/test_recovery_integrity.py`. Read copied sessions through the
+anchored regular-file reader before redaction. Never write through a copied path.
+Unsafe sessions retain a failed origin and unknown usage; safe sessions with a
+later source-capture failure retain their reported suffix usage and failed status.
+These are evidence controls, not learning efficacy or paid study admission.
+For batch receipt retention, run `tests/test_learning_efficiency.py`,
+`tests/test_learning_state_integrity.py` and the native command-initialization
+cases above. Keep the scope-level latest receipt as a compatibility view and
+retain each complete batch receipt under `receipts/<batch-id>/`. Update cancelled
+batches at the same canonical location. Collect only exactly equal duplicate
+views; reject conflicting snapshots. An absent historical receipt is not restored
+knowledge or known billing. Command closure must retain its actual source session,
+shared receipt contract and digest, prior costs and unchanged physical surfaces.
+The SDK command-initialization branch also checks the complete CREATE plan,
+receipt operation count, corpus, safe mirrors and exact physical history. It
+rechecks empty prior knowledge before transport. Retain a historical held attempt
+when the final correction applies. Bind both original and repair usage ledgers;
+neither an old hold nor a missing cost may disappear. Close the source backlog
+through actual backfill before a dependent policy task. A deduplication no-op is
+processing evidence only. The opt-in `--explicit-command-initialization` study
+requires the observed-failure source and unlimited-count protocol. It is separate
+from `--verified-failure-learning`. Both first source tasks disable automatic
+learning. Only the learner runs the actual Memory command and source closure.
+Both arms then receive the same separate original-user policy with native tools
+disabled. Keep the original source task outcomes unchanged and count every call.
+Bind command-source filenames, hashes, sizes and modes to both policy endpoints.
+Use `automaticHarnessPolicyProof`, the actual current-session completed attempt
+and the existing physical-history checker; never invent replay ownership.
+The later correction must retain the command endpoint and the separate policy
+bridge. Recompute both shared native proofs before semantic transport. Exercise
+`tests/test_continuous_project_protocol.py`, including rehashed source changes,
+post-receipt tools, absent ledger IDs, conflicting origins and unknown costs.
+Implementation and controlled evidence are not paid admission. Freeze the exact
+sources and image, pass a zero-call preflight and obtain fresh independent owner
+admission before a real cohort. No learning benefit is established by this path.
+Run Python-side native initialization proofs in the parent-owned Pi container.
+Use its installed shared proof and dependencies, with exclusive private inputs
+and an ESM entrypoint. Bind the evidence container to the caller's container;
+never select a runtime from archived input or require ambient host Pi packages.
+Keep the host-only helper for local fixtures. Exercise the owned-runtime and
+failure-cleanup cases in `tests/test_continuous_project_protocol.py`.
+A complete native command with no applied Memory retains its held state, receipts,
+history and usage without an applied proof. Stop before closure, policy or later
+tasks. Invalid or ambiguous origins still fail. Any initialization exception
+invalidates the stage and every existing arm for paired attribution.
+Historical explicit studies record `initialSourceArmExecutionVersion: 2`.
+Version 3 runs only explicit stage 0 in learner-first order; other stages keep
+their original alternating order. Record the order and shared-budget effects.
+Require every original learner gate. Missing or held arms cannot establish a
+valid pair. A later control hold invalidates both attribution inputs, reports
+the already-run learner as no longer pending, and still stops all five tasks.
+Any initial audit hold invalidates the stage and its existing arm inputs.
+Source-action grammar version 2 permits fixed-root `ls` metadata display with
+only `a`, `A`, `l`, `h` and `1` short flags. Reject recursion, symlink following,
+other target directories and unknown options. Keep historical V109 rejected.
+Version 3 composes recognized read-only atoms with `&&`. Validate every operand,
+including skipped branches. Literal `echo` output grants no file access. Keep
+verification calls standalone; refuse other operators, substitutions, redirects
+and unknown operands. No shared Bash parser exists in pi-kit; this extends the
+existing conservative shlex recognizer, not a shell sandbox. Keep V110 failed.
+A settled safe-choice control hold can skip that control's policy and still run
+the independent initial learner. Require the original source inventory including
+modes, complete public-source-only tool results and normal closed execution.
+Unknown commands, forbidden access, unsafe choices and hard anomalies stop all
+arms. Keep the control held, mark both attribution inputs invalid and stop all
+five later tasks. Every learner gate remains mandatory. Use only that learner's
+own source and session. Exercise the actual initial-audit branch, conservative
+source-action grammar and `initial_learning_continuation` in
+`tests/test_continuous_project_protocol.py`. This is not a shell sandbox or
+permission to resume a historical held run.
+
+For prospective native schema refusals, keep the original call, result and error.
+Bind the actual Pi validation implementation and call-time native tool definitions
+before attributing no execution. Only an exact command-enum refusal of recognized
+public read-only syntax can use the separate initial learner exception. Missing
+or conflicting provenance, other invalid arguments, runtime errors, private reads,
+mutations and unknown commands still stop. Include the actual boundary and bound
+attribution in the existing safety input; do not alter its questions or thresholds.
+The control hold still invalidates the pair and blocks all five later tasks.
+Exercise the existing native-tool and continuous-project protocol tests. Preserve
+historical cohorts without reclassification; this proves attribution, not learning.
+
+For rejected coverage feedback, run `tests/test_replay_failure_feedback.py` and
+`tests/live_automatic_source_refresh.py <disposable-output> --case coverage-replay`.
+Bind each historical version's complete rejected plan, target bodies, questions,
+occurrences and original answer distributions to the original receipt and private
+review artifacts. Preserve initial and corrected versions in receipt order. Do not
+replace a corrected body with its initial draft. These are untrusted historical
+questions, never fresh source, current citations, required answers or mutation
+authority. Keep the original task prefix, separate fresh source collection, full
+fresh review, costs and all semantic thresholds. Missing, changed, ambiguous,
+unsafe or oversized new artifacts stop replay; legacy absent fields stay absent.
+Controlled native delivery and writes do not establish real learning benefit.
+
 Current acceptance and fresh continuous studies use Pi 1.3.0. Pin the actual CLI
 and TUI, including inherited workspace overrides, and verify CLI startup before
 model transport. Keep historical Pi 1.0 and 1.2 cohorts, failures and costs separate; do
@@ -260,6 +373,30 @@ are untrusted verification questions, never independently observed facts. Keep
 them out of appended source evidence and the collector's source read scope. Bind
 their safe revisions before writes; source-only post-apply checks must permit
 the plugin's own authorized corrections.
+Exercise `manual-maintenance` and `manual-maintenance-held` in
+`tests/live_automatic_source_refresh.py` for actual Pi 1.3 `/memory 整理记忆`
+with automatic learning disabled. Require an observed ordinary edit, separate
+fresh source collection, complete review, exact safe mirrors and an unchanged
+manual Harness. Coverage confidence below 0.8 must preserve both old Memory
+bodies and the zero-write receipt. These loopback cases prove command wiring
+only; they do not establish real-model correction or later task benefit.
+Use `manual-initialization` and `manual-initialization-held` in that runner
+before a prospective explicit-command study. Begin with no entry bodies. Only
+after approved command learning may a separate original-user policy task use
+automatic Harness consolidation. Verify parent-created ownership, exact revision,
+native blocked and allowed calls, and the unchanged manual fixture rule. Retain
+automatic backlog no-op receipts without calling them learned knowledge. The
+held case must not start that dependent policy task. Controlled creation and
+execution prove mechanics only, not automatic correction, retirement or benefit.
+
+For prospective same-session command accounting, run
+`tests/test_continuous_project_protocol.py`. `run_session` requires an explicit
+original session digest for that continuation; preserve its complete bytes and
+count only new rows. Reject changed or incomplete prefixes before generation.
+Post-launch drift remains failed and keeps reported values separately as
+unattributed cost, never known-zero usage. Count initialization calls in total
+time and cost. The historical fresh-session and verifier-feedback paths remain
+unchanged. Prefix identity grants no source truth or mutation authority.
 
 For Memory maintenance bounds, replay the actual rewrite/delete mixed plan and
 its frozen selected predecessor bodies; a create-only test does not cover this
@@ -653,11 +790,16 @@ For early owned Harness correction, run @packages/continual-learning/tests/live_
 For service context overflow, run @tests/test_jev_long_context.py and @tests/test_jev_https_forward.py with @tests/test_docker_experiment.py. Preserve the V40 exact-wire failure and one read-only diagnostic; never rejudge its held plan for approval. Normal unbounded reviews request official long context before the first call, or honor `jev.longContext: false`; finite historical studies keep their original context. Every original entry, candidate, old body, source binding and .9/.8 gate remains required. Record the larger-context protocol and possible accuracy/latency cost separately; controlled capacity responses prove wiring and coverage only. Strict TLS, original Host/SNI, no redirects, existing retries/deadlines and complete accounting remain unchanged.
 
 For mixed Memory creation and mutation reviews, run
-@tests/test_memory_source_chronology.py with @tests/test_jev_preservation_closure.py.
+@tests/test_memory_source_chronology.py with @tests/test_jev_preservation_closure.py
+and @tests/test_jev_counter_window_diagnostics.py.
 A normal CREATE-only counter batch judges its own knowledge without predecessor
 preservation obligations. Keep complete original windows, cited support and bound
 current source. Rewrite/delete batches retain exact preservation dependencies,
 including new same-plan targets. Atomic approval and all semantic gates remain.
+Each counter answer judges its complete indexed window with cited support and
+supplied source comparison, not unseen whole-task chronology. Join every window;
+late contradictions and uncertainty still hold the entire plan. Whole-plan
+coverage independently retains all original evidence and its global scope.
 Finite historical request encoding stays unchanged. Exact wire reconstruction
 proves input shape only, not the cause of uncertainty or learning benefit.
 
@@ -748,6 +890,25 @@ must still match the original 132,837-byte request hash after restoring its old
 question protocol. Controlled comparisons do not prove a historical service cause
 or downstream learning benefit.
 
+For diagnostic-label attribution, run @tests/test_source_comment_grounding.py.
+Retain the complete V107 `traceLabelCase` snapshot and both rejected plans.
+Log labels do not prove execution of the named action. A simplified probe's
+order does not establish a different reproducer's added work. Preserve original
+setup order and unreleased work where relevant. Prompt delivery proves framing
+only, not compliance, semantic approval or the cause of historical scores.
+Keep the actual V112 `premiseCitationCase` initial and repaired plans unchanged.
+Its complete source supports added unfinished-work knowledge, but its selected
+quotes omit the new premise and its body omits a setup parameter. Generate from
+source-established material conditions before prose, and recheck citations for
+each changed clause. Preserve all original context and post-repair gates; this
+generation policy proves no adequate citation, accepted knowledge or later benefit.
+The retained V113 `phaseScopeCase` keeps both original plans and the complete
+snapshot. Align subject, execution phase and conditions before naming a source
+discrepancy. Its separate network-disabled instrumented observation is diagnostic
+only and must not enter the original snapshot or repair input. Synchronous event
+recording does not prove uninstrumented timing, API intent or a historical score's
+cause. Keep correct failure observations, limits and application guidance.
+
 For exact Memory rewrite text comparisons, run @tests/test_jev_inline_memory_review.py
 and @tests/test_jev_long_context.py. Preserve complete inline records and every
 original review window. Line counts include duplicate occurrences and exact line
@@ -826,7 +987,104 @@ and `tests/test_continuous_project_protocol.py`. Count parent pipeline receipts
 from early current-user Harness correction as well as replay jobs. Missing worker
 ledgers do not erase receipt costs, failures, operations or unknown usage. Deduplicate
 by exact batch and worker identities; conflicting snapshots stop accounting.
+Discover the latest scope receipt, canonical `receipts/<batch>/` view and legacy
+run/replay views. Exact duplicate views do not add another cost-bearing batch.
 Never infer call identity from equal numeric totals or mark partial costs complete.
 Validate totals with the parent's ordered JavaScript Number additions. Python's
 compensated `sum` can differ by one ULP. Keep exact equality and reject even a
 one-ULP alteration; do not add a tolerance or rewrite historical receipts.
+
+
+For knowledge-coverage correction, run `tests/test_body_review_output_contract.py`,
+`tests/test_jev_learning.py` and the `coverage-correction` case in
+`tests/live_automatic_source_refresh.py`. Require whole-plan review even with no
+records, exact current and predecessor bindings, and independent judgments for
+each named omission or null witness. Parent-selected question contract 2 scopes
+candidate and retained checks to their own knowledge; the whole-plan question
+and all gates stay unchanged. An absent contract selects the exact historical
+questions. When complete initial intrinsic checks and their original joint bounds
+pass, citation-only changes to the same whole effective knowledge plan cannot
+redraw a held coverage judgment. A coverage question that independently fails its
+original probability/confidence gate also blocks that draw when another intrinsic
+check is held. Validate the exact required question set, positions, identity and
+positive answer probabilities; a selected negative answer's probability is not
+approval. Retain the response, usage and original hold. When coverage itself passed,
+actual source, permission or preservation holds still permit evidence-only repair;
+changed knowledge requires every fresh review. Reject unknown or changed contract bindings. A task-reporting
+request is not a storage obligation without an actual durable
+request. Preserve material applicability constraints without expanding every
+referenced definition. Distinguish completed callbacks, unfinished work and later
+cleanup. Coverage-conjunction feedback retains the original check, location and
+all three bounds; it changes no gate, field scope or mutation authority. A missing
+cited review path stops before transport, without a fabricated proof. Exact duplicate decisions must retain every
+occurrence; distinct predecessor identities stay separate. Join coverage with
+all original probability/confidence and conservative joint gates. Keep the
+source-blind body review separate. Save actual numeric judgments and exact plan
+bindings for initial and corrected versions. A complete-plan proof cannot admit
+a changed subset. Hold missing, unavailable or malformed required proofs, and
+keep historical explicitly bounded protocols unchanged. Capture every returned
+worker and retained-review cost in its original run before fallible work. Native
+controlled correction proves the mechanism only, never learning or task benefit.
+
+For a complete rejected coverage account, exercise the invalid-coverage cases in
+`tests/test_jev_learning.py` and `coverage-invalid-correction` in
+`tests/live_automatic_source_refresh.py`. Continue independent source/body diagnosis
+only with parent-bound unchanged inputs, complete safe retained output and usage.
+Keep the account invalid and without prior context or mutation proof. Source/body
+success must remain pending, without an account retry. An actual independent hold
+may use only the existing plan repair; fresh complete gates still apply. Retain
+its full actual source diagnostic before repair, with the rejected response and
+ledger hashes. Preserve costs when that diagnostic cannot be saved. Test citation-only
+rejection, unsafe/incomplete/cancelled output, output I/O failure and source races.
+Retain an unbindable reviewer source selector as a bounded diagnostic on that
+same rejected response. Pass its location only to an already admitted independent
+source/body correction. It identifies a reviewer error, not a candidate defect,
+valid prior account, new repair slot or permission to change protected fields.
+Do not copy exception text, reviewer prose or source bodies into this diagnostic.
+These controlled tests do not establish real learning or downstream benefit.
+
+For prospective storage-scope studies, use `STORAGE_SCOPED_UNLIMITED_COMMON` from
+`tests/continuous_project_tasks.py` identically in both arms and all task audits.
+Exercise `test_scoped_storage_protocol_keeps_execution_rules_in_both_actual_session_inputs`.
+The common execution rules remain active; their presence alone does not request
+permanent Memory storage. Preserve actual knowledge applicability conditions,
+optional learning, current corrections, predecessor obligations, explicit durable
+requests and temporary/no-remember limits. Keep historical prompts and holds exact;
+record the clarification as a separate intervention, not a new historical verdict.
+
+For distinct Memory correction diagnostics, run `tests/test_jev_learning.py`,
+`tests/test_memory_repair_effort.py` and the native `manual-initialization-repair`
+case in `tests/live_automatic_source_refresh.py`. Normal unbounded Memory keeps
+coherence and source judgments separate, with validated observed labels and scores.
+These observations do not prove a claim false or grant repair fields. Preserve
+the first headline, complete receipts, historical finite and Harness behavior,
+and every original gate and correction slot. Check the final worker input after
+caller prefixes: retain core observations and an explicit omission notice within
+16 lines. Controlled delivery and a successful fixture write prove no learning
+benefit or cause of a historical semantic score.
+
+For failed review workers, run `tests/test_body_review_output_contract.py` and
+`@packages/kit/tests/test_failed_worker_output.py`. Retain only validated terminal
+categories and integer native exit codes or null in the existing response
+artifact. Never retain provider error prose or infer an empty provider reply
+from discarded failed output. Unknown usage stays unknown; no retry is added.
+
+For prospective atomic body correction, run `tests/test_memory_semantic_amendment.py`
+and the native `tests/live_memory_body_sequence.py`. Normal coverage-enabled repair
+uses one candidate source catalog (1..8 original citations) and ordered body
+units selecting its zero-based indexes. The parent retains every selected
+citation; it never trims or merges references to recover the bound. The parent
+derives both the complete body and flat citation set. No inherited
+citation array can accompany a changed body through another output shape. Keep
+metadata scope, evidence-only retained reuse, all existing bounds and full fresh
+semantic gates. This framing cannot establish that selected refs entail a unit.
+Normal coverage witnesses use disjoint `m<targetIndex>` and `p<predecessorIndex>`
+positions; `m` witnesses start after frontmatter, including a leading BOM, never in a discovery description.
+Original evidence stays in `e<snapshotIndex>`. Keep historical
+quote contracts exact. Run `tests/test_body_review_output_contract.py`.
+For the initial source-only study boundary, run `tests/test_continuous_tool_budget.py`.
+Both original arms use the same parent-provided public read paths and two exact
+standalone verification commands. Wire constraints and native execution must
+agree in the original registered tool definitions, descriptions and the actual
+HTTP request. Keep ordinary later tools unchanged. Reject attempted metadata/configuration discovery before tool execution;
+retain attempts and costs without relaxing the later source-safety judgment.

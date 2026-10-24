@@ -13,6 +13,21 @@ Feature: Explicit memory requests through the simple command surface
     Then the parent saves it only in the private Memory root
     And no preference body or private index entry appears in shared Memory
 
+  Scenario: A failed manual Memory request retains its own correction input
+    Given a persisted source task and a later explicit Memory request
+    When the parent records the native command and learning remains held
+    Then the original task and actual command have separate verified identities
+    And the failed receipt and its costs remain bound to that manual invocation
+    And an authorized backfill restores the exact request and rejected coverage questions
+    And the restored request remains Memory only and requires fresh source and complete review
+    And completing it does not acknowledge an ordinary task or a different request
+    And changed, ambiguous, foreign or unavailable native command records cannot authorize replay
+    And an unbound historical failure is never retroactively attached to a task
+    And a later native user input, newer Memory request or abandoned branch makes the old request ineligible
+    And the newest eligible manual request is processed before superseded pending requests
+    And an invalid newest request cannot fall through to ordinary learning
+    And a new input or session lifecycle during source collection or planning cancels the old manual work
+
   Scenario: The selector cannot broaden an explicit Memory request
     Given a selector requests Harness and AGENTS.md phases
     When it handles an explicit /memory request

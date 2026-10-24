@@ -201,8 +201,8 @@ def test_semantic_worker_sparse_output_preserves_full_plan_and_private_response(
     assert result['saved']['runId'] == 'r'
     assert result['saved']['sensitive'] is False
     assert result['mode'] == 0o600
-    assert 'Omitted operations and newMemories are retained byte-for-byte' in result['prompt']
-    assert 'asynchronous operation completes' in result['prompt']
+    assert 'Omitted candidates remain unresolved and are retained by the parent' in result['prompt']
+    assert 'Do not infer execution or completion timing from a call or assignment alone' in result['prompt']
     assert 'exact source identifiers and comparison operators' in result['prompt']
     assert 'exactly one source-backed claim' in result['prompt']
 
@@ -281,6 +281,28 @@ def test_automatic_memory_distills_lessons_without_dropping_explicit_requests() 
     assert 'Automatic Memory is distilled lessons, not a copy of the source inventory' in template
     assert 'non-obvious reusable contracts and pitfalls' in template
     assert 'Explicitly requested knowledge and personal preferences must not be dropped' in template
+    # Given a real proposal omitted the observed version while retaining an
+    # unresolved Git identity, When the initial planner receives its inventory
+    # rule, Then source identifiers that bound the lesson remain body knowledge.
+    # The later rejected correction is evidence of a body change, not learning.
+    import json
+    fixture = json.loads((Path(__file__).parent / 'fixtures/real-description-body-conflict.json').read_text())['sourceVersionScopeCase']
+    assert fixture['sourceVersion'] not in fixture['originalContent']
+    assert fixture['sourceVersion'] in fixture['correctedContent']
+    assert 'no resolvable Git `HEAD`' in fixture['originalContent']
+    assert 'no resolvable Git `HEAD`' in fixture['correctedContent']
+    assert fixture['sourceVersion'] in fixture['versionSourceCitation']['quote']
+    assert fixture['originalVersionOmission'] and fixture['correctedUncovered'] == []
+    assert fixture['learningAccepted'] is False
+    delivered = isolated_run_bun(r'''
+      import {buildIncrementalMemoryConsolidatorPrompt} from './packages/continual-learning/extensions/planner-prompts.ts';
+      const prompt=buildIncrementalMemoryConsolidatorPrompt({runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h',dossierPath:'/fixture/dossier',dossierContents:'UNTRUSTED_VERSION_EVIDENCE'});
+      console.log(JSON.stringify({prompt}));
+    ''')['prompt']
+    rule = 'Preserve cited version/revision bounds in the body; unknown identifiers do not erase observed identifiers.'
+    assert rule in delivered
+    assert delivered.count(rule) == 1
+    assert 'Omit routine inventories; retain metadata needed to apply the lesson.' in delivered
 
 
 def test_semantic_repair_preserves_already_reviewed_memory_fields_and_their_citations() -> None:

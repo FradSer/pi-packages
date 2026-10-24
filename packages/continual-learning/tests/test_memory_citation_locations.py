@@ -309,3 +309,151 @@ def test_references_preserve_patch_provenance_and_unicode_chunk_boundaries() -> 
     assert value['patch'] == '+new\r'
     assert value['unicodeExact'] and value['startsWithWholeCharacter'] and value['chunkBoundary'] == 511
     assert all(value['bad'])
+
+
+def test_declaration_view_exposes_outer_return_and_owner_without_changing_evidence() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence,memoryCitationDomain,resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const source='export type Pool = {\n\tflush: () => void;\n};\nexport default function makePool(): Pool;\nexport function wrap<T>(callback: () => PromiseLike<T>): (...args: unknown[]) => Promise<T> & Pick<Pool, "flush">;';
+      const snapshot={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'api.d.ts',offset:1,limit:200}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:source}]};
+      const original=JSON.stringify(snapshot),shown=locatedMemoryEvidence(snapshot,{declarationViews:true}),view=shown.entries[1].declarationViews[0];
+      const refs=new Set(memoryCitationDomain(snapshot).refs);
+      const positions=view.declarations.flatMap(n=>[n.source,...(n.members??[]).map(m=>m.source)]);
+      const allRefs=positions.every(p=>refs.has(p.ref)&&refs.has(p.endRef));
+      const exact=positions.every(p=>resolveMemoryPlanCitations({newMemories:[{evidence:[{ref:p.ref,endRef:p.endRef}]}]},snapshot).newMemories[0].evidence[0].quote===p.quote);
+      console.log(JSON.stringify({view,allRefs,exact,unchanged:JSON.stringify(snapshot)===original,
+        sourcePreserved:shown.entries[1].entry.content.citationLines.lines.map(l=>l.text).join('\n')===source}));
+    ''')
+    assert value['unchanged'] and value['sourcePreserved'] and value['allRefs'] and value['exact']
+    view = value['view']
+    assert view['status'] == 'available' and view['scope'] == 'observed-region'
+    nodes = {n['name']: n for n in view['declarations']}
+    assert nodes['makePool']['outerReturnKind'] == 'TSTypeReference'
+    assert nodes['makePool']['namedReturn'] == 'Pool'
+    assert nodes['makePool']['syntax'] == 'export default function makePool(): Pool;'
+    assert nodes['makePool']['outerReturnSyntax'] == 'Pool'
+    assert nodes['makePool']['observedTypeCandidate'] == nodes['Pool']['id']
+    assert nodes['Pool']['members'][0]['name'] == 'flush'
+    assert nodes['wrap']['outerReturnKind'] == 'TSFunctionType'
+    assert 'namedReturn' not in nodes['wrap'] and 'observedTypeCandidate' not in nodes['wrap']
+    assert 'PromiseLike<T>' in nodes['wrap']['syntax']
+
+
+def test_declaration_view_refuses_guessed_edges_and_unbound_source() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const show=(source,mutate=()=>{})=>{const s={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'api.d.ts'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:source}]};mutate(s);return locatedMemoryEvidence(s,{declarationViews:true}).entries.at(-1).declarationViews;};
+      const duplicates=show('export interface Pool { flush(): void; }\nexport interface Pool { other(): void; }\nexport function make(): Pool;')[0];
+      const imports=show('import {Pool} from "./other";\nexport function make(): Pool;\nexport function qualified(): Namespace.Pool;')[0];
+      const overloads=show('export interface Pool { flush(): void; }\nexport function make(a: string): Pool;\nexport function make(a: number): Pool;')[0];
+      console.log(JSON.stringify({duplicates,imports,overloads,unbound:show('export type Pool = {};',s=>s.entries.shift()),
+        failed:show('export type Pool = {};',s=>s.entries[1].isError=true),config:show('export type Pool = {};',s=>s.entries[0].content[0].arguments.path='config.json'),
+        malformed:show('export interface Pool {')[0]}));
+    ''')
+    assert all('observedTypeCandidate' not in n for n in value['duplicates']['declarations'])
+    assert all('observedTypeCandidate' not in n for n in value['imports']['declarations'])
+    assert value['imports']['declarations'][1]['outerReturnKind'] == 'TSTypeReference'
+    assert 'namedReturn' not in value['imports']['declarations'][1]
+    overloads = [n for n in value['overloads']['declarations'] if n['name'] == 'make']
+    assert len(overloads) == 2 and overloads[0]['id'] != overloads[1]['id']
+    assert not value.get('unbound') and not value.get('failed') and not value.get('config')
+    assert value['malformed']['status'] == 'omitted' and value['malformed']['reason'] == 'parse-error'
+
+
+def test_declaration_view_does_not_resolve_a_shadowing_function_type_parameter() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const source='export interface Owner { clear(): void; }\nexport declare function make<Owner>(): Owner;';
+      const snapshot={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'api.d.ts'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:source}]};
+      console.log(JSON.stringify(locatedMemoryEvidence(snapshot,{declarationViews:true}).entries[1].declarationViews[0]));
+    ''')
+    factory = next(n for n in value['declarations'] if n['name'] == 'make')
+    assert factory['namedReturn'] == 'Owner'
+    assert 'observedTypeCandidate' not in factory
+
+
+def test_declaration_view_projects_retained_complete_source_bridge_without_rejudging_knowledge() -> None:
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import {createHash} from 'node:crypto';
+      import {locatedMemoryEvidence} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const f=JSON.parse(fs.readFileSync('packages/continual-learning/tests/fixtures/real-description-body-conflict.json','utf8')).declarationOwnerBridgeCase;
+      const source=f.sourceText,snapshot={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'index.d.ts'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:source}]};
+      const view=locatedMemoryEvidence(snapshot,{declarationViews:true}).entries[1].declarationViews[0];
+      const factory=view.declarations.find(n=>n.name==='pLimit'),owner=view.declarations.find(n=>n.name==='LimitFunction');
+      console.log(JSON.stringify({sourceBound:createHash('sha256').update(source).digest('hex')===f.provenance.sourceSha256,
+        factory,owner,member:owner.members.find(n=>n.name==='clearQueue'),oldCandidateUnchanged:f.originalContent,
+        sourceCopy:locatedMemoryEvidence(snapshot,{declarationViews:true}).entries[1].entry.content.citationLines.lines.map(l=>l.text).join('\n')===source}));
+    ''')
+    assert value['sourceBound'] and value['sourceCopy']
+    assert value['factory']['observedTypeCandidate'] == value['owner']['id']
+    assert value['factory']['syntax'].startswith('export default function pLimit')
+    assert value['factory']['source']['characters'] == 77
+    assert value['factory']['source']['withinCitationLimit']
+    assert value['member']['name'] == 'clearQueue'
+    assert value['owner']['source']['characters'] > 2000 and not value['owner']['source']['withinCitationLimit']
+    assert 'clearQueue: () => void;' in value['oldCandidateUnchanged']
+
+
+def test_declaration_view_keeps_crlf_refs_region_offsets_and_bounds_explicit() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence,resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const source='// emoji 🪶\r\nexport interface Owner { clear(): void; }\r\nexport function make(): Owner;';
+      const show=(text,tool='read',offset=1)=>{const s={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:tool,arguments:{path:'api.d.ts',offset}}]},
+        {role:'toolResult',toolName:tool,toolCallId:'r',isError:false,content:text}]};return {s,entry:locatedMemoryEvidence(s,{declarationViews:true}).entries[1]};};
+      const normal=show(source),nodes=normal.entry.declarationViews[0].declarations;
+      const exact=nodes.every(n=>source.slice(n.source.syntaxStart,n.source.syntaxEnd)===n.syntax);
+      const refs=nodes.every(n=>resolveMemoryPlanCitations({operations:[{evidence:[{ref:n.source.ref,endRef:n.source.endRef}]}]},normal.s).operations[0].evidence[0].quote===n.source.quote);
+      const region=show(source+'\n[lines 101-103 of 200]','learning_read',101),truncated=show(source+'\n[lines 1-3 of 200; byte limit reached]','learning_read');
+      const huge=show('export interface Owner {\n'+Array.from({length:110},(_,i)=>'field'+i+'x'.repeat(100)+'(): void;').join('\n')+'\n}');
+      const tooMany=show(Array.from({length:129},(_,i)=>'export type T'+i+' = {};').join('\n'));
+      const longLine=show('export type Owner = { /*'+'x'.repeat(2200)+'*/ clear(): void; };');
+      console.log(JSON.stringify({exact,refs,region:region.entry.declarationViews[0],regionSourceUnchanged:region.entry.entry.content.citationLines.lines.map(l=>l.text).join('\n')===source+'\n[lines 101-103 of 200]',
+        truncated:truncated.entry.declarationViews[0],huge:huge.entry.declarationViews[0],tooMany:tooMany.entry.declarationViews[0],longLine:longLine.entry.declarationViews[0]}));
+    ''')
+    assert value['exact'] and value['refs'] and value['regionSourceUnchanged']
+    assert value['region']['status'] == 'available' and value['region']['scope'] == 'observed-region'
+    assert value['truncated']['reason'] == 'truncated-region'
+    assert value['huge']['status'] == 'omitted' and value['huge']['reason'] == 'view-size-limit'
+    assert value['tooMany']['status'] == 'omitted' and value['tooMany']['omittedNodeCount'] == 129
+    assert value['longLine']['declarations'] == [] and value['longLine']['omittedNodeCount'] == 1
+
+
+def test_declaration_views_are_generation_opt_in_with_one_total_metadata_budget() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const source='export interface Owner { clear(): void; }\nexport function make(): Owner;';
+      const entries=Array.from({length:50},(_,i)=>[{role:'assistant',content:[{type:'toolCall',id:'r'+i,name:'read',arguments:{path:'api.d.ts'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r'+i,isError:false,content:source}]).flat();
+      const snapshot={entries},plain=locatedMemoryEvidence(snapshot),shown=locatedMemoryEvidence(snapshot,{declarationViews:true});
+      console.log(JSON.stringify({defaultHasView:plain.entries.some(e=>e.declarationViews),defaultSummary:plain.declarationViewSummary,
+        shownHasView:shown.entries.some(e=>e.declarationViews),summary:shown.declarationViewSummary,
+        originalSourceEqual:JSON.stringify(plain.entries.map(e=>e.entry))===JSON.stringify(shown.entries.map(e=>e.entry))}));
+    ''')
+    assert not value['defaultHasView'] and not value.get('defaultSummary')
+    assert not value['shownHasView'] and value['originalSourceEqual']
+    assert value['summary']['reason'] == 'projection-size-limit'
+    assert value['summary']['totalEntries'] == 100 and value['summary']['maximumMetadataBytes'] == 32000
+
+
+def test_declaration_view_bounds_members_and_refuses_ambiguous_read_provenance() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const source='export interface Owner {\n'+Array.from({length:129},(_,i)=>'f'+i+'(): void;').join('\n')+'\n}';
+      const build=()=>({entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'api.d.ts'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:source}]});
+      const view=s=>locatedMemoryEvidence(s,{declarationViews:true}).entries.at(-1).declarationViews;
+      const big=build(),duplicate=build(),offset=build(),privatePath=build();duplicate.entries.unshift(duplicate.entries[0]);
+      offset.entries[0].content[0].arguments.offset=-1;privatePath.entries[0].content[0].arguments.path='/project/.MEMORY/api.d.ts';
+      const dossier={kind:'incremental-learning-dossier',taskSlice:big,selectedMemories:[]};
+      console.log(JSON.stringify({big:view(big)[0],duplicate:view(duplicate),offset:view(offset),privatePath:view(privatePath),
+        dossier:locatedMemoryEvidence(dossier,{declarationViews:true}).taskSlice.entries.at(-1).declarationViews[0],
+        defaultDossier:locatedMemoryEvidence(dossier).taskSlice.entries.at(-1).declarationViews}));
+    ''')
+    assert value['big']['status'] == 'omitted' and value['big']['reason'] == 'node-count-limit'
+    assert value['big']['omittedNodeCount'] == 130
+    assert value['dossier'] == value['big']
+    assert not value.get('duplicate') and not value.get('offset') and not value.get('privatePath') and not value.get('defaultDossier')

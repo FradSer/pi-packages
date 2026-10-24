@@ -19,8 +19,9 @@ def test_retained_receipts_and_body_source_workers_are_counted_once(tmp_path):
     u = usage(.25)
     receipt = dict(kind='learning-pipeline-receipt', batchId='batch', totals=u,
                    attempts=[dict(usageLedgerId='worker', usage=u)], costAvailable=True)
-    put(tmp_path, 'memory/runs/scope/run/learning-pipeline-receipt.json', receipt)
-    put(tmp_path, 'learning/scope/replay-fixture.json', {'attempts': [{'receipt': receipt}]})
+    # Actual latest and canonical batch views live at different depths.
+    put(tmp_path, 'memory/runs/scope/learning-pipeline-receipt.json', receipt)
+    put(tmp_path, 'memory/runs/scope/receipts/batch/learning-pipeline-receipt.json', receipt)
     put(tmp_path, 'memory/runs/scope/run/memory-task-usage.json', dict(ledgerId='worker', knownUsage=u, complete=True))
     put(tmp_path, 'memory/runs/scope/unfinished/memory-body-usage-id.json', dict(ledgerId='body', knownUsage=usage(.1), complete=True))
     put(tmp_path, 'memory/runs/scope/audit/source-audit-usage.json', dict(ledgerId='source', knownUsage=usage(.05), complete=True))
@@ -30,6 +31,9 @@ def test_retained_receipts_and_body_source_workers_are_counted_once(tmp_path):
     assert result['receiptBatches'] == ['batch']
     assert len(result['additionalWorkerLedgers']) == 2
     assert result['unknownCosts'] is True
+    put(tmp_path, 'memory/runs/scope/run/learning-pipeline-receipt.json', receipt)
+    put(tmp_path, 'learning/scope/replay-fixture.json', {'attempts': [{'receipt': receipt}]})
+    assert retained_learning_costs(tmp_path) == result
 
 
 def test_conflicting_usage_identity_is_not_accepted(tmp_path):
@@ -196,3 +200,62 @@ def test_retained_receipt_totals_must_match_known_attempts(tmp_path):
              attempts=[dict(usage=usage(.4),usageLedgerId='known')]))
     with pytest.raises(ValueError,match='totals'):
         retained_learning_costs(tmp_path)
+
+
+@pytest.mark.parametrize('complete', [True, False])
+def test_coverage_worker_usage_is_retained_after_parent_interruption(tmp_path, complete):
+    # Given an independent coverage worker with a stopped parent, When retained
+    # costs are recovered, Then its known cost survives and settlement is unknown.
+    put(tmp_path, 'memory/runs/scope/run/memory-coverage-usage-id.json',
+        dict(ledgerId='coverage', knownUsage=usage(.125), complete=complete))
+    result = retained_learning_costs(tmp_path)
+    assert result['knownLearningCost'] == .125
+    assert result['knownLearningTokens'] == 5
+    assert len(result['additionalWorkerLedgers']) == 1
+    assert result['unknownCosts'] is True
+
+
+def test_coverage_worker_receipt_counts_once_and_conflicting_copy_blocks(tmp_path):
+    # Given a linked coverage receipt and worker copy, When recovering costs,
+    # Then count one call and refuse a conflicting completion identity.
+    u = usage(.125)
+    receipt = dict(kind='learning-pipeline-receipt', batchId='batch', totals=u,
+                   attempts=[dict(usageLedgerId='coverage', usage=u)], costAvailable=True)
+    put(tmp_path, 'memory/runs/scope/run/learning-pipeline-receipt.json', receipt)
+    put(tmp_path, 'memory/runs/scope/run/memory-coverage-usage-id.json',
+        dict(ledgerId='coverage', knownUsage=u, complete=True))
+    result = retained_learning_costs(tmp_path)
+    assert result['knownLearningCost'] == .125
+    assert result['additionalWorkerLedgers'] == []
+    put(tmp_path, 'memory/runs/scope/unfinished/memory-coverage-usage-id.json',
+        dict(ledgerId='coverage', knownUsage=u, complete=False))
+    with pytest.raises(ValueError, match='Conflicting'):
+        retained_learning_costs(tmp_path)
+
+
+def test_receipt_views_keep_legacy_unknown_identity_and_refuse_conflicting_batches():
+    from continuous_failure_retention import deduplicate_receipt_views,unique_learning_receipts
+    legacy={'kind':'learning-pipeline-receipt','version':1}
+    assert deduplicate_receipt_views([legacy,legacy])==[legacy,legacy]
+    keyed={**legacy,'batchId':'batch_fixture'}
+    assert deduplicate_receipt_views([keyed,keyed])==[keyed]
+    import pytest
+    with pytest.raises(ValueError):deduplicate_receipt_views([keyed,{**keyed,'operations':1}])
+    with pytest.raises(ValueError):unique_learning_receipts([legacy])
+
+
+@pytest.mark.parametrize('field',['cost','operations','attempt-cost'])
+@pytest.mark.parametrize('reverse',[False,True])
+def test_receipt_dedup_never_coerces_boolean_to_numeric_usage(field,reverse):
+    import copy
+    from continuous_failure_retention import deduplicate_receipt_views,unique_learning_receipts
+    u=usage(0);receipt={'kind':'learning-pipeline-receipt','batchId':'batch','totals':u,'operations':0,
+        'attempts':[{'usage':u}]}
+    changed=copy.deepcopy(receipt)
+    if field=='cost':changed['totals']['cost']=False
+    elif field=='operations':changed['operations']=False
+    else:changed['attempts'][0]['usage']['cost']=False
+    values=[receipt,changed]
+    if reverse:values.reverse()
+    with pytest.raises(ValueError):deduplicate_receipt_views(values)
+    with pytest.raises(ValueError):unique_learning_receipts(values)

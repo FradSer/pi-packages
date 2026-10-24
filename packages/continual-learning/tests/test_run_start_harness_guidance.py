@@ -25,3 +25,5 @@ def test_guidance_is_additive_repeated_and_old_injections_are_filtered(tmp_path)
         assert result[run]['options']['promptGuidelines'] == ['EXISTING']
     assert result['filtered']['messages'] == [{'role': 'custom', 'customType': 'workflow', 'content': 'KEEP'}]
     assert any(entry['data'].get('entries') for entry in result['entries'])
+    text_events = [entry for entry in result['entries'] if entry['data'].get('kind') == 'text-rule']
+    assert len(text_events) == 1

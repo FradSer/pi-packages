@@ -20,6 +20,7 @@ import {
   HARNESS_GUIDANCE_CUSTOM_TYPE,
   HARNESS_GUIDANCE_ENTRY_TYPE,
   LEGACY_GUIDANCE_ENTRY_TYPE,
+  deliveredGuidanceState,
   planTextGuidance,
   incompleteTextGuidance,
   type TextGuidanceEntry,
@@ -131,6 +132,17 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
     const textPlan = contextReadIncomplete
       ? incompleteTextGuidance(delivery)
       : planTextGuidance([...retained, ...delivery], prompt, resolved.config, true);
+    // An unchanged re-delivery is the same delivery. The transcript row and the
+    // branch ledger grow only when the observable delivery state changes, so a
+    // long-lived rule cannot print one identical row per turn. The run-start
+    // section still carries every in-force entry, because structured sections
+    // are not retained context.
+    const priorState = deliveredGuidanceState([...retained, ...delivery]);
+    const stateChanged = (entry: TextGuidanceEntry): boolean => {
+      const prior = priorState.get(entry.id);
+      return !prior || prior.revision !== entry.revision || prior.status !== entry.status
+        || prior.source !== entry.source || prior.text !== entry.text;
+    };
 
     if (textPlan.incomplete) {
       pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
@@ -163,6 +175,7 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
       } satisfies HarnessGuidanceEvent);
     }
     for (const e of textPlan.entries) {
+      if (!stateChanged(e)) continue;
       pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
         kind: "text-rule",
         ruleId: e.id,
@@ -178,7 +191,9 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
     if (skill) details.skill = skill.name;
     if (skillRules.length > 0) details.skillRuleIds = skillRules.map((r) => r.id);
 
-    pi.appendEntry("harness-guidance-delivery", details);
+    // An incomplete turn re-delivers the preserved retained set, so its record
+    // stays complete even though no entry changed.
+    if (textPlan.incomplete || textPlan.entries.some(stateChanged) || skillRules.length > 0 || legacy) pi.appendEntry("harness-guidance-delivery", details);
     setRunStartSection(event.systemPromptOptions, "harness_guidance", content);
   });
 }

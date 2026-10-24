@@ -18,8 +18,9 @@ def test_real_rewrite_preserves_contract_without_inheriting_unobserved_proof() -
     assert 'queued.isFulfilled===undefined' in json.dumps(entries)
 
     # When either initial planning or the existing bounded repair runs, Then
-    # both receive the same attribution/preservation contract. This tests the
-    # delivered contract, not real-model compliance or learning effectiveness.
+    # both retain original-source attribution and predecessor preservation.
+    # Initial generation uses its refs-only template; repair retains the
+    # detailed legacy guidance. This tests delivery, not learning benefit.
     result = isolated_run_bun(r'''
       import {mock} from 'bun:test';
       const kit=await import('./packages/kit/src/index.ts');let captured;
@@ -41,8 +42,16 @@ def test_real_rewrite_preserves_contract_without_inheriting_unobserved_proof() -
         predecessorPreserved:JSON.stringify(payload.semanticContext.existingMemories)===JSON.stringify(f.dossier.selectedMemories)}));
     ''')
     assert result['completeEvidence'] and result['predecessorPreserved']
-    for prompt in (result['initial'], result['repair']):
-        assert 'Preserve supported knowledge, not unsupported proof attribution' in prompt
-        assert 'A test assertion copied from existing Memory is not an observed test' in prompt
-        assert 'pair the actual invocation with its result' in prompt
-        assert 'deadlock, unawaited Promise, nonexistent property' in prompt
+    initial, repair = result['initial'], result['repair']
+    for prompt in (initial, repair):
+        assert 'Select original spans for each factual clause and its premises' in prompt
+        assert 'Preserve still-valid predecessor knowledge and explicit restrictions' in prompt
+    assert 'only eligible\nuser/toolResult text can be cited' in initial
+    assert 'Current explicit corrections and verified changed project behavior supersede' in initial
+    assert 'A claimed fix requires its actual successful verification' in initial
+    assert 'Read a diagnostic\'s executed operations before interpreting its printed labels' in initial
+    assert 'Preserve supported knowledge, not unsupported proof attribution' not in initial
+    assert 'Preserve supported knowledge, not unsupported proof attribution' in repair
+    assert 'A test assertion copied from existing Memory is not an observed test' in repair
+    assert 'pair the actual invocation with its result' in repair
+    assert 'deadlock, unawaited Promise, nonexistent property' in repair

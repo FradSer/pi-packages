@@ -34,6 +34,6 @@ def test_real_lossy_correction_does_not_instruct_rewrite_bodies_to_be_one_fact()
     assert result['predecessorPreserved']
     prompt = result['prompt']
     assert 'Use the shortest directly supported fact;' not in prompt
-    assert 'A rewrite body may contain multiple independently supported facts' in prompt
-    assert 'Do not discard still-valid predecessor knowledge to shorten a body' in prompt
-    assert 'Preserve independently supported unresolved failure observations' in prompt
+    assert 'Preserve still-valid predecessor facts, conditions, unresolved observations and usage guidance' in prompt
+    assert 'does not authorize compressing an already correct record or discarding still-valid predecessor knowledge' in prompt
+    assert 'Preserve a supported unresolved failure instead of inventing a mechanism or discarding the observation' in prompt

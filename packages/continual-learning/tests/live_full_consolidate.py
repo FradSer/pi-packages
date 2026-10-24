@@ -6,6 +6,8 @@ deterministic; Pi and its real planner child are still the native processes.
 
 from __future__ import annotations
 
+from continuous_failure_retention import deduplicate_receipt_views
+
 from live_acceptance_support import workspace_pi
 
 import json
@@ -380,8 +382,13 @@ def run() -> dict[str, object]:
                     files = list((agent / "memory" / "runs").rglob("learning-pipeline-receipt.json"))
                     if not files:
                         return False
-                    run_receipt_file = files[-1]
-                    run_receipt = json.loads(files[-1].read_text())
+                    try:
+                        values=deduplicate_receipt_views([json.loads(p.read_text()) for p in files])
+                    except ValueError:
+                        return False
+                    if len(values)!=1:return False
+                    run_receipt=values[0]
+                    run_receipt_file=next(p for p in files if json.loads(p.read_text())==run_receipt)
                     return run_receipt.get("kind") == "learning-pipeline-receipt" and run_receipt.get("mode") == "full"
 
                 try:

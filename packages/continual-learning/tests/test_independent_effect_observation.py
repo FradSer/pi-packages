@@ -117,6 +117,7 @@ def test_real_workflow_wiring_probes_harness_after_memory_gate_failure(
             runs = agent / "memory/runs/scope/run"
             runs.mkdir(parents=True)
             (runs / "learning-pipeline-receipt.json").write_text(json.dumps({
+                "kind": "learning-pipeline-receipt",
                 "attempts": [{"phase": "memory", "outcome": "proposed"},
                              {"phase": "harness", "outcome": "applied", "jev": {
                                  "stage": "harness", "status": "decided", "reason": "supported",
@@ -227,7 +228,7 @@ def test_held_harness_does_not_hide_applied_memory_recall(
             ]
             if other_failure:
                 attempts.append({"phase": other_failure[0], "outcome": other_failure[1]})
-            (runs / "learning-pipeline-receipt.json").write_text(json.dumps({"attempts": attempts}))
+            (runs / "learning-pipeline-receipt.json").write_text(json.dumps({"kind": "learning-pipeline-receipt", "attempts": attempts}))
             (project / ".pi").mkdir()
             (project / ".pi/harness.json").write_text('{"rules":[]}')
         return {"seconds": 0, "messages": [], "visible": marker}

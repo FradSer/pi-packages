@@ -53,13 +53,55 @@ function collectStringLeaves(val: unknown): string[] {
   return [];
 }
 
+/** Recognize conventional Harness targets, not arbitrary mentions in content. */
+function harnessConfigPath(value: unknown): boolean {
+  return typeof value === "string" && /(?:^|[/\\])\.pi[/\\](?:agent[/\\])?harness(?:\.local)?\.json$|(?:^|[/\\])\.pi[/\\]agent[/\\]harness[/\\][^/\\]+\.json$/.test(value);
+}
+
+/** Only a single cat of a configuration file is apparatus. Mixed commands
+ * retain all of their ordinary command and result text. */
+export function referencesHarnessConfig(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const cat = /^\s*cat[ \t]+(?:--[ \t]+)?(?:"([^"\n]+)"|'([^'\n]+)'|([^\s;&|<>`$]+))[ \t]*$/.exec(value);
+  if (!cat || cat[1] !== undefined && /[$`\\]/.test(cat[1])
+    || cat[3] !== undefined && /[\\*?\[\]{}~"']/.test(cat[3])) return false;
+  return harnessConfigPath(cat[1] ?? cat[2] ?? cat[3]);
+}
+
+/** Rule-layer configuration reads are identified before extraction so a result
+ * is excluded by its own call identity rather than by guessing at its bytes. */
+function harnessConfigToolCalls(messages: unknown[]): Map<string, string> {
+  const calls = new Map<string, string>();
+  const seen = new Set<string>();
+  for (const raw of messages) {
+    if (!raw || typeof raw !== "object") continue;
+    const msg = raw as Record<string, unknown>;
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+    for (const block of msg.content) {
+      if (!block || typeof block !== "object") continue;
+      const b = block as Record<string, unknown>;
+      if (b.type !== "toolCall" || typeof b.id !== "string") continue;
+      // Reused IDs cannot authenticate a result as configuration material.
+      if (seen.has(b.id)) { calls.delete(b.id); continue; }
+      seen.add(b.id);
+      if (!b.arguments || typeof b.arguments !== "object") continue;
+      const args = b.arguments as Record<string, unknown>;
+      if (["read", "write", "edit"].includes(String(b.name)) && harnessConfigPath(args.path)
+        || b.name === "bash" && referencesHarnessConfig(args.command)) calls.set(b.id, String(b.name));
+    }
+  }
+  return calls;
+}
+
 /**
  * Extract model-visible text fragments from a retained conversation snapshot.
  * Excludes Harness-owned guidance messages and appended Bash/config notes
- * (no self-trigger), thinking blocks, image binaries, and non-text metadata.
+ * (no self-trigger), Harness configuration apparatus (its own definition), and
+ * thinking blocks, image binaries, and non-text metadata.
  */
 export function extractModelVisibleTexts(messages: unknown[]): string[] {
   const texts: string[] = [];
+  const configCalls = harnessConfigToolCalls(messages);
   for (const raw of messages) {
     if (!raw || typeof raw !== "object") continue;
     const msg = raw as Record<string, unknown>;
@@ -94,17 +136,19 @@ export function extractModelVisibleTexts(messages: unknown[]): string[] {
           if (!block || typeof block !== "object") continue;
           const b = block as Record<string, unknown>;
           if (b.type === "text" && typeof b.text === "string") texts.push(b.text);
-          else if (b.type === "toolCall" && b.arguments && typeof b.arguments === "object") {
+          else if (b.type === "toolCall" && b.arguments && typeof b.arguments === "object"
+            && !(typeof b.id === "string" && configCalls.has(b.id))) {
             texts.push(...collectStringLeaves(b.arguments));
           }
         }
       }
     } else if (role === "toolResult") {
-      pushBlocks(msg.content, true);
+      const configReader = configCalls.get(String(msg.toolCallId));
+      if (msg.isError !== false || msg.toolName !== configReader || configReader !== "read" && configReader !== "bash") pushBlocks(msg.content, true);
     } else if (role === "compactionSummary" || role === "branchSummary") {
       if (typeof msg.summary === "string") texts.push(msg.summary);
     } else if (role === "bashExecution") {
-      if (!msg.excludeFromContext) {
+      if (!msg.excludeFromContext && !(msg.exitCode === 0 && referencesHarnessConfig(msg.command))) {
         if (typeof msg.command === "string") texts.push(msg.command);
         if (typeof msg.output === "string") {
           const native = stripHarnessNote(msg.output);
@@ -174,6 +218,13 @@ function readDeliveredState(messages: unknown[]): Map<string, DeliveredState> {
     }
   }
   return state;
+}
+
+/** Delivered state per rule id, read from branch order. Callers use it to
+ * append a delivery record only when the state actually changed, so an
+ * unchanged re-delivery neither grows the transcript nor the branch ledger. */
+export function deliveredGuidanceState(messages: unknown[]): Map<string, { text?: string; revision?: string; status: GuidanceStatus; source?: string }> {
+  return readDeliveredState(messages);
 }
 
 /** Admit only the exact scoped delivery format. A saved body alone cannot
@@ -267,11 +318,11 @@ export function planTextGuidance(
     const outdatedUnmatched = rule && !matchedIds.has(id) &&
       (!("text" in rule) || prior.revision !== hashRuleRevision(rule));
     if (!goneOrDisabled && !outdatedUnmatched) {
-      // Structured sections do not persist as custom context. Re-deliver an
-      // unchanged scoped revision that previously remained on this branch.
-      if (runStart && rule && "text" in rule && !matchedIds.has(id)) {
-        entries.push({ id, revision: hashRuleRevision(rule), status: "active", text: scopedTextGuidance(rule), source: rule.source });
-      }
+      // Structured sections do not persist as custom context, so a rule that
+      // still matches the retained conversation is re-delivered each turn. A
+      // rule whose matching evidence has left the retained conversation is not:
+      // its scope names the subjects the selector detects, and an expired
+      // trigger cannot keep the guidance in force for unrelated tasks.
       continue;
     }
     // A vanished rule under an incomplete config read is indeterminate, not a

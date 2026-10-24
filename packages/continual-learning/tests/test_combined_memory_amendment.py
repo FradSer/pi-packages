@@ -120,6 +120,27 @@ def test_retained_evidence_only_repair_preserves_frozen_real_contract(tmp_path, 
         {semanticContext:{...input.semanticContext,existingMemories:[prior,prior]}}]){
         next=reply;bad.push(await repairIncrementalMemoryPlan({...input,...changes}));
       }
+      // Confirmed retained-body contradictions require a body correction, not
+      // a copied predecessor or a changed description. Unknown holds may still
+      // use the existing evidence-only path; no claim is forced to change.
+      const requiredBody=[];
+      for(const mode of ['same-body','description-only','trailing-newline','outer-blanklines','crlf-only','description-plus-whitespace','bom-description-only','bom-body','body']){
+        if(mode.startsWith('bom-'))prior.content='\uFEFF'+real.predecessor;
+        let content=prior.content;
+        if(mode==='description-only')content=content.replace(/description:[^\n]*/, 'description: Revised discovery text');
+        if(mode==='trailing-newline')content+='\n';
+        if(mode==='outer-blanklines')content=content.replace(/(\n---\n)/, '$1\n\n')+'\n\n';
+        if(mode==='crlf-only')content=content.replaceAll('\n','\r\n');
+        if(mode==='description-plus-whitespace')content=content.replace(/description:[^\n]*/, 'description: Revised discovery text')+'\n';
+        if(mode==='bom-description-only')content=content.replace(/description:[^\n]*/, 'description: Revised discovery text');
+        if(mode==='body'||mode==='bom-body')content+='\nChanged source condition.\n';
+        next={...reply,operations:[{...reply.operations[0],content}]};
+        nativeEnabled=NATIVE&&mode.startsWith('bom-');
+        const result=await repairIncrementalMemoryPlan({...input,requiredTextChanges:{[name]:['body']}});
+        requiredBody.push({mode,outcome:result.outcome,failureKind:result.failureKind,hasPlan:!!result.plan,cost:result.usage?.cost,native:nativeEnabled});
+        nativeEnabled=false;
+        prior.content=real.predecessor;
+      }
       next=reply;mutate=()=>{prior.content=real.rejectedReplacement};const changed=await repairIncrementalMemoryPlan(input);prior.content=real.predecessor;mutate=()=>{};
       next=reply;mutate=()=>{snapshot.entries[0].content='changed after generation'};const sourceChanged=await repairIncrementalMemoryPlan(input);snapshot.entries[0].content='readonly rejectOnClear?: boolean;';mutate=()=>{};
       next=reply;mutate=()=>{input.requiredTextChanges={[name]:['body']}};const textRequirementChanged=await repairIncrementalMemoryPlan(input);delete input.requiredTextChanges;mutate=()=>{};
@@ -128,13 +149,21 @@ def test_retained_evidence_only_repair_preserves_frozen_real_contract(tmp_path, 
       const combinedOriginal={...original,newMemories:[fresh]},ids=semanticMemoryRepairCandidates(combinedOriginal,['failure.md']);
       next={kind:'incremental-memory-amendment',version:1,...identity,replacements:[{candidateId:ids[0].candidateId,evidence}],operations:reply.operations};
       nativeEnabled=NATIVE;const combined=await repairIncrementalMemoryPlan({...input,rejectedPlan:combinedOriginal,repairableNames:['failure.md'],repairableFields:{'failure.md':['body']}});
+      next={...next,replacements:[{candidateId:ids[0].candidateId,description:'Observed verification failure',evidence}]};
+      const atomicDescription=await repairIncrementalMemoryPlan({...input,rejectedPlan:combinedOriginal,repairableNames:['failure.md'],repairableFields:{'failure.md':['description']},atomicBodyEvidence:true});
       const delta=learningOutputSchema('memory-delta'),retained=learningOutputSchema('memory-retained-amendment');
-      console.log(JSON.stringify({good,bad,changed,sourceChanged,textRequirementChanged,proposalChanged,combined,contract,nativeArgs,nativeCalls,originalUnchanged:original.operations.length===0,
+      console.log(JSON.stringify({good,bad,requiredBody,changed,sourceChanged,textRequirementChanged,proposalChanged,combined,atomicDescription,fresh,contract,nativeArgs,nativeCalls,originalUnchanged:original.operations.length===0,
         predecessorUnchanged:prior.content===real.predecessor,body:real.predecessor,
         deltaContentRequired:delta.properties.operations.items.anyOf[0].required.includes('content'),
         retainedContentOptional:retained&&!retained.properties.operations.items.anyOf[0].required.includes('content')}));
     '''.replace('ROOT', json.dumps(str(tmp_path))).replace('NATIVE', str(native).lower()))
     assert result['good']['outcome'] == 'repaired', result['good']
+    for row in result['requiredBody']:
+        assert row.get('cost') in (0, None) if row['native'] else row['cost'] == .1, row
+        if row['mode'] in ('body', 'bom-body'):
+            assert row['outcome'] == 'repaired' and row['hasPlan'], row
+        else:
+            assert row['outcome'] == 'failed' and row['failureKind'] == 'no-correction' and not row['hasPlan'], row
     operation = result['good']['plan']['operations'][0]
     assert operation['content'] == result['body']
     assert operation['evidence'] == [{'index': 0, 'quote': 'readonly rejectOnClear?: boolean;'}]
@@ -144,6 +173,9 @@ def test_retained_evidence_only_repair_preserves_frozen_real_contract(tmp_path, 
     assert all(result[name]['outcome'] == 'failed' for name in ['changed', 'sourceChanged', 'textRequirementChanged', 'proposalChanged'])
     assert result['combined']['outcome'] == 'repaired', result['combined']
     assert result['combined']['plan']['operations'][0]['content'] == result['body']
+    assert result['atomicDescription']['outcome'] == 'repaired', result['atomicDescription']
+    assert result['atomicDescription']['plan']['newMemories'][0]['content'] == result['fresh']['content'].replace('description: Observed failure', 'description: Observed verification failure')
+    assert result['atomicDescription']['plan']['operations'][0]['content'] == result['body']
     assert result['originalUnchanged'] and result['predecessorUnchanged']
 
-    assert result['nativeCalls'] == (2 if native else 0)
+    assert result['nativeCalls'] == (5 if native else 0)

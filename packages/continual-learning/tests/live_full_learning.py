@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 
-from live_manual_memory import NativeTui, _model, _receipt_files, _receipt_state, _runtime_env
+from live_manual_memory import NativeTui, _model, _receipt_files, _receipt_state, _runtime_env, _changed_receipt_views
 from live_smoke import (prepare, memory_bodies, private_memory_root, shared_surface_leaks,
                         run_pi, successful_tool_call, path_argument_matches, assistant_visible_text)
 
@@ -24,14 +24,11 @@ def full_receipt(tui: NativeTui, agent: Path, before: dict) -> dict:
 
     def ready() -> bool:
         nonlocal found
-        for file in reversed(_receipt_files(agent)):
-            stat = file.stat()
-            if before.get(file) == (stat.st_mtime_ns, stat.st_size):
-                continue
-            value = json.loads(file.read_text())
-            if value.get("kind") == "learning-pipeline-receipt" and value.get("version") == 1 and value.get("mode") == "full":
-                found = value
-                return True
+        matches=[value for value in _changed_receipt_views(agent,before)
+                 if value.get('kind')=='learning-pipeline-receipt' and value.get('version')==1 and value.get('mode')=='full']
+        if len(matches)==1:
+            found=matches[0]
+            return True
         return False
 
     tui.wait_until(ready, 480, "Full learning did not produce a parent receipt")

@@ -1,5 +1,7 @@
 """Actual Pi/worker/semantic wire/parent mutation before Bash, loopback only."""
 from __future__ import annotations
+
+from continuous_failure_retention import deduplicate_receipt_views
 import hashlib,json,subprocess,sys,tempfile,threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
@@ -10,7 +12,7 @@ from live_acceptance_support import isolated_environment,workspace_pi
 def main() -> None:
     output=Path(tempfile.mkdtemp(prefix='early-harness-native-',dir=sys.argv[1] if len(sys.argv)>1 else None))
     package=Path(__file__).resolve().parents[1];repo=package.parents[1];fixture=Path(__file__).with_name('current-user-harness-live-fixture.ts')
-    sources=[Path(__file__),fixture,Path(__file__).with_name('live_learning_loop.py'),Path(__file__).with_name('live_acceptance_support.py'),package/'index.ts',package/'package.json',repo/'pnpm-lock.yaml',*sorted((package/'extensions').rglob('*.ts')),*sorted((package/'prompts').rglob('*.md')),*sorted((repo/'packages/kit/src').rglob('*.ts'))]
+    sources=[Path(__file__),Path(__file__).with_name('continuous_failure_retention.py'),fixture,Path(__file__).with_name('live_learning_loop.py'),Path(__file__).with_name('live_acceptance_support.py'),package/'index.ts',package/'package.json',repo/'pnpm-lock.yaml',*sorted((package/'extensions').rglob('*.ts')),*sorted((package/'prompts').rglob('*.md')),*sorted((repo/'packages/kit/src').rglob('*.ts'))]
     hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources};pi=workspace_pi(repo);version=subprocess.run([pi,'--version'],check=True,capture_output=True,text=True).stdout.strip();rows=[]
     for mode in ('correct','retire','held','ordinary-write','shadow-write','repair-read'):
         root=output/mode;cwd=root/'project';agent=root/'agent';(cwd/'.git').mkdir(parents=True);(cwd/'.pi').mkdir();(agent/'memory').mkdir(parents=True)
@@ -74,7 +76,7 @@ def main() -> None:
                 assert any(x['kind']=='repair-snapshot-result' and x['readOriginal'] for x in observations),observations
                 assert any(x['kind']=='repair-unrelated-result' and x['refused'] for x in observations),observations
             assert at_main==json.loads((cwd/'.pi/harness.json').read_text()),'No late policy change may substitute for pre-execution correction'
-            receipts=[json.loads(x.read_text()) for x in agent.rglob('learning-pipeline-receipt.json')];assert len(receipts)==1 and receipts[0]['mode']=='automatic' and not receipts[0].get('input',{}).get('backlogId'),receipts
+            receipts=deduplicate_receipt_views([json.loads(x.read_text()) for x in agent.rglob('learning-pipeline-receipt.json')]);assert len(receipts)==1 and receipts[0]['mode']=='automatic' and not receipts[0].get('input',{}).get('backlogId'),receipts
             rows.append({'mode':mode,'executedVersion':executed,'operations':receipts[0]['operations'],'httpRequests':len(observations),'externalRequests':0})
         finally:server.shutdown();server.server_close();thread.join()
     assert hashes=={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},'Source drift'

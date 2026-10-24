@@ -8,6 +8,8 @@ configured-provider tokens; it is not collected by pytest.
 
 from __future__ import annotations
 
+from continuous_failure_retention import deduplicate_receipt_views
+
 import json
 import hashlib
 import math
@@ -28,9 +30,12 @@ SEED = "project_smoke_build_command.md"
 
 def verify_preference_artifacts(agent: Path, preferences: list[str], facts: list[str]) -> dict:
     runs = agent / "memory" / "runs"
-    receipts = list(runs.rglob("learning-pipeline-receipt.json"))
+    try:
+        receipts = deduplicate_receipt_views([json.loads(p.read_text()) for p in runs.rglob("learning-pipeline-receipt.json")])
+    except ValueError as error:
+        raise AssertionError("Invalid or conflicting learning receipts") from error
     assert len(receipts) == 1
-    receipt = json.loads(receipts[0].read_text())
+    receipt = receipts[0]
     assert receipt.get("kind") == "learning-pipeline-receipt" and receipt.get("version") == 1
     assert receipt.get("mode") == "automatic"
     assert receipt["screen"]["memory"] is True and receipt["screen"]["harness"] is False and receipt["screen"]["agents"] is False

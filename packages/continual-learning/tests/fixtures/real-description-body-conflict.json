@@ -229,5 +229,125 @@
     },
     "rejectedParaphrase": "The input parameter is declared `PromiseLike<ReturnType>`",
     "scope": "Exact rejected actual drafts and complete declaration file. This offline role regression grants no mutation authority and does not reinterpret semantic holds or establish learning benefit."
+  },
+  "declarationOwnerBridgeCase": {
+    "provenance": {
+      "sourceCohort": "20261023T034051Z-b768601acb23",
+      "requestSha256": "722ad9e2ff1d1becfaf4390b9246e0acd1a768cc4ed4ed123fd0bc29e8fb4b76",
+      "sourceEntryIndex": 7,
+      "sourceSha256": "172c7feeb0cbc159e09810b076a1b6584d769ba15052b77c88e281c1221c23ca",
+      "note": "Actual public source and rejected candidate. The existing negative wrapper claim remains correct. Missing direct declaration ownership does not establish the cause of historical scores; never seed an experimental arm."
+    },
+    "sourceText": "export type LimitFunction = {\n\t/**\n\tThe number of promises that are currently running.\n\t*/\n\treadonly activeCount: number;\n\n\t/**\n\tThe number of promises that are waiting to run (i.e. their internal `fn` was not called yet).\n\t*/\n\treadonly pendingCount: number;\n\n\t/**\n\tGet or set the concurrency limit.\n\t*/\n\tconcurrency: number;\n\n\t/**\n\tDiscard pending promises that are waiting to run.\n\n\tThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\n\tNote: This does not cancel promises that are already running.\n\n\tWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\tclearQueue: () => void;\n\n\t/**\n\tProcess an iterable of inputs with limited concurrency.\n\n\tThe mapper function receives the item value and its index.\n\n\tThis is a convenience function for processing inputs that arrive in batches. For more complex use cases, see [p-map](https://github.com/sindresorhus/p-map).\n\n\t@param iterable - An iterable containing an argument for the given function.\n\t@param mapperFunction - Promise-returning/async function.\n\t@returns A promise equivalent to `Promise.all(Array.from(iterable, (item, index) => limit(mapperFunction, item, index)))`.\n\t*/\n\tmap: <Input, ReturnType> (\n\t\titerable: Iterable<Input>,\n\t\tmapperFunction: (input: Input, index: number) => PromiseLike<ReturnType> | ReturnType\n\t) => Promise<ReturnType[]>;\n\n\t/**\n\t@param fn - Promise-returning/async function.\n\t@param arguments - Any arguments to pass through to `fn`. Support for passing arguments on to the `fn` is provided in order to be able to avoid creating unnecessary closures. You probably don't need this optimization unless you're pushing a *lot* of functions.\n\n\tWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks.\n\n\t@returns The promise returned by calling `fn(...arguments)`.\n\t*/\n\t<Arguments extends unknown[], ReturnType>(\n\t\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType> | ReturnType,\n\t\t...arguments_: Arguments\n\t): Promise<ReturnType>;\n};\n\n/**\nRun multiple promise-returning & async functions with limited concurrency.\n\n@param concurrency - Concurrency limit. Minimum: `1`. You can pass a number or an options object with a `concurrency` property.\n@returns A `limit` function.\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nconst input = [\n\tlimit(() => fetchSomething('foo')),\n\tlimit(() => fetchSomething('bar')),\n\tlimit(() => doSomething())\n];\n\n// Only one promise is run at once\nconst result = await Promise.all(input);\nconsole.log(result);\n```\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit({concurrency: 1});\n```\n*/\nexport default function pLimit(concurrency: number | Options): LimitFunction;\n\nexport type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};\n\n/**\nReturns a function with limited concurrency.\n\nThe returned function manages its own concurrent executions, allowing you to call it multiple times without exceeding the specified concurrency limit.\n\nIdeal for scenarios where you need to control the number of simultaneous executions of a single function, rather than managing concurrency across multiple functions.\n\n@param function_ - Promise-returning/async function.\n@return Function with limited concurrency.\n\n@example\n```\nimport {limitFunction} from 'p-limit';\n\nconst limitedFunction = limitFunction(async () => {\n\treturn doSomething();\n}, {concurrency: 1});\n\nconst input = Array.from({length: 10}, limitedFunction);\n\n// Only one promise is run at once.\nawait Promise.all(input);\n```\n*/\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): (...arguments_: Arguments) => Promise<ReturnType>;\n",
+    "originalContent": "---\ndescription: In the inspected p-limit snapshot, native limitFunction does not forward clearQueue.\ntype: project\n---\n# Native wrapper and internal limiter: clearQueue\n\nIn the inspected p-limit snapshot, native `limitFunction` does not forward `clearQueue`. In `index.js`, `pLimit` defines that own property on its `generator` and returns the generator. `limitFunction` instead captures that limiter and returns a separate arrow function that delegates calls to it.\n\n## Scope and observation\n\nThe inspected files are identified by SHA-256:\n- `index.js`: `30fa94b6aebe7f044f7383feee7931fc7c1a4912affadac97539cda67c14057d`\n- `index.d.ts`: `172c7feeb0cbc159e09810b076a1b6584d769ba15052b77c88e281c1221c23ca`\n\n`examples/native-wrapper-v1.js` constructs `limitFunction(async value => value, {concurrency: 1})` and inspects the returned callable without invoking it or clearing a queue. On Node v22.23.2, the receiver printed as `[Function (anonymous)]`; `receiver.clearQueue` and its own property descriptor were `undefined`, and `'clearQueue' in receiver` was `false`. This establishes property exposure for that receiver, not cancellation or whole-scheduler behavior, and is not a claim about every release.\n\n## Declaration\n\n`index.d.ts` declares `clearQueue: () => void;` on the named `LimitFunction` type. Native `limitFunction` has this complete declaration instead:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): (...arguments_: Arguments) => Promise<ReturnType>;\n```\n\nIts declared returned callable therefore does not promise a `clearQueue` member. This declaration is a type contract, not runtime verification.\n\n## Why\n\nThis distinction supports maintenance of the native wrapper's `clearQueue` interface without confusing the returned receiver with its internal limiter.\n\n## How to apply\n\nFor this source snapshot, do not treat the internal limiter's `clearQueue` property as exposed by the native wrapper. Keep implementation evidence, declaration evidence and the example's property observation distinct. Reassess exposure if the wrapper implementation or return declaration changes; cancellation and scheduler behavior require separate evidence and remain outside this observation's scope.\n",
+    "sourceRelation": "export default function pLimit(concurrency: number | Options): LimitFunction;"
+  },
+  "coverageEmptyConditionsCase": {
+    "provenance": {
+      "kind": "frozen-public-real-model-output",
+      "model": "gpt-6-luna",
+      "semanticModel": "jev-1.14.0",
+      "cohort": "20261023T095030Z-6ddeba18a07b",
+      "stage": "corrected-first-memory-coverage-account",
+      "responseSha256": "c4b81fb8ae951d208c8af28e186148de2387d93d133c55a8be0171c757031293",
+      "semanticApproval": false
+    },
+    "output": "{\"plan\":{\"verdict\":\"covered\",\"obligations\":[{\"basis\":\"requested\",\"statement\":\"Preserve the inspected p-limit checkout’s limitFunction/clearQueue relationship across implementation, declaration, and observed wrapper, including revision scope and limits of the observation.\",\"evidence\":[{\"ref\":\"e0.b0.l1\"}],\"coveredBy\":[{\"targetIndex\":0,\"bodyQuote\":{\"ref\":\"m0.b0.l6\",\"endRef\":\"m0.b0.l9\"}}],\"status\":\"covered\"}]},\"reviews\":{\"0\":{\"scope\":{\"basis\":\"requested\",\"statement\":\"The inspected p-limit 7.3.1 checkout’s relationship between limitFunction’s returned callable and its internal limiter’s clearQueue interface, as established by implementation, declaration, and the limited runtime observation.\",\"evidence\":[{\"ref\":\"e0.b0.l1\"}]},\"claims\":[{\"statement\":\"pLimit defines clearQueue on the generator it returns; limitFunction creates an internal limiter with pLimit(options), then returns a separate arrow-function wrapper that calls the limiter rather than returning it.\",\"evidence\":[{\"ref\":\"e33.b0.l70\"},{\"ref\":\"e33.b0.l77\",\"endRef\":\"e33.b0.l80\"},{\"ref\":\"e33.b0.l114\"},{\"ref\":\"e33.b0.l117\",\"endRef\":\"e33.b0.l120\"}],\"bodyQuote\":{\"ref\":\"m0.b0.l6\"},\"conditions\":[{\"statement\":\"This describes the inspected checkout, identified as p-limit 7.3.1; no commit-pinned revision was established.\",\"evidence\":[{\"ref\":\"e35.b0.l3\"},{\"ref\":\"e6.b0.l16\",\"endRef\":\"e6.b0.l17\"}],\"bodyQuote\":{\"ref\":\"m0.b0.l9\"}}]},{\"statement\":\"The limitFunction declaration types its returned value as a function returning Promise<ReturnType> and does not declare a clearQueue member.\",\"evidence\":[{\"ref\":\"e37.b0.l133\",\"endRef\":\"e37.b0.l136\"}],\"bodyQuote\":{\"ref\":\"m0.b0.l7\",\"endRef\":\"m0.b0.l9\"}},{\"statement\":\"The executed example observed a function receiver, no own clearQueue property, and an undefined clearQueue value and type.\",\"evidence\":[{\"ref\":\"e45.b0.l3\"},{\"ref\":\"e45.b0.l7\",\"endRef\":\"e45.b0.l9\"},{\"ref\":\"e27.b0.l1\",\"endRef\":\"e27.b0.l5\"}],\"bodyQuote\":{\"ref\":\"m0.b0.l9\"},\"conditions\":[{\"statement\":\"The example used concurrency 1 and inspected the returned receiver and its clearQueue property; it did not test cancellation or broader scheduler behavior.\",\"evidence\":[{\"ref\":\"e45.b0.l3\"},{\"ref\":\"e45.b0.l5\",\"endRef\":\"e45.b0.l9\"},{\"ref\":\"e0.b0.l1\"}],\"bodyQuote\":{\"ref\":\"m0.b0.l9\"}}]},{\"statement\":\"The relationship matters when maintaining or using limitFunction where access to the internal limiter’s queue-clearing interface is relevant.\",\"evidence\":[{\"ref\":\"e0.b0.l1\"}],\"bodyQuote\":{\"ref\":\"m0.b0.l11\"}},{\"statement\":\"For this inspected checkout, do not assume the wrapper exposes the internal limiter’s clearQueue; distinguish the runtime observation, implementation relationship, and declared return type.\",\"evidence\":[{\"ref\":\"e33.b0.l117\",\"endRef\":\"e33.b0.l120\"},{\"ref\":\"e37.b0.l133\",\"endRef\":\"e37.b0.l136\"},{\"ref\":\"e27.b0.l1\",\"endRef\":\"e27.b0.l5\"}],\"bodyQuote\":{\"ref\":\"m0.b0.l13\"}}],\"uncovered\":[],\"verdict\":\"covered\"}}}",
+    "missingConditionsClaimIndexes": [
+      1,
+      3,
+      4
+    ]
+  },
+  "sourceVersionScopeCase": {
+    "provenance": {
+      "cohort": "20261023T102619Z-604373e60a6e",
+      "model": "gpt-6-luna",
+      "semanticModel": "jev-1.14.0",
+      "source": "Actual rejected initial candidate and actual submitted body correction; not stored Memory or accepted learning.",
+      "artifactSha256": {
+        "semantic-rejected-plan.json": "2be6959b69f9c519e424f3b2ca27816fbfa33d0558d3624e59b6b6711d17668f",
+        "semantic-repair-plan.json": "00e74f6af26354f04802af7ef9ccc1d8fadc1825930578aff6a6ba5b9c1cad42",
+        "memory-coverage-review-1dc1a3d4-37dc-48c0-94bb-c74cd761fc07.json": "80b07919f6e8302dc76203aee82a781bf56aa00033c266d7b20973dc04e4e075"
+      }
+    },
+    "sourceVersion": "7.3.1",
+    "originalContent": "---\nname: limitFunction_clearQueue\ndescription: In the inspected p-limit checkout, the limitFunction wrapper's observed clearQueue property is undefined\ntype: project\n---\nIn the inspected `/work/p-limit` checkout, `limitFunction` creates an internal limiter with `pLimit(options)` and returns an arrow function that delegates calls to that limiter; the returned wrapper does not expose the internal limiter's `clearQueue` member. A Node example observed the returned value was a function and `wrapped.clearQueue` was `undefined`.\n\nThe declaration in `index.d.ts` is:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): (...arguments_: Arguments) => Promise<ReturnType>;\n```\n\nThis declared return type does not include `clearQueue`; `clearQueue` is declared on the separate `LimitFunction` type. The inspected checkout had no resolvable Git `HEAD`, so this observation is not tied to a commit.\n\nWhy: This relationship is useful when maintaining the `limitFunction` wrapper's API surface.\n\nHow to apply: For this inspected source state, distinguish the internal limiter's `clearQueue` member from the wrapper's observed and declared surface. This observation does not establish cancellation or broader scheduler behavior.\n",
+    "correctedContent": "---\nname: limitFunction_clearQueue\ndescription: In the inspected p-limit checkout, the limitFunction wrapper's observed clearQueue property is undefined\ntype: project\n---\nIn the inspected `/work/p-limit` checkout, `limitFunction` creates an internal limiter with `pLimit(options)` and returns an arrow function that delegates calls to that limiter; the returned wrapper does not expose the internal limiter's `clearQueue` member. A Node example observed the returned value was a function and `wrapped.clearQueue` was `undefined`.\n\nThe declaration in `index.d.ts` is:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): (...arguments_: Arguments) => Promise<ReturnType>;\n```\n\nThis declared return type does not include `clearQueue`; `clearQueue` is declared on the separate `LimitFunction` type.\n\nThe inspected package metadata identifies p-limit as version 7.3.1. The inspected checkout had no resolvable Git `HEAD`, so this observation is not tied to a commit.\n\nWhy: This relationship is useful when maintaining the `limitFunction` wrapper's API surface.\n\nHow to apply: For this inspected source state, distinguish the internal limiter's `clearQueue` member from the wrapper's observed and declared surface. This observation does not establish cancellation or broader scheduler behavior.",
+    "originalVersionOmission": [
+      {
+        "statement": "Include the available package version, p-limit 7.3.1, alongside the no-resolvable-HEAD caveat to preserve the inspected source scope.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Work on this real public project checkout using normal source inspection and tools. Do not access agent settings or write Memory directly; automatic learning owns it. Keep work local, do not push or install extra dependencies. Do not weaken existing checks. Report actual verification results and unresolved problems honestly. Investigate one relationship in this real public project revision: the clearQueue interface of the callable returned by native limitFunction and its relationship to the internal limiter. Inspect the relevant implementation and declaration. Create and execute examples/native-wrapper-v1.js to instantiate the native wrapper and record the actual returned receiver and its clearQueue property observation. Distinguish what the observed object, implementation and declaration establish, retain the inspected revision scope, and state limits without inferring untested cancellation or whole-scheduler behavior. Keep reusable Memory limited to this one relationship; do not survey other properties or enumerate construction options. Change only examples/. Keep original library files, dependency files, existing utilities and Memory files unchanged.",
+            "role": "user"
+          },
+          {
+            "index": 32,
+            "quote": "\t\"name\": \"p-limit\",",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": "\t\"version\": \"7.3.1\",",
+            "role": "toolResult"
+          }
+        ]
+      }
+    ],
+    "correctedUncovered": [],
+    "versionSourceCitation": {
+      "index": 32,
+      "quote": "\t\"name\": \"p-limit\",\n\t\"version\": \"7.3.1\",",
+      "role": "toolResult"
+    },
+    "learningAccepted": false
+  },
+  "hybridDeclarationCase": {
+    "provenance": {
+      "cohort": "20261023T133416Z-7e781d7b8984",
+      "model": "gpt-6-luna",
+      "source": "Actual generated candidate. Parent binding refused before candidate review; no semantic acceptance or stored learning.",
+      "planSha256": "3118a3a3e14ef120d35fc751716c84e895cd4b8de133f1b0033ab65d00c7516e"
+    },
+    "content": "---\nname: limitFunction-clearQueue\ndescription: In p-limit 7.3.1, limitFunction returns a callable without clearQueue.\ntype: project\n---\nIn the inspected p-limit 7.3.1 source, `limitFunction` creates an internal limiter with `pLimit(options)`, whose generator has a `clearQueue` property, but returns a separate arrow function that delegates calls to that limiter. In the observed checkout, the returned callable's `clearQueue` property was `undefined` and it had no own `clearQueue` property. The `limitFunction` declaration types its returned value as `(...arguments_: Arguments) => Promise<ReturnType>`, without declaring a `clearQueue` member.\n\n**Why:** This records the relationship between the wrapper returned by `limitFunction` and the internal limiter's `clearQueue` interface.\n\n**How to apply:** When maintaining this relationship, distinguish the internal limiter's implementation and declaration from the returned wrapper's observed property and declared return type. The observation is scoped to the inspected source; it does not establish cancellation behavior or whole-scheduler behavior.\n",
+    "evidence": [
+      {
+        "index": 33,
+        "quote": "\t\"version\": \"7.3.1\",",
+        "role": "toolResult"
+      },
+      {
+        "index": 31,
+        "quote": "\tObject.defineProperties(generator, {\n\t\tactiveCount: {\n\t\t\tget: () => activeCount,\n\t\t},\n\t\tpendingCount: {\n\t\t\tget: () => queue.size,\n\t\t},\n\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();",
+        "role": "toolResult"
+      },
+      {
+        "index": 31,
+        "quote": "export function limitFunction(function_, options) {\n\tconst limit = pLimit(options);\n\n\treturn (...arguments_) => limit(() => function_(...arguments_));",
+        "role": "toolResult"
+      },
+      {
+        "index": 24,
+        "quote": "receiver is callable: true\nreceiver.clearQueue: undefined\nreceiver has own clearQueue: false",
+        "role": "toolResult"
+      },
+      {
+        "index": 29,
+        "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): (...arguments_: Arguments) => Promise<ReturnType>;",
+        "role": "toolResult"
+      },
+      {
+        "index": 0,
+        "quote": "Work on this real public project checkout using normal source inspection and tools. Do not access agent settings or write Memory directly; automatic learning owns it. Keep work local, do not push or install extra dependencies. Do not weaken existing checks. Report actual verification results and unresolved problems honestly. Investigate one relationship in this real public project revision: the clearQueue interface of the callable returned by native limitFunction and its relationship to the internal limiter. Inspect the relevant implementation and declaration. Create and execute examples/native-wrapper-v1.js to instantiate the native wrapper and record the actual returned receiver and its clearQueue property observation. Distinguish what the observed object, implementation and declaration establish, retain the inspected revision scope, and state limits without inferring untested cancellation or whole-scheduler behavior. Keep reusable Memory limited to this one relationship; do not survey other properties or enumerate construction options. Change only examples/. Keep original library files, dependency files, existing utilities and Memory files unchanged.",
+        "role": "user"
+      }
+    ],
+    "sourceVersion": "7.3.1",
+    "formalFactoryDeclaration": "export default function pLimit(concurrency: number | Options): LimitFunction;",
+    "missingNamedTypeBridge": true,
+    "candidateReviewForwarded": false,
+    "learningAccepted": false
   }
 }

@@ -631,9 +631,8 @@ def test_session_model_fallback_is_frozen_across_all_learning_phases() -> None:
 
 def test_harness_repair_receipt_counts_both_workers_and_one_retry() -> None:
     value = run_bun_script(POLICY_HARNESS, "harness-repair-cost")
-    receipts = [run["receipt"] for run in value["runs"] if "receipt" in run]
-    assert len(receipts) == 1, value
-    receipt = receipts[0]
+    receipt = value["registryReceipt"]
+    assert receipt["kind"] == "learning-pipeline-receipt", value
     attempts = [attempt for attempt in receipt["attempts"] if attempt["phase"] == "harness"]
     assert value["planners"] == ["harness", "harness"], value
     assert [(attempt["attempt"], attempt["outcome"]) for attempt in attempts] == [(0, "rejected"), (1, "proposed")], receipt

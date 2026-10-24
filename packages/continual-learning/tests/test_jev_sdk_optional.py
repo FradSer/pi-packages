@@ -1,9 +1,7 @@
-"""Jev must stay optional and pluggable.
+"""SDK loading is optional; an enabled required review must still fail closed.
 
-The TypeSafe SDK stays in `dependencies` because the Pi package rule installs the
-runtime packages an extension imports. A local or trimmed install can still lack
-it, so the extension tree must load without it, the learning pipeline must still
-write Memory, and Jev must degrade to a no-op that is named unavailable.
+Legacy injected judges retain their contract. The normal parent requires complete
+coverage proof when semantic Memory review is enabled, including SDK absence.
 """
 from __future__ import annotations
 
@@ -44,21 +42,26 @@ def test_a_substituted_judge_still_learns_memory_without_the_typesafe_sdk() -> N
     assert not value["lock"]
 
 
-def test_an_enabled_judge_reports_unavailable_instead_of_failing_without_the_sdk() -> None:
-    # Given the SDK unresolvable and an opted-in judge, When a learning run settles,
-    # Then the judge names service unavailability and the Memory outcome is unchanged:
-    # Jev is optional, so a judge that cannot run leaves the parent's own validated
-    # plan to apply, exactly as with Jev off, and reaches no transport. This is the
-    # requirement that the earlier hold-on-unavailable behaviour was replaced to meet.
+def test_an_enabled_parent_review_keeps_proposals_without_the_sdk() -> None:
+    # Given the SDK is absent and semantic review is enabled, When the parent
+    # settles, Then it retains the plan and coverage cost without authorizing writes.
     value = run_bun_script(HARNESS, "remember-subset", env={**ABSENT, "TYPESAFE_API_KEY": "fixture-absent-sdk"})
     attempts = memory_attempts(value)
-    assert attempts, value.get("registryReceipt")
-    assert attempts[0]["jev"]["reason"] == "unavailable"
-    assert attempts[0]["jev"].get("model") is None
-    assert attempts[0]["outcome"] == "applied"
-    assert value["registryReceipt"]["operations"] == 3
-    assert {"tools.md", "license.md", "cache.md"} <= set(value["privateFiles"])
+    semantic = [attempt for attempt in attempts if "jev" in attempt]
+    assert len(semantic) == 1, attempts
+    assert semantic[0]["jev"]["reason"] == "unavailable"
+    assert semantic[0]["jev"].get("model") is None
+    assert semantic[0]["jev"]["requestCount"] == 0
+    assert semantic[0]["outcome"] == "proposed"
+    assert value["registryReceipt"]["operations"] == 0
+    assert value["reviewWireCalls"] == 0
+    assert set(value["privateFiles"]) == {"MEMORY.md"}
+    assert set(value["publicFiles"]) == {"MEMORY.md"}
+    coverage = [attempt for attempt in attempts if attempt.get("usageLedgerId")]
+    assert len(coverage) == 1 and coverage[0]["usage"]["cost"] == .004
+    assert value["registryReceipt"]["totals"]["cost"] == .004
     assert not value["harnessExists"] and not value["lock"]
+
 
 def test_concurrent_loaders_all_see_the_sdk_when_it_is_present() -> None:
     # Given the SDK installed, When several judge calls resolve it at the same

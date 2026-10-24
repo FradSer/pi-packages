@@ -12,7 +12,9 @@ import math
 import os
 from pathlib import Path
 import secrets
+import select
 import shutil
+import socket
 import subprocess
 import tempfile
 import threading
@@ -30,26 +32,107 @@ PROJECTS = (
 )
 
 
-def model_prompt_observation(payload: dict) -> dict[str, object]:
+def _run_jev_forwarder(args: list[str], *, input: bytes, env: dict[str, str],
+                       capture_output: bool, timeout: float,
+                       downstream: socket.socket | None = None) -> tuple[subprocess.CompletedProcess[bytes], bool]:
+    """Reap the owned Node request on a confirmed downstream reset, never FIN."""
+    if downstream is None:
+        return subprocess.run(args, input=input, env=env, capture_output=capture_output, timeout=timeout), False
+    completed_read, completed_write = os.pipe()
+    try:
+        process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+    except BaseException:
+        os.close(completed_read)
+        os.close(completed_write)
+        raise
+    results: list[subprocess.CompletedProcess[bytes] | BaseException] = []
+
+    def communicate() -> None:
+        try:
+            try:
+                stdout, stderr = process.communicate(input=input, timeout=timeout)
+            except subprocess.TimeoutExpired as error:
+                process.kill()
+                stdout, stderr = process.communicate()
+                raise subprocess.TimeoutExpired(args, timeout, output=stdout, stderr=stderr) from error
+            results.append(subprocess.CompletedProcess(args, process.returncode, stdout, stderr))
+        except BaseException as error:
+            results.append(error)
+        finally:
+            os.write(completed_write, b'1')
+
+    worker: threading.Thread | None = None
+    watching = True
+    cancelled = False
+    try:
+        worker = threading.Thread(target=communicate, daemon=True)
+        worker.start()
+        while True:
+            ready, _, _ = select.select([completed_read, *([downstream] if watching else [])], [], [])
+            # A complete response wins the race and keeps its returned usage.
+            if completed_read in ready:
+                break
+            try:
+                downstream.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+            except ConnectionResetError:
+                watching = False
+                if process.poll() is None:
+                    try:
+                        process.terminate()
+                        cancelled = True
+                    except ProcessLookupError:
+                        pass
+            except BlockingIOError:
+                continue
+            else:
+                # EOF can be a legal write-half-close. Extra request bytes do
+                # not prove cancellation either; leave both to normal draining.
+                watching = False
+        worker.join()
+        result = results[0]
+        if isinstance(result, BaseException):
+            raise result
+        return result, cancelled
+    finally:
+        if worker is not None and worker.is_alive():
+            process.kill()
+            worker.join()
+        elif not results and process.poll() is None:
+            # Thread startup can fail after Popen succeeds. It owns no reader
+            # yet, so reap the child and close its pipes here.
+            process.kill()
+            process.communicate()
+        os.close(completed_read)
+        os.close(completed_write)
+
+
+def model_prompt_observation(payload: dict, *, responses: bool = False) -> dict[str, object]:
     """Observe actual serialized system input; retain hashes and fixed labels only."""
     texts: list[str] = []
-    messages = payload.get("messages", [])
+    messages = payload.get("input" if responses else "messages", [])
+    if responses and isinstance(payload.get("instructions"), str):
+        texts.append(payload["instructions"])
     if isinstance(messages, list):
         for message in messages:
             if not isinstance(message, dict) or message.get("role") not in ("system", "developer"):
+                continue
+            if responses and message.get("type", "message") != "message":
                 continue
             content = message.get("content")
             if isinstance(content, str):
                 texts.append(content)
             elif isinstance(content, list):
                 texts.extend(block["text"] for block in content if isinstance(block, dict)
-                             and block.get("type") == "text" and isinstance(block.get("text"), str))
-    effort = payload.get("reasoning_effort")
+                             and block.get("type") == ("input_text" if responses else "text") and isinstance(block.get("text"), str))
+    reasoning = payload.get("reasoning")
+    effort = reasoning.get("effort") if responses and isinstance(reasoning, dict) else payload.get("reasoning_effort")
+    if responses and not isinstance(reasoning, dict):
+        effort = None
     return {
         "memoryDiscoveryOnWire": any("<project_memory_discovery>" in text and "</project_memory_discovery>" in text for text in texts),
         "memoryProtocolOnWire": any("<project_memory_protocol>" in text and "</project_memory_protocol>" in text for text in texts),
         "systemTextSha256": hashlib.sha256(json.dumps(texts, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest(),
-        "reasoningEffortOnWire": effort if effort in ("none", "minimal", "low", "medium", "high", "xhigh") else "other-or-absent",
+        "reasoningEffortOnWire": effort if effort in ("none", "minimal", "low", "medium", "high", "xhigh", "max") else "other-or-absent",
     }
 
 
@@ -118,7 +201,7 @@ def source_digest(memory_policy: str = "default") -> str:
                 digest.update(contents)
     for file in (PACKAGE / "index.ts", PACKAGE / "package.json", REPO / "packages" / "kit" / "package.json", REPO / "packages" / "kit" / "index.ts",
                  PACKAGE / "tests" / "docker" / "Dockerfile", PACKAGE / "tests" / "docker_experiment.py",
-                 PACKAGE / "tests" / "live_docker_projects.py", PACKAGE / "tests" / "live_smoke.py", PACKAGE / "tests" / "support.py"):
+                 PACKAGE / "tests" / "live_docker_projects.py", PACKAGE / "tests" / "live_smoke.py", PACKAGE / "tests" / "continuous_failure_retention.py", PACKAGE / "tests" / "support.py"):
         digest.update(str(file.relative_to(REPO)).encode())
         digest.update(file.read_bytes())
     catalog = PACKAGE / "tests" / "heldout_project_catalog.py"
@@ -265,21 +348,25 @@ class InferenceProxy:
                             owner.jev_requests += 1
                             observation['request'] = owner.requests
                         elif owner.request_budget is None or len(owner.model_observations) < owner.request_budget:
-                            messages = payload.get('messages', [])
+                            responses = self.path == '/v1/responses'
+                            messages = payload.get('input' if responses else 'messages', [])
                             tools = payload.get('tools', [])
                             choice = payload.get('tool_choice')
-                            response_format = payload.get('response_format')
+                            text = payload.get('text')
+                            response_format = text.get('format') if responses and isinstance(text, dict) else payload.get('response_format')
+                            if responses and not isinstance(text, dict):
+                                response_format = None
                             response_format = response_format if isinstance(response_format, dict) else {}
                             format_type = response_format.get('type')
-                            schema = response_format.get('json_schema')
+                            schema = response_format if responses else response_format.get('json_schema')
                             schema = schema if format_type == 'json_schema' and isinstance(schema, dict) else {}
                             schema_name = schema.get('name')
                             owner.model_observations.append({'request': owner.requests,
-                                **model_prompt_observation(payload),
+                                **model_prompt_observation(payload, responses=responses),
                                 'toolCount': len(tools) if isinstance(tools, list) else None,
                                 'toolChoice': choice if choice in ('none', 'auto', 'required') else 'other-or-absent',
-                                'messageCount': len(messages) if isinstance(messages, list) else None,
-                                'retainedToolResults': sum(isinstance(m, dict) and m.get('role') == 'tool' for m in messages) if isinstance(messages, list) else None,
+                                'messageCount': len(messages) if isinstance(messages, list) else 1 if responses and isinstance(messages, str) else None,
+                                'retainedToolResults': sum(isinstance(m, dict) and (m.get('type') == 'function_call_output' if responses else m.get('role') == 'tool') for m in messages) if isinstance(messages, list) else 0 if responses and isinstance(messages, str) else None,
                                 'responseFormatType': format_type if format_type in ('json_object', 'json_schema') else 'other-or-absent',
                                 'responseSchemaName': schema_name if schema_name in ('memory_selector', 'memory_delta', 'memory_amendment') else 'other-or-absent',
                                 'responseSchemaStrict': schema.get('strict') is True})
@@ -296,9 +383,15 @@ class InferenceProxy:
                             forward_env["JEV_RESOLVED_ADDRESS"] = owner.jev_resolved_address
                         runtime = "node" if owner.jev_transport == "node-https" else "bun"
                         script = "jev-https-forward.mjs" if runtime == "node" else "jev-http-forward.mjs"
-                        forwarded = subprocess.run([shutil.which(runtime) or runtime, str(Path(__file__).with_name(script))],
-                                                   input=body, env=forward_env, capture_output=True, timeout=35)
-                        if forwarded.returncode:
+                        forwarded, caller_cancelled = _run_jev_forwarder(
+                            [shutil.which(runtime) or runtime, str(Path(__file__).with_name(script))],
+                            input=body, env=forward_env, capture_output=True, timeout=35,
+                            downstream=self.connection if runtime == "node" else None)
+                        if caller_cancelled:
+                            observation['callerCancellation'] = 'downstream-reset'
+                            observation['status'] = 'caller-cancelled'
+                            observation['usageUnknown'] = True
+                        if forwarded.returncode and not caller_cancelled:
                             observation['status'] = 'forwarder-error'
                             raise OSError("Host Jev forwarder failed")
                         value = json.loads(forwarded.stdout)
@@ -324,7 +417,9 @@ class InferenceProxy:
                         if len(data) > 2 * 1024 * 1024:
                             raise ValueError("Oversized forwarding response")
                         if value["status"] < 400:
-                            owner.record_jev_usage(data)
+                            usage_recorded = owner.record_jev_usage(data)
+                            if caller_cancelled and usage_recorded:
+                                observation.pop('usageUnknown', None)
                         else:
                             owner.record_error()
                             data = data.replace(owner.key.encode(), b"[redacted]").replace(owner.jev_key.encode(), b"[redacted]")
@@ -534,15 +629,17 @@ class InferenceProxy:
                     for direction in ('request','response')) else 'incomplete'
         return result
 
-    def record_jev_usage(self, data: bytes) -> None:
+    def record_jev_usage(self, data: bytes) -> bool:
         try:
             answer = json.loads(data)
             usage = answer.get("usage", {})
             if answer.get("model") in ("jev-1.13.0", "jev-1.14.0") and all(type(usage.get(k)) is int and usage[k] >= 0 for k in ("input_tokens", "output_tokens")):
                 with self.counter_lock:
                     self.jev_usage.append({"model": answer["model"], **{k: usage[k] for k in ("input_tokens", "output_tokens")}})
+                return True
         except (ValueError, TypeError, AttributeError):
             pass
+        return False
 
     def jev_environment(self) -> dict[str, str]:
         if not self.jev_key:

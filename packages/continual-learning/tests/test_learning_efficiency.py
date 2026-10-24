@@ -5,6 +5,25 @@ import json
 from support import run_bun
 
 
+
+def test_receipt_batches_survive_later_and_concurrent_registry_writes(tmp_path):
+    value=run_bun(r"""
+      import fs from 'node:fs/promises';import path from 'node:path';
+      import {buildLearningReceipt,writeLearningReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const root=ROOT,screen={memory:true,harness:false,agents:false,reasons:[]};
+      const make=(id,cost)=>buildLearningReceipt('manual',screen,[{phase:'memory',attempt:0,outcome:'noop',operations:0,durationMs:1,
+        usage:{input:1,output:0,cacheRead:0,cacheWrite:0,totalTokens:1,cost}}],undefined,'batch_'+id.repeat(32));
+      const a=make('a',.1),b=make('b',.2),c=make('c',.3);
+      await writeLearningReceipt(root,a);await writeLearningReceipt(root,b);
+      const retained=JSON.parse(await fs.readFile(path.join(root,'receipts',a.batchId,'learning-pipeline-receipt.json'),'utf8'));
+      await Promise.all([writeLearningReceipt(root,b),writeLearningReceipt(root,c)]);
+      const stored=await Promise.all([a,b,c].map(async r=>JSON.parse(await fs.readFile(path.join(root,'receipts',r.batchId,'learning-pipeline-receipt.json'),'utf8'))));
+      console.log(JSON.stringify({retained,stored,latest:JSON.parse(await fs.readFile(path.join(root,'learning-pipeline-receipt.json'),'utf8'))}));
+    """.replace('ROOT',json.dumps(str(tmp_path/'receipts'))))
+    assert value['retained']['totals']['cost']==.1
+    assert [row['totals']['cost']for row in value['stored']]==[.1,.2,.3]
+    assert value['latest']['batchId'] in [row['batchId']for row in value['stored']]
+
 def test_declined_drafts_are_processed_but_never_reported_as_learning():
     value = run_bun(r'''
       import {buildLearningReceipt,isLearningPipelineReceipt,learningSummarySubject,learningSummaryTone} from './packages/continual-learning/extensions/learning-efficiency.ts';
@@ -367,7 +386,35 @@ def test_harness_owned_event_summaries_name_the_decision_and_ignore_repository_t
     result = run_bun(r"""
       import { harnessOwnedEventSummary } from './packages/continual-learning/extensions/learning-efficiency.ts';
       const tool = (content, extra = {}) => ({ message: { role: 'toolResult', toolName: 'bash', content, ...extra } });
+      const behavior = (data) => ({ type: 'custom', customType: 'harness-behavior-observation', data: {
+        version: 1, phase: 'decision', sessionId: 'session-fixture',
+        toolCallIdDigest: 'a'.repeat(64), inputDigest: 'b'.repeat(64),
+        effectiveConfigDigest: 'c'.repeat(64), decision: 'execute',
+        revisionCoverage: 'complete', handlerTracking: 'pending', omittedRules: 0,
+        taskOutcome: 'unverified', effect: 'cannot-attribute',
+        rules: [{ idDigest: 'd'.repeat(64), revision: 'e'.repeat(64), matched: true, enabled: true, action: 'message' }],
+        ...data,
+      } });
       console.log(JSON.stringify({
+        behaviorDecision: harnessOwnedEventSummary(behavior({})) ?? null,
+        handlerResult: harnessOwnedEventSummary(behavior({ phase: 'handler-result', decisionEntryId: 'dec1de00',
+          handlerInvoked: true, handlerTiming: 'observed', isError: true, durationMs: 17, resultDigest: 'f'.repeat(64) })) ?? null,
+        missingTiming: harnessOwnedEventSummary(behavior({ phase: 'handler-result', decisionEntryId: 'dec1de00',
+          handlerInvoked: null, handlerTiming: 'absent' })) ?? null,
+        invalidTiming: harnessOwnedEventSummary(behavior({ phase: 'handler-result', decisionEntryId: 'dec1de00',
+          handlerInvoked: true, handlerTiming: 'observed', durationMs: Infinity, resultDigest: 'SECRET_INVALID_RESULT' })) ?? null,
+        unknownDecision: harnessOwnedEventSummary(behavior({ decision: 'helped' })) ?? null,
+        invalidVersion: harnessOwnedEventSummary(behavior({ version: 2 })) ?? null,
+        unknownPhase: harnessOwnedEventSummary(behavior({ phase: 'helped' })) ?? null,
+        fakeCustomRole: harnessOwnedEventSummary({ ...behavior({}), role: 'assistant' }) ?? null,
+        badDigest: harnessOwnedEventSummary(behavior({ toolCallIdDigest: 'SECRET_INVALID_DIGEST' })) ?? null,
+        invalidOutcome: harnessOwnedEventSummary(behavior({ taskOutcome: 'passed', effect: 'helped' })) ?? null,
+        badRule: harnessOwnedEventSummary(behavior({ rules: [{ matched: true, idDigest: 'bad', revision: 'SECRET_INVALID_REVISION' }] })) ?? null,
+        fakeAssistant: harnessOwnedEventSummary({ type: 'message', message: { role: 'assistant',
+          customType: 'harness-behavior-observation', content: JSON.stringify(behavior({})) } }) ?? null,
+        oversized: harnessOwnedEventSummary(behavior({ omittedRules: 4, revisionCoverage: 'incomplete',
+          reason: 'SECRET_MUST_NOT_APPEAR'.repeat(2000),
+          rules: Array.from({length: 128}, () => ({ idDigest: 'd'.repeat(64), revision: 'e'.repeat(64), matched: true, enabled: true, action: 'message' })) })) ?? null,
         decision: harnessOwnedEventSummary({ type: 'custom', customType: 'harness-event', data: {
           kind: 'policy-matched', policy: 'no-bulk-memory-deletion', action: 'block', tool: 'bash',
           outcome: 'blocked by rule', reason: 'Project memory must not be bulk-deleted.', source: 'project', file: '.pi/harness.json',
@@ -378,6 +425,24 @@ def test_harness_owned_event_summaries_name_the_decision_and_ignore_repository_t
         assistantText: harnessOwnedEventSummary({ message: { role: 'assistant', content: 'The harness policy stage is documented.' } }) ?? null,
       }));
     """)
+    behavior = result["behaviorDecision"]
+    assert behavior and '"decision":"execute"' in behavior
+    assert '"taskOutcome":"unverified"' in behavior and '"effect":"cannot-attribute"' in behavior
+    assert "d" * 64 in behavior and "e" * 64 in behavior
+    assert '"phase":"handler-result"' in result["handlerResult"]
+    assert '"decisionEntryId":"dec1de00"' in result["handlerResult"]
+    assert '"isError":true' in result["handlerResult"] and "f" * 64 in result["handlerResult"]
+    assert '"handlerInvoked":null' in result["invalidTiming"] and '"handlerTiming":"invalid"' in result["invalidTiming"]
+    assert '"resultDigest":null' in result["invalidTiming"] and "SECRET_INVALID_RESULT" not in result["invalidTiming"]
+    assert '"handlerInvoked":null' in result["missingTiming"] and '"isError":null' in result["missingTiming"]
+    assert result["unknownDecision"] is None and result["invalidVersion"] is None and result["fakeAssistant"] is None
+    assert result["badDigest"] is None and result["unknownPhase"] is None and result["fakeCustomRole"] is None
+    assert '"taskOutcome":"unknown"' in result["invalidOutcome"] and '"effect":"unknown"' in result["invalidOutcome"]
+    assert '"invalidMatchedRules":1' in result["badRule"] and "SECRET_INVALID_REVISION" not in result["badRule"]
+    assert result["oversized"] and len(result["oversized"]) <= 1000
+    assert "SECRET_MUST_NOT_APPEAR" not in result["oversized"]
+    assert '"producerOmittedRules":4' in result["oversized"]
+    assert '"omittedMatchedRules":' in result["oversized"]
     assert "blocked by rule" in result["decision"]
     assert "no-bulk-memory-deletion" in result["decision"]
     assert "Project memory must not be bulk-deleted." in result["decision"]

@@ -6,6 +6,8 @@ actual Pi, then runs two fresh sessions with identical task/files and same cwd.
 """
 from __future__ import annotations
 
+from continuous_failure_retention import deduplicate_receipt_views
+
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
@@ -138,7 +140,7 @@ def run_case(case: dict, evidence: EvidenceRun, source: Path, model: dict, order
             receipts = learning_receipts(records)
             current_receipts = [json.loads(p.read_text()) for p in (agent/'memory/runs').glob('**/learning-pipeline-receipt.json')
                                 if (str(p),p.stat().st_mtime_ns,p.stat().st_ino) not in before_receipts]
-            if current_receipts: receipts = current_receipts
+            if current_receipts: receipts = deduplicate_receipt_views(current_receipts)
             archive(name+'-receipts.json', json.dumps(receipts,indent=2))
             tools = [{'name':b.get('name'), 'arguments':b.get('arguments')} for m in messages if m.get('role') == 'assistant'
                      for b in m.get('content',[]) if b.get('type') == 'toolCall']
@@ -195,7 +197,7 @@ def run(parent: Path, split: str, workers: int = 2, only: list[str] | None = Non
     sources = [*PACKAGE.glob('index.ts'), *sorted((PACKAGE/'extensions').rglob('*.ts')),
                *sorted((PACKAGE/'prompts').glob('*.md')), *sorted((PACKAGE/'scripts').glob('*.py')),
                *sorted((REPO/'packages/kit/src').rglob('*.ts')),
-               *[Path(__file__),Path(__file__).with_name('memory_task_quality_cases.py'),Path(__file__).with_name('live_acceptance_support.py')]]
+               *[Path(__file__),Path(__file__).with_name('memory_task_quality_cases.py'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_failure_retention.py')]]
     evidence = EvidenceRun(parent,{str(p.relative_to(REPO)):p for p in sources})
     corpus = cases(split,task_type)
     if only:

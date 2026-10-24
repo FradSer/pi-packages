@@ -13,8 +13,8 @@ def test_citation_domain_excludes_memory_self_evidence_but_preserves_source_choi
         {role:'toolResult',toolCallId:'source',toolName:'read',content:[{type:'text',text:'Current source\nSecond line'}]}]};
       const before=JSON.stringify(snapshot);const domain=memoryCitationDomain(snapshot);
       const schema=learningOutputSchema('memory-delta',domain);
-      const plan={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'x',operations:[],newMemories:[{name:'project_fact.md',kind:'project',content:'---\nname: project_fact\ndescription: Current source\ntype: project\n---\nCurrent source',evidence:[]}]};
-      const check=e=>{plan.newMemories[0].evidence=[e];return Value.Check(schema,plan)};
+      const plan={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'x',operations:[],newMemories:[{name:'project_fact.md',kind:'project',classification:'safe',description:'Current source',knowledge:{sourceCitations:[],units:[{text:'Current source',citationIndexes:[0]}]}}]};
+      const check=e=>{plan.newMemories[0].knowledge.sourceCitations=[e];return Value.Check(schema,plan)};
       console.log(JSON.stringify({domain,good:check({ref:'e4.b0.l1'}),invented:check({ref:'e4.b0.l99'}),self:check({ref:'e2.b0.l1'}),legacySelf:check({index:2,quote:'Old unverified fact.'}),coordinateSelf:check({index:2,lines:{block:0,start:1,end:1}}),goodQuote:check({index:4,quote:'Current source'}),unchanged:before===JSON.stringify(snapshot),context:JSON.stringify(locatedMemoryEvidence(snapshot)).includes('Old unverified fact.')}));
     ''')
     assert result['domain'] == {'indices': [0, 4], 'refs': ['e0.b0.l1', 'e4.b0.l1', 'e4.b0.l2']}
@@ -58,7 +58,7 @@ def test_bad_domains_fail_before_service_and_empty_domain_allows_only_abstention
       domain='{"indices":[],"refs":[]}';const request=handler({payload},ctx);
       const schema=request.response_format.json_schema.schema;
       const empty={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'x',operations:[],newMemories:[]};
-      const proposal={name:'p.md',kind:'project',content:'---\nname: p\ndescription: Unverified candidate\ntype: project\n---\nUnsupported',evidence:[{ref:'e0.b0.l1'}]};
+      const proposal={name:'p.md',kind:'project',classification:'safe',description:'Unverified candidate',knowledge:{sourceCitations:[{ref:'e0.b0.l1'}],units:[{text:'Unsupported',citationIndexes:[0]}]}};
       console.log(JSON.stringify({errors,unsupported,caller,empty:Value.Check(schema,empty),invented:Value.Check(schema,{...empty,newMemories:[proposal]}),nonemptyDomainAccepts:Value.Check(learningOutputSchema('memory-delta',{indices:[0],refs:['e0.b0.l1']}),{...empty,newMemories:[proposal]})}));
     ''', temp_dirs=('PI_CODING_AGENT_DIR',))
     assert all(result['errors'])
@@ -72,13 +72,13 @@ def test_complete_domain_requires_catalog_references_instead_of_free_coordinates
       import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
       const domain={indices:[0],refs:['e0.b0.l1','e0.b0.l2']};
       const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'x'};
-      const base={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{name:'p.md',kind:'project',content:'---\nname: p\ndescription: Unverified candidate\ntype: project\n---\nUnverified candidate',evidence:[]}]};
+      const base={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{name:'p.md',kind:'project',classification:'safe',description:'Unverified candidate',knowledge:{sourceCitations:[],units:[{text:'Unverified candidate',citationIndexes:[0]}]}}]};
       const values=[{ref:'e0.b0.l1'},{ref:'e0.b0.l1',endRef:'e0.b0.l2'},
         {index:0,quote:'Verbatim but freely generated'},
         {index:0,lines:{block:0,start:999,end:999}},
         {index:0,lines:{block:0,start:1,end:2}},
         {ref:'e0.b0.l999'},{ref:'e0.b0.l1',quote:'Mixed identity'}];
-      const check=(schema,e)=>Value.Check(schema,{...base,newMemories:[{...base.newMemories[0],evidence:[e]}]});
+      const check=(schema,e)=>Value.Check(schema,{...base,newMemories:[{...base.newMemories[0],knowledge:{...base.newMemories[0].knowledge,sourceCitations:[e]}}]});
       console.log(JSON.stringify({strict:values.map(e=>check(learningOutputSchema('memory-delta',domain),e)),legacy:check(learningOutputSchema('memory-delta'),values[2]),amendment:values.map(e=>Value.Check(learningOutputSchema('memory-amendment',domain),{kind:'incremental-memory-amendment',version:1,...identity,replacements:[{candidateId:'id',content:'---\nname: candidate\ndescription: Unverified candidate.\ntype: project\n---\nCandidate',evidence:[e]}]}))}));
     ''')
     assert value['strict'] == [True, True, False, False, False, False, False]
@@ -98,8 +98,8 @@ def test_whitespace_is_lossless_context_but_not_a_selectable_source_fragment() -
       const full=resolveMemoryPlanCitations({operations:[{evidence:[{ref:'e0.b0.l1',endRef:'e0.b0.l4'}]}]},snapshot);
       const legacy=resolveMemoryPlanCitations({operations:[{evidence:[{ref:'e0.b0.l2',endRef:'e0.b0.l4'}]}]},snapshot);
       let emptyRejected=false;try{resolveMemoryPlanCitations({operations:[{evidence:[{ref:'e0.b0.l2'}]}]},snapshot)}catch{emptyRejected=true}
-      const base={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'x',operations:[],newMemories:[{name:'fact.md',kind:'project',content:'---\nname: p\ndescription: Unverified candidate\ntype: project\n---\nClaim',evidence:[{ref:'e0.b0.l2'}]}]};
-      console.log(JSON.stringify({domain,blankLabels:lines.slice(1,3).some(x=>x.ref!==undefined),blankChunkLabels:chunks.filter(c=>!c.text.trim()).some(c=>c.ref!==undefined),reconstructed:lines.map(l=>l.text).join('\n')===snapshot.entries[0].content&&chunks.map(c=>c.text).join('')===long,unchanged:before===JSON.stringify(snapshot),full:full.operations[0].evidence[0].quote,legacy:legacy.operations[0].evidence[0].quote,emptyRejected,schemaAcceptsSource:Value.Check(learningOutputSchema('memory-delta',domain),{...base,newMemories:[{...base.newMemories[0],evidence:[{ref:'e0.b0.l1'}]}]}),schemaRejectsBlank:!Value.Check(learningOutputSchema('memory-delta',domain),base)}));
+      const base={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'x',operations:[],newMemories:[{name:'fact.md',kind:'project',classification:'safe',description:'Unverified candidate',knowledge:{sourceCitations:[{ref:'e0.b0.l2'}],units:[{text:'Claim',citationIndexes:[0]}]}}]};
+      console.log(JSON.stringify({domain,blankLabels:lines.slice(1,3).some(x=>x.ref!==undefined),blankChunkLabels:chunks.filter(c=>!c.text.trim()).some(c=>c.ref!==undefined),reconstructed:lines.map(l=>l.text).join('\n')===snapshot.entries[0].content&&chunks.map(c=>c.text).join('')===long,unchanged:before===JSON.stringify(snapshot),full:full.operations[0].evidence[0].quote,legacy:legacy.operations[0].evidence[0].quote,emptyRejected,schemaAcceptsSource:Value.Check(learningOutputSchema('memory-delta',domain),{...base,newMemories:[{...base.newMemories[0],knowledge:{...base.newMemories[0].knowledge,sourceCitations:[{ref:'e0.b0.l1'}]}}]}),schemaRejectsBlank:!Value.Check(learningOutputSchema('memory-delta',domain),base)}));
     ''')
     assert value['domain']['indices'] == [0, 2]
     assert value['domain']['refs'][:2] == ['e0.b0.l1', 'e0.b0.l4']

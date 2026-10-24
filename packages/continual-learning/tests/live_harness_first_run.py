@@ -39,7 +39,9 @@ def current_guidance_delivered(records: list[dict], authored: dict, expected: li
                for wanted in expected for entry in delivered)
 
 
-def verify(output: Path, real: bool = False) -> dict[str, object]:
+def verify(output: Path, real: bool = False, cross_turn: bool = False) -> dict[str, object]:
+    if cross_turn and real:
+        raise ValueError('Cross-turn fixture verification is offline only')
     output.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix='harness-first-', dir=output)).resolve()
     run.chmod(0o700)
@@ -73,10 +75,10 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             env = {k: v for k, v in os.environ.items() if k in {'PATH', 'LANG', 'LC_ALL'}}
             ready, ended = run / 'ready', run / 'ended'
             env.update(HOME=str(home), PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE='1', TERM='xterm-256color',
-                       PI_HARNESS_READY=str(ready), PI_HARNESS_ENDED=str(ended), PI_HARNESS_REAL='1' if real else '0')
+                       PI_HARNESS_READY=str(ready), PI_HARNESS_ENDED=str(ended), PI_HARNESS_REAL='1' if real else '0', PI_HARNESS_CROSS_TURN='1' if cross_turn else '0')
             node = shutil.which('node')
             pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
-            sdk = pi.resolve().parents[1]
+            sdk = pi.resolve().parents[2]
             schema_docs = [sdk / 'README.md', *sorted((sdk / 'docs').rglob('*.md'))]
             assert all(p.resolve().is_relative_to(sdk) for p in schema_docs)
             documentation_paths = [*schema_docs, sdk / 'docs/harness.md', sdk / 'docs/index.md']
@@ -97,6 +99,12 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             tui.send(REQUEST)
             tui.wait_until(lambda: ended.exists(), 240, 'Authoring turn did not finish')
             target = cwd / '.pi/harness.json'
+            if cross_turn:
+                assert not target.exists(), 'Clarification turn must not create configuration'
+                ended.unlink()
+                tui.send('可以，继续预览并保存刚才的 D0 指引。')
+                tui.wait_until(ended.exists, 60, 'Follow-up authoring did not finish')
+                report['crossTurnAuthoring'] = True
             assert target.is_file(), 'First /harness request did not create a supported rule'
             authored_bytes = target.read_bytes()
             authored = json.loads(authored_bytes)
@@ -118,6 +126,17 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             assert all(p['matches'] for p in probes[:2]), 'Selector failed a plain relevant text without authoring history'
             assert all(not probe['matches'] for probe in probes[2:]), 'Resource-specific guidance matched another resource or unrelated local work'
             report['plainSelectorPositiveNegativeVerified'] = True
+            if cross_turn:
+                for _ in range(2):
+                    ended.unlink()
+                    tui.send('继续维护 D0，只说明适用指引，不执行服务请求。')
+                    tui.wait_until(ended.exists, 60, 'Repeated guidance turn did not finish')
+                repeated = [json.loads(line) for line in session.read_text().splitlines() if line.strip()]
+                rows = [r for r in repeated if r.get('customType') == 'harness-guidance-event' and r.get('data', {}).get('kind') == 'text-rule']
+                contexts = [r['data'] for r in repeated if r.get('customType') == 'harness-first-model-context']
+                assert len(rows) == 1, 'Unchanged rule printed duplicate lifecycle rows'
+                assert contexts == [{'step': 7, 'scopedGuidance': True}, {'step': 8, 'scopedGuidance': True}], 'Both actual model requests must carry scoped system guidance'
+                report.update(unchangedGuidanceRows=len(rows), repeatedRunStartSections=True)
             tui.close()
             data = bytes(tui.transcript)
             (run / 'authoring-terminal.ansi').write_bytes(redact_transport_bytes(data, proxy) if proxy else data)
@@ -175,7 +194,7 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             report.update(status='passed', absentTargetRead=True, completeWrites=1, readBack=True,
                           nextTaskGuidanceDelivered=True, freshSession=True, followupReadOnly=True, rules=authored['rules'], otherLayersUnchanged=True)
     except Exception as error:
-        report.update(status='failed', error=str(error))
+        report.update(status='failed', error=f'{type(error).__name__}: {error}')
     finally:
         if tui:
             tui.close()
@@ -210,7 +229,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('output', type=Path)
     parser.add_argument('--real-model', action='store_true')
+    parser.add_argument('--cross-turn', action='store_true')
     args = parser.parse_args()
-    result = verify(args.output, args.real_model)
+    result = verify(args.output, args.real_model, args.cross_turn)
     print(json.dumps(result, ensure_ascii=False))
     raise SystemExit(0 if result['status'] == 'passed' else 1)

@@ -2,7 +2,7 @@ import {createHash, randomUUID} from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
-import {runPiWorker, type PiWorkerUsage} from "@fradser/pi-kit";
+import {runPiWorker, type PiWorkerUsage, type PiWorkerTerminal} from "@fradser/pi-kit";
 import {memoryDescriptionClaim} from "./jev-learning";
 import {containsSensitiveMemoryMaterial, writeFileAtomic} from "./consolidation-run";
 
@@ -48,6 +48,7 @@ export interface MemoryBodyReview {
   usage?: PiWorkerUsage;
   usageComplete: boolean;
   usageLedgerId?: string;
+  terminal?: PiWorkerTerminal;
 }
 
 export function prepareMemoryBodyTargets(candidates: readonly unknown[], retained: readonly unknown[]): MemoryBodyTarget[] {
@@ -180,25 +181,67 @@ export async function reviewMemoryBodies(input: {
   try {
     for (const group of groups) {
       if (controller.signal.aborted) { status = "cancelled"; break; }
-      const batchStarted = Date.now(), usageLedgerId = randomUUID();
-      let result: Awaited<ReturnType<typeof runPiWorker>>;
-      try {
-        result = await runPiWorker({prompt: makePrompt(group), model: input.model, cwd: os.tmpdir(), minimal: true,
-          tools: [], extraArgs: ["--thinking", "xhigh", "-e", fileURLToPath(new URL("./planner-json-output.ts", import.meta.url)),
-            "--learning-output-schema", "memory-body-review", "--learning-body-count", String(group.length)], signal: controller.signal});
-      } catch {
-        status = controller.signal.aborted ? "cancelled" : "unavailable";
-        batches.push({status, judgments: [], calls: 1, durationMs: Date.now() - batchStarted, usageComplete: false, usageLedgerId});
-        break;
-      }
-      const batch: NonNullable<MemoryBodyReview["batches"]>[number] = {status: "reviewed", judgments: [], calls: 1,
-        durationMs: Date.now() - batchStarted, usage: result.usage, usageComplete: result.usageLedger?.complete === true, usageLedgerId};
-      // Retain numeric usage even if persistence or later groups fail.
+      const result = await runMemoryReviewBatch({prompt: makePrompt(group), model: input.model,
+        signal: controller.signal, outputDir: input.outputDir, kind: "memory-body-review", count: group.length});
+      const {text, retainedResponse: _response, ...usage} = result;
+      const batch: NonNullable<MemoryBodyReview["batches"]>[number] = {...usage, judgments: []};
       batches.push(batch);
-      try {
-        if (input.outputDir && result.usageLedger) await writeFileAtomic(path.join(input.outputDir, `memory-body-usage-${usageLedgerId}.json`),
-          JSON.stringify({...result.usageLedger, ledgerId: usageLedgerId}));
-        if (input.outputDir) {
+      if (batch.status === "reviewed") {
+        try { batch.judgments = bindMemoryBodySelections(group, JSON.parse(text!)); }
+        catch { batch.status = "invalid-response"; }
+      }
+      if (batch.status !== "reviewed") { status = batch.status; break; }
+      judgments.push(...batch.judgments);
+    }
+  } finally {
+    clearTimeout(timer);
+    input.signal?.removeEventListener("abort", abort);
+  }
+  return {...base, status, judgments, batches, calls: batches.length, durationMs: Date.now() - started,
+    usageComplete: batches.every(batch => batch.usageComplete),
+    // Keep the one-call shape compatible for consumers inspecting a simple review.
+    ...(batches.length === 1 ? {usage: batches[0].usage, usageLedgerId: batches[0].usageLedgerId,
+      ...(batches[0].terminal ? {terminal: batches[0].terminal} : {})} : {})};
+}
+
+/** Shared one-attempt review transport. The caller owns the total deadline and
+ * semantic binding. Successful process termination grants no review authority. */
+export async function runMemoryReviewBatch(input: {
+  prompt: string; model?: string; signal: AbortSignal; outputDir?: string;
+  kind: "memory-body-review" | "memory-coverage-review"; count: number;
+  bodyReferences?: boolean;
+}): Promise<Omit<MemoryBodyReview, "targets" | "judgments" | "batches"> & {text?: string; retainedResponse?: {sha256: string; retained: boolean}}> {
+  const started = Date.now(), usageLedgerId = randomUUID();
+  const base = {calls: 1, durationMs: 0, usageComplete: false, usageLedgerId};
+  let result: Awaited<ReturnType<typeof runPiWorker>>;
+  try {
+    result = await runPiWorker({prompt: input.prompt, model: input.model, cwd: os.tmpdir(), minimal: true,
+      tools: [], extraArgs: ["--thinking", "xhigh", "-e", fileURLToPath(new URL("./planner-json-output.ts", import.meta.url)),
+        "--learning-output-schema", input.kind, "--learning-body-count", String(input.count),
+        ...(input.bodyReferences ? ["--learning-body-references", "true"] : [])], signal: input.signal});
+  } catch {
+    return {...base, status: input.signal.aborted ? "cancelled" : "unavailable", durationMs: Date.now() - started};
+  }
+  // Copy only the public safe fields. Never retain stderr, provider error prose,
+  // or accidental extra properties from a worker result.
+  const rawTerminal: unknown = result.terminal;
+  const terminal: PiWorkerTerminal | undefined = (result.exitCode !== 0 || result.cancelled === true)
+    && record(rawTerminal)
+    && typeof rawTerminal.kind === "string"
+    && ["model-error", "cancelled", "process-exit", "spawn-error", "stdout-limit",
+      "jsonl-line-limit", "stderr-limit", "prompt-delivery-error"].includes(rawTerminal.kind)
+    && (rawTerminal.nativeExitCode === null || (typeof rawTerminal.nativeExitCode === "number"
+      && Number.isInteger(rawTerminal.nativeExitCode) && rawTerminal.nativeExitCode >= 0 && rawTerminal.nativeExitCode <= 255))
+    ? {kind: rawTerminal.kind as PiWorkerTerminal["kind"], nativeExitCode: rawTerminal.nativeExitCode as number | null}
+    : undefined;
+  const usage = {...base, ...(terminal ? {terminal} : {}), durationMs: Date.now() - started, usage: result.usage,
+    usageComplete: result.usageLedger?.complete === true};
+  try {
+    let retainedResponse: {sha256: string; retained: boolean} | undefined;
+    const prefix = input.kind === "memory-body-review" ? "memory-body" : "memory-coverage";
+    if (input.outputDir && result.usageLedger) await writeFileAtomic(path.join(input.outputDir, `${prefix}-usage-${usageLedgerId}.json`),
+      JSON.stringify({...result.usageLedger, ledgerId: usageLedgerId}));
+    if (input.outputDir) {
           const decoded = result.text.replace(/\\(?:u[0-9a-f]{4}|["\\/bfnrt])/gi, escape => {
             try { return JSON.parse(`"${escape}"`) as string; } catch { return escape; }
           });
@@ -211,26 +254,14 @@ export async function reviewMemoryBodies(input: {
             else if (value && typeof value === "object") pending.push(...Object.values(value));
           }
           const omitted = sensitive || Buffer.byteLength(result.text, "utf8") > 64_000;
-          await writeFileAtomic(path.join(input.outputDir, `memory-body-response-${usageLedgerId}.json`),
+          await writeFileAtomic(path.join(input.outputDir, `${prefix}-response-${usageLedgerId}.json`),
             JSON.stringify({version: 1, responseSha256: digest(result.text), sensitive, omitted,
+              ...(terminal ? {terminal} : {}),
               ...(omitted ? {} : {output: result.text})}));
+          retainedResponse = {sha256: digest(result.text), retained: !omitted};
         }
-        if (result.cancelled || controller.signal.aborted) batch.status = "cancelled";
-        else if (result.exitCode !== 0) batch.status = "unavailable";
-        else {
-          try { batch.judgments = bindMemoryBodySelections(group, JSON.parse(result.text)); }
-          catch { batch.status = "invalid-response"; }
-        }
-      } catch { batch.status = "unavailable"; }
-      if (batch.status !== "reviewed") { status = batch.status; break; }
-      judgments.push(...batch.judgments);
-    }
-  } finally {
-    clearTimeout(timer);
-    input.signal?.removeEventListener("abort", abort);
-  }
-  return {...base, status, judgments, batches, calls: batches.length, durationMs: Date.now() - started,
-    usageComplete: batches.every(batch => batch.usageComplete),
-    // Keep the one-call shape compatible for consumers inspecting a simple review.
-    ...(batches.length === 1 ? {usage: batches[0].usage, usageLedgerId: batches[0].usageLedgerId} : {})};
+    if (result.cancelled || input.signal.aborted) return {...usage, status: "cancelled"};
+    if (result.exitCode !== 0) return {...usage, status: "unavailable"};
+    return {...usage, status: "reviewed", text: result.text, ...(retainedResponse ? {retainedResponse} : {})};
+  } catch {return {...usage, status: "unavailable"};}
 }

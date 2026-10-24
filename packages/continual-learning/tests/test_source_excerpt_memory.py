@@ -1,6 +1,73 @@
 from support import isolated_run_bun
 
 
+def test_mixed_initial_knowledge_copies_source_bytes_with_its_context_and_exact_catalog():
+    # Given a parent-audited declaration and separate user applicability evidence,
+    # When an initial safe or private record selects source plus explanatory units,
+    # Then the parent preserves actual newlines/tabs, both type owners and context.
+    # Selecting this generic fixture is not evidence of real-model selection.
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+      import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {materializeSourceExcerptPlan,assertSourceExcerptBindings} from './packages/continual-learning/extensions/source-excerpt-memory.ts';
+      const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mixed-source-')));
+      try {
+        const text='export interface Pool {\n\tflush(): void;\n}\nexport function makePool(): Pool;\n';
+        const file=path.join(root,'index.d.ts');fs.writeFileSync(file,text);
+        const snapshot={entries:[{message:{role:'assistant',content:[{type:'toolCall',id:'a',name:'learning_read',arguments:{path:file}}]}},
+          {message:{role:'toolResult',toolName:'learning_read',toolCallId:'a',isError:false,details:{readOnlyMaintenanceAudit:true,sourcePath:file,sourceSha256:sha256Digest(text)},content:[{type:'text',text}]}},
+          {message:{role:'user',content:'Use the inspected Pool contract when maintaining batch exports. Runtime behavior has not been verified.'}}]};
+        const grant=s=>({evidenceDigest:sha256Digest(JSON.stringify(s)),entryDigests:s.entries.slice(0,2).map(e=>sha256Digest(JSON.stringify(e)))});
+        const knowledge={sourceCitations:[{ref:'e1.b0.l1',endRef:'e1.b0.l4'},{ref:'e2.b0.l1'}],units:[
+          {sourceCitationIndex:0},{text:'Why: This is the inspected declared contract for batch exports.',citationIndexes:[0,1]},
+          {text:'How to apply: Revisit it when maintaining batch exports. Runtime behavior is unverified.',citationIndexes:[1]}]};
+        const raw={operations:[],newMemories:[{name:'pool.md',kind:'project',classification:'private',description:'The inspected Pool type declares flush.',knowledge}]};
+        const run={manifest:{cwd:root}},out=await materializeSourceExcerptPlan(run,raw,snapshot,grant(snapshot));
+        await assertSourceExcerptBindings(run);
+        const safe=await materializeSourceExcerptPlan({manifest:{cwd:root}},{...raw,newMemories:[{...raw.newMemories[0],classification:'safe'}]},snapshot,grant(snapshot));
+        const stated=await materializeSourceExcerptPlan({manifest:{cwd:root}},{...raw,newMemories:[{...raw.newMemories[0],classification:'safe',knowledge:{sourceCitations:[{ref:'e2.b0.l1'}],units:[{text:'Use the inspected Pool contract for batch exports; runtime behavior is unverified.',citationIndexes:[0]}]}}]},snapshot);
+        const rejected={};
+        const mutations={missingGrant:(s,p,g)=>undefined,forgedGrant:(s,p,g)=>({...g,evidenceDigest:'0'.repeat(64)}),
+          userAsSource:(s,p,g)=>{p.newMemories[0].knowledge.units[0].sourceCitationIndex=1;return g},
+          ambiguous:(s,p,g)=>{s.entries.splice(2,0,structuredClone(s.entries[1]));return grant(s)},
+          stale:(s,p,g)=>{fs.writeFileSync(file,'changed');return g},
+          escaped:(s,p,g)=>{s.entries[1].message.content[0].text=text.replaceAll('\n','\\n');return grant(s)},
+          classification:(s,p,g)=>{p.newMemories[0].classification='public';return g},preference:(s,p,g)=>{p.newMemories[0].kind='preference';return g},
+          content:(s,p,g)=>{p.newMemories[0].content='detached content';return g},evidence:(s,p,g)=>{p.newMemories[0].evidence=[{ref:'e2.b0.l1'}];return g},
+          otherMetadata:(s,p,g)=>{p.newMemories[0].type='feedback';return g},
+          sensitiveText:(s,p,g)=>{p.newMemories[0].classification='safe';p.newMemories[0].knowledge.units[1].text='api_key: abcdefghijklmnop';return g},
+          classificationArray:(s,p,g)=>{p.newMemories[0].classification=['safe'];return g},
+          mixedUnit:(s,p,g)=>{p.newMemories[0].knowledge.units[0].text='invented';return g},
+          booleanIndex:(s,p,g)=>{p.newMemories[0].knowledge.units[0].sourceCitationIndex=true;return g},
+          outOfRange:(s,p,g)=>{p.newMemories[0].knowledge.units[0].sourceCitationIndex=2;return g},
+          noUnits:(s,p,g)=>{p.newMemories[0].knowledge.units=[];return g},
+          tooMany:(s,p,g)=>{p.newMemories[0].knowledge.sourceCitations=Array(9).fill({ref:'e1.b0.l1'});return g},
+          tooManyUnits:(s,p,g)=>{p.newMemories[0].knowledge.units=Array(33).fill({sourceCitationIndex:0});return g},
+          oversize:(s,p,g)=>{p.newMemories[0].knowledge.units[1].text='x'.repeat(64001);return g},
+          descriptionLines:(s,p,g)=>{p.newMemories[0].description='claim\ntype: feedback';return g}};
+        for(const [name,mutate] of Object.entries(mutations)){
+          fs.writeFileSync(file,text);const s=structuredClone(snapshot),p=structuredClone(raw),g=mutate(s,p,grant(s));
+          try{await materializeSourceExcerptPlan({manifest:{cwd:root}},p,s,g);rejected[name]=false}catch{rejected[name]=true}
+        }
+        fs.writeFileSync(file,text+'// drift');
+        let drift=false;try{await assertSourceExcerptBindings(run)}catch{drift=true}
+        console.log(JSON.stringify({out,safe,stated,text,rejected,drift,rawUnchanged:raw.newMemories[0].content===undefined}));
+      }finally{fs.rmSync(root,{recursive:true,force:true})}
+    ''')
+    record = value['out']['newMemories'][0]
+    assert value['text'].rstrip('\n') in record['content']
+    assert '\\n\\t' not in record['content']
+    assert 'Why: This is the inspected declared contract' in record['content']
+    assert 'Runtime behavior is unverified.' in record['content']
+    assert 'knowledge' not in record and len(record['evidence']) == 2
+    assert record['classification'] == 'private' and value['rawUnchanged'] and value['drift']
+    assert value['safe']['newMemories'][0]['content'] == record['content']
+    assert value['safe']['newMemories'][0]['classification'] == 'safe'
+    assert value['stated']['newMemories'][0]['content'].endswith('runtime behavior is unverified.')
+    assert len(value['stated']['newMemories'][0]['evidence']) == 1
+    assert all(value['rejected'].values()), value['rejected']
+
+
 def test_parent_audit_excerpt_requires_complete_grant_and_current_source_hash():
     # Given an original parent audit, When selecting its exact source span,
     # Then extract bytes only with the complete binding; this grants no approval.
@@ -118,11 +185,19 @@ def test_source_excerpt_schema_is_opt_in_and_keeps_legacy_prose_contract():
       import {Value} from 'typebox/value';
       const item={name:'contract.md',kind:'project',classification:'private',sourceExcerpt:{ref:'e1.b0.l1'},evidence:[{ref:'e1.b0.l1'}]};
       const plan={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'x',operations:[],newMemories:[item]};
+      const mixed={name:'contract.md',kind:'project',classification:'private',description:'An inspected contract.',
+        knowledge:{sourceCitations:[{ref:'e1.b0.l1'}],units:[{sourceCitationIndex:0},{text:'Why: declared contract.',citationIndexes:[0]}]}};
+      const check=x=>Value.Check(schema,{...plan,newMemories:[x]});
       console.log(JSON.stringify({items:schema.properties.newMemories.items,defs:schema.$defs,
-        valid:Value.Check(schema,plan),outside:Value.Check(schema,{...plan,newMemories:[{...item,sourceExcerpt:{ref:'e1.b0.l2'}}]})}));
+        valid:Value.Check(schema,plan),outside:Value.Check(schema,{...plan,newMemories:[{...item,sourceExcerpt:{ref:'e1.b0.l2'}}]}),
+        mixed:check(mixed),safeMixed:check({...mixed,classification:'safe'}),detached:check({...mixed,content:'body'}),
+        boolIndex:check({...mixed,knowledge:{...mixed.knowledge,units:[{sourceCitationIndex:true}]}}),
+        mixedUnit:check({...mixed,knowledge:{...mixed.knowledge,units:[{sourceCitationIndex:0,text:'other'}]}}),
+        retainedBranchCount:learningOutputSchema('memory-retained-amendment').properties.newMemories.items.anyOf.length}));
     ''')
-    prose, excerpt = value['items']['anyOf']
+    prose, excerpt, mixed = value['items']['anyOf']
     assert 'content' in prose['required'] and 'sourceExcerpt' not in prose['properties']
+    assert prose['properties']['kind']['enum'] == ['preference']
     assert excerpt['properties']['kind']['const']=='project'
     assert excerpt['properties']['classification']['const']=='private'
     assert excerpt['properties']['sourceExcerpt']['properties']['ref']=={'$ref': '#/$defs/memorySourceReference'}
@@ -131,6 +206,17 @@ def test_source_excerpt_schema_is_opt_in_and_keeps_legacy_prose_contract():
     assert value['valid'] and not value['outside']
     assert 'sourceExcerpt' in excerpt['required'] and 'content' not in excerpt['properties']
     assert excerpt['additionalProperties'] is False
+    assert value['mixed'] and value['safeMixed']
+    assert not any(value[key] for key in ('detached', 'boolIndex', 'mixedUnit'))
+    assert value['retainedBranchCount'] == 2
+    assert mixed['properties']['classification']['enum'] == ['safe', 'private']
+    assert mixed['properties']['kind']['const'] == 'project'
+    assert mixed['required'] == ['name', 'kind', 'classification', 'description', 'knowledge']
+    assert mixed['additionalProperties'] is False
+    assert mixed['properties']['knowledge']['properties']['units']['items']['anyOf'][1] == {
+        'type': 'object', 'properties': {'sourceCitationIndex': {'type': 'integer', 'minimum': 0, 'maximum': 7}},
+        'required': ['sourceCitationIndex'], 'additionalProperties': False,
+    }
 
 
 def test_source_excerpt_expands_normally_and_rolls_back_on_post_review_source_drift():

@@ -511,9 +511,31 @@ def test_text_guidance_no_self_trigger_and_extracts_all_visible_sources() -> Non
         { role: 'custom', customType: 'harness-text-guidance', content: 'Secret keyword A项目 inside guidance', details: { id: 'test' } },
       ];
 
+      messages.push(
+        {role:'assistant',content:[{type:'toolCall',id:'cfg',name:'read',arguments:{path:'.pi/harness.json'}}]},
+        {role:'toolResult',toolCallId:'cfg',toolName:'read',isError:false,content:[{type:'text',text:'CONFIG_ONLY_KEYWORD'}]},
+        {role:'assistant',content:[{type:'toolCall',id:'mixed',name:'bash',arguments:{command:'cat .pi/harness.json && echo ORDINARY_WORK'}}]},
+        {role:'toolResult',toolCallId:'mixed',toolName:'bash',content:[{type:'text',text:'ORDINARY_WORK'}]},
+        {role:'assistant',content:[{type:'toolCall',id:'substitution',name:'bash',arguments:{command:'cat "$(printf APFS >&2)/.pi/harness.json"'}}]},
+        {role:'toolResult',toolCallId:'substitution',toolName:'bash',content:[{type:'text',text:'ORDINARY_SUBSTITUTION'}]},
+        {role:'assistant',content:[{type:'toolCall',id:'failed',name:'read',arguments:{path:'.pi/harness.json'}}]},
+        {role:'toolResult',toolCallId:'failed',toolName:'read',isError:true,content:[{type:'text',text:'ORDINARY_ERROR'}]},
+        {role:'assistant',content:[{type:'toolCall',id:'cfg-write',name:'write',arguments:{path:'.pi/harness.json',content:'CONFIG_BODY'}}]},
+        {role:'toolResult',toolCallId:'cfg-write',toolName:'write',isError:false,content:[{type:'text',text:'ORDINARY_WRITE_RESULT'}]},
+        {role:'assistant',content:[{type:'toolCall',id:'reused',name:'read',arguments:{path:'.pi/harness.json'}}]},
+        {role:'toolResult',toolCallId:'reused',toolName:'read',isError:false,content:[{type:'text',text:'First ambiguous result'}]},
+        {role:'assistant',content:[{type:'toolCall',id:'reused',name:'read',arguments:{path:'README.md'}}]},
+        {role:'toolResult',toolCallId:'reused',toolName:'read',isError:false,content:[{type:'text',text:'ORDINARY_REUSED_RESULT'}]});
       const texts = extractModelVisibleTexts(messages);
+      const {evaluateText,mergeLayers}=await import('./packages/continual-learning/extensions/guardrail-engine.ts');
+      const identity='macos-orbstack-prune-apfs-local-snapshots';
+      const matched=evaluateText(mergeLayers([{source:'project',rules:[{id:identity,text:'APFS',instructions:'Scoped'}]}],new Set()),['Discuss '+identity+' while doing APFS cleanup']);
       console.log(JSON.stringify({
-        texts,
+        texts, identityCannotHideWork:matched.matches.length===1,
+        configExcluded:!texts.some(t=>t.includes('CONFIG_ONLY_KEYWORD')),
+        mixedWorkRetained:texts.some(t=>t.includes('ORDINARY_WORK')),
+        substitutionRetained:texts.some(t=>t.includes('ORDINARY_SUBSTITUTION')),
+        nativeOutcomesRetained:['ORDINARY_ERROR','ORDINARY_WRITE_RESULT','ORDINARY_REUSED_RESULT'].every(t=>texts.includes(t)),
         hasUser: texts.includes('User text'),
         hasAssistant: texts.includes('Assistant text'),
         hasArg: texts.some(t => t.includes('proj-a/readme.md')),
@@ -528,6 +550,7 @@ def test_text_guidance_no_self_trigger_and_extracts_all_visible_sources() -> Non
     assert result['hasToolResult'] is True
     assert result['hasSummary'] is True
     assert result['hasGuidance'] is False
+    assert result['identityCannotHideWork'] and result['configExcluded'] and result['mixedWorkRetained'] and result['substitutionRetained'] and result['nativeOutcomesRetained']
 
 
 def test_text_guidance_excludes_harness_notes_in_string_tool_results() -> None:
@@ -747,7 +770,10 @@ def test_registered_text_guidance_reports_scoped_source_and_retirement_owner(tmp
       const retained=[{{type:'custom_message',customType:'harness-guidance',content:first.message.content,display:false,details:first.message.details}}];
       fs.mkdirSync(path.dirname(paths.project),{{recursive:true}});
       fs.writeFileSync(paths.project, JSON.stringify({{rules:[{{id:'scoped-text',text:'needle',instructions:'Scoped guidance'}}]}}));
-      await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained,getBranch:()=>retained}}}});
+      const unmatchedOptions={{sections:{{}},skills:[]}},beforeUnmatched=entries.length;
+      await hooks.before_agent_start({{...event,prompt:'plain',systemPromptOptions:unmatchedOptions}},{{cwd,sessionManager:{{buildContextEntries:()=>retained,getBranch:()=>retained}}}});
+      const unmatched={{section:unmatchedOptions.sections.harness_guidance??'',newEntries:entries.length-beforeUnmatched}};
+      await hooks.before_agent_start({{...event,prompt:'needle'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained,getBranch:()=>retained}}}});
       const ownerChanged=entries.at(-1).data;
       fs.rmSync(paths.project,{{force:true}});
       await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained,getBranch:()=>retained}}}});
@@ -756,7 +782,7 @@ def test_registered_text_guidance_reports_scoped_source_and_retirement_owner(tmp
       await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>oldRetained,getBranch:()=>oldRetained}}}});
       const oldRetired=entries.at(-1).data;
       console.log(JSON.stringify({{
-        paths, first:first.message.details.entries,
+        paths, unmatched, first:first.message.details.entries,
         firstEvent:entries.find(entry=>entry.data?.kind==='text-rule')?.data,
         ownerChanged:ownerChanged.entries,
         retired:second.entries,
@@ -768,7 +794,8 @@ def test_registered_text_guidance_reports_scoped_source_and_retirement_owner(tmp
     assert result['first'][0]['source'] == 'user.scoped'
     assert result['firstEvent']['source'] == 'user.scoped'
     assert result['firstEvent']['file'] == result['paths']['userScoped']
-    # Preserve unchanged scoped guidance even if its original trigger is absent.
+    # Only an actual ordinary-text match can refresh scoped guidance.
+    assert result['unmatched'] == {'section': '', 'newEntries': 0}
     assert result['ownerChanged'][0]['source'] == 'project'
     assert result['retired'][0]['status'] == 'retired'
     assert result['retired'][0]['source'] == 'user.scoped'

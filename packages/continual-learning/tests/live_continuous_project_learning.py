@@ -14,16 +14,18 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from continuous_failure_retention import retain_failure_container, retained_learning_costs, learning_cost_summary
+from continuous_failure_retention import retain_failure_container, retained_learning_costs, learning_cost_summary, deduplicate_receipt_views
 import tarfile
 import time
+import uuid
 
 import live_real_project_memory as base
-from continuous_project_tasks import COMMON, UNLIMITED_COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES, migrate_public_sync_type_test, failure_first_tasks
+from continuous_project_tasks import COMMON, UNLIMITED_COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES, migrate_public_sync_type_test, failure_first_tasks, command_initialization_tasks, INITIAL_HARNESS_POLICY
 from docker_experiment import InferenceProxy, redact_transport_bytes
 from live_acceptance_support import EvidenceRun
-from continuous_project_evidence import task_deadline_evidence, continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed, observed_memory_reads, failure_record_audit_input, failure_feedback_audit_input, failure_source_safety_audit_input, failure_transition_audit_input, source_task_audit_input, initial_learning_continuation
-from recovery_integrity import archive_surface_snapshots, verify_recovery_delta, claim_recovery, load_observed_idle_source, source_archive_files
+from continuous_project_evidence import command_session_prefix_count, task_deadline_evidence, continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed, observed_memory_reads, failure_record_audit_input, failure_feedback_audit_input, failure_source_safety_audit_input, failure_transition_audit_input, source_task_audit_input, initial_learning_continuation, command_initialization_audit_input, initialization_closure_ready, policy_initialization_bridge
+from recovery_integrity import archive_surface_snapshots, verify_recovery_delta, claim_recovery, load_observed_idle_source, source_archive_files, bind_study_artifact, read_study_artifact
+from continuous_project_evidence import initial_source_actions_are_public, initial_control_hold_allows_independent_learner, INITIAL_NATIVE_VALIDATION
 
 
 def executed_version_probes(messages: list[dict]) -> list[dict[str, str]]:
@@ -61,6 +63,18 @@ def install_source(c: str, data: bytes) -> None:
     base.checked(['docker','exec','-i',c,'tar','-xzf','-','-C','/work/p-limit'],data=data)
 
 
+def initial_native_validation(c: str, version: str) -> dict:
+    """Read the executed CLI chain in the owned container, never from a model."""
+    code="""const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const root=path.dirname(process.argv[1]),files=JSON.parse(process.argv[2]);
+console.log(JSON.stringify(Object.fromEntries(files.map(file=>[file,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex')]))));"""
+    files=json.loads(base.checked(['docker','exec',c,'node','-e',code,base.PI,
+        json.dumps(list(INITIAL_NATIVE_VALIDATION['files']))]))
+    proof={'version':1,'piVersion':version,'files':files}
+    if proof!=INITIAL_NATIVE_VALIDATION:raise RuntimeError('Unrecognized native schema validation runtime')
+    return proof
+
+
 def score(c: str, level: int, proxy: InferenceProxy, output: Path, before: dict) -> dict:
     output.mkdir(parents=True,exist_ok=True)
     def check(name: str, args: list[str]) -> dict:
@@ -94,10 +108,50 @@ def score(c: str, level: int, proxy: InferenceProxy, output: Path, before: dict)
 UNLIMITED_CLI_GUARDIAN_SECONDS = 7200
 
 
-def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label: str, *, command: bool = False, feedback_observation: dict | None = None, unlimited_budget: bool = False) -> dict:
+class UnappliedMemoryCommand(ValueError):
+    """A complete native command has no applied knowledge to authenticate."""
+
+
+COMMAND_ORIGIN_ARTIFACTS = ('memory-command-started.json','memory-command-closed.json','original-session.jsonl',
+    'stdout.jsonl','stderr.txt','session.jsonl',
+    'command-source-before/candidate-before-convergence.json','command-source-before/candidate-before-convergence.tar.gz',
+    'command-source-after/candidate-before-convergence.json','command-source-after/candidate-before-convergence.tar.gz')
+POLICY_ORIGIN_ARTIFACTS = tuple(name.replace('memory-command-','policy-') for name in COMMAND_ORIGIN_ARTIFACTS)
+
+
+def read_command_session(c: str, label: str) -> bytes:
+    """Read one actual native session through the same scoped regular reader."""
+    if not re.fullmatch(r'[A-Za-z0-9_-]+',label):raise ValueError('Invalid command session label')
+    base.put(c,'/home/node/learned-surface-metadata.py',Path(__file__).with_name('recovery_integrity.py').read_bytes())
+    code="import runpy,sys;from pathlib import Path;api=runpy.run_path('/home/node/learned-surface-metadata.py',run_name='study_artifact_reader');sys.stdout.buffer.write(api['read_study_artifact'](Path(sys.argv[1]),sys.argv[2],bound=32*1024*1024))"
+    return base.checked(['docker','exec',c,'python3','-c',code,base.AGENT,'sessions/continuous/'+label+'.jsonl'])
+
+
+def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label: str, *, command: bool = False, feedback_observation: dict | None = None, unlimited_budget: bool = False, prior_session_digest: str | None = None, capture_command_origin: bool = False, capture_policy_origin: bool = False, initial_source_paths: list[str] | None = None) -> dict:
+    if initial_source_paths is not None and (command or feedback_observation is not None or label != 'stage-0' or capture_policy_origin):
+        raise ValueError('Initial source boundary belongs only to the original read-only task')
+    if capture_policy_origin and (command or capture_command_origin or prior_session_digest is not None
+            or feedback_observation is not None or not unlimited_budget or prompt!=INITIAL_HARNESS_POLICY):
+        raise ValueError('Policy origin requires the distinct no-tools unlimited user task')
+    capture_origin=capture_command_origin or capture_policy_origin
+    owner_file='policy-started.json' if capture_policy_origin else 'memory-command-started.json'
+    closed_file='policy-closed.json' if capture_policy_origin else 'memory-command-closed.json'
+    if capture_command_origin and (prior_session_digest is None or not re.fullmatch(r'/memory [^\r\n]+',prompt)
+            or prompt!='/memory '+prompt[len('/memory '):].strip()):
+        raise ValueError('Command origin requires one exact Memory continuation')
+    if prior_session_digest is not None and (not command or feedback_observation is not None
+            or not isinstance(prior_session_digest,str) or not re.fullmatch(r'[a-f0-9]{64}',prior_session_digest)
+            or not (re.fullmatch(r'/memory[ \t]+[^\r\n]+',prompt) or prompt=='/consolidate backfill')
+            or not re.fullmatch(r'[A-Za-z0-9_-]+',label)):
+        raise ValueError('Invalid explicit learning session continuation')
     session=base.AGENT+'/sessions/continuous/'+label+'.jsonl'
     base.shell(c,'mkdir -p '+base.AGENT+'/sessions/continuous')
+    if capture_policy_origin:
+        base.checked(['docker','exec',c,'python3','-c','import os,sys;sys.exit(1 if os.path.lexists(sys.argv[1]) else 0)',session])
     prior_bytes=b'';prior_count=0;feedback_text='';feedback_file='/home/node/project-verification.json'
+    if prior_session_digest is not None:
+        prior_bytes=read_command_session(c,label) if capture_command_origin or prompt=='/consolidate backfill' else base.checked(['docker','exec',c,'cat',session])
+        prior_count=command_session_prefix_count(prior_bytes,prior_session_digest,'/work/p-limit')
     if feedback_observation is not None:
         prior_bytes=base.checked(['docker','exec',c,'cat',session])
         if hashlib.sha256(prior_bytes).hexdigest()!=feedback_observation['sessionDigest']:raise RuntimeError('Original verifier session changed')
@@ -107,14 +161,37 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
     args=['docker','exec','-w','/work/p-limit','-e','PI_CODING_AGENT_DIR='+base.AGENT,'-e','PI_OFFLINE=1']
     for key,value in proxy.jev_environment().items():args+=['-e',key+'='+value]
     if feedback_observation is not None:args+=['-e','PI_STUDY_VERIFIER_FILE='+feedback_file,'-e','PI_STUDY_TASK_TOOL_LIMIT=1']
-    args += [c,'node',base.PI,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve',
-             '--model',proxy.selection['provider']+'/'+proxy.selection['model'],'--thinking','off','--tools','read' if feedback_observation is not None else 'read,bash,edit,write',
+    if initial_source_paths is not None:args+=['-e','PI_STUDY_INITIAL_SOURCE_FILES='+json.dumps(initial_source_paths)]
+    native_args=['node',base.PI,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve',
+             '--model',proxy.selection['provider']+'/'+proxy.selection['model'],'--thinking','off',
+             *(['--no-tools'] if capture_policy_origin else ['--tools','read' if feedback_observation is not None else 'read,bash' if initial_source_paths is not None else 'read,bash,edit,write']),
              *(['-e','/home/node/continuous-bash-environment.ts'] if not command and feedback_observation is None else []),
              *([] if command or (unlimited_budget and feedback_observation is None) else ['-e','/home/node/continuous-tool-budget.ts']),
              *(['-e','/home/node/continuous-verifier-reference.ts'] if feedback_observation is not None else []),
              *(['-e','/home/node/continuous-task-deadline.ts'] if unlimited_budget and not command else []),
              '-e','/opt/experiment/packages/continual-learning/index.ts','--session',session,'--print','--mode','json',prompt if command or feedback_observation is not None else (UNLIMITED_COMMON if unlimited_budget else COMMON)+prompt]
-    started=time.monotonic();output.mkdir(parents=True,exist_ok=True);interrupted=False
+    args += [c,*native_args]
+    started=time.monotonic();interrupted=False;owner=None;before_command=None
+    if capture_origin and any(parent.is_symlink() for parent in (output,*output.parents)):
+        raise ValueError('Command evidence path contains a symlink')
+    output.mkdir(parents=True,exist_ok=not capture_origin)
+    if capture_origin:
+        if redact_transport_bytes(prior_bytes,proxy)!=prior_bytes:
+            raise RuntimeError('Sensitive original command evidence cannot be retained')
+        (output/'original-session.jsonl').write_bytes(prior_bytes)
+        version=base.checked(['docker','exec',c,'node',base.PI,'--version']).decode().strip()
+        if version!='1.3.0':raise RuntimeError('Command origin requires actual Pi 1.3.0')
+        (output/'command-source-before').mkdir()
+        before_command=capture_failure_candidate(c,proxy,output/'command-source-before',prior_bytes)
+        owner={'kind':'native-automatic-harness-policy' if capture_policy_origin else 'native-memory-command','version':1,'container':c,'argv':native_args,
+            'cwd':'/work/p-limit','agentDir':base.AGENT,'sessionPath':session,
+            'model':proxy.selection['provider']+'/'+proxy.selection['model'],'piVersion':version,
+            'sourceHashes':before_command['manifest']['sourceHashes'],'sourceFiles':before_command['manifest']['files'],
+            'startedAt':time.time_ns()//1_000_000}
+        if capture_policy_origin:owner.update(prompt=native_args[-1],sourceFiles=before_command['manifest']['files'])
+        else:owner.update(arguments=prompt[len('/memory '):],priorSessionDigest=prior_session_digest)
+        with (output/owner_file).open('x') as file:
+            file.write(json.dumps(owner,ensure_ascii=False,separators=(',',':')))
     try:
         p=base.process(args,timeout=UNLIMITED_CLI_GUARDIAN_SECONDS if unlimited_budget else 900);stdout=p.stdout;stderr=p.stderr;code=p.returncode;timed_out=False
     except KeyboardInterrupt:
@@ -125,19 +202,64 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
     # docker cp can still retrieve evidence from a stopped disposable container.
     copied=base.process(['docker','cp',c+':'+session,str(output/'session.jsonl')])
     messages=[];references=[];rows=[];malformed_rows=0;original_preserved=not prior_bytes
+    captured=None;session_capture_error='copy-failed' if copied.returncode!=0 else None
+    if session_capture_error:original_preserved=False
     if copied.returncode==0:
-        captured=(output/'session.jsonl').read_bytes()
-        original_preserved=not prior_bytes or captured.startswith(prior_bytes)
-        raw=redact_transport_bytes(captured,proxy);(output/'session.jsonl').write_bytes(raw)
-        for line in raw.splitlines():
+        try:
+            captured=read_study_artifact(output,'session.jsonl',bound=32*1024*1024)
+        except (OSError,ValueError) as error:
+            session_capture_error=type(error).__name__
+            original_preserved=False
+        if captured is not None:
+            original_preserved=not prior_bytes or captured.startswith(prior_bytes)
+            raw=redact_transport_bytes(captured,proxy)
+            # Never write through a path copied from the child container.
+            import tempfile
+            descriptor,temporary=tempfile.mkstemp(prefix='.redacted-session-',dir=output)
             try:
-                row=json.loads(line)
-                if not isinstance(row,dict):raise ValueError('Non-object session record')
-                rows.append(row)
-            except ValueError:malformed_rows+=1
-        rows=rows[prior_count:]
-        messages=[r['message'] for r in rows if r.get('type')=='message']
-        references=[r for r in rows if r.get('customType')=='continual-learning-memory-reference']
+                with os.fdopen(descriptor,'wb') as file:file.write(raw)
+                os.replace(temporary,output/'session.jsonl')
+            finally:
+                if os.path.lexists(temporary):os.unlink(temporary)
+            for line in raw.splitlines():
+                try:
+                    row=json.loads(line)
+                    if not isinstance(row,dict):raise ValueError('Non-object session record')
+                    rows.append(row)
+                except ValueError:malformed_rows+=1
+            rows=rows[prior_count:]
+            messages=[r['message'] for r in rows if r.get('type')=='message']
+            references=[r for r in rows if r.get('customType')=='continual-learning-memory-reference']
+    command_origin=None
+    if owner is not None:
+        after_command=None;capture_error=None
+        if not timed_out and not interrupted:
+            try:
+                (output/'command-source-after').mkdir()
+                after_command=capture_failure_candidate(c,proxy,output/'command-source-after',captured or b'')
+            except (OSError,RuntimeError,ValueError,UnicodeError) as error:capture_error=type(error).__name__
+        unchanged=bool(after_command and before_command['manifest']['files']==after_command['manifest']['files'])
+        verified=(code==0 and not timed_out and not interrupted and copied.returncode==0 and original_preserved
+            and malformed_rows==0 and unchanged and redact_transport_bytes(stdout,proxy)==stdout
+            and captured is not None and redact_transport_bytes(captured,proxy)==captured)
+        closed={'ownerDigest':hashlib.sha256((output/owner_file).read_bytes()).hexdigest(),
+            'exitCode':code,'cancelled':interrupted,'timedOut':timed_out,'settledAt':time.time_ns()//1_000_000,
+            'stdoutDigest':hashlib.sha256(stdout).hexdigest(),
+            'sessionDigest':hashlib.sha256(captured).hexdigest() if captured is not None else None,
+            'sourceHashes':after_command['manifest']['sourceHashes'] if after_command else None,
+            'sourceFiles':after_command['manifest']['files'] if after_command else None,
+            'sourceInventoryVerified':unchanged,**({'sourceCaptureError':capture_error} if capture_error else {})}
+        if capture_policy_origin:closed['sourceFiles']=after_command['manifest']['files'] if after_command else None
+        with (output/closed_file).open('x') as file:file.write(json.dumps(closed,ensure_ascii=False,indent=2))
+        bindings={};binding_error=None
+        try:
+            for name in POLICY_ORIGIN_ARTIFACTS if capture_policy_origin else COMMAND_ORIGIN_ARTIFACTS:
+                bindings[name]=bind_study_artifact(output,name,bound=32*1024*1024)
+        except (ValueError,OSError) as error:binding_error=type(error).__name__
+        command_origin={'recorded':True,'verified':verified and binding_error is None,
+            'sourceInventoryVerified':unchanged,'artifactBindings':bindings,
+            **({'artifactBindingError':binding_error} if binding_error else {}),
+            **({'sessionCaptureError':session_capture_error} if session_capture_error else {})}
     usage=[m.get('usage',{}) for m in messages if m.get('role')=='assistant']
     verifier_read=False
     if feedback_observation is not None:
@@ -148,6 +270,10 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
                                   and message.get('isError') is False and feedback_text in ''.join(part.get('text','') for part in message.get('content',[]) if isinstance(part,dict)) for message in messages)
                           for call in calls)
     return {'originalObservationsPreserved':original_preserved,'verifierObserved':verifier_read,'exitCode':code,'timedOut':timed_out,'interrupted':interrupted,'seconds':round(time.monotonic()-started,2),
+            **({('policyOrigin' if capture_policy_origin else 'commandOrigin'):command_origin} if command_origin is not None else {}),
+            **({'sessionCaptureError':session_capture_error} if session_capture_error else {}),
+            **({'commandSessionContinuation':{'priorSessionDigest':prior_session_digest,'priorEntryCount':prior_count,
+                'newEntryCount':len(rows),'usageAttributionVerified':original_preserved and copied.returncode==0 and malformed_rows==0}} if prior_session_digest is not None else {}),
             'temporaryInstructionLeaked':label not in ('stage-1',) and any('TEMPORARY_IDLE_REVIEW' in str(part.get('text','')) for m in messages[-1:] for part in (m.get('content',[]) if isinstance(m.get('content'),list) else []) if isinstance(part,dict)),
             'modelErrors':sum(m.get('stopReason')=='error' for m in messages),'modelAborted':sum(m.get('stopReason')=='aborted' for m in messages),'malformedSessionRows':malformed_rows,
             'toolCalls':sum(len([part for part in m.get('content',[]) if isinstance(part,dict) and part.get('type')=='toolCall']) for m in messages if isinstance(m.get('content'),list)),
@@ -221,6 +347,51 @@ def run_memory_audit(c: str, proxy: InferenceProxy, payload: dict, output: Path)
         base.shell(c, 'rm -f ' + file)
 
 
+def install_memory_audit_runtime(c: str) -> None:
+    """Install only the explicit read-only audit entrypoint and its shared adapter."""
+    for name in ('continuous-memory-audit.ts','continuous-command-proof.ts'):
+        source=Path(__file__).with_name(name).read_text()
+        for extension in ('jev-sdk','jev-learning','learning-replay-feedback','planner-read-scope','incremental-learning','learning-efficiency','learning-backlog','guardrail-engine'):
+            source=source.replace("'../extensions/"+extension+"'", "'/opt/experiment/packages/continual-learning/extensions/"+extension+".ts'")
+        for support in ('failure-observation-proof','continuous-command-proof'):
+            source=source.replace("'./"+support+"'", "'./"+support+".mts'")
+        base.put(c,'/home/node/'+name.removesuffix('.ts')+'.mts',source.encode())
+
+
+def native_initialization_proof(c: str, name: str, evidence: dict, prior: dict, current: dict) -> dict:
+    """Run the shared read-only proof in this owner's installed Pi runtime.
+
+    The container comes from the parent caller, never from archived evidence.
+    A frozen host needs no ambient TypeBox, Pi CLI or TUI dependencies.
+    """
+    if name not in ('automaticHarnessPolicyProof','commandMemoryCorpusProof') or evidence.get('owner',{}).get('container')!=c:
+        raise ValueError('Unknown proof or foreign native container')
+    file='/home/node/native-initialization-proof-'+uuid.uuid4().hex+'.json'
+    module=file.removesuffix('.json')+'.mts'
+    payload=json.dumps({'input':evidence,'prior':prior,'current':current},ensure_ascii=False).encode()
+    create='''import os,sys
+fd=os.open(sys.argv[1],os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+try:
+    with os.fdopen(fd,"wb") as file:
+        file.write(sys.stdin.buffer.read())
+except BaseException:
+    try: os.close(fd)
+    except OSError: pass
+    try: os.unlink(sys.argv[1])
+    except OSError: sys.stderr.write("Owned proof input cleanup failed\\n")
+    raise
+'''
+    base.checked(['docker','exec','-i',c,'python3','-c',create,file],data=payload)
+    module_created=False
+    try:
+        code="import fs from 'node:fs';import {"+name+" as check} from '/home/node/continuous-command-proof.mts';const x=JSON.parse(fs.readFileSync("+json.dumps(file)+",'utf8'));console.log(JSON.stringify(check(x.input,x.prior,x.current)));"
+        base.checked(['docker','exec','-i',c,'python3','-c',create,module],data=code.encode())
+        module_created=True
+        return json.loads(base.checked(['docker','exec',c,'tsx',module],timeout=60))
+    finally:
+        base.checked(['docker','exec',c,'rm','-f','--',file,*([module] if module_created else [])])
+
+
 def install_failure_observation_proof(c: str) -> str:
     """Install read-only parent verification outside the task source/agent roots."""
     for name in ('failure-observation-proof.ts','failure-observation-proof-cli.ts'):
@@ -257,7 +428,10 @@ def failure_observation_ready(c: str, original_session: bytes, observation: dict
     finally:base.shell(c,'rm -f '+input_file)
 
 
-def artifacts(c: str, proxy: InferenceProxy, output: Path, *, source_review: bool = False) -> dict:
+def artifacts(c: str, proxy: InferenceProxy, output: Path, *, source_review: bool = False,
+              command_origin: tuple[Path,dict] | None = None, policy_origin: tuple[Path,dict] | None = None) -> dict:
+    if (command_origin is not None or policy_origin is not None) and not source_review:raise ValueError('Native origin review requires complete source artifacts')
+    if command_origin is not None and policy_origin is not None:raise ValueError('Ambiguous native review origin')
     output.mkdir(parents=True,exist_ok=True)
     # Runtime images deliberately omit all tests and hidden task probes.
     base.put(c,'/home/node/learned-surface-metadata.py',Path(__file__).with_name('recovery_integrity.py').read_bytes())
@@ -279,8 +453,14 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path, *, source_review: boo
         with tarfile.open(output/filename) as archive:
             for item in archive:
                 if source_review and filename=='memory.tar.gz' and Path(item.name).parts[:2]==('runs','--work-p-limit--') and item.name.endswith(('.json','.jsonl')):
-                    if not item.isfile():raise RuntimeError('Source review artifact is not a regular file')
-                    source_files[str(Path(item.name))]=archive.extractfile(item).read().decode('utf-8')
+                    key=str(Path(item.name))
+                    if (Path(item.name).is_absolute() or '..' in Path(item.name).parts or '\\' in item.name
+                            or Path(item.name).name in ('cost-ledger.jsonl','authorized-real-study-budget-600.json','600-active-reservation.json')
+                            or not item.isfile() or item.sparse or item.size>32*1024*1024 or key in source_files):
+                        raise RuntimeError('Source review artifact is unsafe or ambiguous')
+                    body=archive.extractfile(item).read(item.size+1)
+                    if len(body)!=item.size:raise RuntimeError('Source review artifact is incomplete')
+                    source_files[key]=body.decode('utf-8')
                 if filename=='backlog.tar.gz' and Path(item.name).parts==('backlog.jsonl',):
                     if not item.isfile():raise RuntimeError('Original backlog range archive is not regular')
                     for line in archive.extractfile(item).read().splitlines():
@@ -332,12 +512,231 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path, *, source_review: boo
     digests=proofs['receiptDigests'];dossiers=proofs['dossiers']
     base.shell(c,'rm -f /home/node/study-receipts.json')
     for attempt,digest in zip(attempts,digests):attempt['receiptDigest']=digest
+    receipts=deduplicate_receipt_views(receipts)
     accounting = learning_cost_summary(receipts, attempts, partial_worker_usage)
     source_reviews=source_review_bindings(source_files,raw_dossiers,attempts) if source_review else []
+    command_review=None;command_held=False
+    if command_origin is not None:
+        try:command_review=command_review_input(command_origin[0],command_origin[1],source_files,container=c)
+        except UnappliedMemoryCommand:command_held=True
+    policy_review=(policy_review_input(policy_origin[0],policy_origin[1],source_files,container=c)
+                   if policy_origin is not None else None)
     return {'surfaceSnapshots':surface_snapshots,'memoryEntries':memory_entries,'history':history,'dossiers':dossiers,'completedBacklog':completed_backlog,'receipts':receipts,'attempts':attempts,**({'sourceReviewBindings':source_reviews}if source_review else {}),**accounting,
+            **({'commandReviewInput':command_review} if command_review is not None else {}),
+            **({'commandInitializationHeld':True} if command_held else {}),
+            **({'policyReviewInput':policy_review} if policy_origin is not None else {}),
             'pendingLearningJobs':backlog['pending'],'backlogStatus':backlog}
 
 
+
+def load_command_origin(output: Path, inference: dict, *, container: str, policy: bool = False) -> dict:
+    """Load an exclusive owner's bound output; hashes alone do not prove who ran it."""
+    origin=inference.get('policyOrigin' if policy else 'commandOrigin',{})
+    names=POLICY_ORIGIN_ARTIFACTS if policy else COMMAND_ORIGIN_ARTIFACTS
+    owner_name='policy-started.json' if policy else 'memory-command-started.json'
+    closed_name='policy-closed.json' if policy else 'memory-command-closed.json'
+    bindings=origin.get('artifactBindings')
+    if (origin.get('verified') is not True or origin.get('sourceInventoryVerified') is not True
+            or not isinstance(bindings,dict) or set(bindings)!=set(names)):
+        raise ValueError('Incomplete native command artifact bindings')
+    raw={name:read_study_artifact(output,name,bound=32*1024*1024,expected=bindings[name]) for name in names}
+    owner=json.loads(raw[owner_name]);closed=json.loads(raw[closed_name])
+    original=raw['original-session.jsonl'];native=raw['session.jsonl'];stdout=raw['stdout.jsonl']
+    if (owner.get('container')!=container or owner.get('cwd')!='/work/p-limit' or owner.get('piVersion')!='1.3.0'
+            or owner.get('kind')!=('native-automatic-harness-policy' if policy else 'native-memory-command')
+            or closed.get('ownerDigest')!=hashlib.sha256(raw[owner_name]).hexdigest()
+            or closed.get('exitCode')!=0 or closed.get('cancelled') is not False or closed.get('timedOut') is not False
+            or closed.get('sourceInventoryVerified') is not True
+            or closed.get('sessionDigest')!=hashlib.sha256(native).hexdigest()
+            or closed.get('stdoutDigest')!=hashlib.sha256(stdout).hexdigest() or not native.startswith(original)):
+        raise ValueError('Changed actual command invocation')
+    if policy:
+        if original:raise ValueError('Policy task was not a fresh native session')
+        count=0
+    else:count=command_session_prefix_count(original,owner['priorSessionDigest'],'/work/p-limit')
+    source_values=[]
+    for phase in ('before','after'):
+        prefix='command-source-'+phase+'/candidate-before-convergence'
+        manifest=json.loads(raw[prefix+'.json']);archive=raw[prefix+'.tar.gz'];files=source_archive_files(archive)
+        metadata={name:{key:value[key] for key in ('sha256','mode','size')} for name,value in files.items()}
+        hashes={name:value['sha256'] for name,value in files.items()}
+        if (hashlib.sha256(archive).hexdigest()!=manifest.get('archiveSha256') or metadata!=manifest.get('files')
+                or hashes!=manifest.get('sourceHashes') or hashes!=owner.get('sourceHashes')
+                or hashes!=closed.get('sourceHashes')):raise ValueError('Incomplete or changed command source')
+        if (policy or 'sourceFiles' in owner) and (metadata!=owner.get('sourceFiles') or metadata!=closed.get('sourceFiles')):
+            raise ValueError('Changed actual policy source inventory')
+        source_values.append((metadata,{name:value['data'].decode('utf-8')for name,value in files.items()}))
+    if source_values[0]!=source_values[1]:raise ValueError('Command changed source bytes or modes')
+    if not native.endswith(b'\n'):raise ValueError('Incomplete command native session')
+    rows=[json.loads(line)for line in native.decode().splitlines()]
+    receipts=[row['details'] for row in rows[count:] if row.get('type')=='custom_message'
+              and row.get('customType')=='continual-learning-result']
+    if len(receipts)!=1:raise ValueError('Missing unique command-native receipt')
+    return {'kind':'automatic-harness-policy-review' if policy else 'explicit-command-source-review','version':1,'owner':owner,'completion':closed,
+            'originalSession':original.decode(),'nativeSession':native.decode(),'stdout':stdout.decode(),
+            'sources':source_values[1][1],'receipt':receipts[0]}
+
+
+def _review_artifact_values(source_files: dict[str,str]) -> dict:
+    """Decode only complete scoped source-review artifacts, before selection."""
+    allowed=('runs','--work-p-limit--');values={}
+    for name,body in source_files.items():
+        key=Path(name)
+        if (key.is_absolute() or '..'in key.parts or '\\'in name or key.parts[:2]!=allowed
+                or str(key)!=name or any(part in ('cost-ledger.jsonl','authorized-real-study-budget-600.json','600-active-reservation.json') for part in key.parts)
+                or not isinstance(body,str) or len(body.encode())>32*1024*1024):raise ValueError('Unsafe command source artifact')
+        if key.suffix=='.json':values[name]=json.loads(body)
+    return values
+
+
+def command_review_input(output: Path, inference: dict, source_files: dict[str,str], *, container: str) -> dict:
+    """Bind direct source/repair artifacts to the actual native command owner."""
+    origin=load_command_origin(output,inference,container=container);receipt=origin['receipt']
+    applied=[a for a in receipt.get('attempts',[]) if a.get('phase')=='memory' and a.get('outcome')=='applied' and a.get('operations',0)>0]
+    if not applied:raise UnappliedMemoryCommand('Missing unique applied Memory command')
+    if len(applied)!=1 or applied[0].get('attempt')not in (0,1):raise ValueError('Missing unique applied Memory command')
+    values=_review_artifact_values(source_files)
+    ledgers=[(name,value)for name,value in values.items() if isinstance(value,dict) and value.get('ledgerId')==applied[0].get('usageLedgerId')
+             and (Path(name).name=='memory-task-usage.json' if applied[0]['attempt']==0
+                  else Path(name).name=='memory-repair-usage-'+applied[0]['usageLedgerId']+'.json')]
+    if len(ledgers)!=1:raise ValueError('Missing unique actual generation ledger')
+    ledger_name,ledger=ledgers[0];root=str(Path(ledger_name).parent)
+    required={key:root+'/'+key for key in ('manifest.json','plan.json','snapshot.json','memory-task-usage.json')}
+    if any(name not in source_files for name in required.values()):raise ValueError('Incomplete actual command run')
+    manifest=values[required['manifest.json']]
+    if not isinstance(manifest,dict) or manifest.get('runDir')!=base.AGENT+'/memory/'+root:raise ValueError('Foreign command run root')
+    audit_ids={a.get('usageLedgerId')for a in receipt['attempts']if a.get('phase')=='memory' and a.get('attempt')==0 and a.get('operations')==0}
+    audits=[name for name,value in values.items() if isinstance(value,dict) and Path(name).name=='receipt.json'
+            and Path(name).parent.name.startswith('maintenance-audit-') and value.get('usageLedgerId')in audit_ids]
+    if len(audits)!=1:raise ValueError('Missing unique command source collector')
+    audit=audits[0];directory=str(Path(audit).parent);observations=directory+'/observations.jsonl';usage=directory+'/source-audit-usage.json'
+    if (observations not in source_files or not isinstance(values.get(usage),dict)
+            or not isinstance(values[required['memory-task-usage.json']],dict)
+            or not isinstance(values[required['plan.json']],dict)):
+        raise ValueError('Incomplete source collector evidence')
+    return {**origin,'plan':values[required['plan.json']],'snapshotText':source_files[required['snapshot.json']],
+        'reviewManifest':manifest,'usageLedger':ledger,'initialUsageLedger':values[required['memory-task-usage.json']],
+        'appliedUsageLedgerFile':Path(ledger_name).name,'sourceAudit':{'receipt':values[audit],
+            'usageLedger':values[usage],'observations':[json.loads(line)for line in source_files[observations].splitlines()]}}
+
+
+
+def policy_review_input(output: Path, inference: dict, source_files: dict[str,str], *, container: str) -> dict:
+    """Bind one actual automatic policy generation; never infer a replay owner."""
+    origin=load_command_origin(output,inference,container=container,policy=True);receipt=origin['receipt']
+    applied=[a for a in receipt.get('attempts',[]) if a.get('phase')=='harness' and a.get('outcome')=='applied' and a.get('operations')==1]
+    if len(applied)!=1 or applied[0].get('attempt')not in (0,1) or not isinstance(applied[0].get('usageLedgerId'),str):
+        raise ValueError('Missing unique actual Harness policy generation')
+    values=_review_artifact_values(source_files)
+    filename='harness-task-usage.json' if applied[0]['attempt']==0 else 'harness-repair-usage-'+applied[0]['usageLedgerId']+'.json'
+    ledgers=[(name,value)for name,value in values.items() if isinstance(value,dict)
+             and value.get('ledgerId')==applied[0]['usageLedgerId'] and Path(name).name==filename]
+    if len(ledgers)!=1:raise ValueError('Missing unique policy generation ledger')
+    name,ledger=ledgers[0];root=str(Path(name).parent)
+    required={key:root+'/'+key for key in ('manifest.json','snapshot.json','harness-post-receipt.json','harness-task-usage.json')}
+    if any(key not in source_files for key in required.values()):raise ValueError('Incomplete actual policy generation')
+    manifest=values[required['manifest.json']]
+    if not isinstance(manifest,dict) or manifest.get('runDir')!=base.AGENT+'/memory/'+root:raise ValueError('Foreign policy run root')
+    return {**origin,'reviewManifest':manifest,'snapshotText':source_files[required['snapshot.json']],
+            'postReceipt':values[required['harness-post-receipt.json']],'usageLedger':ledger,
+            'usageLedgerPath':base.AGENT+'/memory/'+name,
+            'initialUsageLedger':values[required['harness-task-usage.json']],
+            'initialUsageLedgerPath':base.AGENT+'/memory/'+required['harness-task-usage.json']}
+
+
+def run_command_initialization(c: str, proxy: InferenceProxy, output: Path, label: str, *, prior: dict,
+                               observation: dict, sources: dict[str,str], original_session: bytes,
+                               protocol: dict, row: dict) -> dict:
+    """Execute one command plus optional processing-only closure, retaining all calls.
+
+    The independent audit uses the actual post-closure state, never a fabricated
+    command endpoint. A failed or held generation is not retried here.
+    """
+    calls=row.setdefault('initializationCalls',[])
+    def invoke(prompt: str, directory: str, session_label: str, **options) -> dict:
+        jev_start=len(proxy.jev_usage);requests_start=proxy.requests
+        result={'initializationStep':directory,'exitCode':None,'usage':{'totalTokens':0},'reportedCost':0,'seconds':0}
+        calls.append(result)
+        started=time.monotonic()
+        try:
+            result.update(run_session(c,prompt,proxy,output/directory,session_label,command=True,unlimited_budget=True,**options))
+        except BaseException as error:
+            result.update(errorType=type(error).__name__,seconds=round(time.monotonic()-started,2))
+            if proxy.requests>requests_start or len(proxy.jev_usage)>jev_start:
+                result['sessionCaptureError']='initialization-call-exception'
+            raise
+        finally:
+            result['jevUsage']=proxy.jev_usage[jev_start:];result['allTransportRequests']=proxy.requests-requests_start
+        if not task_outcome(result,{'passed':True})['passed']:
+            raise RuntimeError('Initialization call failed; no dependent policy or retry')
+        return result
+    command_dir=output/'memory-command'
+    command=invoke('/memory 整理记忆','memory-command',label,
+        prior_session_digest=hashlib.sha256(original_session).hexdigest(),capture_command_origin=True)
+    state=artifacts(c,proxy,output/'after-memory-command',source_review=True,command_origin=(command_dir,command))
+    row['learning']=state
+    row['commandState']=state
+    if state.get('commandInitializationHeld') is True:
+        row.update(validLearning=False,validPairInput=False,
+            initializationBlocked={'phase':'memory-command-held','dependentPolicyStarted':False})
+        raise RuntimeError('Memory command remains held; no closure, policy or dependent task')
+    command_evidence=state['commandReviewInput']
+    if state['pendingLearningJobs']:
+        queued=state['backlogStatus'].get('pendingEntries',[])
+        session_path=base.AGENT+'/sessions/continuous/'+label+'.jsonl'
+        if not queued or any(entry.get('sessionFile')!=session_path for entry in queued):
+            raise RuntimeError('Initialization closure contains a foreign source task')
+        before_source=base.protected(c,'p-limit',include_source=True)
+        closure=invoke('/consolidate backfill','source-closure',label,
+            prior_session_digest=hashlib.sha256(command_evidence['nativeSession'].encode()).hexdigest())
+        state_after=artifacts(c,proxy,output/'after-source-closure',source_review=True,command_origin=(command_dir,command))
+        row['closureState']=state_after
+        row['learning']=state_after
+        source_filter=lambda data:{key:value for key,value in data.items()
+            if key!='__configuration_paths__' and not key.startswith(('.memory/','.pi/'))}
+        closure['taskSourceUnchanged']=source_filter(before_source)==source_filter(base.protected(c,'p-limit',include_source=True))
+        proof=initialization_closure_ready(state,state_after,command_evidence['nativeSession'].encode(),session_path)
+        row['sourceClosure']={**proof,'taskSourceUnchanged':closure['taskSourceUnchanged']}
+        if not proof['ready'] or not closure['taskSourceUnchanged']:
+            raise RuntimeError('Initialization closure changed knowledge or source, or left pending work')
+        state=state_after
+    else:row['sourceClosure']={'ready':True,'required':False,'countedAsLearning':False}
+    payload=command_initialization_audit_input(prior,state,observation,sources,original_session,protocol,command_evidence)
+    row['commandInitializationRecord']=payload
+    audit=run_memory_audit(c,proxy,payload,output/'command-initialization-audit')
+    row['commandInitializationAudit']=audit
+    if audit.get('passed') is not True:raise RuntimeError('Command initialization semantic review did not pass')
+    return state
+
+
+def run_initial_policy(c: str, proxy: InferenceProxy, output: Path, *, prior: dict, row: dict, enabled: bool) -> dict:
+    """Run the same original-user no-tools policy task in both independent arms."""
+    settings={'autoMemory':enabled,'automaticPhases':{'memory':'off','harness':'apply' if enabled else 'off','agents':'off'}}
+    base.put(c,base.AGENT+'/memory/settings.json',json.dumps(settings).encode())
+    call={'initializationStep':'automatic-policy','exitCode':None,'usage':{'totalTokens':0},'reportedCost':0,'seconds':0}
+    row.setdefault('initializationCalls',[]).append(call)
+    requests=proxy.requests;jev=len(proxy.jev_usage);started=time.monotonic()
+    try:
+        call.update(run_session(c,INITIAL_HARNESS_POLICY,proxy,output/'policy-task','initial-policy',
+            unlimited_budget=True,capture_policy_origin=True))
+    except BaseException as error:
+        call.update(errorType=type(error).__name__,seconds=round(time.monotonic()-started,2))
+        if proxy.requests>requests or len(proxy.jev_usage)>jev:call['sessionCaptureError']='policy-call-exception'
+        raise
+    finally:
+        call['allTransportRequests']=proxy.requests-requests;call['jevUsage']=proxy.jev_usage[jev:]
+    if not task_outcome(call,{'passed':True})['passed']:raise RuntimeError('Initial policy task failed; no dependent task')
+    state=artifacts(c,proxy,output/'after-policy',source_review=enabled,
+        **({'policy_origin':(output/'policy-task',call)} if enabled else {}))
+    row['learning']=state
+    if enabled:
+        bridge=policy_initialization_bridge(prior,state,state['policyReviewInput'],source_files=prior['commandReviewInput']['owner']['sourceFiles'],
+            native_runner=lambda name,evidence,before,after:native_initialization_proof(c,name,evidence,before,after))
+        row['initialPolicyBridge']=bridge
+        (output/'initial-policy-bridge.json').write_text(json.dumps(bridge,ensure_ascii=False,indent=2))
+    elif any(prior[key]!=state[key] for key in ('surfaceSnapshots','memoryEntries','history','attempts','receipts')):
+        raise RuntimeError('Control policy acquired or changed learned state')
+    return state
 
 def source_review_bindings(source_files: dict[str,str], raw_dossiers: list[dict], attempts: list[dict]) -> list[dict]:
     """Retain complete archived inputs for the shared native validator."""
@@ -393,12 +792,14 @@ def totals(report: dict) -> dict:
     result={}
     for arm in ('without-learning','with-learning'):
         rows=[stage['arms'][arm] for stage in report['stages'] if arm in stage['arms']]
-        calls=[call for row in rows for call in (row['inference'],row.get('verifierFeedback'),row.get('explicitRecovery')) if call]
+        calls=[call for row in rows for call in (row['inference'],row.get('verifierFeedback'),row.get('explicitRecovery'),*row.get('initializationCalls',[])) if call]
+        unbound=[call for call in calls if call.get('sessionCaptureError') or call.get('commandSessionContinuation',{}).get('usageAttributionVerified') is False]
+        known=[call for call in calls if not call.get('sessionCaptureError') and call.get('commandSessionContinuation',{}).get('usageAttributionVerified') is not False]
         last=next((row['learning'] for row in reversed(rows) if row.get('learning')), {})
         result[arm]={'taskPasses':sum(row.get('passed',False) for row in rows),'tasks':len(rows),
             'validAttributableTasks':sum(row.get('validPairInput',False) for row in rows),
-            'leaderTokens':sum(call['usage']['totalTokens'] for call in calls),
-            'leaderReportedCost':sum(call['reportedCost'] for call in calls),
+            'leaderTokens':sum(call['usage']['totalTokens'] for call in known),
+            'leaderReportedCost':sum(call['reportedCost'] for call in known),
             'leaderAndRecoverySeconds':sum(call['seconds'] for call in calls),
             'learningTokens':last.get('knownLearningTokens',0),'learningReportedCost':last.get('knownLearningCost',0),
             'unknownUsageAttempts':last.get('interruptedUnknownUsage',0),'unknownWorkerUsageLedgers':last.get('unknownWorkerUsageLedgers',0),'allLearningCostsPriced':last.get('allLearningCostsPriced',False),
@@ -406,6 +807,10 @@ def totals(report: dict) -> dict:
             'learningFailedReplayAttempts':last.get('learningFailedReplayAttempts',sum(a.get('outcome')!='completed' for a in last.get('attempts',[]))),
             'toolBudgetExceededTasks':sum(row['inference'].get('toolBudgetExceeded',False) for row in rows),
             'leaderPricingVerified':False}
+        if any(call.get('commandSessionContinuation') or call.get('sessionCaptureError') for call in calls):
+            result[arm]['unknownLeaderUsageAttempts']=len(unbound)
+            result[arm]['unattributedLeaderReportedTokens']=sum(call['usage']['totalTokens'] for call in unbound)
+            result[arm]['unattributedLeaderReportedCost']=sum(call['reportedCost'] for call in unbound)
     return result
 
 
@@ -414,12 +819,15 @@ def run(args: argparse.Namespace) -> dict:
     failure_manifest = getattr(args, 'observed_idle_failure', None)
     failure_input = load_observed_idle_source(failure_manifest) if failure_manifest else None
     verified_failure_learning=getattr(args,'verified_failure_learning',False)
+    explicit_command_initialization=getattr(args,'explicit_command_initialization',False)
+    if explicit_command_initialization and (not failure_input or not unlimited_budget or verified_failure_learning):
+        raise RuntimeError('Command initialization requires its separate observed-failure unlimited protocol')
     if verified_failure_learning and (not failure_input or not unlimited_budget):
         raise RuntimeError('Verified failure learning requires the explicit observed-failure unlimited protocol')
-    tasks = failure_first_tasks() if failure_input else TASKS
+    tasks = command_initialization_tasks() if explicit_command_initialization else failure_first_tasks() if failure_input else TASKS
     if failure_input and (not unlimited_budget or failure_input['manifest'].get('sourceCommit') != SOURCE_COMMIT):
         raise RuntimeError('Observed failure requires its explicit source ancestry and unlimited-count protocol')
-    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('recovery_integrity.py'),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-bash-environment.ts'),Path(__file__).with_name('continuous-task-deadline.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('continuous-dossier-proof.mjs'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('jev-https-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
+    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('support.py'),Path(__file__).with_name('recovery_integrity.py'),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-bash-environment.ts'),Path(__file__).with_name('continuous-task-deadline.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('continuous-dossier-proof.mjs'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('continuous-command-proof.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('jev-https-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
            *base.PACKAGE.joinpath('extensions').glob('*.ts'),*base.PACKAGE.joinpath('prompts').glob('*.md'),
            *base.REPO.joinpath('packages/kit/src').glob('*.ts')]
     if failure_input:paths += [failure_manifest, failure_manifest.with_name('source.tar.gz')]
@@ -437,6 +845,10 @@ def run(args: argparse.Namespace) -> dict:
               'failureFeedbackAdmission':'feedback task failure remains failure; one complete same-session verifier read plus byte-bound original and pending slice and proven removed-tool rejection can admit independent backfill without a successful parent summary; no extra parent retries; earlier v18/v19 failures retained',
               'verifierReadBoundary':'exact source/session-bound file, no offset or limit, one admitted read; rejected calls retained, at most three rejected boundary attempts before abort; earlier prompt-only cohort retained',
               'verifierReadWireDomain':'same OpenAI-compatible read schema in both arms: path enum is exact bound file, no pagination or additional properties; messages unchanged, no forced call; execution guard and max-one preread proof unchanged; prior broader-schema failures retained',
+              'initialSourceBoundary':{'version':1,'enabled':verified_failure_learning,
+                  'readPaths':'complete regular public-source inventory captured before either initial arm',
+                  'bashCommands':['node observed-idle-failure.mjs','pnpm test'],
+                  'enforcement':'same provider schemas and pre-execution native tool guard in both initial arms; attempts retained; later safety gates unchanged'},
               'parentTaskToolBudget':None if unlimited_budget else 18,
               'transportRequestBudget':None if unlimited_budget else 600,
               'mainTaskDeadlineSeconds':900,'cliGuardianSeconds':UNLIMITED_CLI_GUARDIAN_SECONDS if unlimited_budget else 900,
@@ -464,9 +876,24 @@ def run(args: argparse.Namespace) -> dict:
     protocol['historicalPiBaseline']='Pi 1.0 and 1.2 cohorts retained separately; not an unchanged runtime comparison'
     protocol['coverageVersion']=3
     protocol['memoryEvidence']='index only; actual successful read with exact retained revision; read exposure alone is not behavioral use or benefit'
+    if explicit_command_initialization:
+        protocol['explicitCommandInitializationVersion']=1
+        protocol['initialSourceArmExecutionVersion']=3
+        protocol['initialArmExecutionOrder']=['with-learning','without-learning']
+        protocol['initialArmOrderImpact']='The learner runs first. Retain order effects and shared outer-budget exhaustion; an absent control cannot establish a valid pair. All original downstream gates remain.'
+        protocol['initialSourceActionGrammarVersion']=3
+        protocol['initializationTreatment']={'sourceTaskAutomaticLearning':False,'command':'/memory 整理记忆',
+            'sourceClosure':'at most one actual no-op backfill; pending0 and identical physical knowledge required',
+            'policyTask':INITIAL_HARNESS_POLICY,'policyTaskBothArms':True,'policyTaskNativeTools':False,
+            'policyOwnership':'separate actual automatic current-session receipt and original-user branch; no manual Harness seed',
+            'originalTaskFailures':'immutable; safe source and accurate stored knowledge audited separately',
+            'costs':'all source, command, closure, policy and failed initialization calls included; no equal-total-compute or plugin-only causal claim',
+            'initialArmHolds':'A normally settled public-source-only control hold skips its policy and invalidates the pair. The independent learner retains all its own gates. Hard anomalies stop the whole cohort. All five later tasks remain blocked.'}
+        protocol['limitations'].append('Explicit-command initialization and separate policy task are disclosed treatment changes; historical automatic cohorts remain separate.')
     if failure_input:
-        protocol['observedFailureProtocolVersion']=2 if verified_failure_learning else 1
-        protocol['initialFailureLearning']='Separate original task failure from native-feedback-bound, source-safe, complete-corpus learning. Original task outcomes stay immutable; invalid training still stops dependent tasks.' if verified_failure_learning else 'Original successful-diagnosis and all-arms first-task pass gate.'
+        protocol['observedFailureProtocolVersion']=3 if explicit_command_initialization else 2 if verified_failure_learning else 1
+        protocol['initialFailureLearning']=('Separate read-only source work, actual same-session Memory command and a distinct automatic policy task; original task outcomes stay immutable and each prerequisite is checked before dependent tasks.' if explicit_command_initialization
+            else 'Separate original task failure from native-feedback-bound, source-safe, complete-corpus learning. Original task outcomes stay immutable; invalid training still stops dependent tasks.' if verified_failure_learning else 'Original successful-diagnosis and all-arms first-task pass gate.')
         protocol['initialSourceManifest']=failure_input['manifest']
         protocol['initialSourceManifestSha256']=failure_input['manifestSha256']
         protocol['knownPublicCaseIsNotUnseenTransfer']=True
@@ -482,11 +909,22 @@ def run(args: argparse.Namespace) -> dict:
             version=base.checked(['docker','exec',c,'node',base.PI,'--version']).decode().strip()
             report.setdefault('piVersions',[]).append(version)
             if version!='1.3.0':raise RuntimeError('Pi 1.3.0 study baseline required')
+            if verified_failure_learning:
+                runtime=initial_native_validation(c,version)
+                if protocol.get('initialSourceRefusalRuntime',runtime)!=runtime:raise RuntimeError('Initial arm validation runtimes differ')
+                protocol['initialSourceRefusalRuntime']=runtime
+                protocol['initialSourceActionGrammarVersion']=4
             base.shell(c,'mkdir -p /work/p-limit; find /work/p-limit -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +; rm -rf /home/node/agent /home/node/results; mkdir -p /home/node/agent/memory /home/node/agent/learning /home/node/results')
             base.checked(['docker','exec','-i',c,'tar','-xzf' if failure_input else '-xf','-','-C','/work/p-limit'],data=pristine)
             base.shell(c,'cd /work/p-limit && git init -q')
-            base.put(c,'/home/node/continuous-memory-audit.mts',Path(__file__).with_name('continuous-memory-audit.ts').read_text().replace("'../extensions/jev-sdk'","'/opt/experiment/packages/continual-learning/extensions/jev-sdk.ts'").replace("'../extensions/jev-learning'","'/opt/experiment/packages/continual-learning/extensions/jev-learning.ts'").replace("'../extensions/learning-replay-feedback'","'/opt/experiment/packages/continual-learning/extensions/learning-replay-feedback.ts'").replace("'../extensions/planner-read-scope'","'/opt/experiment/packages/continual-learning/extensions/planner-read-scope.ts'").replace("'./failure-observation-proof'","'./failure-observation-proof.mts'").encode())
+            install_memory_audit_runtime(c)
             if json.loads(base.checked(['docker','exec',c,'tsx','/home/node/continuous-memory-audit.mts','--preflight'])).get('ready') is not True:raise RuntimeError('Memory audit runtime unavailable')
+            if explicit_command_initialization:
+                probe=native_initialization_proof(c,'automaticHarnessPolicyProof',{'owner':{'container':c}},{},{})
+                if (probe.get('ready') is not False or probe.get('reason')!='Unknown policy proof'
+                        or probe.get('mutationAuthority') is not False or probe.get('learningBenefitEstablished') is not False):
+                    raise RuntimeError('Native initialization proof runtime did not reject incomplete evidence')
+                report.setdefault('nativeProofRuntime',[]).append({'container':c,'rejectedIncompleteEvidence':True,'externalRequests':0})
             base.put(c,'/home/node/continuous-task-deadline.ts',Path(__file__).with_name('continuous-task-deadline.ts').read_bytes())
             base.put(c,'/home/node/continuous-tool-budget.ts',Path(__file__).with_name('continuous-tool-budget.ts').read_bytes())
             base.put(c,'/home/node/continuous-bash-environment.ts',Path(__file__).with_name('continuous-bash-environment.ts').read_bytes())
@@ -500,7 +938,8 @@ def run(args: argparse.Namespace) -> dict:
             for arm,c in zip(protocol['arms'],containers):
                 base.configuration(c,proxy)
                 enabled=arm=='with-learning'
-                base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoMemory':enabled,'automaticPhases':{'memory':'apply' if enabled else 'off','harness':'apply' if enabled else 'off','agents':'off'}}).encode())
+                base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoMemory':enabled and not explicit_command_initialization,
+                    'automaticPhases':{'memory':'apply' if enabled else 'off','harness':'apply' if enabled and not explicit_command_initialization else 'off','agents':'off'}}).encode())
                 before=base.protected(c,'p-limit');pre=score(c,1,proxy,evidence.output/('preflight-'+arm),before)
                 if failure_input:
                     pre['publicReproducer']=public_failure_check(c,proxy,evidence.output/('preflight-'+arm))
@@ -538,13 +977,18 @@ def run(args: argparse.Namespace) -> dict:
                     if public_migrations:stage['publicRequirementMigrations']=public_migrations
                     report['stages'].append(stage)
                     starting_sources={name:item['data'].decode('utf-8') for name,item in source_archive_files(source_archive(containers[0])).items()} if failure_input else None
-                    for arm_index in ([0,1] if index%2==0 else [1,0]):
+                    for arm_index in ([1,0] if explicit_command_initialization and index==0 else ([0,1] if index%2==0 else [1,0])):
                         arm=protocol['arms'][arm_index];c=containers[arm_index];out=evidence.output/task['id']/arm;outputs[arm]=out
+                        if explicit_command_initialization and index==1:
+                            enabled=arm=='with-learning'
+                            base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoMemory':enabled,'automaticPhases':{
+                                'memory':'apply' if enabled else 'off','harness':'apply' if enabled else 'off','agents':'off'}}).encode())
                         before=base.protected(c,'p-limit')
                         prompt=task['prompt']+('\nActual preceding verification results:\n'+feedback if index==4 else '')
                         empty_state=artifacts(c,proxy,out/'initial-empty-state') if failure_input and index==0 else None
                         jev_start=len(proxy.jev_usage);requests_start=proxy.requests
-                        inference=run_session(c,prompt,proxy,out,'stage-'+str(index),unlimited_budget=unlimited_budget)
+                        inference=run_session(c,prompt,proxy,out,'stage-'+str(index),unlimited_budget=unlimited_budget,
+                            initial_source_paths=sorted(starting_sources) if verified_failure_learning and index==0 else None)
                         inference['jevUsage']=proxy.jev_usage[jev_start:];inference['allTransportRequests']=proxy.requests-requests_start
                         stage['arms'][arm]={'inference':inference,'passed':False,'validPairInput':valid_learning_so_far}
                         if inference['timedOut'] or inference.get('interrupted') or inference.get('taskDeadlineExceeded') or inference.get('taskDeadlineMissing') or inference.get('modelAborted'):
@@ -583,6 +1027,56 @@ def run(args: argparse.Namespace) -> dict:
                             verification['passed']=verification['passed'] and verification['independentTaskAuditPassed']
                             main_observation=verifier_observation(task['id'],verification,out,base.protected(c,'p-limit',include_source=True),main_session,inference=inference)
                             (out/'main-observation-final.json').write_text(json.dumps(main_observation,ensure_ascii=False,indent=2))
+                        if explicit_command_initialization and index==0:
+                            row=stage['arms'][arm]
+                            row.update(verification=verification,independentTaskAudit=task_audit,
+                                passed=task_outcome(inference,verification)['passed'],candidateBeforeConvergence=candidate['manifest'])
+                            source_state=artifacts(c,proxy,out/'before-command-initialization')
+                            row['initialLearning']=source_state;row['learning']=source_state
+                            audit_protocol={'initialSourceManifest':failure_input['manifest'],'explicitCommandInitializationVersion':1,
+                                'originalPrompt':UNLIMITED_COMMON+tasks[0]['prompt'],'currentPrompt':UNLIMITED_COMMON+tasks[1]['prompt']}
+                            if arm=='with-learning':
+                                try:
+                                    state=run_command_initialization(c,proxy,out/'initialization','stage-0',prior=empty_state,
+                                        observation=main_observation,sources=candidate['sources'],original_session=main_session,
+                                        protocol=audit_protocol,row=row)
+                                except BaseException:
+                                    stage['validPairInput']=False
+                                    for initial_row in stage['arms'].values():initial_row['validPairInput']=False
+                                    raise
+                                audit=row['commandInitializationAudit']
+                            else:
+                                payload=failure_source_safety_audit_input(empty_state,source_state,main_observation,candidate['sources'],main_session,audit_protocol)
+                                audit=run_memory_audit(c,proxy,payload,out/'initial-source-safety')
+                                state=source_state
+                            row['failureMemoryAudit']=audit
+                            if audit.get('passed') is not True:
+                                row['validLearning']=False
+                                row['initializationBlocked']={'phase':'initial-source-or-knowledge-audit','dependentPolicyStarted':False}
+                                stage['validPairInput']=False
+                                for initial_row in stage['arms'].values():initial_row['validPairInput']=False
+                                if arm=='without-learning' and initial_control_hold_allows_independent_learner(
+                                        audit,inference,verification,candidate,failure_input['manifest'],main_session):
+                                    # The other initial arm owns a separate fresh container.
+                                    # Keep this hold and stop the paired downstream gate.
+                                    valid_learning_so_far=False
+                                    print(json.dumps({'stage':task['id'],'arm':arm,'passed':row['passed'],
+                                        'initializationHeld':True,'dependentPolicyStarted':False,
+                                        'independentInitialArmPending':'with-learning' not in stage['arms']}),flush=True)
+                                    continue
+                                raise RuntimeError('Initial source/knowledge audit held; dependent tasks stopped')
+                            state=run_initial_policy(c,proxy,out/'initialization',prior=state,row=row,enabled=arm=='with-learning')
+                            harness=harness_probe(c,0,arm=='with-learning');row['harness']=harness
+                            if not harness['passed']:raise RuntimeError('Initial actual policy rule does not satisfy its probes')
+                            row['validLearning']=arm!='with-learning' or (state['pendingLearningJobs']==0 and bool(state['memoryEntries'])
+                                and any('limitFunction' in entry['content'] and 'PromiseLike' in entry['content'] for entry in state['memoryEntries'])
+                                and state['actualLearningOperations']>0 and row['initialPolicyBridge']['nativePolicyProof']['ready'] is True
+                                and not any(state['backlogStatus'].get(key) for key in ('error','malformed','unlearnable','unscoped')))
+                            failure_origins[arm]={'state':state,'observation':main_observation,'sources':candidate['sources'],'session':main_session,
+                                **({'initializationRecord':row['commandInitializationRecord'],'policyBridge':row['initialPolicyBridge']} if arm=='with-learning' else {})}
+                            print(json.dumps({'stage':task['id'],'arm':arm,'passed':row['passed'],'seconds':inference['seconds'],
+                                'initializationTreatment':'explicit-command-then-automatic-policy'},ensure_ascii=False),flush=True)
+                            continue
                         initial_state=artifacts(c,proxy,out/'before-recovery') if arm=='with-learning' and index==0 else None
                         recovery=None;verifier_feedback=None;feedback_state=None;native_feedback_evidence=None
                         if not task_outcome(inference,verification)['passed']:
@@ -621,7 +1115,11 @@ def run(args: argparse.Namespace) -> dict:
                                 verifier_feedback['recoveryClaim']=str(claim)
                             source_before_recovery=base.protected(c,'p-limit',include_source=True)
                             recovery_jev_start=len(proxy.jev_usage);recovery_request_start=proxy.requests
-                            recovery=run_session(c,'/consolidate backfill',proxy,out/'explicit-recovery','recovery-'+str(index),command=True,unlimited_budget=unlimited_budget)
+                            recovery_label='stage-'+str(index)
+                            recovery_prefix=read_command_session(c,recovery_label)
+                            recovery=run_session(c,'/consolidate backfill',proxy,out/'explicit-recovery',recovery_label,
+                                command=True,unlimited_budget=unlimited_budget,
+                                prior_session_digest=hashlib.sha256(recovery_prefix).hexdigest())
                             recovery['jevUsage']=proxy.jev_usage[recovery_jev_start:];recovery['allTransportRequests']=proxy.requests-recovery_request_start
                             stage['arms'][arm]['explicitRecovery']=recovery
                             if feedback_state is not None:recovery['priorHistoryIds']=[record['id'] for record in feedback_state['history']]
@@ -663,6 +1161,7 @@ def run(args: argparse.Namespace) -> dict:
                             try:
                                 audit_protocol={'initialSourceManifest':failure_input['manifest'],
                                     'originalPrompt':UNLIMITED_COMMON+tasks[0]['prompt'],'currentPrompt':UNLIMITED_COMMON+tasks[1]['prompt']}
+                                if verified_failure_learning:audit_protocol['initialSourceRefusalRuntime']=protocol['initialSourceRefusalRuntime']
                                 if index==0:
                                     if verified_failure_learning and arm!='with-learning':
                                         payload=failure_source_safety_audit_input(empty_state,state,main_observation,candidate['sources'],main_session,audit_protocol)
@@ -674,7 +1173,9 @@ def run(args: argparse.Namespace) -> dict:
                                     origin=failure_origins[arm]
                                     payload=failure_transition_audit_input(origin['state'],state,origin['observation'],main_observation,
                                         origin['sources'],candidate['sources'],origin['session'],main_session,audit_protocol,
-                                        original_feedback_record=origin.get('feedbackRecord'))
+                                        original_feedback_record=origin.get('feedbackRecord'),
+                                        original_initialization_record=origin.get('initializationRecord'),initial_policy_bridge=origin.get('policyBridge'),
+                                        native_runner=lambda name,evidence,before,after:native_initialization_proof(c,name,evidence,before,after))
                                 else:payload=None
                                 if payload is not None:failure_audit=run_memory_audit(c,proxy,payload,out/'failure-memory-audit')
                             except (ValueError,KeyError) as error:
@@ -692,9 +1193,21 @@ def run(args: argparse.Namespace) -> dict:
                         stage['arms'][arm]={'independentTaskAudit':task_audit,'failureMemoryAudit':failure_audit,**({'candidateBeforeConvergence':candidate['manifest']} if candidate else {}),'inference':inference,'verification':verification,'learning':state,'initialLearning':initial_state,'explicitRecovery':recovery,'verifierFeedback':verifier_feedback,'harness':harness,'memoryAudits':memory_audits,'validLearning':valid_learning,'validPairInput':valid_learning_so_far,
                                             'passed':task_outcome(inference,verification)['passed']}
                         print(json.dumps({'stage':task['id'],'arm':arm,'passed':stage['arms'][arm]['passed'],'seconds':inference['seconds']},ensure_ascii=False),flush=True)
+                        if verified_failure_learning and index==0 and arm=='without-learning' and not (failure_audit and failure_audit.get('passed') is True):
+                            row=stage['arms'][arm]
+                            row['validLearning']=False
+                            row['initializationBlocked']={'phase':'initial-source-safety-audit','dependentPolicyStarted':False}
+                            stage['validPairInput']=False
+                            for initial_row in stage['arms'].values():initial_row['validPairInput']=False
+                            valid_learning_so_far=False
+                            if not initial_control_hold_allows_independent_learner(
+                                    failure_audit,inference,verification,candidate,failure_input['manifest'],main_session,
+                                    native_validation=protocol.get('initialSourceRefusalRuntime')):
+                                raise RuntimeError('Initial control safety audit unavailable or unsafe; independent learner and dependent tasks stopped')
                     valid_learning_so_far=valid_learning_so_far and stage['arms']['with-learning']['validLearning']
                     if failure_input and index==0:
-                        valid_learning_so_far=valid_learning_so_far and initial_learning_continuation(stage,verified_failure_learning=verified_failure_learning)
+                        valid_learning_so_far=valid_learning_so_far and initial_learning_continuation(stage,
+                            verified_failure_learning=verified_failure_learning,explicit_command_initialization=explicit_command_initialization)
                     if not valid_learning_so_far:
                         raise RuntimeError('Invalid learning; dependent tasks stopped')
                     chosen=next((i for i,arm in enumerate(protocol['arms']) if stage['arms'][arm]['passed']),0)
@@ -755,5 +1268,5 @@ def run(args: argparse.Namespace) -> dict:
     return report
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('output',type=Path);parser.add_argument('--source',type=Path,default=Path('/tmp/cl-real-project-inputs/p-limit'));parser.add_argument('--base-image',default='cl-real-trained:p-limit-20261011-rebuilt');parser.add_argument('--preflight-only',action='store_true');parser.add_argument('--unlimited-budget',action='store_true');parser.add_argument('--capture-jev-envelopes',action='store_true');parser.add_argument('--observed-idle-failure',type=Path);parser.add_argument('--verified-failure-learning',action='store_true')
+    parser=argparse.ArgumentParser();parser.add_argument('output',type=Path);parser.add_argument('--source',type=Path,default=Path('/tmp/cl-real-project-inputs/p-limit'));parser.add_argument('--base-image',default='cl-real-trained:p-limit-20261011-rebuilt');parser.add_argument('--preflight-only',action='store_true');parser.add_argument('--unlimited-budget',action='store_true');parser.add_argument('--capture-jev-envelopes',action='store_true');parser.add_argument('--observed-idle-failure',type=Path);parser.add_argument('--verified-failure-learning',action='store_true');parser.add_argument('--explicit-command-initialization',action='store_true')
     result=run(parser.parse_args());print(json.dumps({'status':result['status'],'error':result.get('error')},ensure_ascii=False));raise SystemExit(0 if result['status'] in ('completed','preflight-passed') else 1)

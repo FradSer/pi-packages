@@ -36,17 +36,29 @@ def test_authoring_write_requires_exact_preview_and_tool_expires(tmp_path: Path)
       const admitted=active.includes('harness_preview');
       const blocked=await hooks.tool_call(event,ctx);
       const preview=await tools.harness_preview.execute('preview',{{content,cases:[{{ruleId:'traffic',input:'维护 D0',matches:true}},{{ruleId:'traffic',input:'本地配色',matches:false}}]}},undefined,undefined,ctx);
+      const normalDuring=await hooks.tool_call({{toolName:'write',toolCallId:'normal-during',input:{{path:'notes.txt',content:'Ordinary source work'}}}},ctx);
       const allowed=await hooks.tool_call(event,ctx);
       const repeated=await hooks.tool_call(event,ctx);
+      const normalAfter=await hooks.tool_call({{toolName:'write',toolCallId:'normal-after',input:{{path:'notes.txt',content:'Ordinary source work'}}}},ctx);
       const changed=await hooks.tool_call({{...event,input:{{...event.input,content:content+' '}}}},ctx);
-      await hooks.agent_end({{}},ctx);
+      await hooks.agent_end?.({{}},ctx);
+      const across=await tools.harness_preview.execute('across',{{content,cases:[{{ruleId:'traffic',input:'维护 D0',matches:true}},{{ruleId:'traffic',input:'本地配色',matches:false}}]}},undefined,undefined,ctx);
+      const acrossWrite=await hooks.tool_call(event,ctx);
+      await hooks.session_tree({{}},ctx);
+      const tree=await tools.harness_preview.execute('tree',{{content,cases:[]}},undefined,undefined,ctx);
+      const treeInactive=!active.includes('harness_preview');
+      await commands.harness.handler('继续维护 D0',ctx);
+      await hooks.session_shutdown({{}},ctx);
       const after=await tools.harness_preview.execute('expired',{{content,cases:[]}},undefined,undefined,ctx);
-      console.log(JSON.stringify({{before,admitted,blocked,preview,allowed:allowed??null,repeated,changed,active,after,files:fs.existsSync({json.dumps(str(tmp_path / '.pi'))})}}));
+      console.log(JSON.stringify({{before,admitted,blocked,preview,allowed:allowed??null,repeated,changed,normalDuring:normalDuring??null,normalAfter:normalAfter??null,across,acrossWrite:acrossWrite??null,tree,treeInactive,active,after,files:fs.existsSync({json.dumps(str(tmp_path / '.pi'))})}}));
     ''')
     assert result['before']['isError'] and result['after']['isError']
     assert result['admitted'] and result['blocked']['block']
     assert result['preview']['details']['passed'] and result['allowed'] is None
     assert result['repeated']['block'] and result['changed']['block']
+    assert result['across']['details']['passed'] and result['acrossWrite'] is None
+    assert result['normalDuring'] is None and result['normalAfter'] is None
+    assert result['tree']['isError'] and result['treeInactive']
     assert 'harness_preview' not in result['active'] and not result['files']
 
 

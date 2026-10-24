@@ -4,9 +4,9 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readBacklog, acknowledgeBacklog, backlogIdentity, safeBacklogStorage, readBoundedBacklogFile, withBacklogLock, type BacklogEntry } from "./learning-backlog";
-import { recentProjectLearningInput } from "./learning-input";
+import { recentProjectLearningInput, resolveManualMemoryRequest } from "./learning-input";
 import { currentTaskSlice } from "./incremental-learning";
-import { sha256Digest, writeFileAtomic } from "./consolidation-run";
+import { sha256Digest, writeFileAtomic, type MemoryCommandPhaseInvocation } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
 import { isLearningPipelineReceipt, pendingLearningOperations, type LearningPipelineReceipt, type LearningInputSource } from "./learning-efficiency";
 import { readMemoryReplayFeedback, type MemoryReplayFeedback } from "./learning-replay-feedback";
@@ -20,14 +20,15 @@ export function learningReceiptComplete(receipt: LearningPipelineReceipt): boole
     || ["applied", "noop", "screened", "declined"].includes(final.get(phase) ?? ""));
 }
 
-type ReplaySourceBinding = Pick<LearningInputSource, "source" | "entryCount" | "sessionId" | "sourceDigest">;
+type ReplaySourceBinding = Pick<LearningInputSource, "source" | "entryCount" | "sessionId" | "sourceDigest" | "manualRequest">;
 interface ReplayAttempt { at: string; outcome: string; receipt?: LearningPipelineReceipt; sourceBinding?: ReplaySourceBinding }
 interface ReplayState { attempts: ReplayAttempt[]; nextAttemptAt: number }
 
 function sourceBinding(input: LearningInputSource): ReplaySourceBinding {
   return {source:input.source, entryCount:input.entryCount,
     ...(input.sessionId !== undefined ? {sessionId:input.sessionId} : {}),
-    ...(input.sourceDigest !== undefined ? {sourceDigest:input.sourceDigest} : {})};
+    ...(input.sourceDigest !== undefined ? {sourceDigest:input.sourceDigest} : {}),
+    ...(input.manualRequest ? {manualRequest:input.manualRequest} : {})};
 }
 
 function receiptSourceMatches(receipt: LearningPipelineReceipt, binding?: ReplaySourceBinding): boolean {
@@ -48,6 +49,8 @@ function readReplayState(file: string): ReplayState {
 function receiptOwnerRangeMatches(receipt: LearningPipelineReceipt, entry: BacklogEntry, id: string): boolean {
   const range = receipt.input?.backlogRange;
   // Older persisted receipts remain readable; a supplied trace cannot drift.
+  if (entry.manualRequest && !range) return false;
+  if (JSON.stringify(receipt.input?.manualRequest) !== JSON.stringify(entry.manualRequest)) return false;
   return range === undefined || receipt.input?.backlogId === id
     && range.from === entry.from && range.to === entry.to && range.digest === entry.digest;
 }
@@ -61,8 +64,10 @@ function acknowledgeReplayCompletion(cwd: string, entry: BacklogEntry, receipt: 
   const id = backlogIdentity(paths.scopeKey, entry);
   if (!receiptOwnerRangeMatches(receipt, entry, id) || !receiptSourceMatches(receipt, binding)) return false;
   const coverage = receipt.input?.backlogCoverage;
+  if (entry.manualRequest && coverage) return false;
   const references = coverage ? coverage.map(item => backlog.entries.find(other =>
     backlogIdentity(paths.scopeKey, other) === item.id && other.sessionFile === entry.sessionFile
+      && JSON.stringify(other.manualRequest) === JSON.stringify(entry.manualRequest)
       && other.from === entry.from && other.from === item.from && other.to === item.to && other.digest === item.digest)) : [entry];
   if (coverage && (receipt.input?.backlogId !== id || !coverage.some(item => item.id === id))) return false;
   if (references.some(other => !other)) return false;
@@ -163,7 +168,7 @@ export function claimLearningLease(cwd: string, agentDir = getAgentDir()): (() =
 
 export async function replayLearningBacklog(input: {
   cwd: string; agentDir?: string; force?: boolean; limit?: number; signal?: AbortSignal;
-  learn: (input: { entries: unknown[]; id: string; sessionFile: string; sessionId: string; sourceDigest: string; memoryReplayFeedback?: MemoryReplayFeedback; backlogCoverage?: LearningInputSource["backlogCoverage"]; backlogRange?: LearningInputSource["backlogRange"]; omittedEntries?: number; omittedEvidenceEntries?: number }) => Promise<LearningPipelineReceipt | undefined>;
+  learn: (input: { entries: unknown[]; id: string; sessionFile: string; sessionId: string; sourceDigest: string; memoryReplayFeedback?: MemoryReplayFeedback; memoryRequest?: string; commandPhase?: MemoryCommandPhaseInvocation; preparedMemoryTaskSlice?: import("./incremental-learning").TaskSlice; manualRequest?: BacklogEntry["manualRequest"]; backlogCoverage?: LearningInputSource["backlogCoverage"]; backlogRange?: LearningInputSource["backlogRange"]; omittedEntries?: number; omittedEvidenceEntries?: number }) => Promise<LearningPipelineReceipt | undefined>;
 }): Promise<{ outcomes: Array<{ id: string; outcome: string; reason?: "newer-slice-deferred" }>; busy?: boolean; error?: string }> {
   const agentDir = input.agentDir ?? getAgentDir();
   const paths = resolveMemoryPaths(input.cwd, agentDir);
@@ -192,7 +197,9 @@ export async function replayLearningBacklog(input: {
       (last.receipt.input?.backlogCoverage ?? [{id}]).forEach(row => attempted.add(row.id));
       outcomes.push({id,outcome:"completed"});
     }
-    for (const {entry: queuedEntry} of backlog.pendingEntries) {
+    const pendingEntries = [...backlog.pendingEntries].sort((a,b) => Number(Boolean(b.entry.manualRequest)) - Number(Boolean(a.entry.manualRequest))
+      || (a.entry.manualRequest && b.entry.manualRequest ? b.position - a.position : 0));
+    for (const {entry: queuedEntry} of pendingEntries) {
       let entry = queuedEntry;
       if (executed >= limit) break;
       if (input.signal?.aborted) break;
@@ -206,16 +213,22 @@ export async function replayLearningBacklog(input: {
       }
       const source = await recentProjectLearningInput({cwd:input.cwd, agentDir, sessionDir:path.dirname(entry.sessionFile),
         requestedSessionFile:entry.sessionFile, signal:input.signal});
-      const slice = source?.contextEntries && entry.to < source.contextEntries.length
+      const manual = source && entry.manualRequest ? resolveManualMemoryRequest(source, entry, paths.scopeKey) : undefined;
+      const slice = entry.manualRequest ? manual?.taskSlice : source?.contextEntries && entry.to < source.contextEntries.length
         ? currentTaskSlice(source.contextEntries.slice(entry.from, entry.to + 1)) : undefined;
-      if (!source || !slice || sha256Digest(JSON.stringify(slice)) !== entry.digest) {
-        outcomes.push({id,outcome:"source-changed"}); continue;
+      if (!source || !slice || (!entry.manualRequest && sha256Digest(JSON.stringify(slice)) !== entry.digest)) {
+        outcomes.push({id,outcome:"source-changed"});
+        // A broken explicit request must not fall through to an ordinary
+        // reference for the same source and silently broaden its scope.
+        if (entry.manualRequest) break;
+        continue;
       }
       // A later verifier observation can extend this same task. Verify every
       // queued digest independently, then keep the longest byte-identical prefix
       // extension; never substitute a new task, changed source or session.
       let newerSliceDeferred = false;
       const verified = backlog.pendingEntries.flatMap(({entry: other}) => {
+        if (entry.manualRequest || other.manualRequest) return [];
         if (other.sessionFile !== entry.sessionFile || other.from !== entry.from || other.to < entry.to
           || other.to >= source.contextEntries!.length || other.scopeKey !== entry.scopeKey) return [];
         const otherId = backlogIdentity(paths.scopeKey, other);
@@ -257,7 +270,7 @@ export async function replayLearningBacklog(input: {
         state = readReplayState(file);
       }
       (backlogCoverage ?? [{id}]).forEach(row => attempted.add(row.id));
-      const replaySlice = currentTaskSlice(entries);
+      const replaySlice = manual ? manual.taskSlice : currentTaskSlice(entries);
       let memoryReplayFeedback: MemoryReplayFeedback | null = null;
       // The longest slice owns the receipt, but its first attempt has no prior
       // history. Only independently verified covered prefixes may contribute.
@@ -281,9 +294,10 @@ export async function replayLearningBacklog(input: {
           const receiptInput = previous.receipt!.input;
           // Legacy unbound receipts cannot resolve or supply task feedback.
           if (!receiptInput) continue;
-          const expectedCount = receiptInput.source === "current-session"
+          const expectedCount = entry.manualRequest ? candidate.slice.entries.length : receiptInput.source === "current-session"
             ? candidate.entry.to + 1 : candidate.slice.entries.length;
-          const bound = receiptInput.backlogId === candidate.id && receiptInput.entryCount === expectedCount
+          const bound = JSON.stringify(receiptInput.manualRequest) === JSON.stringify(candidate.entry.manualRequest)
+            && receiptInput.backlogId === candidate.id && receiptInput.entryCount === expectedCount
             && ["current-session", "backlog-session"].includes(receiptInput.source)
             && (!receiptInput.backlogCoverage || receiptInput.source === "backlog-session"
               && receiptInput.backlogCoverage.every(reference => feedbackSources.some(verified =>
@@ -305,7 +319,7 @@ export async function replayLearningBacklog(input: {
       if (input.signal?.aborted) break;
       executed++;
       const attempt: ReplayAttempt = {at:new Date().toISOString(), outcome:"running",
-        sourceBinding:{source:"backlog-session", entryCount:entries.length, sessionId:source.sessionId, sourceDigest:source.sourceDigest}};
+        sourceBinding:{source:"backlog-session", entryCount:entries.length, sessionId:source.sessionId, sourceDigest:source.sourceDigest, ...(entry.manualRequest ? {manualRequest:entry.manualRequest} : {})}};
       state.attempts.push(attempt);
       const save = async () => {
         safeBacklogStorage(file, paths.agentDir);
@@ -322,6 +336,7 @@ export async function replayLearningBacklog(input: {
       }
       try {
         const receipt = await input.learn({entries, id, sessionFile:entry.sessionFile, sessionId:source.sessionId, sourceDigest:source.sourceDigest,
+          ...(manual ? {memoryRequest:manual.request, commandPhase:manual.commandPhase, preparedMemoryTaskSlice:manual.taskSlice, manualRequest:entry.manualRequest} : {}),
           backlogRange: {from: entry.from, to: entry.to, digest: entry.digest}, ...(backlogCoverage ? {backlogCoverage} : {}),
           ...(memoryReplayFeedback ? {memoryReplayFeedback} : {}),
           ...(!backlogCoverage && slice.omittedEntries ? {omittedEntries:slice.omittedEntries, omittedEvidenceEntries:slice.omittedEvidenceEntries ?? slice.omittedEntries} : {})});

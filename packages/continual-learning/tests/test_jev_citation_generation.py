@@ -29,16 +29,69 @@ def test_generation_prompts_require_claim_specific_original_citations() -> None:
     # This checks delivery only; real generation and later tasks remain required.
     assert 'failure message is an observed label, not proof of its named mechanism' in guidance
     assert 'trace the awaited reactions, completed callbacks and unreleased work' in guidance
-    assert 'quote the message as output and keep the actual blocking state unresolved' in guidance
+    assert 'identify only that missing condition as unresolved' in guidance
+    assert 'keep the actual blocking state unresolved' not in guidance
+    # An unknown cause does not erase an independently observed state.
+    assert 'Unknown cause does not make an observed state unknown' in guidance
+    assert 'Do not generalize uncertainty about one missing condition' in guidance
+    # Given stateful knowledge, generation receives an explicit relation contract.
+    # This checks input delivery, not factual correctness or later task benefit.
+    for relation in ('whose resource or result is involved', 'which event changes its state',
+                     'what stays unchanged', 'material default or selected branch'):
+        assert value['knowledge'].count(relation) == 1
+    assert len(value['knowledge']) <= 5768
     assert 'source-scoped observation' in value['knowledge']
     assert 'unsupported or obsolete draft claims' in value['knowledge']
-    assert all(guidance in prompt for prompt in value['prompts'])
-    # Given an evidenced maintenance purpose, When choosing a new record format,
-    # Then keep that purpose alongside exact source, without inventing behavior.
+    assert '**Conditions**' in value['knowledge'] and '**Revisit**' in value['knowledge']
+    assert 'a reached failed check' in value['knowledge']
+    assert 'not a permanent instruction to keep the failure unresolved' in value['knowledge']
+    assert 'do not create a durable task log' in value['knowledge']
+    # Initial generation uses the parent-ref contract. Legacy quote/index and
+    # repair-specific guidance remain in maintenance and semantic correction.
+    initial, maintenance = value['prompts']
+    assert guidance not in initial
+    assert guidance in maintenance
+    assert 'Quotes must be verbatim with their original snapshot indexes.' not in initial
+    assert 'During semantic repair,' not in initial
+    assert 'Copy existing labels; never invent labels, calculate coordinates' in initial
+    assert 'never invent or truncate away a condition' not in initial
+    assert 'preserve the complete statement\'s' in initial
+    assert 'Reserved existing Memory filenames' in initial
+    assert 'memoryReplayFeedback' in initial
+    assert 'diagnosticsStatus is bound to that exact plan' in initial
+    assert all(value['knowledge'] in prompt for prompt in value['prompts'])
+    assert 'Within a new record body, state each supported fact once' in value['knowledge']
+    assert 'Keep independent named-type requirements' in value['knowledge']
+    assert 'an index description may repeat one supported body fact for discovery' in value['knowledge']
+    assert 'not a hard length limit' in value['knowledge']
+    assert 'does not authorize compressing an already correct record' in value['knowledge']
+    # Given a maintenance fact or failure observation, When choosing its format,
+    # Then keep its purpose without requiring an unrelated declaration dump.
+    # Exact declared-API records retain the original complete-declaration rule.
+    # This proves framing only, not model compliance or learning benefit.
     initial = value['prompts'][0]
-    assert 'use `content` rather than `sourceExcerpt`' in initial
+    assert 'use `description` plus `knowledge` instead of `content` and `evidence`' in initial
+    assert '"sourceCitationIndex":0' in initial
+    assert 'classification justified by the evidence; source copying grants no sharing permission' in initial
+    assert 'generate new project proposals with `knowledge`' in initial
+    assert 'exact copying does not make a partial selection complete' in initial
     assert '**Why** and **How to apply**' in initial
     assert 'Keep the complete exact declaration inline' in initial
+    assert 'When the knowledge is an inspected declared API contract' in initial
+    # Given the real record mixes runtime observations and a declared return
+    # claim, a behavior-record exemption must not erase its type obligations.
+    # Pure observations keep the existing conditional declaration requirement.
+    import json
+    from pathlib import Path
+    fixture = json.loads((Path(__file__).parent / 'fixtures/real-description-body-conflict.json').read_text())['hybridDeclarationCase']
+    assert fixture['sourceVersion'] in fixture['content']
+    assert 'was `undefined`' in fixture['content']
+    assert 'The `limitFunction` declaration types its returned value' in fixture['content']
+    assert fixture['formalFactoryDeclaration'] not in fixture['content']
+    assert fixture['missingNamedTypeBridge'] and not fixture['candidateReviewForwarded']
+    assert not fixture['learningAccepted']
+    assert 'Behavior and failure observations do not require a declaration excerpt' not in initial
+    assert 'Keep the subject, dependencies and applicable conditions explicit' in initial
     assert 'Do not invent a purpose, currentness guarantee or runtime behavior' in initial
 
 

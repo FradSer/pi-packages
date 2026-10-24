@@ -40,11 +40,26 @@ ordinary citation gates; labels are presentation metadata, not factual evidence.
 The parent validates against its unchanged raw snapshot.
 
 For a NEW project Memory with an evidenced maintenance purpose or applicability
-condition, use `content` rather than `sourceExcerpt`. Keep the complete exact declaration inline
-with brief source attribution and concise **Why** and **How to apply** sections
+condition, keep concise **Why** and **How to apply** sections
 that state only the purpose and conditions supported by original user or source
-evidence. Cite both the declaration and that context. Do not invent a purpose, currentness guarantee or runtime behavior.
-A bare quote with retrieval cues cannot carry this context. If the lesson is
+evidence. Cite the original sources for the knowledge and that context.
+When the knowledge is an inspected declared API contract: Keep the complete exact declaration inline
+with brief source attribution, and cite that declaration as well as its context.
+Keep the subject, dependencies and applicable conditions explicit from original evidence;
+link the source factory or call site to its named return type and relevant member, not unrelated definitions.
+Do not invent a purpose, currentness guarantee or runtime behavior.
+A bare quote with retrieval cues cannot carry this context. For a NEW project
+entry, use `description` plus `knowledge` instead of `content` and `evidence`:
+`{"name":"contract.md","kind":"project","classification":"private","description":"one supported discovery claim","knowledge":{"sourceCitations":[{"ref":"first original source ref","endRef":"last original source ref"},{"ref":"context evidence ref"}],"units":[{"sourceCitationIndex":0},{"text":"Why: supported purpose. How to apply: supported conditions.","citationIndexes":[0,1]}]}}`.
+Units are ordered: a source unit selects one zero-based catalog index for parent
+copying; a text unit supplies prose and its catalog indexes. Never mix both in
+one unit. Use text units for user-stated facts and explanatory context; use source
+units for inspected declarations. Include at most 32 units and 8 catalog items.
+Select the complete declarations needed for the knowledge, including related
+owners; exact copying does not make a partial selection complete. The parent
+derives the body and evidence together. Keep the original `safe` or `private`
+classification justified by the evidence; source copying grants no sharing permission.
+If the lesson is
 only the exact observed source text, the private source alternative remains
 available: `sourceExcerpt: {"ref":"first original source ref","endRef":"last original source ref"}`.
 Keep `name`, `kind: "project"`, `classification: "private"`
@@ -52,8 +67,9 @@ and non-empty `evidence`; the excerpt range must be covered by that evidence.
 Select a complete, concise declaration with its conditions, not an inventory or
 an isolated misleading fragment. The parent copies the original bytes into the
 body and supplies a neutral source description; do not add paraphrased claims.
-Only a successful original project `read`, or a contiguous range of added lines
-from a successful original `edit` patch, can supply this alternative. For edits
+Source copying requires a successful original project `read`, a parent-audited
+`learning_read`, or a contiguous range of added lines
+from a successful original `edit` patch. For edits
 use patch refs (`.p`), retain every `+` marker in the evidence, and select only
 added source text supplied by that invocation; no removals, hunk/file headers or
 result prose. The parent removes the patch markers only for the copied body and
@@ -87,13 +103,18 @@ or turn the request into Harness rules or AGENTS.md changes.
 A failed task does not require a successful fix before its observed failure can be learned.
 Cite the actual failed verification and relevant inspected source. Keep an unresolved failure explicitly unresolved;
 state the observed limitation in that source state, rather than predicting that the command always fails.
-Distinguish the requested contract, implemented behavior and verified behavior. Prefer the smallest
-source-bound pitfall that can inform later maintenance over a retelling of probes and test counts.
+Distinguish the requested contract, implemented behavior and verified behavior.
+Keep the source-bound pitfall and the independently inspected contracts needed to
+understand and apply it; do not retell probes or historical test counts.
 Never invent a cause, a successful correction or a standing user requirement.
 A claimed fix requires its actual successful verification; an assistant explanation alone proves neither cause nor fix.
-Prioritize a reusable pitfall evidenced by the actual failed verification over
-restating an API that is already directly available in the inspected source.
-An API inventory or source excerpt alone is not a lesson about that failure.
+Read a diagnostic's executed operations before interpreting its printed labels.
+A simplified trace establishes its own ordering, not a different reproducer's
+additional work. Preserve the original setup order and unreleased work when
+they are needed to apply the failure knowledge.
+The failure observation does not replace the inspected contract needed to apply it.
+Preserve its evidenced dependencies, owning types and material conditions in the
+same reusable relationship. An unrelated API inventory is not a failure lesson.
 For example, distinguish a source behavior defect from an observed repository
 verification constraint; keep each claim bounded to what the failure output and
 inspected source actually establish. Do not derive a repository-wide rule from
@@ -131,8 +152,8 @@ user preferences belong in private Memory. Do not route them to Harness or
 AGENTS.md merely because they say "prefer" or describe when they apply.
 Review every eligible knowledge statement in the Task Slice. Automatic Memory is distilled lessons, not a copy of the source inventory.
 Prefer non-obvious reusable contracts and pitfalls that change future implementation decisions.
-Routine source layout, package metadata and mechanically discoverable CI/script inventories
-should stay in source unless explicitly requested or needed to explain a durable lesson.
+Omit routine inventories; retain metadata needed to apply the lesson.
+Preserve cited version/revision bounds in the body; unknown identifiers do not erase observed identifiers.
 Explicitly requested knowledge and personal preferences must not be dropped. Updating selected
 existing entries does not replace new preference or project-fact proposals from
 the same task. Preserve each grounded durable fact once, keeping private
@@ -197,9 +218,10 @@ Omit observations when no selected claim needs one.
 
 ## Content and new proposals
 
-For each new entry, write one minimal durable fact or closely related preference,
-with its project/context, duration and exceptions intact. Prefer one plain sentence
-when that fully expresses the original statement. Do not expand a requested test
+For each new entry, preserve one reusable fact or relationship with its evidenced
+dependencies, ownership, project/context, duration and exceptions intact.
+Deduplicate repeated statements, not independently applicable contract facts.
+Use a short sentence only when it keeps that complete meaning. Do not expand a requested test
 command into source layout, dependency-resolution advice, historical passing counts
 or transient environment lessons. A separate independently grounded finding may
 be its own candidate with its own exact citations; it must not inflate another fact.
@@ -241,7 +263,7 @@ appear in `operations`.
 
 The exact `newMemories[].kind` enum is `"preference" | "project"`; use one of
 those two values literally. `"project-fact"`, `"project_fact"`, `"fact"`, and
-other aliases are invalid plan kinds. A proposal object has `name`, `kind`,
+other aliases are invalid plan kinds. A preference proposal has `name`, `kind: "preference"`,
 `classification` (`"safe"` or `"private"`), `content`, and non-empty `evidence`;
 each evidence item selects a displayed `ref` and optionally a bounded `endRef`
 (an optional `role` may be `"user"` or `"toolResult"`). The parent derives the
@@ -257,9 +279,12 @@ evidence role and extracts exact original text from the immutable snapshot.
 }
 ```
 
-For a shareable project fact, use the same object shape with the literal
-`"kind":"project"` and normally `"classification":"safe"`, for example
-`{"name":"project_fact.md","kind":"project","classification":"safe","content":"---\nname: project_fact\ndescription: The project uses the documented workflow\ntype: project\n---\nThe project uses the documented workflow.\n","evidence":[{"ref":"copy one exact displayed source ref"}]}`.
+For a shareable project fact, use the literal `"kind":"project"` and normally
+`"classification":"safe"`, for example
+`{"name":"project_fact.md","kind":"project","classification":"safe","description":"The project uses the documented workflow","knowledge":{"sourceCitations":[{"ref":"copy one exact displayed source ref"}],"units":[{"text":"The project uses the documented workflow.","citationIndexes":[0]}]}}`.
+The parent remains compatible with legacy complete `content`/`evidence` project
+proposals; generate new project proposals with `knowledge`. Preferences keep
+the `content`/`evidence` format.
 
 Evidence refs address immutable Task Slice snapshot entries in the dossier;
 the extracted text must be eligible user or tool-result content, never assistant claims.

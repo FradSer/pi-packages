@@ -537,11 +537,24 @@ def test_dossier_harness_events_come_from_harness_owned_entries_only() -> None:
                   outcome: 'blocked by rule', reason: 'Project memory must not be bulk-deleted through generated shell commands.',
                   source: 'project', file: '.pi/harness.json',
                 } },
+                { type: 'custom', id: 'dec1de00', customType: 'harness-behavior-observation', data: {
+                  version: 1, phase: 'decision', sessionId: 'session-fixture', toolCallIdDigest: 'a'.repeat(64),
+                  inputDigest: 'b'.repeat(64), effectiveConfigDigest: 'c'.repeat(64), decision: 'execute',
+                  revisionCoverage: 'complete', handlerTracking: 'pending', omittedRules: 0,
+                  rules: [{ idDigest: 'd'.repeat(64), revision: 'e'.repeat(64), matched: true }],
+                  taskOutcome: 'unverified', effect: 'cannot-attribute',
+                } },
+                { type: 'custom', customType: 'harness-behavior-observation', data: {
+                  version: 1, phase: 'handler-result', sessionId: 'session-fixture', decisionEntryId: 'dec1de00',
+                  toolCallIdDigest: 'a'.repeat(64), inputDigest: 'b'.repeat(64),
+                  handlerInvoked: true, handlerTiming: 'observed', durationMs: 1, isError: false,
+                  taskOutcome: 'unverified', effect: 'cannot-attribute',
+                } },
               ],
             },
           });
           const dossier = JSON.parse(fs.readFileSync(outcome.dossierPath, 'utf8'));
-          console.log(JSON.stringify({ outcome: outcome.outcome, harnessEvents: dossier.harnessEvents, touchedPaths: dossier.touchedPaths }));
+          console.log(JSON.stringify({ outcome: outcome.outcome, harnessEvents: dossier.harnessEvents, touchedPaths: dossier.touchedPaths, rawBehaviorRows: dossier.taskSlice.entries.filter(entry => entry.customType === 'harness-behavior-observation') }));
         """, {"TEST_ROOT": temporary})
     assert result["outcome"] == "selected"
     events = result["harnessEvents"]
@@ -549,6 +562,15 @@ def test_dossier_harness_events_come_from_harness_owned_entries_only() -> None:
     assert "blocked by rule" in recorded
     assert "no-bulk-memory-deletion" in recorded
     assert "Project memory must not be bulk-deleted through generated shell commands." in recorded
+    assert '"phase":"decision"' in recorded and '"decision":"execute"' in recorded
+    assert '"phase":"handler-result"' in recorded and '"decisionEntryId":"dec1de00"' in recorded
+    assert '"isError":false' in recorded
+    assert '"taskOutcome":"unverified"' in recorded and '"effect":"cannot-attribute"' in recorded
+    assert "d" * 64 in recorded and "e" * 64 in recorded
+    assert len(result["rawBehaviorRows"]) == 2
+    assert result["rawBehaviorRows"][0]["id"] == "dec1de00"
+    assert result["rawBehaviorRows"][1]["data"]["decisionEntryId"] == "dec1de00"
+    assert result["rawBehaviorRows"][0]["data"]["rules"][0]["revision"] == "e" * 64
     assert "HARNESS-DESIGN.md" not in recorded
     assert "harness delta" not in recorded
     assert "harness policy stage" not in recorded

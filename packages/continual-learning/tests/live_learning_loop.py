@@ -9,6 +9,8 @@ actual prompt; it never reads credentials or contacts an external service.
 
 from __future__ import annotations
 
+from continuous_failure_retention import deduplicate_receipt_views
+
 import json
 import re
 import subprocess
@@ -311,14 +313,16 @@ def run() -> dict[str, object]:
             memory_files = list(project.glob(".memory/*.md")) + list(agent.glob("memory/*/*.md"))
             if not any("CL_OFFLINE_SAFE" in file.read_text() for file in memory_files):
                 raise AssertionError("real learning did not persist the offline Memory fact")
-            receipts = list(agent.glob("memory/runs/*/*/learning-pipeline-receipt.json"))
-            if not receipts:
-                raise AssertionError("learning pipeline receipt was not written")
-            receipt = json.loads(receipts[-1].read_text())
-            attempts = {(attempt["phase"], attempt["outcome"]) for attempt in receipt.get("attempts", [])}
-            if {("memory", "applied"), ("harness", "applied")} - attempts:
-                raise AssertionError(f"receipt lacks applied memory and Harness phases: {receipt}")
-            harness_receipts = list(receipts[-1].parent.glob("harness-*-receipt.json"))
+            receipts=deduplicate_receipt_views([json.loads(p.read_text()) for p in (agent/'memory/runs').rglob('learning-pipeline-receipt.json')])
+            applied=[value for value in receipts if {('memory','applied'),('harness','applied')} <=
+                     {(attempt['phase'],attempt['outcome'])for attempt in value.get('attempts',[])}]
+            if len(applied)!=1:raise AssertionError('Missing unique applied Memory/Harness batch')
+            receipt=applied[0]
+            attempts={(attempt["phase"],attempt["outcome"])for attempt in receipt["attempts"]}
+            ledger_ids={attempt.get('usageLedgerId')for attempt in receipt['attempts']if attempt['phase']=='harness' and attempt['outcome']=='applied'}
+            ledgers=[p for p in (agent/'memory/runs').rglob('harness-task-usage.json')if json.loads(p.read_text()).get('ledgerId')in ledger_ids]
+            if len(ledgers)!=1:raise AssertionError('Missing receipt-owned Harness generation ledger')
+            harness_receipts=list(ledgers[0].parent.glob('harness-*-receipt.json'))
             if len(harness_receipts) < 2:
                 raise AssertionError("Harness pre/post receipts were not written")
             # Empty-index selection is parent-routed; no generative selector call.
@@ -414,3 +418,53 @@ def pi_version() -> str:
 
 if __name__ == "__main__":
     print(json.dumps(run(), ensure_ascii=False), flush=True)
+
+
+def controlled_body_reference(content: str, quote: str, prefix: str) -> dict:
+    """Select fixture body lines; this is not a semantic coverage judgment."""
+    import re
+    frontmatter = re.match(r'^\ufeff*---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)', content)
+    start = content.index(quote, frontmatter.end() if frontmatter else 0)
+    first = content[:start].count('\n') + 1
+    last = first + quote.count('\n')
+    return {'ref': f'{prefix}.b0.l{first}', **({'endRef': f'{prefix}.b0.l{last}'} if last != first else {})}
+
+
+def controlled_knowledge_units(content: str, evidence: list[dict]) -> dict:
+    """Shape already-controlled correction data for the atomic producer contract."""
+    import re
+    body = re.split(r'\r?\n---\r?\n', content, maxsplit=1)[1]
+    return {'sourceCitations': evidence, 'units': [
+        {'text': part, 'citationIndexes': list(range(len(evidence)))}
+        for part in re.split(r'\n\n+', body) if part.strip()]}
+
+
+def controlled_memory_coverage_response(prompt: str) -> dict:
+    """Return account framing for loopback fixtures, never a semantic judgment.
+
+    The caller must still supply controlled independent SDK answers. This helper
+    cannot establish source truth, completeness, persisted learning or benefit.
+    """
+    import re
+    payload = json.loads(prompt.split('\n')[-1])
+    refs = re.findall(r'"ref":\s*"(e\d+\.b\d+\.l\d+)"', json.dumps(payload['frozenEvidence']))
+    if not refs:
+        raise AssertionError('Controlled coverage requires an original reference')
+    ref = refs[0]
+    reviews = {}
+    for target in payload['targets']:
+        body = re.split(r'\r?\n---(?:\r?\n|$)', target['content'])[-1].strip()
+        quote = body.splitlines()[0]
+        scope = ({'basis': 'predecessor', 'statement': 'The existing scoped record', 'evidence': [], 'predecessorQuote': quote}
+                 if target['source'] == 'retained' else
+                 {'basis': 'optional', 'statement': 'The nominated project fact', 'evidence': [{'ref': ref}]})
+        body_quote = quote
+        if target.get('bodyLocations'):
+            body_quote = controlled_body_reference(target['content'], quote, f'm{target["targetIndex"]}')
+            if target['source'] == 'retained':
+                index = next(i for i, prior in enumerate(payload['predecessors']) if prior['name'] == target['name'])
+                scope['predecessorQuote'] = controlled_body_reference(payload['predecessors'][index]['content'], quote, f'p{index}')
+        reviews[str(target['targetIndex'])] = {'scope': scope,
+            'claims': [{'statement': 'The provided record claim', 'bodyQuote': body_quote, 'evidence': [{'ref': ref}], 'conditions': []}],
+            'uncovered': [], 'verdict': 'covered'}
+    return {'plan': {'verdict': 'covered', 'obligations': []}, 'reviews': reviews}

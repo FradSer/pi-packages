@@ -4,7 +4,8 @@ from support import isolated_run_bun
 
 
 @pytest.mark.parametrize('native', [False, True])
-def test_semantic_repair_receives_real_observed_source_order(native):
+@pytest.mark.parametrize('atomic', [False, True])
+def test_semantic_repair_receives_real_observed_source_order(native, atomic):
     # Given V50's complete original source and stale semantic repair,
     # When correcting knowledge, Then the worker receives the same validated
     # read chronology as the reviewer, without losing or approving any source.
@@ -14,7 +15,15 @@ def test_semantic_repair_receives_real_observed_source_order(native):
       const f=await Bun.file('./packages/continual-learning/tests/fixtures/real-memory-repair-source-order.json').json();
       const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
       const identity=Object.fromEntries(['runId','scopeKey','scopeDigest','artifactHash','snapshotDigest'].map(k=>[k,f.original[k]]));
+      const atomic=__ATOMIC__,currentContent=f.original.operations[0].content;
+      if(atomic)f.original.operations[0].content=f.response.replacements[0].content;
       const name=f.original.operations[0].name,before=JSON.stringify(f),native=__NATIVE__;
+      const response=atomic?{...f.response,replacements:[{
+        candidateId:'operations:0:'+digest(f.original.operations[0]),
+        description:'Declared current limitFunction return includes clearQueue and onIdle.',
+        knowledge:{sourceCitations:f.original.operations[0].evidence,
+          units:[{text:currentContent.replace(/^---\n[\s\S]*?\n---\n/,''),citationIndexes:[0,1]}]},
+      }]}:f.response;
       const memorySources={evidenceDigest:digest(f.snapshot),entryDigests:f.sourceEntryIndexes.map(i=>digest(f.snapshot.entries[i]))};
       let prompt,calls=0,tools,server;
       if(native){
@@ -23,31 +32,34 @@ def test_semantic_repair_receives_real_observed_source_order(native):
           calls++;const wire=await request.json();tools=wire.tools;
           prompt=wire.messages.filter(m=>m.role==='user').at(-1).content;
           const chunk=(delta,finish_reason)=>'data: '+JSON.stringify({id:'fixture',object:'chat.completion.chunk',model:'offline',choices:[{index:0,delta,finish_reason}]})+'\n\n';
-          return new Response(chunk({role:'assistant',content:JSON.stringify(f.response)},null)+chunk({},'stop')+'data: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});
+          return new Response(chunk({role:'assistant',content:JSON.stringify(response)},null)+chunk({},'stop')+'data: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});
         }});
         fs.writeFileSync(path.join(agent,'models.json'),JSON.stringify({providers:{fixture:{baseUrl:`http://127.0.0.1:${server.port}/v1`,api:'openai-completions',apiKey:'offline',models:[{id:'offline',name:'offline',reasoning:false,input:['text'],contextWindow:1000000,maxTokens:4096,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}}]}}}));
         fs.writeFileSync(path.join(agent,'settings.json'),JSON.stringify({packages:[],extensions:[],skills:[],retry:{enabled:false}}));
         process.env.PI_OFFLINE='1';process.argv[1]=fs.realpathSync('./node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');process.execPath=Bun.which('node');
       }else{
         const kit=await import('./packages/kit/src/index.ts');
-        mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{calls++;prompt=input.prompt;tools=input.tools;return{exitCode:0,cancelled:false,stderr:'',text:JSON.stringify(f.response)}}}));
+        mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{calls++;prompt=input.prompt;tools=input.tools;return{exitCode:0,cancelled:false,stderr:'',text:JSON.stringify(response)}}}));
       }
       const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
       const {containsSensitiveMemoryMaterial}=await import('./packages/continual-learning/extensions/consolidation-run.ts');
       const {locatedMemoryEvidence}=await import('./packages/continual-learning/extensions/memory-citation-locations.ts');
       try{
-        const result=await repairIncrementalMemoryPlan({identity,rejectedPlan:f.original,selectedNames:[name],repairableNames:[name],repairableFields:{[name]:['body','description']},errors:['counter evidence held'],memorySources,...(native?{model:'fixture/offline'}:{}),semanticContext:{frozenEvidence:f.snapshot,existingMemories:f.existing}});
+        const result=await repairIncrementalMemoryPlan({identity,rejectedPlan:f.original,selectedNames:[name],repairableNames:[name],repairableFields:{[name]:['body','description']},...(atomic?{atomicBodyEvidence:true}:{}),errors:['counter evidence held'],memorySources,...(native?{model:'fixture/offline'}:{}),semanticContext:{frozenEvidence:f.snapshot,existingMemories:f.existing}});
         if(Array.isArray(prompt))prompt=prompt.filter(x=>x.type==='text').map(x=>x.text).join('');
         const context=JSON.parse(prompt.split('\n').at(-1));
         console.log(JSON.stringify({calls,tools:tools?.length??0,order:context.sourceReadOrder,
           sourceUnchanged:JSON.stringify(context.semanticContext.frozenEvidence)===JSON.stringify(locatedMemoryEvidence(f.snapshot)),
           unchanged:JSON.stringify(f)===before,sensitive:containsSensitiveMemoryMaterial(JSON.stringify(f)),
           chronologyInstruction:prompt.includes('Existing Memory is a correction target, not authoritative source'),
+          chronologyCopies:prompt.split('Existing Memory is a correction target, not authoritative source').length-1,
           temporalInstruction:prompt.includes('Optional temporal clarification')&&prompt.includes('current as observed in this task')&&prompt.includes('Cite both actual source observations')&&prompt.includes('Do not infer dates, releases, versions')&&prompt.includes('History is not a loophole')&&prompt.includes('do not change an already correct body merely because a verdict is uncertain'),
           oldFailureRetained:result.plan?.operations[0].content.includes("'clearQueue'>;")&&!result.plan?.operations[0].content.includes("'clearQueue' | 'onIdle'>;"),
+          newSourceCorrected:result.plan?.operations[0].content.includes("'clearQueue' | 'onIdle'>;")&&result.plan?.operations[0].content.includes('onIdle: () => Promise<void>;'),
+          outcome:result.outcome,
           piVersion:JSON.parse(fs.readFileSync('./node_modules/@earendil-works/pi-coding-agent/package.json','utf8')).version}));
       }finally{server?.stop(true)}
-    '''.replace('__NATIVE__', str(native).lower()), timeout=45)
+    '''.replace('__NATIVE__', str(native).lower()).replace('__ATOMIC__', str(atomic).lower()), timeout=45)
     assert value.get('order'), 'semantic repair lost validated source-read chronology'
     assert value['order']['writeAuthorized'] is False
     comparison = next(c for c in value['order']['comparisons'] if c['sourcePath'] == '/work/p-limit/index.d.ts')
@@ -55,15 +67,18 @@ def test_semantic_repair_receives_real_observed_source_order(native):
     assert comparison['earlierSuccessfulReads']
     assert all(r['resultIndex'] < 55 for r in comparison['earlierSuccessfulReads'])
     assert value['chronologyInstruction'] and value['sourceUnchanged'] and value['unchanged']
+    assert value['chronologyCopies'] == 1
     assert value['temporalInstruction'], 'repair offers no source-bound current-versus-earlier clarification'
-    assert value['oldFailureRetained'] and not value['sensitive']
+    assert (value['newSourceCorrected'] if atomic else value['oldFailureRetained']) and not value['sensitive']
+    assert value['outcome'] == 'repaired'
     assert value['calls'] == 1 and value['tools'] == 0 and value['piVersion'] == '1.3.0'
 
 
 @pytest.mark.parametrize('mode', ['foreign-evidence', 'foreign-entry', 'missing-run',
                                   'changed-snapshot', 'failed-audit', 'ambiguous-audit',
                                   'failed-earlier', 'ambiguous-earlier', 'different-earlier', 'unbound'])
-def test_repair_source_order_rejects_invalid_bindings_and_excludes_invalid_prior_reads(mode):
+@pytest.mark.parametrize('atomic', [False, True])
+def test_repair_source_order_rejects_invalid_bindings_and_excludes_invalid_prior_reads(mode, atomic):
     value = isolated_run_bun(r'''
       import {mock}from'bun:test';import{createHash}from'node:crypto';
       const f=await Bun.file('./packages/continual-learning/tests/fixtures/real-memory-repair-source-order.json').json();
@@ -90,9 +105,9 @@ def test_repair_source_order_rejects_invalid_bindings_and_excludes_invalid_prior
       const kit=await import('./packages/kit/src/index.ts');
       mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{calls++;context=JSON.parse(input.prompt.split('\n').at(-1));return{exitCode:0,cancelled:false,stderr:'',text:JSON.stringify({kind:'incremental-memory-amendment',version:1,...identity,replacements:[]})}}}));
       const{repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
-      const r=await repairIncrementalMemoryPlan({identity,rejectedPlan:{...f.original,...identity},selectedNames:[name],repairableNames:[name],repairableFields:{[name]:['body','description']},errors:['held'],...(mode==='unbound'?{}:{memorySources:mode==='changed-snapshot'?originalSources:sources}),semanticContext:{frozenEvidence:f.snapshot,existingMemories:f.existing}});
+      const r=await repairIncrementalMemoryPlan({identity,rejectedPlan:{...f.original,...identity},selectedNames:[name],repairableNames:[name],repairableFields:{[name]:['body','description']},...(__ATOMIC__?{atomicBodyEvidence:true}:{}),errors:['held'],...(mode==='unbound'?{}:{memorySources:mode==='changed-snapshot'?originalSources:sources}),semanticContext:{frozenEvidence:f.snapshot,existingMemories:f.existing}});
       console.log(JSON.stringify({calls,failureKind:r.failureKind,order:context?.sourceReadOrder,priorIndex,planPresent:!!r.plan}));
-    '''.replace('__MODE__', mode))
+    '''.replace('__MODE__', mode).replace('__ATOMIC__', str(atomic).lower()))
     assert not value['planPresent']
     if mode in ('failed-earlier', 'ambiguous-earlier', 'different-earlier', 'unbound'):
         assert value['calls'] == 1
@@ -141,13 +156,29 @@ def test_real_rewrite_receives_bound_current_source_in_every_counter_window(mode
       const bound=new Set(input.memorySources.entryDigests);
       const expected=input.evidence.entries.flatMap((entry,index)=>bound.has(digest(entry))&&entry.message?.role==='toolResult'&&entry.message?.details?.sourcePath?.endsWith('/index.d.ts')?[{index,entry}]:[]);
       const hashes=rows=>rows?.map(({index,entry})=>({index,sha256:digest(entry)}));
-      console.log(JSON.stringify({windows:requests.map(({state,questions})=>({context:hashes(state.sourceComparisonEvidence?.entries),order:state.sourceComparisonEvidence?.observedReadOrder,quoteFacts:state.sourceComparisonEvidence?.exactQuoteComparisons,calls:state.sourceComparisonEvidence?.citationToolCalls.map(x=>({callIndex:x.callIndex,resultIndex:x.resultIndex})),coverage:state.reviewEvidence.entries.map(x=>x.index),instructed:Object.values(questions).every(q=>q.instructions.question.includes('sourceComparisonEvidence'))})),expected:hashes(expected),decision:result.decision,entryCount:input.evidence.entries.length,unchanged:before===JSON.stringify(input),complete:result.candidateReview?.complete}));
+      console.log(JSON.stringify({windows:requests.map(({state,questions})=>({context:hashes(state.sourceComparisonEvidence?.entries),order:state.sourceComparisonEvidence?.observedReadOrder,quoteFacts:state.sourceComparisonEvidence?.exactQuoteComparisons,calls:state.sourceComparisonEvidence?.citationToolCalls.map(x=>({callIndex:x.callIndex,resultIndex:x.resultIndex})),coverage:state.reviewEvidence.entries.map(x=>x.index),counterScopes:Object.entries(questions).filter(([key])=>/^counter_\d+_\d+$/.test(key)).map(([key,q])=>({key,compatible:q.criteria.compatible,
+        quoteInstruction:q.instructions.question.split(" When present, sourceComparisonEvidence.exactQuoteComparisons").slice(1).join(" When present, sourceComparisonEvidence.exactQuoteComparisons").split(" supportEvidence.reviewEntryIndexes")[0],
+        claimsWholeChronology:/complete original chronology|after comparing complete chronology/.test(q.instructions.question)})),instructed:Object.values(questions).every(q=>q.instructions.question.includes('sourceComparisonEvidence'))})),expected:hashes(expected),decision:result.decision,entryCount:input.evidence.entries.length,unchanged:before===JSON.stringify(input),complete:result.candidateReview?.complete}));
     '''.replace('__MODE__', mode))
     assert value['expected'], 'real fixture must include the bound successor declaration'
     assert len(value['windows']) > 1
     coverage = []
+    local_domain = ('this complete indexed reviewEvidence window with complete cited supportEvidence '
+                    'and supplied source-comparison context')
+    mutation_criterion = ('No unresolved conflict with original observations, including user-stated project facts, preferences and their material conditions, remains after comparing '
+                          + local_domain + '. A verified later observation of the same source subject can resolve an earlier source difference for its exact text, '
+                          'never runtime or test success or user preferences. Independent permission and preservation must still pass.')
+    quote_instruction = (' supplies parent-computed literal quote presence in original read text blocks. '
+                         'Use these exact comparisons rather than inferring string equality; they do not decide meaning, source identity, supersession, user authority or whether this mutation is acceptable. '
+                         'A quote can be absent from an earlier observation and present in a later one without making either historical observation false. '
+                         'Judge the proposed knowledge and all conditions against ' + local_domain + '; every semantic and preservation gate remains required.')
     for window in value['windows']:
         assert window.get('context'), 'rewrite lost current-source comparison outside its window'
+        assert window['counterScopes']
+        for scope in window['counterScopes']:
+            assert not scope['claimsWholeChronology']
+            if mode != 'new-project':
+                assert scope['compatible'] == mutation_criterion
         assert window['context'] == value['expected']
         assert [call['resultIndex'] for call in window['calls']] == [row['index'] for row in value['expected']]
         assert all(call['callIndex'] < call['resultIndex'] for call in window['calls'])
@@ -165,6 +196,7 @@ def test_real_rewrite_receives_bound_current_source_in_every_counter_window(mode
             facts = window.get('quoteFacts')
             assert facts, 'paired source review lacks parent-computed exact quote comparison'
             assert facts['writeAuthorized'] is False
+            assert all(scope['quoteInstruction'] == quote_instruction for scope in window['counterScopes'])
             assert len(facts['observations']) == 1
             fact = facts['observations'][0]
             assert fact['candidateIndex'] == 0 and fact['sourcePath'] == '/work/p-limit/index.d.ts'

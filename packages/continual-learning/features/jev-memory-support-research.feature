@@ -1,4 +1,14 @@
 Feature: Read-only narrow Memory support research
+  Scenario: A controlled support diagnostic retains the production question
+    Given a fixed reviewed authored corpus and an isolated empty agent directory
+    When offline SDK transport captures the current production support request
+    Then each case keeps the complete source state and unchanged support criteria
+    And labels and case identities remain outside the model input
+    And a separate accounting owner must provide any real transport
+    And each real case uses one request with no SDK retry and stores its numeric response and usage
+    And unavailable or wrong-model responses are incomplete cases rather than false holds
+    And the diagnostic grants no threshold change, mutation authority or learning benefit
+
   Scenario: Fully cited new Memory retains complete independent checks
     Given original frozen citations privacy classification and complete evidence
     When a research judge uses Noul for body and description grounding

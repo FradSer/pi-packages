@@ -88,9 +88,72 @@ def test_incremental_knowledge_contract_precedes_untrusted_dossier() -> None:
     assert "A function-typed input parameter has a callable type" in value['contract']
     assert "the return annotation inside that parameter's call signature describes its invocation result" in value['contract']
     assert "Do not replace the parameter's own type with its callback return annotation" in value['contract']
+    # The named return type must be linked to its factory when this relationship
+    # is the lesson, rather than merely quoting two disconnected declarations.
+    bridge = isolated_run_bun(r'''
+      import fs from 'node:fs';
+      import {createHash} from 'node:crypto';
+      import {parse} from '@babel/parser';
+      const f=JSON.parse(fs.readFileSync('packages/continual-learning/tests/fixtures/real-description-body-conflict.json','utf8')).declarationOwnerBridgeCase;
+      const ast=parse(f.sourceText,{sourceType:'module',plugins:['typescript']});
+      const factory=ast.program.body.find(n=>n.type==='ExportDefaultDeclaration').declaration;
+      const named=ast.program.body.find(n=>n.type==='ExportNamedDeclaration' && n.declaration?.id?.name==='LimitFunction').declaration;
+      const member=named.typeAnnotation.members.find(n=>n.key?.name==='clearQueue');
+      console.log(JSON.stringify({sourceMatches:createHash('sha256').update(f.sourceText).digest('hex')===f.provenance.sourceSha256,
+        factory:factory.id.name,returnType:factory.returnType.typeAnnotation.typeName.name,
+        member:member.key.name,memberType:member.typeAnnotation.typeAnnotation.type,
+        originalHasMember:f.originalContent.includes('clearQueue: () => void;'),
+        originalHasBridge:f.originalContent.includes(f.sourceRelation)}));
+    ''')
+    assert bridge == {'sourceMatches': True, 'factory': 'pLimit', 'returnType': 'LimitFunction',
+                      'member': 'clearQueue', 'memberType': 'TSFunctionType',
+                      'originalHasMember': True, 'originalHasBridge': False}
+    assert 'factory or call site to its named return type and the relevant declared member' in value['contract']
 
 
-def test_known_json_capable_no_tool_planners_request_structured_output() -> None:
+def test_incremental_selection_preserves_independent_contract_facts_and_preference_shape() -> None:
+    # Given a failed task with independently inspected contracts, When the
+    # existing planner receives its dossier, Then its delivered policy retains
+    # applicable relationships instead of selecting only a shorter pitfall.
+    # This tests the generation contract, not model compliance or benefit.
+    value = isolated_run_bun(r'''
+      import {buildIncrementalMemoryConsolidatorPrompt} from './packages/continual-learning/extensions/planner-prompts.ts';
+      const prompt=buildIncrementalMemoryConsolidatorPrompt({runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h',dossierPath:'/fixture/dossier',dossierContents:'ORIGINAL_DOSSIER_SENTINEL'});
+      console.log(JSON.stringify({prompt}));
+    ''')
+    prompt = value['prompt']
+    assert 'Deduplicate repeated statements, not independently applicable contract facts.' in prompt
+    assert 'The failure observation does not replace the inspected contract needed to apply it.' in prompt
+    assert 'For each new entry, preserve one reusable fact or relationship with its evidenced' in prompt
+    assert 'Prioritize a reusable pitfall evidenced by the actual failed verification over' not in prompt
+    assert 'For each new entry, write one minimal durable fact or closely related preference' not in prompt
+    assert 'An ordinary prose proposal has' not in prompt
+    assert 'A preference proposal has `name`, `kind: "preference"`,' in prompt
+    # Check actual examples rather than manufacturing new schema authority.
+    import json
+    import re
+    examples = re.findall(r'```json\s*(.*?)\s*```', prompt, re.DOTALL)
+    preference = next(json.loads(example) for example in examples
+                      if '"name": "preference_example.md"' in example)
+    assert preference['kind'] == 'preference'
+    assert preference['classification'] == 'private'
+    assert isinstance(preference['content'], str) and preference['content']
+    assert preference['evidence'] and 'knowledge' not in preference
+    project = json.loads(next(line for line in prompt.splitlines()
+                              if line.startswith('`{"name":"project_fact.md"')).strip('`.'))
+    assert project['kind'] == 'project' and project['classification'] == 'safe'
+    assert project['knowledge']['units'] and project['knowledge']['sourceCitations']
+    assert 'content' not in project and 'evidence' not in project
+    assert 'The parent remains compatible with legacy complete `content`/`evidence` project' in prompt
+    assert 'No repository exploration or discovery is granted to this worker' in prompt
+    assert 'at most eight items and 2,000 extracted characters per item' in prompt
+    assert 'All semantic gates still apply.' in prompt
+    assert 'pLimit' not in prompt and 'LimitFunction' not in prompt
+    assert prompt.count('ORIGINAL_DOSSIER_SENTINEL') == 1
+
+
+@pytest.mark.parametrize("model_id", ["bailian/qwen3.8-flash", "deepseek-flash", "bailian/deepseek-v4.1-flash", "deepseek-v4-pro", "gpt-6.1-sol"])
+def test_known_json_capable_no_tool_planners_request_structured_output(model_id: str) -> None:
     # Given a JSON-capable model and an isolated no-tool worker, When its
     # request is prepared, Then constrain content on the wire without changing
     # messages, model, reasoning, tools or caller-supplied output constraints.
@@ -99,31 +162,57 @@ def test_known_json_capable_no_tool_planners_request_structured_output() -> None
       import path from 'node:path';
       import extension from './packages/continual-learning/extensions/planner-json-output.ts';
       import {learningPlannerArgs} from './packages/continual-learning/extensions/planner-prompts.ts';
-      let handler;let tools=[];
-      extension({registerFlag:()=>{},getFlag:()=>undefined,on:(name,fn)=>{if(name==='before_provider_request')handler=fn},getActiveTools:()=>tools});
-      const payload={model:'bailian/qwen3.8-flash',messages:[{role:'user',content:'Return JSON.'}],reasoning_effort:'medium'};
-      const context={model:{api:'openai-completions',id:'bailian/qwen3.8-flash'}};
+      let handler;let tools=[];const flags={};
+      extension({registerFlag:()=>{},getFlag:name=>flags[name],on:(name,fn)=>{if(name==='before_provider_request')handler=fn},getActiveTools:()=>tools});
+      const responses=process.env.TEST_JSON_MODEL==='gpt-6.1-sol';
+      const payload=responses ? {model:process.env.TEST_JSON_MODEL,input:[{role:'user',content:[{type:'input_text',text:'Return JSON.'}]}],reasoning:{effort:'medium'},text:{verbosity:'low'}} : {model:process.env.TEST_JSON_MODEL,messages:[{role:'user',content:'Return JSON.'}],reasoning_effort:'medium'};
+      const context={model:{api:responses?'openai-responses':'openai-completions',id:process.env.TEST_JSON_MODEL}};
       const notOptedIn=handler({payload},context);
       fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerJsonOutput:true}));
       const constrained=handler({payload},context);
       tools=['learning_read'];const inspecting=handler({payload},context);tools=[];
       const unsupported=handler({payload},{model:{api:'anthropic-messages',id:'qwen3.8-flash'}});
       const unknown=handler({payload},{model:{api:'openai-completions',id:'unknown'}});
-      const explicit={...payload,response_format:{type:'json_schema',json_schema:{name:'caller'}}};
+      const explicit=responses ? {...payload,text:{...payload.text,format:{type:'json_schema',name:'caller'}}} : {...payload,response_format:{type:'json_schema',json_schema:{name:'caller'}}};
       const existing=handler({payload:explicit},context);
-      console.log(JSON.stringify({notOptedIn,constrained,original:payload,inspecting,unsupported,unknown,existing,args:learningPlannerArgs()}));
-    ''', temp_dirs=('PI_CODING_AGENT_DIR',))
+      const wrongSolApi=handler({payload},{model:{api:'openai-completions',id:'gpt-6.1-sol'}});
+      const unknownResponses=handler({payload},{model:{api:'openai-responses',id:'gpt-6-sol'}});
+      const malformedText=responses?handler({payload:{...payload,text:[]}},context):undefined;
+      flags['learning-output-schema']='memory-body-review';flags['learning-body-count']='2';
+      const config=path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json');
+      fs.writeFileSync(config,JSON.stringify({plannerStructuredOutput:true}));
+      const schemaOnly=handler({payload},context);
+      fs.writeFileSync(config,JSON.stringify({plannerStructuredOutput:true,plannerJsonOutput:true}));
+      const bothEnabled=handler({payload},context);
+      const otherDeepseek=handler({payload},{model:{api:'openai-completions',id:'deepseek-v3'}});
+      console.log(JSON.stringify({notOptedIn,constrained,original:payload,inspecting,unsupported,unknown,existing,schemaOnly,bothEnabled,otherDeepseek,wrongSolApi,unknownResponses,malformedText,args:learningPlannerArgs()}));
+    ''', env={'TEST_JSON_MODEL': model_id}, temp_dirs=('PI_CODING_AGENT_DIR',))
     assert value.get('notOptedIn') is None
-    assert value['constrained']['response_format'] == {'type': 'json_object'}
-    assert {k: v for k, v in value['constrained'].items() if k != 'response_format'} == value['original']
-    assert 'response_format' not in value['original']
+    if model_id == 'gpt-6.1-sol':
+        assert value['constrained']['text'] == {'verbosity': 'low', 'format': {'type': 'json_object'}}
+        assert {**value['constrained'], 'text': value['original']['text']} == value['original']
+        assert 'format' not in value['original']['text']
+    else:
+        assert value['constrained']['response_format'] == {'type': 'json_object'}
+        assert {k: v for k, v in value['constrained'].items() if k != 'response_format'} == value['original']
+        assert 'response_format' not in value['original']
     assert value.get('inspecting') is None and value.get('unsupported') is None and value.get('unknown') is None
     assert value.get('existing') is None
+    assert value.get('wrongSolApi') is None and value.get('unknownResponses') is None
+    assert value.get('malformedText') is None
     assert any(arg.endswith('/planner-json-output.ts') for arg in value['args'])
 
+    if 'qwen' in model_id:
+        assert value['schemaOnly']['response_format']['type'] == 'json_schema'
+        assert value['bothEnabled']['response_format']['type'] == 'json_schema'
+    else:
+        assert value.get('schemaOnly') is None
+        assert (value['bothEnabled']['text']['format'] if model_id == 'gpt-6.1-sol' else value['bothEnabled']['response_format']) == {'type': 'json_object'}
+    assert value.get('otherDeepseek') is None
 
-@pytest.mark.parametrize("strict,thinking", [(False, None), (True, None), (True, "low")])
-def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, strict, thinking) -> None:
+
+@pytest.mark.parametrize("strict,thinking,model_id", [(False, None, "qwen3.8-flash"), (True, None, "qwen3.8-flash"), (True, "low", "qwen3.8-flash"), (False, None, "bailian/deepseek-v4.1-flash"), (False, None, "gpt-6.1-sol")])
+def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, strict, thinking, model_id) -> None:
     import json
     import subprocess
     import threading
@@ -133,6 +222,7 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
     from support import REPO
 
     received = []
+    responses_api = model_id == 'gpt-6.1-sol'
     identity = {'runId': 'fixture-run', 'scopeKey': 'fixture-scope', 'scopeDigest': 'fixture-digest',
                 'artifactHash': 'fixture-artifact', 'snapshotDigest': 'fixture-snapshot'}
     plan = {'kind': 'incremental-memory-plan', 'version': 1, 'schemaVersion': 1,
@@ -155,7 +245,8 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
             payload = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             received.append(payload)
             # The negative control imitates the real rejected no-tool output.
-            content = json.dumps(plan) if payload.get('response_format', {}).get('type') == ('json_schema' if strict else 'json_object') else '<tool_call><function=bash>echo forbidden</function></tool_call>'
+            requested_format = payload.get('text', {}).get('format', {}) if responses_api else payload.get('response_format', {})
+            content = json.dumps(plan) if requested_format.get('type') == ('json_schema' if strict else 'json_object') else '<tool_call><function=bash>echo forbidden</function></tool_call>'
             if payload.get('response_format', {}).get('json_schema', {}).get('name') == 'memory_amendment':
                 content = json.dumps(amendment)
                 if 'Task: correct source citations' in json.dumps(payload.get('messages', [])):
@@ -164,7 +255,46 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
                 content = json.dumps({**amendment, 'operations': [{'name': 'retained.md', 'kind': 'rewrite', 'classification': 'private', 'content': 'The project uses pnpm.', 'evidence': [{'ref': 'e0.b0.l1'}]}]})
             if payload.get('response_format', {}).get('json_schema', {}).get('name') == 'memory_body_review':
                 content = json.dumps({'reviews': {'0': {'verdict': 'consistent', 'conflictingQuotes': [], 'reason': 'Internally compatible.'}}})
-            stream_response(self, content)
+            if payload.get('response_format', {}).get('json_schema', {}).get('name') == 'memory_coverage_review':
+                content = json.dumps({'plan': {'verdict': 'covered', 'obligations': []}, 'reviews': {'0': {
+                    'scope': {'basis': 'optional', 'statement': 'Project tooling', 'evidence': [{'ref': 'e0.b0.l1'}]},
+                    'claims': [{'statement': 'The project uses pnpm.', 'bodyQuote': 'The project uses pnpm.',
+                                'evidence': [{'ref': 'e0.b0.l1'}], 'conditions': []}],
+                    'uncovered': [], 'verdict': 'uncertain'}}})
+            if payload.get('response_format', {}).get('json_schema', {}).get('name') == 'memory_coverage_review' and not payload['response_format']['json_schema']['schema']['properties']['reviews']['properties']:
+                content = json.dumps({'plan': {'verdict': 'incomplete', 'obligations': [{
+                    'basis': 'requested', 'statement': 'Keep the requested tooling fact',
+                    'evidence': [{'ref': 'e0.b0.l1'}], 'coveredBy': [], 'status': 'missing'}]}, 'reviews': {}})
+            if responses_api:
+                assert self.path == '/v1/responses'
+                item = {'id': 'msg_fixture', 'type': 'message', 'role': 'assistant', 'status': 'in_progress', 'content': []}
+                part = {'type': 'output_text', 'text': '', 'annotations': []}
+                response = {'id': 'resp_fixture', 'object': 'response', 'created_at': 1,
+                            'model': payload['model'], 'status': 'in_progress', 'output': []}
+                complete_part = {**part, 'text': content}
+                complete_item = {**item, 'status': 'completed', 'content': [complete_part]}
+                events = [
+                    {'type': 'response.created', 'response': response},
+                    {'type': 'response.output_item.added', 'output_index': 0, 'item': item},
+                    {'type': 'response.content_part.added', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'part': part},
+                    {'type': 'response.output_text.delta', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'delta': content},
+                    {'type': 'response.output_text.done', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'text': content},
+                    {'type': 'response.content_part.done', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'part': complete_part},
+                    {'type': 'response.output_item.done', 'output_index': 0, 'item': complete_item},
+                    {'type': 'response.completed', 'response': {**response, 'status': 'completed', 'output': [complete_item],
+                     'usage': {'input_tokens': 10, 'output_tokens': 10, 'total_tokens': 20,
+                               'input_tokens_details': {'cached_tokens': 0}, 'output_tokens_details': {'reasoning_tokens': 0}}}},
+                ]
+                wire = ''.join('event: ' + event['type'] + '\ndata: ' + json.dumps({**event, 'sequence_number': i}) + '\n\n'
+                               for i, event in enumerate(events)).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/event-stream')
+                self.send_header('Content-Length', str(len(wire)))
+                self.end_headers()
+                self.wfile.write(wire)
+                self.wfile.flush()
+            else:
+                stream_response(self, content)
 
     agent = tmp_path / 'agent'
     agent.mkdir()
@@ -174,11 +304,11 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        models = [{'id': name, 'reasoning': bool(thinking), **({'compat': {'thinkingFormat': 'qwen', 'supportsReasoningEffort': True}, 'thinkingLevelMap': {'off': 'none', 'minimal': None, 'low': 'low', 'medium': 'medium', 'high': None, 'xhigh': 'xhigh', 'max': None}} if thinking else {}), 'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
+        models = [{'id': name, 'reasoning': bool(thinking) or responses_api, **({'compat': {'thinkingFormat': 'qwen', 'supportsReasoningEffort': True}, 'thinkingLevelMap': {'off': 'none', 'minimal': None, 'low': 'low', 'medium': 'medium', 'high': None, 'xhigh': 'xhigh', 'max': None}} if thinking else {}), 'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
                    'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}
-                  for name in ['qwen3.8-flash', 'unknown']]
+                  for name in [model_id, 'unknown']]
         (agent / 'models.json').write_text(json.dumps({'providers': {'planner-json-loopback': {
-            'baseUrl': f'http://127.0.0.1:{server.server_port}/v1', 'api': 'openai-completions',
+            'baseUrl': f'http://127.0.0.1:{server.server_port}/v1', 'api': 'openai-responses' if responses_api else 'openai-completions',
             'apiKey': 'loopback-fixture-only', 'models': models}}}))
         semantic_input = {'identity': identity, 'rejectedPlan': original, 'selectedNames': [],
                           'errors': ['fixture held claim'], 'model': 'planner-json-loopback/qwen3.8-flash',
@@ -190,17 +320,22 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
                           'semanticContext': {**semantic_input['semanticContext'], 'existingMemories': [{'name': 'retained.md', 'classification': 'private', 'type': 'project', 'description': 'Project tooling', 'content': 'The project uses npm.'}]}}
         combined_call = f"const combined=await repairIncrementalMemoryPlan({json.dumps(combined_input)});" if strict else 'const combined=null;'
         body_call = "const body=await reviewMemoryBodies({candidates:[{name:'fact.md',content:'Complete immutable body.'}],retained:[],model:'planner-json-loopback/qwen3.8-flash'});" if strict else 'const body=null;'
+        coverage_call = "const coverage=await reviewMemoryCoverage({candidates:[{name:'fact.md',content:'The project uses pnpm.'}],retained:[],evidence:{contextEnabled:true,entries:[{role:'user',content:'The project uses pnpm.'}]},predecessors:[],plan:{operations:[],newMemories:[{name:'fact.md',content:'The project uses pnpm.'}]},model:'planner-json-loopback/qwen3.8-flash'});" if strict else 'const coverage=null;'
+        empty_coverage_call = "const emptyCoverage=await reviewMemoryCoverage({candidates:[],retained:[],evidence:{contextEnabled:true,entries:[{role:'user',content:'Remember the project uses pnpm.'}]},predecessors:[],plan:{operations:[],newMemories:[]},model:'planner-json-loopback/qwen3.8-flash'});" if strict else 'const emptyCoverage=null;'
         source = f'''
           import {{repairIncrementalMemoryPlan}} from './packages/continual-learning/extensions/inject-memory.ts';
           import {{reviewMemoryBodies}} from './packages/continual-learning/extensions/memory-body-review.ts';
+          import {{reviewMemoryCoverage}} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
           const input={{identity:{json.dumps(identity)},rejectedPlan:{json.dumps(plan)},errors:['fixture framing'],selectedNames:[]}};
           const control=await repairIncrementalMemoryPlan({{...input,model:'planner-json-loopback/unknown'}});
-          const structured=await repairIncrementalMemoryPlan({{...input,model:'planner-json-loopback/qwen3.8-flash'}});
+          const structured=await repairIncrementalMemoryPlan({{...input,model:'planner-json-loopback/{model_id}'}});
           {semantic_call}
           {citation_call}
           {combined_call}
           {body_call}
-          console.log(JSON.stringify({{control,structured,semantic,citation,combined,body}}));
+          {coverage_call}
+          {empty_coverage_call}
+          console.log(JSON.stringify({{control,structured,semantic,citation,combined,body,coverage,emptyCoverage}}));
         '''
         result = subprocess.run(['bun', '-e', source], cwd=REPO, env=isolated_environment(tmp_path, agent),
                                 capture_output=True, text=True, timeout=90)
@@ -210,8 +345,23 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
         assert value['control']['failureKind'] == 'framing'
         assert value['structured']['outcome'] == 'repaired'
         assert value['structured']['plan'] == plan
-        assert len(received) == (6 if strict else 2)
+        assert len(received) == (8 if strict else 2)
         if strict:
+            assert value['emptyCoverage']['status'] == 'reviewed'
+            assert value['emptyCoverage']['plan']['verdict'] == 'incomplete'
+            assert value['emptyCoverage']['accounts'] == []
+            zero_schema = received[7]['response_format']['json_schema']['schema']
+            assert set(zero_schema['required']) == {'plan', 'reviews'}
+            assert zero_schema['properties']['reviews']['properties'] == {}
+            assert 'Remember the project uses pnpm.' in json.dumps(received[7]['messages'])
+            assert value['coverage']['status'] == 'reviewed' 
+            assert value['coverage']['accounts'][0]['verdict'] == 'uncertain'
+            assert value['coverage']['accounts'][0]['scope']['basis'] == 'optional'
+            coverage_schema = received[6]['response_format']['json_schema']
+            assert coverage_schema['name'] == 'memory_coverage_review' and coverage_schema['strict']
+            assert coverage_schema['schema']['properties']['reviews']['required'] == ['0']
+            assert 'frozenEvidence' in json.dumps(received[6]['messages'])
+            assert 'frozenEvidence' not in json.dumps(received[5]['messages'])
             assert value['body']['status'] == 'reviewed'
             body_schema = received[5]['response_format']['json_schema']
             assert body_schema['name'] == 'memory_body_review' and body_schema['strict']
@@ -268,12 +418,18 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
             # When actual Pi sends the repair, Then keep xhigh despite configured low.
             # Structural and citation-only requests must retain their configured effort.
             assert [request.get('reasoning_effort') for request in received] == [
-                thinking, thinking, 'xhigh', thinking, 'xhigh', 'xhigh',
+                thinking, thinking, 'xhigh', thinking, 'xhigh', 'xhigh', 'xhigh', 'xhigh',
             ]
             assert all(request.get('enable_thinking') is True for request in received)
         assert all(not request.get('tools') for request in received)
         assert 'response_format' not in received[0]
-        if strict:
+        if responses_api:
+            assert received[1]['text']['format'] == {'type': 'json_object'}
+            assert 'format' not in received[0].get('text', {})
+            assert 'response_format' not in received[1]
+            assert all(isinstance(request['input'], list) for request in received)
+            assert all(request.get('reasoning', {}).get('effort') in ('low', 'medium', 'high', 'xhigh', 'max') for request in received)
+        elif strict:
             assert received[1]['response_format']['type'] == 'json_schema'
             assert received[1]['response_format']['json_schema']['name'] == 'memory_delta'
         else:

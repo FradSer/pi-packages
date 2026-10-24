@@ -155,8 +155,8 @@ def test_terminal_pipeline_error_after_recovered_retry_is_reported() -> None:
       const state={cancelled:false,attempts:[{phase:'memory',outcome:'rejected',operations:0},{phase:'memory',outcome:'applied',operations:1},{phase:'agents',outcome:'noop',operations:0}]};
       let receipt;
       const opts={cwd:'/fixture',mode:'manual',reportResult:true,reportReceipt:r=>receipt=r};
-      const handler=new Function('state','opts','pipelineScreen','learningInput','buildLearningReceipt','writeLearningReceipt','resolveMemoryPaths','shouldReportLearningReceipt','notifyPi','ctx','currentLearningBatch',
-        'return async error => {'+body+'}')(state,opts,{memory:true,harness:false,agents:true,reasons:[]},undefined,buildLearningReceipt,async()=>{},()=>({runsDir:'/fixture'}),()=>true,()=>{},{ui:{}},()=>undefined);
+      const handler=new Function('state','opts','pipelineScreen','learningInput','buildLearningReceipt','writeLearningReceipt','resolveMemoryPaths','shouldReportLearningReceipt','notifyPi','ctx','pipelineBatchId',
+        'return async error => {'+body+'}')(state,opts,{memory:true,harness:false,agents:true,reasons:[]},undefined,buildLearningReceipt,async()=>{},()=>({runsDir:'/fixture'}),()=>true,()=>{},{ui:{}},undefined);
       await handler(new Error('proposal write failed'));
       console.log(JSON.stringify({subject:learningSummarySubject(receipt),tone:learningSummaryTone(receipt)}));
     ''')

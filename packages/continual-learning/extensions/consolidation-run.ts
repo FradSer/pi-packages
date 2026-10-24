@@ -304,6 +304,7 @@ export async function acquireConsolidationLock(paths: ConsolidationRunPaths, own
 }
 
 export interface SnapshotSessionManager {
+  getSessionId?: () => string | undefined;
   getBranch?: () => readonly unknown[];
   buildContextEntries?: (...args: unknown[]) => readonly unknown[];
   getSessionFile?: () => string | undefined;
@@ -382,6 +383,80 @@ export function readCurrentMaintenanceCommand(snapshot: unknown): BoundMaintenan
   return command as unknown as BoundMaintenanceCommand;
 }
 
+/** Parent-captured procedure provenance, never source evidence or mutation permission. */
+const memoryCommandCapture = Symbol("parent-memory-command-phase");
+export interface MemoryCommandPhaseInvocation {
+  readonly [memoryCommandCapture]: true;
+  kind: "memory-command-phase";
+  version: 1;
+  command: "memory";
+  origin: "current-handler" | "verified-replay";
+  arguments: string;
+  invocationId: string;
+  scopeKey: string;
+  sessionId?: string;
+  requestEntryIndex: number;
+  requestEntryDigest: string;
+  taskEntriesDigest: string;
+}
+export type BoundMemoryCommandPhase = Omit<MemoryCommandPhaseInvocation, typeof memoryCommandCapture> & {
+  runId: string;
+  sourceEntriesDigest: string;
+};
+
+/** Call only from the actual handler or the native-marker-verified replay resolver.
+ * An index or command-looking source text cannot construct a captured phase. */
+export function captureMemoryCommandPhase(ctx: ConsolidationSnapshotContext, args: string,
+  task: {entries: readonly unknown[]; memoryRequest?: {entryIndex: number}},
+  replay?: {invocationId: string; sessionId: string; scopeKey: string}): MemoryCommandPhaseInvocation {
+  const index = task.memoryRequest?.entryIndex;
+  if (!Number.isSafeInteger(index) || index !== task.entries.length - 1 || !args.trim()) {
+    throw new Error("Invalid Memory command phase capture");
+  }
+  const entry = task.entries[index!] as {type?: string; message?: {role?: string; content?: unknown}};
+  if (entry?.type !== "message" || entry.message?.role !== "user" || entry.message.content !== args) {
+    throw new Error("Invalid Memory command request entry");
+  }
+  const sessionId = replay?.sessionId ?? ctx.sessionManager?.getSessionId?.();
+  return Object.freeze({[memoryCommandCapture]: true as const, kind: "memory-command-phase", version: 1,
+    command: "memory", origin: replay ? "verified-replay" : "current-handler", arguments: args,
+    invocationId: replay?.invocationId ?? crypto.randomUUID(), scopeKey: replay?.scopeKey ?? resolveMemoryPaths(ctx.cwd || process.cwd()).scopeKey,
+    ...(sessionId ? {sessionId} : {}), requestEntryIndex: index!,
+    requestEntryDigest: sha256Digest(JSON.stringify(entry)), taskEntriesDigest: sha256Digest(JSON.stringify(task.entries))});
+}
+
+/** Validate only the distinct parent snapshot namespace; never infer it from entries. */
+export function readCurrentMemoryCommandPhase(snapshot: unknown): BoundMemoryCommandPhase | undefined {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return;
+  const state = snapshot as Record<string, unknown>;
+  if (state.currentMemoryCommandPhase === undefined) return;
+  const invalid = (): never => {throw new Error("Invalid Memory command phase binding");};
+  const value = state.currentMemoryCommandPhase;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return invalid();
+  const phase = value as Record<string, unknown>;
+  const keys = ["kind", "version", "command", "origin", "arguments", "invocationId", "scopeKey", "sessionId",
+    "requestEntryIndex", "requestEntryDigest", "taskEntriesDigest", "runId", "sourceEntriesDigest"];
+  if (Object.keys(phase).some(key => !keys.includes(key)) || phase.kind !== "memory-command-phase"
+    || phase.version !== 1 || phase.command !== "memory" || !["current-handler", "verified-replay"].includes(String(phase.origin))
+    || typeof phase.arguments !== "string" || !phase.arguments.trim()
+    || typeof phase.invocationId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(phase.invocationId)
+    || typeof phase.scopeKey !== "string" || !phase.scopeKey || phase.scopeKey !== state.scopeKey
+    || typeof phase.runId !== "string" || !phase.runId || phase.runId !== state.runId
+    || phase.sessionId !== undefined && (typeof phase.sessionId !== "string" || !phase.sessionId)
+    || state.contextEnabled !== true || !Array.isArray(state.entries)
+    || !Number.isSafeInteger(phase.requestEntryIndex) || (phase.requestEntryIndex as number) < 0
+    || (phase.requestEntryIndex as number) >= state.entries.length) return invalid();
+  const index = phase.requestEntryIndex as number;
+  const entry = state.entries[index] as {type?: string; message?: {role?: string; content?: unknown}};
+  if (entry?.type !== "message" || entry.message?.role !== "user" || entry.message.content !== phase.arguments
+    || phase.requestEntryDigest !== sha256Digest(JSON.stringify(entry))
+    || phase.taskEntriesDigest !== sha256Digest(JSON.stringify(state.entries.slice(0, index + 1)))
+    || phase.sourceEntriesDigest !== sha256Digest(JSON.stringify(state.entries))) return invalid();
+  return phase as unknown as BoundMemoryCommandPhase;
+}
+
+export const MEMORY_COMMAND_PHASE_CONTEXT = "currentMemoryCommandPhase binds the actual /memory procedure to this run and requestEntryIndex; earlier source-task work and later source reads are distinct phases. A task-local ban on direct Memory edits does not itself ban the parent's separately invoked procedure. This is provenance, not source evidence, a must-store request, successful work, privacy waiver or mutation permission. Content-specific no-remember, temporary-only and privacy restrictions and every source, preservation and coverage gate remain required.";
+
 export interface ConsolidationSnapshot {
   schemaVersion: typeof CONSOLIDATION_SCHEMA_VERSION;
   runId: string;
@@ -391,6 +466,7 @@ export interface ConsolidationSnapshot {
   contextEnabled: boolean;
   entries: unknown[];
   currentMaintenanceRequest?: BoundMaintenanceCommand;
+  currentMemoryCommandPhase?: BoundMemoryCommandPhase;
   branchEntries?: unknown[];
   contextEntries?: unknown[];
 }
@@ -631,6 +707,7 @@ export async function captureConsolidationSnapshot(
   paths: ConsolidationRunPaths,
   maxBytes = MAX_SNAPSHOT_BYTES,
   maintenanceCommand?: MaintenanceCommandInvocation,
+  memoryCommandPhase?: MemoryCommandPhaseInvocation,
 ): Promise<{ snapshot: ConsolidationSnapshot; manifest: ContextManifest; digest: string }> {
   await ensureConsolidationRunDir(paths);
   const manager = ctx.sessionManager;
@@ -657,6 +734,16 @@ export async function captureConsolidationSnapshot(
     ...(maintenanceCommand ? {currentMaintenanceRequest: {...maintenanceCommand,
       runId: paths.runId, sourceEntriesDigest: sha256Digest(JSON.stringify(entries))}} : {}),
   };
+  if (memoryCommandPhase) {
+    if (memoryCommandPhase[memoryCommandCapture] !== true) throw new Error("Uncaptured Memory command phase");
+    const sessionId = manager?.getSessionId?.();
+    if (memoryCommandPhase.origin === "current-handler" && sessionId !== undefined
+      && memoryCommandPhase.sessionId !== sessionId) throw new Error("Memory command session changed");
+    const {[memoryCommandCapture]: _capture, ...phase} = memoryCommandPhase;
+    snapshot.currentMemoryCommandPhase = {...phase, runId: paths.runId,
+      sourceEntriesDigest: sha256Digest(JSON.stringify(entries))};
+  }
+  readCurrentMemoryCommandPhase(snapshot);
   readCurrentMaintenanceCommand(snapshot);
   const encoded = jsonText(snapshot);
   if (Buffer.byteLength(encoded, "utf8") > maxBytes) throw new Error(`Consolidation snapshot exceeds ${maxBytes} bytes.`);
@@ -805,7 +892,7 @@ export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorN
   return { repaired: [...repairLog.values()].sort((left, right) => left.name.localeCompare(right.name)), removed: [...removed].sort() };
 }
 
-export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, normalization: typeof normalizeMirrorDrift | false = normalizeMirrorDrift, maintenanceCommand?: MaintenanceCommandInvocation): Promise<ConsolidationRun> {
+export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, normalization: typeof normalizeMirrorDrift | false = normalizeMirrorDrift, maintenanceCommand?: MaintenanceCommandInvocation, memoryCommandPhase?: MemoryCommandPhaseInvocation): Promise<ConsolidationRun> {
   const paths = resolveConsolidationRunPaths(cwd);
   if (maintenanceCommand && maintenanceCommand.scopeKey !== paths.memory.scopeKey) throw new Error("Maintenance command belongs to a different project");
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
@@ -815,7 +902,7 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
     // Every run carries a frozen snapshot. The former no-context mode skipped it
     // and had the planners work from an unfrozen context, which left
     // "evidence" ungroundable and made a proposal's provenance unverifiable.
-    const captured = await captureConsolidationSnapshot(ctx, paths, MAX_SNAPSHOT_BYTES, maintenanceCommand);
+    const captured = await captureConsolidationSnapshot(ctx, paths, MAX_SNAPSHOT_BYTES, maintenanceCommand, memoryCommandPhase);
     const contextManifest = captured.manifest;
     const snapshotDigest = captured.digest;
     const manifest: ConsolidationManifest = {

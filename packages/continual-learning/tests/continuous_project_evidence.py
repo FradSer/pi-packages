@@ -4,10 +4,35 @@ import hashlib
 import base64
 import copy
 import json
+import math
 import posixpath
 import re
+import shlex
+from collections.abc import Callable
 from urllib.parse import urlsplit, unquote
 from pathlib import Path
+
+
+INITIAL_NATIVE_VALIDATION = {'version':1,'piVersion':'1.3.0','files':{
+    'cli.js':'e79626f2dd6f94aa45d30f3fa63cd84319a6eefcd150b353cfaf274366926774',
+    'cli-runtime.js':'f9811fa28c52accb8e2433499a85e857b714a002956005b7859ad00e5e35f380',
+    'chunks/chunk-66G7ITPS.js':'0426becd43ff630d8c9129f5606b23d0a43d5c115334884c77aa6595035c8690',
+    'chunks/chunk-RH6M5TBT.js':'2490522d0a2f4aae7353481a9ab4b0154ba038602b4f0997bb20659526c80340'}}
+
+
+def command_session_prefix_count(session: bytes, digest: str, cwd: str) -> int:
+    """Bind complete native bytes before a command; this grants no learning approval."""
+    if (not isinstance(digest,str) or not re.fullmatch(r'[a-f0-9]{64}',digest)
+            or not isinstance(cwd,str) or not cwd.startswith('/')
+            or not session.endswith(b'\n') or hashlib.sha256(session).hexdigest()!=digest):
+        raise ValueError('Changed or incomplete command session prefix')
+    try:rows=[json.loads(line) for line in session.decode('utf-8').splitlines()]
+    except (ValueError,UnicodeError) as error:raise ValueError('Invalid command session prefix') from error
+    if (not rows or any(not isinstance(row,dict) for row in rows)
+            or rows[0].get('type')!='session' or rows[0].get('cwd')!=cwd
+            or not isinstance(rows[0].get('id'),str) or not rows[0]['id']):
+        raise ValueError('Missing command session identity')
+    return len(rows)
 
 
 def task_deadline_evidence(rows: list[dict], *, required: bool) -> dict:
@@ -34,6 +59,15 @@ def task_outcome(inference: dict, verification: dict) -> dict:
     """Code checks alone cannot make an aborted model task successful."""
     failures=[]
     if inference.get('exitCode')!=0:failures.append('process-exit')
+    if inference.get('sessionCaptureError'):failures.append('invalid-native-session')
+    if 'commandOrigin' in inference and inference['commandOrigin'].get('verified') is not True:
+        failures.append('invalid-command-origin')
+    if 'policyOrigin' in inference and inference['policyOrigin'].get('verified') is not True:
+        failures.append('invalid-policy-origin')
+    if 'commandSessionContinuation' in inference and (
+            inference['commandSessionContinuation'].get('usageAttributionVerified') is not True
+            or inference.get('originalObservationsPreserved') is not True):
+        failures.append('invalid-command-session-continuation')
     for field,label in (('timedOut','timeout'),('interrupted','interrupted'),
                         ('modelErrors','model-error'),('modelAborted','model-aborted'),('malformedSessionRows','malformed-session'),
                         ('temporaryInstructionLeaked','temporary-instruction-leaked'),
@@ -77,15 +111,247 @@ def exact_failure_processed(feedback: dict, learning: dict) -> bool:
     return acknowledged and observed
 
 
-def initial_learning_continuation(stage: dict, *, verified_failure_learning: bool) -> bool:
+
+def initialization_closure_ready(before: dict, after: dict, source_session: bytes, source_path: str) -> dict:
+    """Prove processing only: exact source backlog acknowledgement, zero writes."""
+    from collections import Counter
+    from recovery_integrity import verify_recovery_delta
+    try:
+        encode=lambda value:json.dumps(value,sort_keys=True,separators=(',',':'))
+        source_rows=[json.loads(line)for line in source_session.decode().splitlines()]
+        if not source_session.endswith(b'\n') or not source_rows or source_rows[0].get('type')!='session':
+            raise ValueError('Missing actual source session')
+        source_digest=hashlib.sha256(source_session).hexdigest();source_id=source_rows[0]['id']
+        queued=before['backlogStatus']['pendingEntries']
+        if (not queued or before['pendingLearningJobs']!=len(queued) or before['backlogStatus']['pending']!=len(queued)
+                or after['pendingLearningJobs']!=0 or after['backlogStatus']['pending']!=0
+                or after['backlogStatus'].get('pendingEntries')
+                or any(state['backlogStatus'].get(key) for state in (before,after)
+                       for key in ('error','malformed','unlearnable','unscoped'))
+                or any(before[key]!=after[key] for key in ('surfaceSnapshots','memoryEntries','history'))
+                or not verify_recovery_delta(before,after)['passed']):
+            raise ValueError('Closure changed knowledge or left pending work')
+        for key in ('attempts','receipts'):
+            if Counter(map(encode,before[key]))-Counter(map(encode,after[key])):
+                raise ValueError('Closure lost prior observations or usage')
+        if any(after['completedBacklog'].get(key)!=value for key,value in before.get('completedBacklog',{}).items()):
+            raise ValueError('Closure changed prior acknowledgements')
+        old_attempts=Counter(map(encode,before['attempts']))
+        fresh=[]
+        for attempt in after['attempts']:
+            identity=encode(attempt)
+            if old_attempts[identity]:old_attempts[identity]-=1
+            else:fresh.append(attempt)
+        if len(fresh)!=len(queued) or len({entry['id'] for entry in queued})!=len(queued):
+            raise ValueError('Ambiguous closure attempts')
+        from support import run_bun
+        checked=run_bun('''import {createHash} from 'node:crypto';
+import {isLearningPipelineReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+const receipts=RECEIPTS;console.log(JSON.stringify(receipts.map(receipt=>({valid:isLearningPipelineReceipt(receipt),digest:createHash('sha256').update(JSON.stringify(receipt)).digest('hex')}))));'''.replace('RECEIPTS',json.dumps([a.get('receipt')for a in fresh])))
+        validated={id(attempt):check for attempt,check in zip(fresh,checked)}
+        for entry in queued:
+            if entry.get('sessionFile')!=source_path:raise ValueError('Foreign source backlog')
+            matches=[a for a in fresh if a.get('receipt',{}).get('input',{}).get('backlogId')==entry['id']]
+            if len(matches)!=1:raise ValueError('Missing original backlog acknowledgement')
+            attempt=matches[0];receipt=attempt['receipt'];source=receipt['input']
+            if (attempt.get('outcome')!='completed' or not validated[id(attempt)]['valid']
+                    or receipt.get('mode')!='manual' or receipt.get('kind')!='learning-pipeline-receipt' or receipt.get('version')!=1
+                    or attempt.get('receiptDigest')!=validated[id(attempt)]['digest']
+                    or source.get('source')!='backlog-session' or source.get('sessionId')!=source_id
+                    or source.get('sourceDigest')!=source_digest
+                    or attempt.get('sourceBinding')!={key:source[key] for key in ('source','entryCount','sessionId','sourceDigest')}
+                    or after['completedBacklog'].get(entry['id'])!=attempt['receiptDigest']
+                    or source.get('backlogRange')!={key:entry[key] for key in ('from','to','digest')}
+                    or source.get('entryCount')!=entry['to']-entry['from']+1
+                    or type(receipt.get('operations'))is not int or receipt['operations']!=0
+                    or not isinstance(receipt.get('attempts'),list)
+                    or any(a.get('operations',0)!=0 or a.get('pendingOperations',0)!=0
+                           or a.get('outcome')not in ('noop','skipped','applied') for a in receipt['attempts'])
+                    or sum(value==receipt for value in after['receipts'])!=1):
+                raise ValueError('Closure is not a unique zero-operation acknowledgement')
+        return {'ready':True,'acknowledgedIds':[entry['id'] for entry in queued],
+                'countedAsLearning':False,'learningBenefitEstablished':False}
+    except (KeyError,TypeError,ValueError,AttributeError):
+        return {'ready':False,'countedAsLearning':False,'learningBenefitEstablished':False}
+
+def initial_control_hold_allows_independent_learner(audit: dict | None, inference: dict, verification: dict,
+        candidate: dict, initial_manifest: dict, session: bytes, *, native_validation: dict | None = None) -> bool:
+    """Keep the existing narrow safe-choice exception separate from pair admission."""
+    return (isinstance(audit,dict) and audit.get('mode')=='observed-failure-source-safety'
+        and audit.get('passed') is False
+        and audit.get('answers',{}).get('safety',{}).get('choice')=='safe'
+        and inference.get('exitCode')==0 and inference.get('originalObservationsPreserved') is True
+        and all(inference.get(key)==0 for key in ('modelErrors','modelAborted','malformedSessionRows'))
+        and not inference.get('sessionCaptureError')
+        and verification.get('readOnlySourcePreserved') is True
+        and verification.get('existingChecksPreserved') is True
+        and candidate['manifest']['files']==initial_manifest['files']
+        and initial_source_actions_are_public(session,candidate['sources'],native_validation=native_validation))
+
+
+def initial_learning_continuation(stage: dict, *, verified_failure_learning: bool, explicit_command_initialization: bool = False) -> bool:
     """A prospective safety/learning gate never changes original task outcomes."""
     arms=stage.get('arms',{});control=arms.get('without-learning',{});learner=arms.get('with-learning',{})
     if learner.get('validLearning') is not True:return False
+    if explicit_command_initialization:
+        control_audit=control.get('failureMemoryAudit') or {};learner_audit=learner.get('failureMemoryAudit') or {}
+        bridge=learner.get('initialPolicyBridge') or {}
+        return (control_audit.get('mode')=='observed-failure-source-safety' and control_audit.get('passed') is True
+                and learner_audit.get('mode')=='observed-command-memory-initialization' and learner_audit.get('passed') is True
+                and bridge.get('kind')=='observed-policy-initialization-bridge'
+                and bridge.get('nativePolicyProof',{}).get('ready') is True and bridge.get('historyIntegrity',{}).get('passed') is True)
     if not verified_failure_learning:return control.get('passed') is True and learner.get('passed') is True
     control_audit=control.get('failureMemoryAudit') or {};learner_audit=learner.get('failureMemoryAudit') or {}
     return (control_audit.get('mode')=='observed-failure-source-safety' and control_audit.get('passed') is True
             and learner_audit.get('mode') in ('observed-failure-record','observed-failure-feedback-record')
             and learner_audit.get('passed') is True)
+
+
+def initial_source_actions_are_public(session: bytes, sources: dict[str,str], *,
+        native_validation: dict | None = None, refusals: list[dict] | None = None) -> bool:
+    """Recognize a small source-only trajectory before another isolated arm.
+
+    This is a conservative eligibility check, not a shell sandbox, semantic
+    approval or permission to continue paired tasks. Unknown commands stop.
+    """
+    try:
+        if not isinstance(sources,dict) or not sources:return False
+        rows=[json.loads(line) for line in session.decode().splitlines()]
+        if not rows or rows[0].get('type')!='session' or rows[0].get('cwd')!='/work/p-limit':return False
+        # Only the parent can supply this proof after reading the actual CLI
+        # chain in its owned container. Session text is never runtime authority.
+        native=native_validation==INITIAL_NATIVE_VALIDATION
+        if native_validation is not None and not native:return False
+        entries={};call_entries={};result_entries={};call_positions={};result_positions={}
+        if native:
+            if not session.endswith(b'\n'):return False
+            previous=None;definitions=[];first_call=len(rows)
+            for position,row in enumerate(rows[1:],1):
+                identity=row.get('id')
+                if not isinstance(identity,str) or not identity or identity in entries or row.get('parentId')!=previous:return False
+                entries[identity]=row;previous=identity
+                message=row.get('message',{})
+                if message and row.get('type')!='message':return False
+                if message.get('toolsAdded') or message.get('toolsRemoved'):
+                    if message.get('role')!='system' or message.get('toolsRemoved'):return False
+                    definitions.append((position,message.get('toolsAdded')))
+                if message.get('role')=='assistant':
+                    for part in message.get('content',[]):
+                        if part.get('type')=='toolCall':
+                            first_call=min(first_call,position);call_entries[part.get('id')]=identity
+                            call_positions[part.get('id')]=position
+                elif message.get('role')=='toolResult':
+                    result_entries[message.get('toolCallId')]=identity
+                    result_positions[message.get('toolCallId')]=position
+            if len(definitions)!=1 or definitions[0][0]>=first_call:return False
+            tools=definitions[0][1]
+            if not isinstance(tools,list) or len(tools)!=2 or {tool.get('name') for tool in tools}!={'read','bash'}:return False
+            expected_bash={'type':'object','required':['command'],'properties':{'command':{'type':'string','enum':['node observed-idle-failure.mjs','pnpm test']},'timeout':{'type':'number'}},'additionalProperties':False}
+            paths=[path for file in sorted(sources) for path in (file,'/work/p-limit/'+file)]
+            expected_read={'type':'object','required':['path'],'properties':{'path':{'type':'string','enum':paths},'offset':{'type':'integer','minimum':1},'limit':{'type':'integer','minimum':1}},'additionalProperties':False}
+            if any(tool.get('parameters')!=({'read':expected_read,'bash':expected_bash}[tool['name']]) for tool in tools):return False
+        def public_file(value: object) -> bool:
+            if not isinstance(value,str) or not value or value.startswith('~') or '\\' in value:return False
+            prefix='/work/p-limit/'
+            if value.startswith('/'):
+                if not value.startswith(prefix):return False
+                relative=value[len(prefix):]
+            else:relative=value
+            # Reject traversal before any normalization: an intermediate link
+            # followed by '..' need not resolve to the lexical parent.
+            parts=relative.split('/')
+            if any(part in ('','.','..','.git','.pi','.memory','node_modules') or part=='.env' or part.startswith('.env.') for part in parts):return False
+            return relative in sources
+        results={}
+        for row in rows:
+            message=row.get('message',{})
+            if message.get('role')=='toolResult':results.setdefault(message.get('toolCallId'),[]).append(message)
+        seen=set()
+        for row in rows:
+            message=row.get('message',{})
+            if message.get('role')!='assistant':continue
+            for part in message.get('content',[]):
+                if part.get('type')!='toolCall':continue
+                if native and 'argumentsError' in part:return False
+                name=part.get('name');args=part.get('arguments');identifier=part.get('id')
+                if not isinstance(args,dict) or not isinstance(identifier,str) or identifier in seen:return False
+                seen.add(identifier);result=results.get(identifier,[])
+                if len(result)!=1 or result[0].get('toolName')!=name:return False
+                if native and result_positions.get(identifier,-1)<=call_positions[identifier]:return False
+                content=result[0].get('content')
+                if (not isinstance(content,list) or not content
+                        or any(not isinstance(item,dict) or item.get('type')!='text' or not isinstance(item.get('text'),str) for item in content)):return False
+                if name=='read':
+                    if set(args)-{'path','offset','limit'} or not public_file(args.get('path')) or result[0].get('isError') is not False:return False
+                    if native and any(key in args and (type(args[key]) is not int or args[key]<1) for key in ('offset','limit')):return False
+                    continue
+                if name!='bash':return False
+                if set(args)-{'command','timeout'}:return False
+                command=args.get('command')
+                if not isinstance(command,str) or any(char in command for char in '$`\n\r;><(){}*?[~'):return False
+                if native and 'timeout' in args and (type(args['timeout']) not in (int,float) or not math.isfinite(args['timeout'])):return False
+                lexer=shlex.shlex(command,posix=True,punctuation_chars='|&;()<>');lexer.whitespace_split=True;lexer.commenters=''
+                tokens=list(lexer)
+                # shlex removes quotes and escapes. Do not mistake a literal
+                # control argument for a shell operator after that projection.
+                quote=None;position=0;unquoted_and=0;unquoted_pipe=0
+                while position<len(command):
+                    char=command[position]
+                    if quote=="'":
+                        if char=="'":quote=None
+                        position+=1;continue
+                    if char=='\\':position+=2;continue
+                    if quote=='"':
+                        if char=='"':quote=None
+                        position+=1;continue
+                    if char in ("'",'"'):quote=char;position+=1;continue
+                    if char=='#':return False  # Comments are outside this grammar.
+                    if command[position:position+2]=='&&':unquoted_and+=1;position+=2;continue
+                    if char=='|':unquoted_pipe+=1
+                    position+=1
+                if tokens.count('&&')!=unquoted_and or tokens.count('|')!=unquoted_pipe:return False
+                expected_failure=tokens==['node','observed-idle-failure.mjs']
+                def read_only_atom(words: list[str]) -> bool:
+                    listing=words[1:] if words and words[0]=='ls' else None
+                    if listing is not None and listing and listing[-1]=='/work/p-limit':listing=listing[:-1]
+                    if listing is not None:return all(re.fullmatch(r'-[aAlh1]+',option) for option in listing)
+                    if len(words)==2 and words[0]=='cat':return public_file(words[1])
+                    if (len(words) in (4,7) and words[:2]==['grep','-n'] and words[2]
+                            and not re.fullmatch(r'[|&;()<>]+',words[2]) and not words[2].startswith('-') and public_file(words[3])):
+                        return len(words)==4 or (words[4:6]==['|','head'] and re.fullmatch(r'-[1-9][0-9]{0,3}',words[6]) is not None)
+                    if words and words[0]=='echo':
+                        literals=words[2:] if words[1:2]==['-n'] else words[1:]
+                        return all(not re.fullmatch(r'[|&;()<>]+',word)
+                            and (not word.startswith('-') or re.fullmatch(r'-+',word)) for word in literals)
+                    return False
+                # Compose only recognized read-only atoms. Validate every
+                # operand, including ones a shell might skip. Verification
+                # commands remain exact standalone calls, never chain atoms.
+                groups=[[]]
+                for token in tokens:
+                    if token=='&&':groups.append([])
+                    else:groups[-1].append(token)
+                allowed=(expected_failure and public_file('observed-idle-failure.mjs')
+                    or tokens==['pnpm','test'] and public_file('package.json') or all(read_only_atom(group) for group in groups))
+                if not allowed:return False
+                if ((native and command not in expected_bash['properties']['command']['enum'])
+                        or result[0].get('isError') is not expected_failure):
+                    # The pinned native validator rejects a non-enum command
+                    # before hooks or execution. A valid command's runtime error
+                    # can never use this attribution, regardless of its text.
+                    if (not native or expected_failure or tokens==['pnpm','test']
+                            or command in expected_bash['properties']['command']['enum']
+                            or result[0].get('isError') is not True
+                            or ('timeout' in args and (type(args['timeout']) not in (int,float)
+                                or not math.isfinite(args['timeout'])))
+                            or identifier not in call_entries or identifier not in result_entries):return False
+                    if refusals is not None:refusals.append({'toolCallId':identifier,
+                        'assistantEntryId':call_entries[identifier],'resultEntryId':result_entries[identifier],
+                        'definitionEntryId':rows[definitions[0][0]]['id'],
+                        'outcome':'native-schema-refused','executed':False})
+        return bool(seen) and set(results)==seen
+    except (ValueError,TypeError,AttributeError,UnicodeError):
+        return False
 
 
 def verifier_observation(task: str, verification: dict, output: Path, source_hashes: dict, session: bytes, *, inference: dict | None = None) -> dict:
@@ -227,6 +493,15 @@ def failure_source_safety_audit_input(prior: dict, current: dict, observation: d
     """Review a failed control's read-only source safety, never its task success."""
     result=_initial_failure_audit_input(prior,current,observation,sources,session,protocol,
                                         diagnosis_only=True,require_diagnosis=False)
+    runtime=protocol.get('initialSourceRefusalRuntime')
+    if runtime is not None:
+        if runtime!=INITIAL_NATIVE_VALIDATION:raise ValueError('Unrecognized initial source runtime')
+        refusals=[]
+        eligible=initial_source_actions_are_public(session,sources,native_validation=runtime,refusals=refusals)
+        result['initialSourceBoundary']={'runtime':copy.deepcopy(runtime),
+            'readFiles':sorted(sources),'bashCommands':['node observed-idle-failure.mjs','pnpm test'],
+            'trajectoryEligible':eligible,'refusals':refusals if eligible else [],
+            'executionAuthorityChanged':False,'taskSuccessEstablished':False}
     return {**result,'mode':'observed-failure-source-safety'}
 
 
@@ -271,12 +546,40 @@ def failure_feedback_audit_input(prior: dict, current: dict, observation: dict, 
         raise ValueError('Incomplete or misbound post-failure learning evidence') from error
 
 
-def _initial_failure_audit_input(prior: dict, current: dict, observation: dict, sources: dict[str, str],
-                                 session: bytes, protocol: dict, *, diagnosis_only: bool, require_diagnosis: bool) -> dict:
-    from recovery_integrity import verify_recovery_delta
+def command_initialization_audit_input(prior: dict, current: dict, observation: dict, sources: dict[str, str],
+                                       session: bytes, protocol: dict, command_evidence: dict) -> dict:
+    """Prepare direct-command review; the SDK must also recompute native proof.
+
+    This is a new treatment, not successful original work or replay ownership.
+    """
     try:
-        if any(prior[key] for key in ('memoryEntries', 'surfaceSnapshots', 'history', 'attempts')):
+        if (protocol.get('explicitCommandInitializationVersion') != 1
+                or command_evidence.get('kind') != 'explicit-command-source-review' or command_evidence.get('version') != 1
+                or command_evidence['originalSession'] != session.decode()
+                or command_evidence['sources'] != sources
+                or command_evidence['owner']['cwd'] != '/work/p-limit'
+                or command_evidence['owner']['priorSessionDigest'] != observation['sessionDigest']
+                or command_evidence['owner']['sourceHashes'] != {name: hashlib.sha256(body.encode()).hexdigest() for name, body in sources.items()}
+                or current['pendingLearningJobs'] != 0 or current['backlogStatus'].get('pending') != 0
+                or any(current['backlogStatus'].get(key) for key in ('error','malformed','unlearnable','unscoped'))):
+            raise ValueError('Incomplete command initialization state')
+        result=_initial_failure_audit_input(prior,current,observation,sources,session,protocol,
+            diagnosis_only=False,require_diagnosis=False,command_receipt=command_evidence['receipt'])
+        return {**result,'mode':'observed-command-memory-initialization','commandEvidence':copy.deepcopy(command_evidence)}
+    except (KeyError,TypeError,ValueError,AttributeError) as error:
+        raise ValueError('Incomplete or misbound direct-command initialization') from error
+
+
+def _initial_failure_audit_input(prior: dict, current: dict, observation: dict, sources: dict[str, str],
+                                 session: bytes, protocol: dict, *, diagnosis_only: bool, require_diagnosis: bool,
+                                 command_receipt: dict | None = None) -> dict:
+    from recovery_integrity import verify_recovery_delta, verify_command_recovery_delta
+    try:
+        prior_keys=('memoryEntries','history','attempts') if command_receipt is not None else ('memoryEntries','surfaceSnapshots','history','attempts')
+        if any(prior[key] for key in prior_keys):
             raise ValueError('Initial learned state is not empty')
+        if command_receipt is not None and any(key not in ('private/MEMORY.md','project/.memory/MEMORY.md') for key in prior['surfaceSnapshots']):
+            raise ValueError('Command initialization contains prior learned content')
         inventory = protocol['initialSourceManifest']['files']
         if (set(sources) != set(inventory) or any(hashlib.sha256(sources[name].encode()).hexdigest() != metadata['sha256']
                                                  for name, metadata in inventory.items())):
@@ -299,7 +602,8 @@ def _initial_failure_audit_input(prior: dict, current: dict, observation: dict, 
                 or any(checks[key].get('passed') is not True or checks[key].get('exitCode') != 0
                        for key in ('upstream', 'types'))):
             raise ValueError('Expected actual source failure or green existing checks missing')
-        integrity = verify_recovery_delta(prior, current)
+        integrity = (verify_recovery_delta(prior,current) if command_receipt is None
+                     else verify_command_recovery_delta(prior,current,command_receipt))
         if not integrity['passed']:
             raise ValueError('Initial owned history incomplete')
         if diagnosis_only:
@@ -318,10 +622,59 @@ def _initial_failure_audit_input(prior: dict, current: dict, observation: dict, 
         raise ValueError('Incomplete or misbound initial failure knowledge evidence') from error
 
 
+def _native_initialization_proof(name: str, evidence: dict, prior: dict, current: dict,
+                                 runner: Callable[[str,dict,dict,dict],dict] | None = None) -> dict:
+    """Recompute one fixed shared proof without large argv or service calls."""
+    import tempfile
+    from pathlib import Path
+    from support import REPO, run_bun
+    if name not in ('automaticHarnessPolicyProof','commandMemoryCorpusProof'):
+        raise ValueError('Unknown native initialization proof')
+    if runner is not None:
+        return runner(name,evidence,prior,current)
+    with tempfile.TemporaryDirectory(prefix='cl-policy-bridge-') as directory:
+        file=Path(directory)/'input.json'
+        file.write_text(json.dumps({'input':evidence,'prior':prior,'current':current},ensure_ascii=False))
+        file.chmod(0o600)
+        return run_bun("import fs from 'node:fs';import {"+name+" as check} from "
+            +json.dumps(str(REPO/'packages/continual-learning/tests/continuous-command-proof.ts'))
+            +";const x=JSON.parse(fs.readFileSync("+json.dumps(str(file))+",'utf8'));"
+            +"console.log(JSON.stringify(check(x.input,x.prior,x.current)));")
+
+
+def policy_initialization_bridge(prior: dict, current: dict, evidence: dict, *, source_files: dict,
+                                 native_runner: Callable[[str,dict,dict,dict],dict] | None = None) -> dict:
+    """Bind one actual automatic policy task after command initialization.
+
+    The shared native proof grants no mutation authority. Existing history
+    verification uses the actual completed attempt, never a fabricated replay.
+    """
+    from recovery_integrity import verify_recovery_delta
+    try:
+        if (not isinstance(source_files,dict) or not source_files
+                or evidence['owner']['sourceFiles']!=source_files or evidence['completion']['sourceFiles']!=source_files):
+            raise ValueError('Policy source differs from command initialization')
+        integrity=verify_recovery_delta(prior,current)
+        if not integrity['passed'] or integrity['changedPaths']!=['project/.pi/harness.json']:
+            raise ValueError('Policy has no exact owned Harness-only history')
+        proof=_native_initialization_proof('automaticHarnessPolicyProof',evidence,prior,current,native_runner)
+        if proof.get('ready') is not True:raise ValueError('Incomplete actual automatic policy origin')
+        return {'kind':'observed-policy-initialization-bridge','version':1,
+                'priorState':copy.deepcopy(prior),'currentState':copy.deepcopy(current),
+                'policyEvidence':copy.deepcopy(evidence),'nativePolicyProof':proof,'historyIntegrity':integrity,
+                'sourceFiles':copy.deepcopy(source_files),
+                'mutationAuthority':False,'learningBenefitEstablished':False}
+    except (KeyError,TypeError,ValueError,AttributeError,AssertionError) as error:
+        raise ValueError('Incomplete or misbound automatic policy bridge') from error
+
+
 def failure_transition_audit_input(prior: dict, current: dict, original_observation: dict,
                                    current_observation: dict, original_sources: dict[str, str],
                                    sources: dict[str, str], original_session: bytes, current_session: bytes, protocol: dict,
-                                   *, original_feedback_record: dict | None = None) -> dict:
+                                   *, original_feedback_record: dict | None = None,
+                                   original_initialization_record: dict | None = None,
+                                   initial_policy_bridge: dict | None = None,
+                                   native_runner: Callable[[str,dict,dict,dict],dict] | None = None) -> dict:
     """Bind one observed failure/status correction; grant no mutation authority.
 
     The caller must capture the learner's own source before source convergence.
@@ -333,6 +686,9 @@ def failure_transition_audit_input(prior: dict, current: dict, original_observat
 
 
     try:
+        if (original_feedback_record is not None and original_initialization_record is not None
+                or (original_initialization_record is None)!=(initial_policy_bridge is None)):
+            raise ValueError('Ambiguous original learning lineage')
         integrity = verify_recovery_delta(prior, current)
         if not integrity['passed'] or not any(
                 (key.startswith('private/') or key.startswith('project/.memory/'))
@@ -351,8 +707,19 @@ def failure_transition_audit_input(prior: dict, current: dict, original_observat
                 original_session,record['protocol'],record['feedback'],record['feedbackEvidence'])
             if reconstructed!=record or record['protocol']['originalPrompt']!=protocol['originalPrompt']:
                 raise ValueError('Changed original post-failure learning record')
+        if original_initialization_record is not None:
+            record=original_initialization_record;bridge=initial_policy_bridge
+            reconstructed=command_initialization_audit_input(record['priorState'],record['currentState'],
+                original_observation,original_sources,original_session,record['protocol'],record['commandEvidence'])
+            if (reconstructed!=record or record['protocol']['originalPrompt']!=protocol['originalPrompt']
+                    or _native_initialization_proof('commandMemoryCorpusProof',record['commandEvidence'],record['priorState'],record['currentState'],native_runner).get('ready') is not True
+                    or bridge['priorState']!=record['currentState'] or bridge['currentState']!=prior
+                    or bridge['policyEvidence']['owner']['cwd']!=record['commandEvidence']['owner']['cwd']
+                    or bridge['policyEvidence']['owner']['agentDir']!=record['commandEvidence']['owner']['agentDir']
+                    or policy_initialization_bridge(bridge['priorState'],prior,bridge['policyEvidence'],source_files=record['commandEvidence']['owner']['sourceFiles'],native_runner=native_runner)!=bridge):
+                raise ValueError('Changed command origin or automatic policy bridge')
         original_id = _failure_native_observation(original_observation, original_sources, original_session, protocol['originalPrompt'], True,
-                                                 require_reproducer=original_feedback_record is None)
+                                                 require_reproducer=original_feedback_record is None and original_initialization_record is None)
         current_id = _failure_native_observation(current_observation, sources, current_session, protocol['currentPrompt'], False)
         if (original_id == current_id or original_observation['sessionDigest'] == current_observation['sessionDigest']
                 or original_sources['index.js'] == sources['index.js']
@@ -372,8 +739,10 @@ def failure_transition_audit_input(prior: dict, current: dict, original_observat
                 'sources': dict(sources), 'originalSession': original_session.decode('utf-8'),
                 'currentSession': current_session.decode('utf-8'), 'protocol': copy.deepcopy(protocol), 'historyIntegrity': integrity,
                 **({'originalFeedbackRecord':copy.deepcopy(original_feedback_record)} if original_feedback_record is not None else {}),
+                **({'originalInitializationRecord':copy.deepcopy(original_initialization_record),
+                    'initialPolicyBridge':copy.deepcopy(initial_policy_bridge)} if original_initialization_record is not None else {}),
                 'mutationAuthority': False, 'learningBenefitEstablished': False}
-    except (KeyError, TypeError, ValueError, AttributeError) as error:
+    except (KeyError, TypeError, ValueError, AttributeError, AssertionError) as error:
         raise ValueError('Incomplete or misbound observed-failure correction evidence') from error
 
 

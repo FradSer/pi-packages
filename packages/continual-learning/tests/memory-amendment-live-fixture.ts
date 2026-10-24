@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {createAssistantMessageEventStream, getCurrentTools, type AssistantMessage} from "@earendil-works/pi-ai";
 import type {ExtensionAPI} from "@earendil-works/pi-coding-agent";
+import {MEMORY_KNOWLEDGE_GUIDANCE} from "../extensions/planner-prompts.ts";
 
 export default function fixture(pi: ExtensionAPI): void {
   let generationAttempts = 0;
@@ -26,10 +27,18 @@ export default function fixture(pi: ExtensionAPI): void {
         reply = JSON.parse(fs.readFileSync(new URL("./fixtures/real-memory-generation-raw-whitespace.json", import.meta.url), "utf8")).content;
       } else {
       const data = JSON.parse(text.split("\n").at(-1)!);
+      if (data.atomicKnowledgeContract) {
+        assert.equal(text.split(MEMORY_KNOWLEDGE_GUIDANCE).length - 1, 1);
+        assert.ok(text.includes("whose resource or result is involved"));
+        assert.ok(text.includes("which event changes its state"));
+        assert.ok(text.includes("what stays unchanged"));
+        assert.ok(text.includes("material default or selected branch"));
+      }
       const bound = pi.getFlag("bound-candidate-response");
       if (typeof bound === "string") {
         const response = JSON.parse(bound);
-        if (response.replacements) assert.ok(text.includes("Prefer the exact short candidateRef"));
+        if (response.replacements) assert.ok(text.includes("Prefer the exact short candidateRef")
+          || data.atomicKnowledgeContract?.version === 2 && text.includes("candidateRef or candidateId"));
         else assert.ok(data.retainedOperationContract);
         for (const operation of response.operations ?? []) {
           const record = data.retainedOperationContract.records.find((record: {name: string}) => record.name === operation.name);

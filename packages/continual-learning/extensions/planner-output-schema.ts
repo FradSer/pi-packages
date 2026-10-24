@@ -1,6 +1,21 @@
 /** Wire structure only. Parent validators remain the authority for all values. */
 type Schema = Record<string, unknown>;
-export type LearningOutputKind = "memory-selector" | "memory-delta" | "memory-amendment" | "memory-semantic-amendment" | "memory-combined-amendment" | "memory-retained-amendment" | "memory-body-review";
+export type LearningOutputKind = "memory-selector" | "memory-delta" | "memory-amendment" | "memory-semantic-amendment" | "memory-combined-amendment" | "memory-retained-amendment" | "memory-body-review" | "memory-coverage-review";
+/** Fresh producer format only; legacy readers and materialized plans stay compatible. */
+export function assertFreshMemoryProjectOutput(value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const items = (value as Record<string, unknown>).newMemories;
+  if (!Array.isArray(items)) return;
+  items.forEach((value, index) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const item = value as Record<string, unknown>;
+    if (item.kind !== "project") return;
+    const has = (key: string) => Object.hasOwn(item, key);
+    if (!has("content") && (has("knowledge") && !has("evidence") && !has("sourceExcerpt")
+      || has("sourceExcerpt") && item.classification === "private" && !has("knowledge"))) return;
+    throw new Error(`Fresh Memory project output is invalid: newMemories[${index}] requires knowledge or a private sourceExcerpt`);
+  });
+}
 const string: Schema = {type: "string"};
 const integer = (minimum: number): Schema => ({type: "integer", minimum});
 const object = (properties: Record<string, Schema>, required: string[]): Schema => ({type: "object", properties, required, additionalProperties: false});
@@ -26,17 +41,64 @@ const citationSchema = (domain?: MemoryCitationDomain, referenceOverride?: Schem
 const classification: Schema = {type: "string", enum: ["safe", "private"]};
 const observations = array(object({path: string, status: {type: "string", enum: ["found", "missing", "updated"]}}, ["path", "status"]), 1, 32);
 const memoryDocument: Schema = {...string, description: "Complete Markdown including name/description/type frontmatter and a non-empty grounded knowledge body; discovery metadata alone is not a body", pattern: "^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n[\\s\\S]*\\S[\\s\\S]*$"};
-const operationSchema = (evidence: Schema, retainedBodyReuse = false): Schema => {
+const knowledgeSchema = (evidence: Schema, sourceSelection = false): Schema => {
+  const text = object({text: {type: "string", minLength: 1}, citationIndexes: array({type: "integer", minimum: 0, maximum: 7}, 1, 8)},
+    ["text", "citationIndexes"]);
+  return object({sourceCitations: evidence, units: array(sourceSelection ? {anyOf: [text,
+    object({sourceCitationIndex: {type: "integer", minimum: 0, maximum: 7}}, ["sourceCitationIndex"])]} : text, 1, 32)},
+  ["sourceCitations", "units"]);
+};
+const operationSchema = (evidence: Schema, retainedBodyReuse = false, atomicKnowledge = false): Schema => {
 const common = {name: string, classification, evidence, observations};
 return {anyOf: [
   object({...common, kind: {type: "string", const: "rewrite"}, content: memoryDocument, contentSha256: string}, ["name", "kind", "classification", ...(retainedBodyReuse ? [] : ["content"]), "evidence"]),
   object({...common, kind: {type: "string", const: "delete"}, verdict: {type: "string", enum: ["CONTRADICTED", "SUPERSEDED", "SUBSUMED"]}, preservedIn: array(string, 1)}, ["name", "kind", "classification", "verdict", "preservedIn", "evidence"]),
+  ...(atomicKnowledge ? [object({name: string, classification, kind: {type: "string", const: "rewrite"},
+    knowledge: knowledgeSchema(evidence), description: string}, ["name", "kind", "classification", "knowledge"])] : []),
 ]};
 };
 const identity = {runId: string, scopeKey: string, scopeDigest: string, artifactHash: string, snapshotDigest: string};
 
 export function learningOutputSchema(kind: unknown, domain?: MemoryCitationDomain, candidateIds?: readonly string[], bodyCount?: number,
-  withdrawalCandidateIds?: readonly string[]): Schema | undefined {
+  withdrawalCandidateIds?: readonly string[], bodyReferences = false, atomicKnowledge = false): Schema | undefined {
+  if (kind === "memory-coverage-review") {
+    if (!Number.isSafeInteger(bodyCount) || bodyCount! < 0 || bodyCount! > 32) throw new Error("Invalid complete Memory coverage count");
+    const text = {type: "string", minLength: 1, maxLength: 2000};
+    const witnessRef = {type: "string", pattern: "^[mp][0-9]+\\.b0\\.l[1-9][0-9]*(?:\\.c[0-9]+-[1-9][0-9]*)?$"};
+    const witness = bodyReferences ? object({ref: witnessRef, endRef: witnessRef}, ["ref"]) : text;
+    const sourceRef = bodyReferences ? {type: "string", maxLength: 128,
+      pattern: "^e(?:0|[1-9][0-9]*)\\.b(?:0|[1-9][0-9]*)\\.[lp][1-9][0-9]*(?:\\.c(?:0|[1-9][0-9]*)-[1-9][0-9]*)?$"} : string;
+    const sourceSelection = object({ref: sourceRef, endRef: sourceRef}, ["ref"]);
+    const refs = array(sourceSelection, 1, 8);
+    const fact = {statement: text, evidence: refs};
+    const condition = {...fact, bodyQuote: {anyOf: [witness, {type: "null"}]}};
+    const judgment = object({
+      scope: {anyOf: [
+        object({basis: {type: "string", enum: ["requested", "optional"]}, statement: text, evidence: refs},
+          ["basis", "statement", "evidence"]),
+        object({basis: {type: "string", const: "predecessor"}, statement: text, predecessorQuote: witness,
+          evidence: array(sourceSelection, 0, 8)},
+          ["basis", "statement", "predecessorQuote", "evidence"]),
+      ]},
+      claims: array(object({...condition, conditions: array(object(condition, Object.keys(condition)), 0, 16)},
+        [...Object.keys(condition), "conditions"]), 1, 16),
+      uncovered: array(object(fact, Object.keys(fact)), 0, 16),
+      verdict: {type: "string", enum: ["covered", "incomplete", "uncertain"]},
+    }, ["scope", "claims", "uncovered", "verdict"]);
+    const location = object({targetIndex: integer(0), bodyQuote: witness}, ["targetIndex", "bodyQuote"]);
+    const obligation = {statement: text, coveredBy: array(location, 0, 8),
+      status: {type: "string", enum: ["covered", "missing", "uncertain"]}};
+    const plan = object({verdict: {type: "string", enum: ["covered", "incomplete", "uncertain"]},
+      obligations: array({anyOf: [
+        object({...obligation, basis: {type: "string", const: "requested"}, evidence: refs},
+          [...Object.keys(obligation), "basis", "evidence"]),
+        object({...obligation, basis: {type: "string", const: "predecessor"}, predecessorName: string, predecessorQuote: witness,
+          evidence: array(sourceSelection, 0, 8)},
+          [...Object.keys(obligation), "basis", "predecessorName", "predecessorQuote", "evidence"]),
+      ]}, 0, 32)}, ["verdict", "obligations"]);
+    const slots = Object.fromEntries(Array.from({length: bodyCount!}, (_, index) => [String(index), judgment]));
+    return object({plan, reviews: object(slots, Object.keys(slots))}, ["plan", "reviews"]);
+  }
   if (kind === "memory-body-review") {
     if (!Number.isSafeInteger(bodyCount) || bodyCount! < 1 || bodyCount! > 32) throw new Error("Invalid complete Memory body count");
     const judgment = object({verdict: {type: "string", enum: ["consistent", "contradictory", "uncertain"]},
@@ -53,13 +115,16 @@ export function learningOutputSchema(kind: unknown, domain?: MemoryCitationDomai
   const withReference = (schema: Schema): Schema => domain?.refs.length
     ? {...schema, $defs: {memorySourceReference: {type: "string", enum: domain.refs}}} : schema;
   const evidence = array(citationSchema(empty ? undefined : domain, reference), 1, 8);
-  const operation = operationSchema(evidence, kind === "memory-retained-amendment" || kind === "memory-combined-amendment");
+  const operation = operationSchema(evidence, kind === "memory-retained-amendment" || kind === "memory-combined-amendment", atomicKnowledge);
   if (kind === "memory-selector") return object({
     selectedIndices: array(integer(0)), memory: {type: "boolean"}, harness: {type: "boolean"}, agents: {type: "boolean"}, reason: string,
   }, ["selectedIndices", "memory", "harness", "agents", "reason"]);
   if (kind === "memory-delta" || kind === "memory-retained-amendment") return withReference(object({kind: {type: "string", const: "incremental-memory-plan"}, version: {type: "integer", const: 1}, schemaVersion: {type: "integer", const: 1}, ...identity,
-    operations: array(operation, undefined, empty ? 0 : undefined), newMemories: array({anyOf: [object({name: string, kind: {type: "string", enum: ["project", "preference"]}, classification, content: memoryDocument, evidence}, ["name", "kind", "content", "evidence"]),
-      object({name: string, kind: {type: "string", const: "project"}, classification: {type: "string", const: "private"}, sourceExcerpt: object({ref: reference, endRef: reference}, ["ref"]), evidence}, ["name", "kind", "classification", "sourceExcerpt", "evidence"])]}, undefined, empty ? 0 : undefined),
+    operations: array(operation, undefined, empty ? 0 : undefined), newMemories: array({anyOf: [object({name: string, kind: {type: "string", enum: kind === "memory-delta" ? ["preference"] : ["project", "preference"]}, classification, content: memoryDocument, evidence}, ["name", "kind", "content", "evidence"]),
+      object({name: string, kind: {type: "string", const: "project"}, classification: {type: "string", const: "private"}, sourceExcerpt: object({ref: reference, endRef: reference}, ["ref"]), evidence}, ["name", "kind", "classification", "sourceExcerpt", "evidence"]),
+      ...(kind === "memory-delta" ? [object({name: string, kind: {type: "string", const: "project"}, classification,
+        description: {type: "string", minLength: 1, maxLength: 120}, knowledge: knowledgeSchema(evidence, true)},
+      ["name", "kind", "classification", "description", "knowledge"])] : [])]}, undefined, empty ? 0 : undefined),
   }, ["kind", "version", "schemaVersion", ...Object.keys(identity), "operations", "newMemories"]));
   // The producer must include knowledge after metadata. Parent validation also
   // checks the first frontmatter block, intent, citations and full source truth.
@@ -84,6 +149,12 @@ export function learningOutputSchema(kind: unknown, domain?: MemoryCitationDomai
         {required: ["evidence"], not: {required: ["sourceExcerpt"]}},
         {required: ["sourceExcerpt", "evidence"], not: {required: ["content"]}},
       ];
+      if (atomicKnowledge) {
+        (patch.properties as Record<string, Schema>).knowledge = knowledgeSchema(evidence);
+        (patch.properties as Record<string, Schema>).description = string;
+        patch.anyOf = [...(patch.anyOf as Schema[]).map(branch => ({...branch, not: {anyOf: [branch.not, {required: ["knowledge"]}]}})),
+          {required: ["knowledge"], not: {anyOf: [{required: ["content"]}, {required: ["sourceExcerpt"]}, {required: ["evidence"]}]}}];
+      }
     }
     const withdrawalIds = withdrawalCandidateIds ?? [];
     if (withdrawalIds.length && (!inheritedSources || new Set(withdrawalIds).size !== withdrawalIds.length

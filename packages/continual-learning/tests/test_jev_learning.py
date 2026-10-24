@@ -1,4 +1,144 @@
+import pytest
+
 from support import isolated_run_bun
+
+
+def test_support_separation_prepares_one_label_blind_production_question() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).with_name('live_jev_support_separation.py')
+    spec = importlib.util.spec_from_file_location('support_separation', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    cases = module.corpus()['cases']
+    prepared = module.prepare_jobs(cases)
+    assert prepared['externalRequests'] == 0
+    assert prepared['model'] == 'jev-1.14.0'
+    assert len(prepared['jobs']) == len(cases)
+    for case, job in zip(cases, prepared['jobs'], strict=True):
+        import json
+        wire = job['request']
+        assert wire['model'] == 'jev-1.14.0'
+        assert list(wire['questions']) == ['supported_0']
+        assert set(wire['questions']['supported_0']['criteria']) == {
+            'grounded', 'speculative', 'transient', 'unsupported', 'unclear',
+        }
+        text = json.dumps(wire)
+        assert case['id'] not in text and 'expected' not in wire
+        assert job['candidateContent'].startswith('---\n')
+        assert not job['candidateContent'].startswith('---\\n')
+        assert job['requestSha256']
+
+
+def test_support_separation_does_not_count_service_failure_as_false_hold() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        'support_separation_summary', Path(__file__).with_name('live_jev_support_separation.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    result = module.summarize([
+        {'expected': 'grounded', 'status': 'unavailable', 'sourceGatePassed': False,
+         'requestCount': 1, 'completedRequests': 0},
+        {'expected': 'grounded', 'status': 'completed', 'sourceGatePassed': False,
+         'requestCount': 1, 'completedRequests': 1},
+        {'expected': 'negative', 'status': 'completed', 'sourceGatePassed': True,
+         'requestCount': 1, 'completedRequests': 1},
+    ])
+    assert result['serviceFailures'] == 1
+    assert result['falseHolds'] == 1 and result['falseAllows'] == 1
+
+
+def test_support_separation_retains_each_response_without_sdk_retries(tmp_path, monkeypatch) -> None:
+    import importlib.util
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        'support_separation_wire', Path(__file__).with_name('live_jev_support_separation.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.delenv('CL_SEPARATION_PROXY_URL', raising=False)
+    monkeypatch.delenv('CL_SEPARATION_PROXY_TOKEN', raising=False)
+    import pytest
+    with pytest.raises(RuntimeError, match='exclusive accounting owner'):
+        module.run_judge([])
+    jobs = module.prepare_jobs(module.corpus()['cases'][:4])['jobs']
+    requests = []
+    redirected = []
+
+    class RedirectTarget(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_POST(self):
+            redirected.append(True)
+            self.send_response(503)
+            self.end_headers()
+
+    redirect_server = ThreadingHTTPServer(('127.0.0.1', 0), RedirectTarget)
+    redirect_thread = threading.Thread(target=redirect_server.serve_forever, daemon=True)
+    redirect_thread.start()
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_POST(self):
+            request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            requests.append(request)
+            if len(requests) == 2:
+                self.send_response(503)
+                self.end_headers()
+                return
+            if len(requests) == 4:
+                self.send_response(307)
+                self.send_header('Location', f'http://127.0.0.1:{redirect_server.server_port}/escape')
+                self.end_headers()
+                return
+            body = json.dumps({'model': 'jev-1.14.0' if len(requests) == 1 else 'jev-1.13.0',
+                               'answers': {'supported_0': {
+                                   'type': 'choice', 'choice': 'grounded', 'confidence': 0.95,
+                                   'probabilities': {'grounded': 0.97, 'unsupported': 0.01,
+                                                     'speculative': 0.01, 'transient': 0, 'unclear': 0.01}}},
+                               'usage': {'input_tokens': 10, 'output_tokens': 2}}).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    rows_file = tmp_path / 'rows.jsonl'
+    monkeypatch.setenv('CL_SEPARATION_PROXY_URL', f'http://127.0.0.1:{server.server_port}')
+    monkeypatch.setenv('CL_SEPARATION_PROXY_TOKEN', 'fixture')
+    monkeypatch.setenv('CL_SEPARATION_ROWS_FILE', str(rows_file))
+    try:
+        value = module.run_judge(jobs)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        redirect_server.shutdown()
+        redirect_server.server_close()
+        redirect_thread.join(timeout=5)
+    assert len(requests) == 4  # A 503 must not retry or drop later cases.
+    assert redirected == []  # A 307 must never escape the accounting owner.
+    assert all(r['model'] == 'jev-1.14.0' for r in requests)
+    assert requests == [job['request'] for job in jobs]
+    assert [r['status'] for r in value['rows']] == ['completed', 'unavailable', 'model-mismatch', 'unavailable']
+    assert [r['sourceGatePassed'] for r in value['rows']] == [True, False, False, False]
+    assert [r['requestCount'] for r in value['rows']] == [1, 1, 1, 1]
+    assert value['rows'][0]['answer']['probabilities']['grounded'] == 0.97
+    assert value['rows'][0]['usage'] == {'input_tokens': 10, 'output_tokens': 2}
+    assert all(r['costComplete'] is False for r in value['rows'])
+    assert [json.loads(line) for line in rows_file.read_text().splitlines()] == value['rows']
 
 
 def test_jev_directions_relationships_and_failures() -> None:
@@ -69,7 +209,7 @@ def test_parent_checks_precede_jev_and_explicit_memory_is_never_silently_dropped
     assert applied['memoryMirrored'] and applied['registryReceipt']['operations'] == 1
     harness = run_bun_script(fixture, 'harness-propose', env={'CL_JEV_FIXTURE': 'scope-expansion'})
     assert harness['jevValidations'] == ['harness'] and not harness['harnessExists']
-    receipts = [run['receipt'] for run in harness['runs'] if run.get('receipt')]
+    receipts = [harness['registryReceipt']]
     assert receipts and receipts[-1]['operations'] == 0
     assert any(a.get('jev', {}).get('reason') == 'scope-expansion' for a in receipts[-1]['attempts'])
 
@@ -500,7 +640,8 @@ def test_semantic_memory_repair_guards_phase_quotas_retention_and_frozen_state()
     assert held['originalProposalRetained']
     cancelled = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': 'repair-cancel'})
     assert not cancelled['memoryMirrored'] and 'concise.md' not in cancelled['privateFiles']
-    assert 'registryReceipt' not in cancelled and not cancelled['lock']  # Superseded pipeline cannot emit a completed receipt.
+    assert not cancelled['lock'] and not cancelled['receiptComplete']
+    assert any(a['outcome']=='cancelled' for a in cancelled['registryReceipt']['attempts'])  # Keep the failed batch without reporting completion.
     for reason in ('tamper-first', 'tamper-second', 'tamper-repair', 'tamper-queue', 'tamper-dossier'):
         value = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': reason})
         assert not value['memoryMirrored'] and value['registryReceipt']['operations'] == 0, reason
@@ -699,15 +840,80 @@ def test_all_candidate_failures_are_reported_without_partial_permission() -> Non
     assert 'PRIVATE-NAME' not in str(telemetry)
 
 
+def test_normal_create_keeps_source_and_coherence_feedback_separate() -> None:
+    # Given the distinct V114 observed classifications, when a new controlled
+    # CREATE is reviewed, both diagnostics must reach its existing repair slot.
+    value = isolated_run_bun(r''' 
+      import {createJevJudge,jevRepairFailureHints} from './packages/continual-learning/extensions/jev-learning.ts';
+      let calls=0;
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+        calls++;const request=JSON.parse(init.body),answers={};
+        for(const [key,q] of Object.entries(request.questions)) {
+          if(q.type==='noul'){answers[key]={type:'noul',noul:1};continue;}
+          const coherence=key==='coherence_0',source=key==='supported_0';
+          const choice=coherence?'compatible':source?'unsupported':Object.keys(q.criteria)[0];
+          const score=coherence?.62:source?.54:1;
+          answers[key]={type:'choice',choice,confidence:coherence?.43:source?.42:1,
+            probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?score:k==='unclear'?1-score:0]))};
+        }
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:2}}));
+      }});
+      const result=await judge.validate('memory',{entries:[{message:{role:'user',content:'Observed source'}}]},[{name:'a.md',kind:'create',content:'Observed declaration'}],[]);
+      console.log(JSON.stringify({result,calls,hints:jevRepairFailureHints(result.telemetry)}));
+    ''')
+    failures = value['result']['telemetry']['candidateFailures']
+    assert value['result']['decision'] == 'propose' and value['calls'] == 1
+    assert [item.get('check') for item in failures] == ['coherence_0', 'supported_0']
+    assert failures[1]['choice'] == 'unsupported' and failures[1]['probability'] == .54
+    hints = '\n'.join(value['hints'])
+    assert 'observed-check=coherence_0; choice=compatible; probability=0.62; confidence=0.43' in hints
+    assert 'observed-check=supported_0; choice=unsupported; probability=0.54; confidence=0.42' in hints
+    assert 'proven' not in hints
+
+
 def test_all_failure_hints_fit_existing_repair_limits() -> None:
     value = isolated_run_bun(r'''
       import {jevRepairFailureHints} from './packages/continual-learning/extensions/jev-learning.ts';
       const candidateFailures=Array.from({length:128},(_,candidateIndex)=>({candidateIndex,dimension:'counterevidence',reason:'scope-expansion'}));
       const hints=jevRepairFailureHints({stage:'memory',status:'propose',reason:'uncertain',durationMs:0,candidateFailures});
-      console.log(JSON.stringify({hints,maximum:Math.max(...hints.map(x=>x.length))}));
+      // Given a source-supported check held by its separate coverage conjunction,
+      // when correction feedback is built, retain that distinction and all scores.
+      const coverage={candidateIndex:0,dimension:'support',field:'description',reason:'uncertain',
+        probability:.96,confidence:.95,sourceProbabilityLowerBound:.96,coverageProbabilityLowerBound:0,
+        conjunctionProbabilityLowerBound:0};
+      const feedback=item=>jevRepairFailureHints({stage:'memory',status:'propose',reason:'uncertain',durationMs:0,candidateFailures:[item]}).join('\n');
+      const original=JSON.stringify(coverage);
+      const observed={candidateIndex:0,dimension:'support',reason:'uncertain',check:'supported_0',choice:'unsupported',probability:.54,confidence:.42};
+      const invalid=[{check:'supported_1'},{check:'supported_00'},{check:'supported_description_0'},
+        {check:'supported_0 PRIVATE-NAME'}, {check:'counter_0_0'}, {dimension:'authority'},
+        {choice:'PRIVATE-NAME'},{probability:NaN},{probability:Infinity},{confidence:-1},{confidence:2}].map(delta=>feedback({...observed,...delta}));
+      const counter={candidateIndex:0,dimension:'preservation',reason:'conflict',check:'counter_preservation_0_2',
+        choice:'contradicts',probability:.96,confidence:.95,evidenceWindowIndex:2,evidenceEntryStart:5,evidenceEntryEnd:9};
+      const counterHints=feedback(counter),foreignWindow=feedback({...counter,evidenceWindowIndex:1});
+      const harnessHints=jevRepairFailureHints({stage:'harness',status:'propose',reason:'uncertain',durationMs:0,candidateFailures:[observed]});
+      const coverageHints=jevRepairFailureHints({stage:'memory',status:'propose',reason:'uncertain',durationMs:0,
+        candidateFailures:Array.from({length:128},(_,candidateIndex)=>({...coverage,candidateIndex}))});
+      console.log(JSON.stringify({invalid,counterHints,foreignWindow,harnessHints,hints,maximum:Math.max(...hints.map(x=>x.length)),
+        coverage:feedback(coverage),intrinsic:feedback({...coverage,sourceProbabilityLowerBound:0}),
+        malformed:[NaN,-1,2].map(coverageProbabilityLowerBound=>feedback({...coverage,coverageProbabilityLowerBound})),
+        mismatched:feedback({...coverage,coverageProbabilityLowerBound:1}),
+        unchanged:JSON.stringify(coverage)===original,coverageHints,
+        coverageMaximum:Math.max(...coverageHints.map(x=>x.length))}));
     ''')
+    assert all('observed-check=' not in item and 'PRIVATE-NAME' not in item for item in value['invalid'])
+    assert 'observed-check=counter_preservation_0_2; choice=contradicts' in value['counterHints']
+    assert 'window 2 entries 5-9' in value['counterHints']
+    assert 'observed-check=' not in value['foreignWindow']
+    assert all('observed-check=' not in item for item in value['harnessHints'])
     assert len(value['hints']) + 1 <= 16 and value['maximum'] <= 400
     assert all(f'{index}:counterevidence:scope-expansion' in ','.join(value['hints']) for index in range(128))
+    assert '0:support.description:uncertain' in value['coverage'] and 'coverage-conjunction:' in value['coverage']
+    assert 'original-check=0.96' in value['coverage'] and 'coverage=0' in value['coverage'] and 'joint=0' in value['coverage']
+    assert 'coverage-conjunction' not in value['intrinsic']
+    assert all('coverage-conjunction' not in item for item in value['malformed'])
+    assert 'coverage-conjunction' not in value['mismatched'] and value['unchanged']
+    assert len(value['coverageHints']) + 1 <= 16 and value['coverageMaximum'] <= 400
+    assert value['coverageHints'][-1].startswith('Additional candidate failure locations omitted;')
 
 
 def test_proven_finite_git_matching_is_separate_from_support_and_authorization() -> None:
@@ -1292,3 +1498,437 @@ def test_documentation_placeholders_in_text_are_allowed_while_quoted_real_values
     # A code, env or expression reference stays ordinary.
     assert value['envReference'] == [False, False]
     assert value['expression'] == [False, False]
+
+
+def test_coverage_gate_reviews_missing_whole_plan_even_without_candidates():
+    # Given a requested fact and an empty plan, When a bound diagnostic reports
+    # the omission, Then the real adapter must ask Jev and keep the plan held.
+    value = isolated_run_bun(r'''
+      import {bindMemoryPlanCoverage,memoryCoverageReviewDigest} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';let calls=0,keys=[];
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Remember the project fact alpha.'}]};
+      const plan={operations:[],newMemories:[]};
+      const review={status:'reviewed',targets:[],accounts:[],calls:1,durationMs:1,usageComplete:true,
+        plan:bindMemoryPlanCoverage([],evidence,[],plan,{plan:{verdict:'incomplete',obligations:[{basis:'requested',
+          statement:'Remember alpha',evidence:[{ref:'e0.b0.l1'}],coveredBy:[],status:'missing'}]},reviews:{}})};
+      const context={protocol:'memory-knowledge-coverage-v2',plan,review,expectedReviewDigest:memoryCoverageReviewDigest(review)};
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],defaultModel:'jev-1.14.0',fetch:async(_u,init)=>{
+        calls++;const wire=JSON.parse(init.body);keys.push(...Object.keys(wire.questions));
+        const answers=Object.fromEntries(Object.entries(wire.questions).map(([key,q])=>{const choice=key==='coverage_plan'?'missing':'material_missing';return [key,{type:'choice',choice,confidence:1,
+          probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}]}));
+        return new Response(JSON.stringify({model:'jev-1.14.0',answers,usage:{input_tokens:1,output_tokens:1}}))}});
+      const result=await judge.validate('memory',evidence,[],[],undefined,undefined,undefined,undefined,undefined,context);
+      console.log(JSON.stringify({result,calls,keys}));
+    ''')
+    assert value['calls'] == 1
+    assert 'coverage_plan' in value['keys'] and len(value['keys']) == 2
+    assert value['result']['decision'] == 'propose'
+    assert value['result']['coverageReview']['planPassed'] is False
+
+
+def test_coverage_checks_named_null_conditions_and_keeps_joint_thresholds():
+    # Given an internally consistent source-supported record with a named absent
+    # condition, When all global checks pass, Then that condition is still judged.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+      import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Remember the observed failure with applicability conditions.'},
+        {role:'toolResult',content:'The verification failed.\nThe follow-up was pending before cleanup.'}]};
+      const candidate={name:'failure.md',kind:'project',classification:'safe',content:'The verification failed. Cause unresolved.',evidence:[{index:1,quote:'The verification failed.'}]};
+      const candidates=[candidate],plan={operations:[],newMemories:candidates},targets=prepareMemoryBodyTargets(candidates,[]);
+      const raw={plan:{verdict:'covered',obligations:[]},reviews:{'0':{scope:{basis:'requested',statement:'Failure applicability',evidence:[{ref:'e0.b0.l1'}]},
+        claims:[{statement:'The verification failed',bodyQuote:'The verification failed.',evidence:[{ref:'e1.b0.l1'}],conditions:[{
+          statement:'The follow-up was pending before cleanup',bodyQuote:null,evidence:[{ref:'e1.b0.l2'}]}]}],uncovered:[],verdict:'uncertain'}}};
+      const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,[],{reviews:raw.reviews}),
+        plan:bindMemoryPlanCoverage(targets,evidence,[],plan,raw),calls:1,durationMs:1,usageComplete:true};
+      const context={protocol:'memory-knowledge-coverage-v2',plan,review,expectedReviewDigest:memoryCoverageReviewDigest(review)};
+      const runs=[];
+      for(const setting of [{issue:'material_missing',p:1},{issue:'dismissed',p:1},{issue:'dismissed',p:.96},{issue:'dismissed',p:.99},{issue:'dismissed',p:1,confidence:.79}]){
+        const received=[];
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],defaultModel:'jev-1.14.0',fetch:async(_u,init)=>{
+          const wire=JSON.parse(init.body);received.push(wire);
+          const answers=Object.fromEntries(Object.entries(wire.questions).map(([key,q])=>{
+            const choice=key.startsWith('coverage_issue_')?setting.issue:key.startsWith('coverage_')?'complete':key.startsWith('supported_')?'grounded':key.startsWith('relation_')?'unrelated':'compatible';
+            const labels=Object.keys(q.criteria),other=labels.find(x=>x!==choice);const probabilities=Object.fromEntries(labels.map(x=>[x,x===choice?setting.p:x===other?1-setting.p:0]));
+            return [key,{type:'choice',choice,confidence:key.startsWith('coverage_issue_')?(setting.confidence??1):1,probabilities}]}));
+          return new Response(JSON.stringify({model:'jev-1.14.0',answers,usage:{input_tokens:2,output_tokens:1}}))}});
+        const result=await judge.validate('memory',evidence,candidates,[],undefined,undefined,undefined,undefined,undefined,context);
+        runs.push({result,coverageQuestions:received.flatMap(w=>Object.keys(w.questions).filter(k=>k.startsWith('coverage_'))),
+          bodySourceBlind:received.filter(w=>Object.keys(w.questions).every(k=>k.startsWith('coherence_'))).every(w=>!JSON.stringify(w.state).includes('follow-up')),
+          coverageSourceComplete:received.filter(w=>Object.keys(w.questions).some(k=>k.startsWith('coverage_'))).every(w=>JSON.stringify(w.state).includes('follow-up'))});
+      }
+      console.log(JSON.stringify(runs));
+    ''')
+    assert [row['result']['decision'] for row in value] == ['propose', 'allow', 'propose', 'allow', 'propose']
+    for row in value:
+        assert row['coverageQuestions'] == ['coverage_plan', 'coverage_record_0', 'coverage_issue_0']
+        assert row['bodySourceBlind'] and row['coverageSourceComplete']
+        assert row['result']['candidateReview']['complete']
+    first = value[0]['result']
+    assert first['candidateReview']['checkObservations']['coherence_0']['probabilities']['compatible'] == 1
+    assert not any(f.get('internalConsistency') for f in first['telemetry']['candidateFailures'])
+    assert all(f.get('sourceProbabilityLowerBound') == 1 for f in first['telemetry']['candidateFailures'])
+    assert value[2]['result']['coverageReview']['candidateProbabilityLowerBounds'][0] < .9
+    assert value[3]['result']['coverageReview']['candidateProbabilityLowerBounds'][0] >= .9
+
+
+def test_parent_missing_coverage_keeps_writes_blocked_and_counts_the_worker():
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                           env={'CL_JEV_FIXTURE': 'coverage-unavailable'})
+    assert 'concise.md' not in value['privateFiles']
+    assert value['registryReceipt']['operations'] == 0
+    attempts = [a for a in value['registryReceipt']['attempts'] if a.get('usage', {}).get('cost') == .004]
+    assert len(attempts) == 1 and attempts[0]['usageLedgerId']
+    assert not value['harnessExists'] and not value['lock']
+
+
+def test_real_parent_corrects_a_coverage_only_body_omission_before_mutation():
+    # The source/consistency judgments are controlled. This proves actual parent
+    # repair/usage/mutation wiring, never real-model judgment or learning benefit.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                           env={'CL_JEV_FIXTURE': 'coverage-real-correction'})
+    assert value['memoryMirrored'] and value['registryReceipt']['operations'] == 1, value
+    assert 'Apply this convention only during releases.' in value['conciseMemory']
+    assert value['semanticRepairs'] == 1 and value['bodyReviewCalls'] == 2
+    assert sum(name.startswith('memory-coverage-semantic-') for run in value['runs'] for name in run['files']) == 2
+    assert 'body' in value['repairableFieldsReceived']['fields']['concise.md']
+    assert value['requiredTextChangesReceived']['concise.md'] == ['body']
+    coverage = [a for a in value['registryReceipt']['attempts'] if a.get('usage', {}).get('cost') == .004]
+    assert len(coverage) == 2 and len({a['usageLedgerId'] for a in coverage}) == 2
+    assert any(a['outcome'] in ('proposed', 'failed', 'rejected') for a in value['registryReceipt']['attempts'])
+    assert not value['lock']
+
+
+
+@pytest.mark.parametrize("missing_evidence", [False, True])
+def test_local_coverage_criteria_do_not_assign_other_records_goals_and_keep_global_hold(missing_evidence):
+    # Given a complete local fact, an unchanged predecessor and another missing
+    # knowledge goal, When asking versioned checks, Then local scope stays local
+    # while the unchanged global gate still holds the complete plan.
+    script = r"""
+      import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+      import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest,prepareMemoryCoverageJudgment} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const document=(name,body)=>`---\nname: ${name}\ndescription: ${body}\ntype: project\n---\n${body}\n`;
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Alpha fact. Preserve Gamma fact. Remember Alpha and Beta for future tasks.'}]};
+      const candidates=[{name:'alpha.md',kind:'project',classification:'safe',content:document('alpha','Alpha fact.'),evidence:[{index:0,quote:'Alpha fact.'}]}];
+      // CANDIDATE_SETUP
+      const existing=[{name:'gamma.md',content:document('gamma','Gamma fact.')}],plan={operations:[],newMemories:candidates};
+      const targets=prepareMemoryBodyTargets(candidates,existing),ref=[{ref:'e0.b0.l1'}];
+      const raw={plan:{verdict:'incomplete',obligations:[{basis:'requested',statement:'Remember Beta',evidence:ref,coveredBy:[],status:'missing'}]},
+        reviews:Object.fromEntries(targets.map((t,i)=>[i,{scope:i===0?{basis:'requested',statement:'Remember Alpha',evidence:ref}:
+          {basis:'predecessor',statement:'Preserve Gamma',evidence:[],predecessorQuote:'Gamma fact.'},
+          claims:[{statement:i===0?'Alpha fact.':'Gamma fact.',evidence:ref,bodyQuote:i===0?'Alpha fact.':'Gamma fact.',conditions:[]}],
+          uncovered:[],verdict:'covered'}]))};
+      const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,existing,{reviews:raw.reviews}),
+        plan:bindMemoryPlanCoverage(targets,evidence,existing,plan,raw),calls:1,durationMs:1,usageComplete:true};
+      const context={protocol:'memory-knowledge-coverage-v2',plan,review,expectedReviewDigest:memoryCoverageReviewDigest(review)};
+      const legacy=prepareMemoryCoverageJudgment(evidence,candidates,existing,context);
+      const current={...context,questionContractVersion:2};
+      const scoped=prepareMemoryCoverageJudgment(evidence,candidates,existing,current);
+      let unknownVersionRejected=false;
+      try{prepareMemoryCoverageJudgment(evidence,candidates,existing,{...context,questionContractVersion:3});}catch{unknownVersionRejected=true;}
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],defaultModel:'jev-1.14.0',fetch:async(_u,init)=>{
+        const wire=JSON.parse(init.body);
+        const answers=Object.fromEntries(Object.entries(wire.questions).map(([key,q])=>{
+          if(q.type==='noul')return [key,{type:'noul',noul:1}];
+          if(q.type==='score')return [key,{type:'score',score:3,confidence:1,legend:{0:'0',1:'1',2:'2',3:'3'},probabilities:{0:0,1:0,2:0,3:1}}];
+          const choice=key==='coverage_plan'?'missing':key.startsWith('coverage_issue_')?'material_missing':
+            ['complete','compatible','grounded','selfContained','independent','unrelated'].find(k=>Object.hasOwn(q.criteria,k))??Object.keys(q.criteria)[0];
+          return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,Number(k===choice)]))}];}));
+        return new Response(JSON.stringify({model:'jev-1.14.0',answers,usage:{input_tokens:1,output_tokens:1}}));}});
+      const result=await judge.validate('memory',evidence,candidates,existing,undefined,undefined,undefined,undefined,undefined,current);
+      console.log(JSON.stringify({legacy,scoped,result,unknownVersionRejected}));
+    """
+    value = isolated_run_bun(script.replace('// CANDIDATE_SETUP',
+        'delete candidates[0].evidence;' if missing_evidence else ''))
+    if missing_evidence:
+        assert value['result']['decision'] == 'propose'
+        assert value['result']['telemetry']['reason'] == 'invalid-response'
+        assert value['result']['telemetry']['requestCount'] == 0
+        assert 'coverageReview' not in value['result']
+        return
+    old, new = value['legacy'], value['scoped']
+    old_questions = {q['key']: q for q in old['questions']}
+    new_questions = {q['key']: q for q in new['questions']}
+    assert new_questions['coverage_plan'] == old_questions['coverage_plan']
+    assert new_questions['coverage_record_0']['criteria'] != new_questions['coverage_plan']['criteria']
+    assert new_questions['coverage_retained_0']['criteria'] != new_questions['coverage_plan']['criteria']
+    assert new_questions['coverage_record_0']['criteria'] != new_questions['coverage_retained_0']['criteria']
+    assert old_questions['coverage_record_0']['criteria'] == old_questions['coverage_plan']['criteria']
+    assert old['contextDigest'] != new['contextDigest']
+    assert value['unknownVersionRejected'] is True
+    proof = value['result']['coverageReview']
+    assert proof['planPassed'] is False
+    assert proof['candidateLocalProbabilityLowerBounds'] == [1]
+    assert proof['retainedLocalProbabilityLowerBounds'] == [1]
+    assert proof['candidateProbabilityLowerBounds'] == [0]
+    assert value['result']['decision'] == 'propose'
+
+
+
+def test_identical_named_omissions_share_one_decision_without_losing_occurrences():
+    # Given one absent condition is also listed in uncovered, When preparing
+    # independent checks, Then judge that exact event once and bind both rows.
+    value = isolated_run_bun(r'''
+      import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+      import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest,prepareMemoryCoverageJudgment} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Remember the known condition.'}]};
+      const candidates=[{name:'fact.md',content:'The fact.'}],plan={operations:[],newMemories:candidates},targets=prepareMemoryBodyTargets(candidates,[]);
+      const fact={statement:'The known condition',evidence:[{ref:'e0.b0.l1'}]};
+      const raw={plan:{verdict:'covered',obligations:[]},reviews:{'0':{scope:{basis:'requested',statement:'The scoped fact',evidence:fact.evidence},
+        claims:[{statement:'The fact',evidence:fact.evidence,bodyQuote:'The fact.',conditions:[{...fact,bodyQuote:null}]}],
+        uncovered:[fact],verdict:'incomplete'}}};
+      const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,[],{reviews:raw.reviews}),
+        plan:bindMemoryPlanCoverage(targets,evidence,[],plan,raw),calls:1,durationMs:1,usageComplete:true};
+      const prepared=prepareMemoryCoverageJudgment(evidence,candidates,[],{protocol:'memory-knowledge-coverage-v2',plan,review,
+        expectedReviewDigest:memoryCoverageReviewDigest(review)});
+      console.log(JSON.stringify({questions:prepared.questions.filter(q=>q.key.startsWith('coverage_issue_')),state:prepared.state}));
+    ''')
+    assert len(value['questions']) == 1
+    assert len(value['state']['namedIssueBindings']) == 2
+    assert len({item['key'] for item in value['state']['namedIssueBindings']}) == 1
+
+
+def test_identical_words_for_distinct_predecessors_keep_separate_dismissals():
+    value = isolated_run_bun(r'''
+      import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+      import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest,prepareMemoryCoverageJudgment} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Keep every still-required record.'}]};
+      const existing=[{name:'a.md',content:'Existing alpha.'},{name:'b.md',content:'Existing beta.'}],plan={operations:[],newMemories:[]};
+      const targets=prepareMemoryBodyTargets([],existing);
+      const raw={plan:{verdict:'incomplete',obligations:existing.map(old=>({basis:'predecessor',statement:'Still-required knowledge',evidence:[],
+        predecessorName:old.name,predecessorQuote:old.content,coveredBy:[],status:'missing'}))},reviews:Object.fromEntries(existing.map((old,i)=>[i,{
+          scope:{basis:'predecessor',statement:'Existing scope',evidence:[],predecessorQuote:old.content},claims:[{statement:old.content,
+            bodyQuote:old.content,evidence:[{ref:'e0.b0.l1'}],conditions:[]}],uncovered:[],verdict:'covered'}]))};
+      const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,existing,{reviews:raw.reviews}),
+        plan:bindMemoryPlanCoverage(targets,evidence,existing,plan,raw),calls:1,durationMs:1,usageComplete:true};
+      const prepared=prepareMemoryCoverageJudgment(evidence,[],existing,{protocol:'memory-knowledge-coverage-v2',plan,review,expectedReviewDigest:memoryCoverageReviewDigest(review)});
+      console.log(JSON.stringify({keys:prepared.questions.filter(q=>q.positive==='dismissed').map(q=>q.key)}));
+    ''')
+    assert len(value['keys']) == 2 and len(set(value['keys'])) == 2
+
+
+def test_retention_cost_survives_semantic_proof_write_failure():
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                           env={'CL_JEV_FIXTURE': 'coverage-real-proof-io-failure'})
+    assert value['registryReceipt']['operations'] == 0 and not value['memoryMirrored']
+    telemetry = [a['jev'] for a in value['registryReceipt']['attempts'] if a.get('jev')]
+    assert sum(t.get('requestCount', 0) for t in telemetry) == value['reviewWireCalls']
+    assert sum(t.get('inputTokens', 0) for t in telemetry) == value['reviewWireCalls']
+    assert len([t for t in telemetry if t['stage'] == 'memory']) == 2
+    assert all(t['estimatedCostUsd'] > 0 for t in telemetry if t.get('requestCount', 0))
+
+
+def test_complete_invalid_coverage_does_not_suppress_independent_source_correction():
+    # Given a complete contradictory coverage account and an independently held
+    # source claim, When the parent runs, Then its one existing repair changes
+    # the body and every fresh gate passes before the single write.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                          env={'CL_JEV_FIXTURE': 'coverage-real-invalid-correction'})
+    assert value['registryReceipt']['operations'] == 1, value
+    assert value['memoryMirrored']
+    assert 'Apply this convention only during releases.' in value['conciseMemory']
+    assert value['semanticRepairs'] == 1 and value['bodyReviewCalls'] == 2
+    proofs = value['coverageDiagnosticProofs']
+    assert len(proofs) == 1 and proofs[0]['proofAvailable'] is False
+    assert proofs[0]['writeAuthorized'] is False
+    assert proofs[0]['source0']['choice'] == 'unsupported'
+    assert proofs[0]['source0']['probabilities']['unsupported'] == 1
+    assert len(proofs[0]['rejectedAccount']['responseSha256']) == 64
+    failure = proofs[0]['rejectedAccount']['bindingFailure']
+    assert failure['kind'] == 'invalid-original-source-reference' and failure['ref'].endswith('.l99999')
+    assert any('Rejected coverage reviewer account' in error and failure['ref'] in error
+               for errors in value['repairErrors'] for error in errors)
+    assert any(a.get('diagnostic') == 'Independent Memory coverage account: invalid-response; diagnostic only.'
+               for a in value['registryReceipt']['attempts'])
+    assert len([a for a in value['registryReceipt']['attempts'] if a.get('usage', {}).get('cost') == .004]) == 2
+
+
+def test_invalid_coverage_alone_never_retries_an_approved_source_plan():
+    # Given the same invalid account but passing independent source/body checks,
+    # When it settles, Then no repair, account retry or mutation is authorized.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                          env={'CL_JEV_FIXTURE': 'coverage-real-invalid-source-pass'})
+    assert value['registryReceipt']['operations'] == 0
+    assert value['semanticRepairs'] == 0 and value['bodyReviewCalls'] == 1
+    assert value['reviewWireCalls'] > 0
+    assert len([a for a in value['registryReceipt']['attempts'] if a.get('usage', {}).get('cost') == .004]) == 1
+    assert 'concise.md' not in value['privateFiles']
+
+
+@pytest.mark.parametrize('reason', ['sensitive', 'too-large', 'extra-key', 'failed-worker', 'incomplete-usage', 'malformed-json', 'cancelled-worker', 'response-io-failure'])
+def test_other_invalid_coverage_responses_cannot_continue_diagnostics(reason):
+    # Given unsafe, failed, incomplete or unframed coverage output, When it
+    # settles, Then the narrow complete-binding-failure route stays unavailable.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                          env={'CL_JEV_FIXTURE': 'coverage-real-invalid-' + reason})
+    assert value['registryReceipt']['operations'] == 0, reason
+    assert value['semanticRepairs'] == 0 and value['bodyReviewCalls'] == 0, reason
+    assert value['reviewWireCalls'] == 0, reason
+    assert len([a for a in value['registryReceipt']['attempts'] if a.get('usage', {}).get('cost') == .004]) == 1
+    assert 'concise.md' not in value['privateFiles']
+
+
+def test_rejected_coverage_cannot_rejudge_the_same_body_after_citation_only_repair():
+    # Given a complete rejected account and an actual independent body hold,
+    # When the one repair only narrows a two-line citation, Then the same body
+    # cannot acquire a second coverage judgment or mutation authority.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                          env={'CL_JEV_FIXTURE': 'coverage-real-invalid-citation-only'})
+    assert value['registryReceipt']['operations'] == 0, value
+    assert value['semanticRepairs'] == 1, value
+    assert value['bodyReviewCalls'] == 1, value
+    assert len([a for a in value['registryReceipt']['attempts'] if a.get('usage', {}).get('cost') == .004]) == 1, value
+
+
+def test_rejected_coverage_diagnostic_io_failure_keeps_every_returned_source_cost():
+    # Given source judgments return before their independent diagnostic file fails,
+    # When the run settles, Then every SDK call is retained once and no write occurs.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                          env={'CL_JEV_FIXTURE': 'coverage-real-invalid-diagnostic-io-failure'})
+    assert value['registryReceipt']['operations'] == 0
+    assert value['semanticRepairs'] == value['bodyReviewCalls'] == 0
+    assert value['reviewWireCalls'] > 0
+    retained = [a['jev'] for a in value['registryReceipt']['attempts'] if a.get('jev')]
+    assert sum(a.get('requestCount', 0) for a in retained) == value['reviewWireCalls']
+    assert sum(a.get('inputTokens', 0) for a in retained) == value['reviewWireCalls']
+    assert sum(a.get('outputTokens', 0) for a in retained) == value['reviewWireCalls']
+    assert value['coverageDiagnosticProofs'] == []
+    assert len([a for a in value['registryReceipt']['attempts'] if a.get('usage', {}).get('cost') == .004]) == 1
+
+
+@pytest.mark.parametrize('repair,coverage_passes', [
+    ('citations', False), ('source', True), ('source', False),
+    ('counter', False), ('counter', True), ('joint', False), ('joint', True),
+    ('body', False), ('description', False),
+])
+def test_valid_coverage_hold_requires_a_change_to_held_knowledge_before_rejudgment(repair, coverage_passes):
+    # Given valid coverage accounts but independently held coverage, When only
+    # citations change, Then retain that hold without resampling or writing.
+    # A genuine intrinsic source hold permits evidence-only correction when
+    # coverage passed; changed knowledge still requires every fresh review.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                           env={'CL_JEV_FIXTURE': 'coverage-real-repair-' + repair,
+                                'CL_COVERAGE_INITIAL_RESULT': 'passed' if coverage_passes else 'held'})
+    reviews = [review for review in value['coverageRepairReviews'] if review.get('coverage')]
+    assert reviews, value
+    contract = value['coverageRepairContracts'][0]
+    assert contract['knowledgeChangeRequired'] is (not coverage_passes), contract
+    assert contract['unchangedKnowledgePolicy'] is (not coverage_passes), contract
+    initial = reviews[0]
+    intrinsic = initial['checks']
+    for key, check in intrinsic.items():
+        if repair == 'source' and key == 'supported_0':
+            assert check['choice'] == 'unsupported' and check['positiveProbabilityLowerBound'] == 0
+        elif repair == 'counter' and key == 'counter_0_0':
+            assert check['choice'] == 'compatible' and check['probabilities']['compatible'] == .89
+            assert check['positiveProbabilityLowerBound'] == 0
+        else:
+            assert check['positiveProbabilityLowerBound'] >= .9 and check['confidence'] >= .8, (key, check)
+    if repair == 'joint':
+        source_joint = sum(intrinsic[key]['positiveProbabilityLowerBound'] for key in
+                           ['counter_0_0', 'counter_permission_0_0', 'counter_preservation_0_0']) - 2
+        assert source_joint < .9  # Individual checks pass but intrinsic joint still holds.
+    initial_coverage = initial['coverage']['checks']
+    assert all(check['probabilities']['complete'] == (1 if coverage_passes else .81)
+               for check in initial_coverage)
+    transports = value['coverageRepairTransports']
+    coverage_costs = [attempt for attempt in value['registryReceipt']['attempts']
+                      if attempt.get('usage', {}).get('cost') == .004]
+    # The first returned response and usage must remain in their original run.
+    assert all(len(transport['requestSha256']) == 64 for transport in transports)
+    assert coverage_costs and coverage_costs[0]['usage']['totalTokens'] == 45
+    assert value['coverageRepairResponses']
+    assert all(len(saved['responseSha256']) == 64 and saved['response']
+               for saved in value['coverageRepairResponses'])
+    assert value['semanticRepairs'] == 1
+    if not coverage_passes and repair in ('citations', 'source', 'counter', 'joint'):
+        assert len(transports) == 1, {'freshCoverageCalls': len(transports),
+                                     'writes': value['registryReceipt']['operations'],
+                                     'sameKnowledge': transports[0]['body'] == transports[-1]['body'],
+                                     'sameSource': transports[0]['sourceDigest'] == transports[-1]['sourceDigest']}
+        assert value['registryReceipt']['operations'] == 0 and not value['memoryMirrored']
+        assert value['bodyReviewCalls'] == 1 and len(coverage_costs) == 1
+        assert not initial['coverage']['planPassed']
+    else:
+        assert len(transports) == 2 and value['bodyReviewCalls'] == 2
+        assert value['registryReceipt']['operations'] == 1
+        assert value['correctedKnownMemory'] if repair == 'joint' else value['memoryMirrored']
+        assert len(coverage_costs) == 2
+        assert reviews[-1]['coverage']['planPassed']
+        assert all(check['positiveProbabilityLowerBound'] >= .9
+                   for check in reviews[-1]['checks'].values())
+        if repair in ('source', 'counter', 'joint'):
+            assert transports[0]['body'] == transports[1]['body']
+        else:
+            assert transports[0]['body'] != transports[1]['body']
+            if repair == 'description':
+                assert transports[0]['body'].split('---\n')[-1] == transports[1]['body'].split('---\n')[-1]
+            else:
+                assert 'Apply this convention only during releases.' in value['conciseMemory']
+
+
+@pytest.mark.parametrize('tamper', ['missing', 'duplicate', 'location', 'distribution', 'context', 'model'])
+def test_unchanged_knowledge_guard_rejects_an_invalid_complete_coverage_proof(tamper):
+    # Given a complete response with damaged question/identity binding,
+    # When the parent considers repair, Then no new draw or mutation is allowed.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                           env={'CL_JEV_FIXTURE': 'coverage-real-repair-citations',
+                                'CL_COVERAGE_GUARD_PROOF': tamper})
+    assert len(value['coverageRepairTransports']) == 1
+    assert value['semanticRepairs'] == 0
+    assert value['registryReceipt']['operations'] == 0 and not value['memoryMirrored']
+    assert len(value['coverageRepairResponses']) == 1
+    assert value['coverageRepairResponses'][0]['response']
+
+
+@pytest.mark.parametrize('scope', ['retained-only', 'mixed-retained'])
+def test_coverage_only_hold_does_not_resample_an_exact_retained_noop_rewrite(scope):
+    # Given retained knowledge held only by coverage, When the correction adds
+    # an exact frozen rewrite with fresh citations, Then expansion/report rows
+    # do not turn it into changed knowledge or grant another coverage draw.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
+                           env={'CL_JEV_FIXTURE': 'coverage-real-repair-' + scope})
+    assert value['coverageRepairTransports'], value
+    assert value['semanticRepairs'] == 1, value
+    initial_count = 1  # One whole-plan coverage request includes retained targets.
+    assert len(value['coverageRepairTransports']) == initial_count, {
+        'coverageCalls': len(value['coverageRepairTransports']),
+        'operations': value['registryReceipt']['operations'],
+        'repairs': value['semanticRepairs'], 'notices': value['notices'],
+    }
+    assert any('semantic-repair-unchanged-coverage.json' in run['files'] for run in value['runs']), value['registryReceipt']
+    assert value['registryReceipt']['operations'] == 0
+    assert value['correctedKnownMemory'].endswith('Existing knowledge.\n')
+    # The single initial public-to-private synchronization predates review.
+    # No correction transaction may add another history entry.
+    assert len([record for record in value['history'] if record['status'] == 'applied']) == 1
+    assert all(record['status'] == 'applied' or record['changes'] == [] for record in value['history'])
+    assert len(value['coverageRepairResponses']) == 1
+    for review in value['coverageRepairReviews']:
+        assert all(check['positiveProbabilityLowerBound'] >= .9
+                   for check in review['checks'].values())

@@ -2,17 +2,153 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { sha256Digest } from "./consolidation-run";
+import { containsSensitiveMemoryMaterial, normalizeNewMemoryProposals, normalizeSnapshotEvidence, sha256Digest } from "./consolidation-run";
+import {prepareMemoryCoverageJudgment, type MemoryCoverageContext, type MemoryCoverageQuestion} from "./memory-knowledge-coverage";
 import { readBoundedBacklogFile, safeBacklogStorage } from "./learning-backlog";
 import { readLearningHistory, type LearningHistory } from "./learning-history";
 import { resolveMemoryPaths } from "./memory-paths";
-import type { LearningPipelineReceipt } from "./learning-efficiency";
+import type { LearningAttempt, LearningPipelineReceipt } from "./learning-efficiency";
 
 const MAX_REPLAY_FEEDBACK_BYTES = 128_000;
 const MAX_REPLAY_HISTORY_BYTES = 32 * 1024 * 1024;
 
 function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+type CoverageArtifact = NonNullable<LearningAttempt["coverageReviewArtifact"]>;
+export interface RejectedCoverageQuestions {
+  purpose: "rejected-questions-only";
+  runId: string;
+  sourceSnapshotDigest: string;
+  reviewedPlanDigest: string;
+  artifact: CoverageArtifact;
+  rejectedPlan: MemoryCoverageContext["plan"];
+  /** Complete rejected diagnostics, not source facts or required answers.
+   * Optional only for feedback retained before these relationships were copied. */
+  planAccount?: MemoryCoverageContext["review"]["plan"];
+  recordAccounts?: MemoryCoverageContext["review"]["accounts"];
+  priorRejectedPlan?: MemoryCoverageContext["plan"];
+  priorTargets?: unknown[];
+  /** Reuse the complete earlier plan, targets and accounts in this same version list. */
+  priorAccountArtifact?: CoverageArtifact;
+  priorPlanAccount?: MemoryCoverageContext["review"]["plan"];
+  priorRecordAccounts?: MemoryCoverageContext["review"]["accounts"];
+  questions: MemoryCoverageQuestion[];
+  occurrences: unknown[];
+  targets: unknown[];
+  checks: unknown[];
+}
+
+function coverageArtifact(value: unknown): value is CoverageArtifact {
+  return record(value) && Object.keys(value).length === 3
+    && typeof value.file === "string" && /^memory-coverage-semantic-[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}\.json$/.test(value.file)
+    && typeof value.sha256 === "string" && /^[a-f0-9]{64}$/.test(value.sha256)
+    && typeof value.reviewedPlanDigest === "string" && /^[a-f0-9]{64}$/.test(value.reviewedPlanDigest);
+}
+
+/** Only receipt-authenticated parent bytes reach this shape check. The coverage
+ * preparer below independently rechecks the source, plan, bodies and accounts. */
+function parentCoverageContext(value: unknown, prior = false): value is MemoryCoverageContext {
+  return record(value) && value.protocol === "memory-knowledge-coverage-v2"
+    && (value.questionContractVersion === undefined || value.questionContractVersion === 2) && record(value.plan)
+    && typeof value.expectedReviewDigest === "string" && record(value.review)
+    && value.review.status === "reviewed" && Array.isArray(value.review.targets)
+    && Array.isArray(value.review.accounts) && record(value.review.plan)
+    && (value.prior === undefined || !prior && parentCoverageContext({protocol: value.protocol,
+      ...(record(value.prior) ? value.prior : {})}, true));
+}
+
+function rejectedCoverageQuestions(input: {
+  receipt: LearningPipelineReceipt; proposal: Record<string, unknown>; plan: Record<string, unknown>;
+  snapshot: Record<string, unknown>; snapshotDigest: string;
+  artifacts?: readonly {file: string; text: string}[];
+}): RejectedCoverageQuestions[] | undefined {
+  const refs = input.proposal.rejectedCoverageReviews;
+  const receiptRefs = input.receipt.attempts.flatMap(attempt => attempt.coverageReviewArtifact ? [attempt.coverageReviewArtifact] : []);
+  if (refs === undefined && !receiptRefs.length) return undefined;
+  if (input.proposal.kind !== "independent-memory-review"
+    || input.proposal.reviewedPlanDigest !== sha256Digest(JSON.stringify(input.plan))
+    || !Array.isArray(refs) || !refs.length || refs.length > 4 || !refs.every(coverageArtifact)
+    || JSON.stringify(refs) !== JSON.stringify(receiptRefs)
+    || new Set(refs.map(ref => ref.file)).size !== refs.length
+    || !input.artifacts || input.artifacts.length !== refs.length) throw new Error("Invalid rejected coverage references");
+  const number = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+  const priorAccountArtifacts = new Map<string, CoverageArtifact>();
+  return refs.map(ref => {
+    const files = input.artifacts!.filter(item => item.file === ref.file);
+    if (files.length !== 1 || sha256Digest(files[0].text) !== ref.sha256) throw new Error("Rejected coverage artifact changed");
+    const value: unknown = JSON.parse(files[0].text);
+    if (!record(value) || value.version !== 1 || value.runId !== input.plan.runId
+      || value.snapshotDigest !== input.snapshotDigest || value.planDigest !== ref.reviewedPlanDigest
+      || value.proofAvailable !== true || value.writeAuthorized !== false
+      || !parentCoverageContext(value.coverageContext) || !Array.isArray(value.existingMemories)
+      || !value.existingMemories.every((item): item is {name: string; content: string} => record(item)
+        && typeof item.name === "string" && typeof item.content === "string")
+      || !record(value.reviewed) || !record(value.reviewed.coverageReview)) throw new Error("Invalid rejected coverage artifact");
+    const context = value.coverageContext, plan = context.plan;
+    if (!record(plan) || !Array.isArray(plan.operations) || !Array.isArray(plan.selected)
+      || !plan.selected.every((name): name is string => typeof name === "string")
+      || ["runId", "scopeKey", "scopeDigest", "artifactHash", "snapshotDigest"].some(key => plan[key] !== input.plan[key])
+      || JSON.stringify(plan.selected) !== JSON.stringify(input.plan.selected)
+      || sha256Digest(JSON.stringify(plan)) !== ref.reviewedPlanDigest) throw new Error("Rejected coverage plan changed");
+    const candidates = [...plan.operations, ...normalizeNewMemoryProposals(plan, input.snapshot, plan.selected)];
+    const prepared = prepareMemoryCoverageJudgment(input.snapshot, candidates, value.existingMemories, context);
+    for (const review of [context.review, ...(context.prior ? [context.prior.review] : [])]) {
+      const facts = [...review.plan!.obligations, ...review.accounts.flatMap(account =>
+        [account.scope, ...account.uncovered, ...account.claims.flatMap(claim => [claim, ...claim.conditions])])];
+      for (const fact of facts) {
+        if (typeof fact.statement !== "string" || !fact.statement.trim() || fact.statement.length > 2000
+          || containsSensitiveMemoryMaterial(fact.statement) || !Array.isArray(fact.evidence)
+          || fact.evidence.length > 8 || "basis" in fact && fact.basis === "requested"
+            && fact.evidence.some(item => item.role !== "user")) {
+          throw new Error("Invalid rejected coverage fact");
+        }
+        if (!fact.evidence.length && "basis" in fact && fact.basis === "predecessor") continue;
+        if (JSON.stringify(normalizeSnapshotEvidence(fact.evidence, input.snapshot)) !== JSON.stringify(fact.evidence)) {
+          throw new Error("Rejected coverage quote or role changed");
+        }
+      }
+    }
+    const proof = value.reviewed.coverageReview;
+    const own = input.receipt.attempts.filter(attempt => attempt.coverageReviewArtifact?.file === ref.file);
+    if (own.length !== 1 || own[0].phase !== "memory" || own[0].operations !== 0 || own[0].usageComplete !== true
+      || own[0].usageLedgerId !== context.review.usageLedgerId
+      || JSON.stringify(own[0].usage) !== JSON.stringify(context.review.usage)
+      || value.expectedAccountDigest !== context.expectedReviewDigest
+      || value.expectedContextDigest !== prepared.contextDigest || proof.contextDigest !== prepared.contextDigest
+      || proof.protocol !== "memory-knowledge-coverage-v2" || proof.complete !== true
+      || proof.evidenceDigest !== sha256Digest(JSON.stringify(input.snapshot))
+      || proof.candidatesDigest !== sha256Digest(JSON.stringify(candidates))
+      || proof.existingDigest !== sha256Digest(JSON.stringify(value.existingMemories))
+      || JSON.stringify(value.coverageQuestions) !== JSON.stringify(prepared.questions)
+      || !record(prepared.state) || !Array.isArray(prepared.state.namedIssueBindings)
+      || JSON.stringify(value.coverageIssueBindings) !== JSON.stringify(prepared.state.namedIssueBindings)
+      || !Array.isArray(proof.checks) || proof.checks.length !== prepared.questions.length) throw new Error("Rejected coverage receipt or question binding changed");
+    const checks = proof.checks.map((check, index) => {
+      const question = prepared.questions[index];
+      const probabilities = record(check) && record(check.probabilities) ? check.probabilities : undefined;
+      if (!record(check) || check.key !== question.key || check.candidateIndex !== question.candidateIndex
+        || check.retainedIndex !== question.retainedIndex || typeof check.choice !== "string"
+        || !Object.hasOwn(question.criteria, check.choice) || !number(check.probability) || !number(check.confidence)
+        || !probabilities || Object.keys(probabilities).length !== Object.keys(question.criteria).length
+        || Object.keys(question.criteria).some(label => !number(probabilities[label]))
+        || probabilities[check.choice] !== check.probability) throw new Error("Invalid rejected coverage answer");
+      return {...check};
+    });
+    const priorAccountArtifact = context.prior && priorAccountArtifacts.get(context.prior.expectedReviewDigest);
+    const result: RejectedCoverageQuestions = {purpose: "rejected-questions-only", runId: String(input.plan.runId),
+      sourceSnapshotDigest: input.snapshotDigest, reviewedPlanDigest: ref.reviewedPlanDigest, artifact: ref,
+      questions: prepared.questions, occurrences: prepared.state.namedIssueBindings,
+      rejectedPlan: context.plan, targets: context.review.targets,
+      planAccount: context.review.plan, recordAccounts: context.review.accounts, checks,
+      ...(context.prior ? priorAccountArtifact ? {priorAccountArtifact: {...priorAccountArtifact}}
+        : {priorRejectedPlan: context.prior.plan, priorTargets: context.prior.review.targets,
+          priorPlanAccount: context.prior.review.plan, priorRecordAccounts: context.prior.review.accounts} : {})};
+    if (containsSensitiveMemoryMaterial(JSON.stringify(result))) throw new Error("Unsafe rejected coverage question");
+    priorAccountArtifacts.set(context.expectedReviewDigest, {...ref});
+    return result;
+  });
 }
 
 export interface MemoryReplayFeedback {
@@ -28,6 +164,7 @@ export interface MemoryReplayFeedback {
   eligibleIndexes: number[];
   heldIndexes: number[];
   failures: Array<{ candidateIndex: number; dimension: string; field?: "description"; reason: string }>;
+  rejectedCoverageQuestions?: RejectedCoverageQuestions[];
 }
 
 function previousPlan(proposal: Record<string, unknown>): Record<string, unknown> | null {
@@ -114,6 +251,7 @@ export function reviewedSourceExtension(snapshot: Record<string, unknown>, plan:
 export function buildMemoryReplayFeedback(input: {
   receipt: LearningPipelineReceipt; backlogId: string; entries: readonly unknown[];
   proposal: unknown; snapshotText: string; reviewManifest?: unknown; sourceAudit?: unknown;
+  rejectedCoverageArtifacts?: readonly {file: string; text: string}[];
 }): MemoryReplayFeedback | null {
   const { receipt, proposal } = input;
   if (receipt.input?.backlogId !== input.backlogId || !record(proposal)) return null;
@@ -153,12 +291,16 @@ export function buildMemoryReplayFeedback(input: {
     failures.push({ candidateIndex: failure.candidateIndex as number, dimension: failure.dimension,
       ...(failure.field === "description" ? { field: "description" as const } : {}), reason: failure.reason });
   }
+  let coverageQuestions: RejectedCoverageQuestions[] | undefined;
+  try { coverageQuestions = rejectedCoverageQuestions({receipt, proposal, plan, snapshot,
+    snapshotDigest: plan.snapshotDigest, artifacts: input.rejectedCoverageArtifacts}); }
+  catch { return null; }
   const feedback: MemoryReplayFeedback = { kind: "memory-replay-feedback", version: 1,
     priorReceiptDigest: sha256Digest(JSON.stringify(receipt)), priorPlanDigest: sha256Digest(JSON.stringify(plan)),
     sourceSnapshotDigest: plan.snapshotDigest, sourceEntryCount: input.entries.length,
     ...(extended ? {reviewEntryCount: (snapshot.entries as unknown[]).length} : {}),
     diagnosticsStatus: bound ? "bound" : "unavailable", candidates,
-    eligibleIndexes, heldIndexes, failures };
+    eligibleIndexes, heldIndexes, failures, ...(coverageQuestions ? {rejectedCoverageQuestions: coverageQuestions} : {}) };
   return Buffer.byteLength(JSON.stringify(feedback)) <= MAX_REPLAY_FEEDBACK_BYTES ? feedback : null;
 }
 
@@ -233,8 +375,25 @@ export async function readMemoryReplayFeedback(input: {
       sourceAudit = {receipt: auditReceipt, observations};
     }
   }
+  let rejectedCoverageArtifacts: {file: string; text: string}[] | undefined;
+  if (record(proposal) && proposal.rejectedCoverageReviews !== undefined) {
+    const refs = proposal.rejectedCoverageReviews;
+    if (!Array.isArray(refs) || !refs.length || refs.length > 4 || !refs.every(coverageArtifact)
+      || new Set(refs.map(ref => ref.file)).size !== refs.length) throw new Error("Invalid rejected coverage file binding");
+    rejectedCoverageArtifacts = [];
+    let artifactBytes = 0;
+    for (const ref of refs) {
+      const artifactFile = path.join(paths.runsDir, plan.runId, ref.file);
+      safeBacklogStorage(artifactFile, paths.agentDir);
+      const text = readBoundedBacklogFile(artifactFile, MAX_REPLAY_HISTORY_BYTES);
+      artifactBytes += Buffer.byteLength(text);
+      if (artifactBytes > MAX_REPLAY_HISTORY_BYTES) throw new Error("Rejected coverage artifacts exceed their byte budget");
+      rejectedCoverageArtifacts.push({file: ref.file, text});
+    }
+  }
   const feedback = buildMemoryReplayFeedback({ receipt: input.receipt, backlogId: input.backlogId,
-    entries: input.entries, proposal, snapshotText, ...(reviewManifest ? {reviewManifest, sourceAudit} : {}) });
+    entries: input.entries, proposal, snapshotText, ...(reviewManifest ? {reviewManifest, sourceAudit} : {}),
+    ...(rejectedCoverageArtifacts ? {rejectedCoverageArtifacts} : {}) });
   if (!feedback) throw new Error("Previous Memory failure cannot be safely bound to replay evidence");
   return feedback;
 }

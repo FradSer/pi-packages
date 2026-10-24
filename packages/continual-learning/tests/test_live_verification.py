@@ -269,3 +269,20 @@ def test_native_probe_accepts_only_bounded_exit_status_diagnostic_suffix() -> No
     ):
         assert invalid not in native_probe_commands('git push --dry-run', project)
         assert not learned_block_result(messages(invalid), 'git push --dry-run', rules, project)
+
+
+@pytest.mark.parametrize('mode',['manual','full'])
+def test_live_receipt_waiters_refuse_conflicting_batch_views(tmp_path,mode):
+    import live_full_learning,live_manual_memory
+    runs=tmp_path/'memory/runs/scope';archive=runs/'receipts/batch_fixture';archive.mkdir(parents=True)
+    value={'kind':'learning-pipeline-receipt','version':1,'mode':mode,'batchId':'batch_fixture',
+        'screen':{'memory':True,'harness':False,'agents':False},
+        'attempts':[{'phase':'memory','outcome':'noop','operations':0}]}
+    latest=runs/'learning-pipeline-receipt.json';saved=archive/'learning-pipeline-receipt.json'
+    latest.write_text(json.dumps(value));saved.write_text(json.dumps(value))
+    class Tui:
+        def wait_until(self,ready,*args):assert ready(),'unsettled receipt views'
+    wait=live_full_learning.full_receipt if mode=='full' else live_manual_memory._wait_receipt
+    assert wait(Tui(),tmp_path,{})==value
+    latest.write_text(json.dumps({**value,'diagnostic':'conflicting view'}))
+    with pytest.raises(AssertionError,match='unsettled receipt views'):wait(Tui(),tmp_path,{})

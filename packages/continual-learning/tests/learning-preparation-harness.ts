@@ -71,5 +71,6 @@ try {
   }
   await emit("session_shutdown");
   const paths=consolidation.resolveConsolidationRunPaths(cwd);
-  console.log(JSON.stringify({selectors:prompts.length,original:prompts.every(prompt=>prompt.includes("original task evidence")),replacement:prompts.some(prompt=>prompt.includes("replacement task evidence")),lock:fs.existsSync(paths.lockFile),reported,notices,backlog:backlogStatus(cwd),entries:readBacklog(cwd).entries}));
+  const receiptCopies=fs.existsSync(paths.memory.runsDir)?fs.readdirSync(paths.memory.runsDir,{recursive:true}).filter(name=>String(name).endsWith("learning-pipeline-receipt.json")).map(name=>JSON.parse(fs.readFileSync(path.join(paths.memory.runsDir,String(name)),"utf8"))):[];
+  console.log(JSON.stringify({receiptCopies,selectors:prompts.length,original:prompts.every(prompt=>prompt.includes("original task evidence")),replacement:prompts.some(prompt=>prompt.includes("replacement task evidence")),lock:fs.existsSync(paths.lockFile),reported,notices,backlog:backlogStatus(cwd),entries:readBacklog(cwd).entries}));
 } finally {fs.rmSync(root,{recursive:true,force:true});}

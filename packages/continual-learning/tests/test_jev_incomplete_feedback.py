@@ -105,6 +105,11 @@ def test_combined_repair_must_cover_held_proposals_as_well_as_retained_records()
       const input={identity,rejectedPlan:original,selectedNames:['original.md','retained.md'],retainedRepairNames:['retained.md'],repairableNames:['original.md'],repairableFields:{'original.md':['body']},requiredTextChanges:{'original.md':['body']},errors:['held original and retained fields'],semanticContext:{frozenEvidence:evidence,existingMemories:[{name:'original.md',classification:'private',type:'project',description:'Build',content},{name:'retained.md',classification:'private',type:'project',description:'Build',content}]}};const result=await repairIncrementalMemoryPlan(input);
       response.operations.unshift(original.operations[0]);
       const unchanged=await repairIncrementalMemoryPlan(input);
+      const formattingOnly=[];
+      for(const replacement of [content+'\n',content.replaceAll('\n','\r\n'),content.replace('description: The project uses pnpm.','description: This project uses pnpm.')+'\n']){
+        response.operations[0]={...original.operations[0],content:replacement};
+        formattingOnly.push(await repairIncrementalMemoryPlan({...input,repairableFields:{'original.md':['body','description']}}));
+      }
       response.operations[0]={...original.operations[0],content:content.replace('\nThe project uses pnpm.\n','\nThis project uses pnpm.\n')};
       const both={...input,repairableFields:{'original.md':['body','description']},requiredTextChanges:{'original.md':['body','description']}};
       const unchangedDescription=await repairIncrementalMemoryPlan(both);
@@ -112,7 +117,7 @@ def test_combined_repair_must_cover_held_proposals_as_well_as_retained_records()
       const changed=await repairIncrementalMemoryPlan(both);
       response.operations[0]=original.operations[0];
       const citationOnlyAllowed=await repairIncrementalMemoryPlan({...input,requiredTextChanges:undefined});
-      console.log(JSON.stringify({result,unchanged,unchangedDescription,changed,citationOnlyAllowed,coverage:payload.requiredRepairCoverage}));
+      console.log(JSON.stringify({result,unchanged,formattingOnly,unchangedDescription,changed,citationOnlyAllowed,coverage:payload.requiredRepairCoverage}));
     ''')
     assert value['result']['outcome'] == 'failed'
     assert value['result']['failureKind'] == 'no-correction'
@@ -120,6 +125,8 @@ def test_combined_repair_must_cover_held_proposals_as_well_as_retained_records()
     assert value['coverage'] == {'proposed': ['original.md'], 'retained': ['retained.md']}
     assert value['unchanged']['outcome'] == 'failed'
     assert value['unchanged']['failureKind'] == 'no-correction'
+    assert all(row['outcome'] == 'failed' and row['failureKind'] == 'no-correction'
+               and row['usage']['cost'] == .01 for row in value['formattingOnly'])
 
     assert value['unchangedDescription']['outcome'] == 'failed'
     assert value['unchangedDescription']['failureKind'] == 'no-correction'

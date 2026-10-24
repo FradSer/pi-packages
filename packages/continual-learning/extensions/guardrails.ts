@@ -345,9 +345,12 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     authoring = undefined;
     if (pi.getActiveTools && pi.setActiveTools) pi.setActiveTools(pi.getActiveTools().filter(name => name !== "harness_preview"));
   };
-  pi.on("agent_end", finishAuthoring);
-  pi.on("session_start", finishAuthoring);
-  pi.on("session_shutdown", finishAuthoring);
+  // An authoring request outlives one agent turn: the model may need a user
+  // answer, a second target, or a later follow-up before it can preview and
+  // write the exact candidate. The request ends with the session, or when
+  // another request replaces it. Removing the tool at agent_end left the next
+  // turn without its only non-executing evaluator, so a legitimate authoring
+  // reply could neither verify nor write anything.
   pi.registerTool?.({
     name: "harness_preview", label: "Preview Harness rule", description: "Read-only parent evaluator for the active /harness candidate. Executes plain positive/negative string fixtures without commands, network calls or file writes. Every changed enabled rule needs both outcomes. This does not authorize mutation.",
     renderShell: "self",
@@ -386,7 +389,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   let sessionGeneration = 0;
   // Keep call-id tombstones across session changes: a late result from an old
   // session must never close a new call that happens to reuse its id.
-  const resetBehavior = () => { pendingBehavior.clear(); sessionGeneration += 1; };
+  const resetBehavior = () => { finishAuthoring(); pendingBehavior.clear(); sessionGeneration += 1; };
   pi.on("session_start", resetBehavior);
   pi.on("session_shutdown", resetBehavior);
   pi.on("session_tree", resetBehavior);
@@ -465,7 +468,9 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     const cwd = ctx.cwd || process.cwd();
     const paths = configPaths(cwd);
     let configRecovery = false;
-    const authoringRequest = authoring?.cwd === cwd ? authoring : undefined;
+    const activeAuthoring = authoring?.cwd === cwd ? authoring : undefined;
+    const authoringTarget = "path" in event.input && typeof event.input.path === "string" ? harnessTargetPath(event.input.path, cwd) : undefined;
+    const authoringRequest = activeAuthoring?.target === authoringTarget ? activeAuthoring : undefined;
     const authoringInput = JSON.stringify(event.input);
     const finalizeAuthoring = async () => {
       if (!authoringRequest || event.toolName !== "write") return undefined;
@@ -482,7 +487,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const inputSnapshot = JSON.stringify(input);
       const target = typeof input.path === "string" ? input.path : "";
       const targetPath = harnessTargetPath(target, cwd);
-      if (authoringRequest && targetPath !== authoringRequest.target) return {block:true, reason:"Active Harness authoring permits only its chosen target. No file was written."};
+      if (Object.values(paths).includes(targetPath) && activeAuthoring && activeAuthoring.previewed !== undefined && targetPath !== activeAuthoring.target) return {block:true, reason:"Active Harness authoring permits only its chosen target while its preview is pending. No file was written."};
       if (targetPath === path.join(path.dirname(paths.user), "harness.local.json")) {
         return { block: true, reason: "Use ~/.pi/agent/harness.json for global configuration. Project shared .pi/harness.json is the default; select .pi/harness.local.json for explicitly requested personal configuration." };
       }

@@ -22,12 +22,18 @@ def test_shutdown_during_zero_screen_receipt_retains_prequeued_recovery_referenc
     result = run_bun_script(PREPARATION, "shutdown-zero-receipt")
     assert result["selectors"] == 0 and result["reported"] == 0, result
     assert result["backlog"]["pending"] == 1 and result["lock"] is False, result
+    copies=result['receiptCopies']
+    assert copies and all(receipt==copies[0] for receipt in copies), copies
+    assert any(a['outcome']=='cancelled' for a in copies[0]['attempts'])
 
 
 def test_shutdown_during_selector_receipt_never_reports_a_result() -> None:
     result = run_bun_script(PREPARATION, "shutdown-current-receipt")
     assert result["selectors"] == 1 and result["reported"] == 0, result
     assert result["backlog"]["pending"] == 0 and result["lock"] is False, result
+    copies=result['receiptCopies']
+    assert copies and all(receipt==copies[0] for receipt in copies), copies
+    assert any(a['outcome']=='cancelled' for a in copies[0]['attempts'])
 
 
 def test_invalid_settings_do_not_start_automatic_selection() -> None:

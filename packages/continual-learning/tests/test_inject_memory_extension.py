@@ -1129,12 +1129,16 @@ def test_memory_plan_expansion_checks_citations_before_any_judge_call() -> None:
     text = source()
     expansion = text.index("plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);")
     assert expansion < text.index('opts.jevJudge!.validate("memory"')
-    repair = text.index('rawPlan = await materializeSourceMemoryPlan(run, repair.plan);')
+    # Initial generation and the existing structural slot both receive only
+    # the parent's fresh-source grant before expansion and semantic review.
+    initial = text.index('rawPlan = await materializeSourceMemoryPlan(run, rawPlan, opts.maintenanceSourceEntries);')
+    repair = text.index('rawPlan = await materializeSourceMemoryPlan(run, repair.plan, opts.maintenanceSourceEntries);')
+    assert initial < expansion
     repaired_expansion = text.index('plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);', repair)
     assert repair < repaired_expansion < text.index('opts.jevJudge!.validate("memory"')
     corrected = text.index('let corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, distilled.plan);')
     assert text.index('const distilled = distillReviewedNewMemory(repaired.plan, candidates, mutationReview?.candidateReview,') < corrected
-    assert corrected < text.index('let correctedVerdict = await validateKnowledge(correctedCandidates);')
+    assert corrected < text.index('let correctedVerdict = await validateKnowledge(correctedCandidates, corrected, originalCoverageContext);')
 
 
 def test_screened_constraint_with_no_harness_rule_is_named_not_silent() -> None:

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import uuid
 from urllib.parse import urlparse
 
@@ -149,3 +150,33 @@ def workspace_pi(repo: Path) -> str:
     if not command.is_file() or not os.access(command, os.X_OK):
         raise AssertionError('Workspace Pi CLI is unavailable; install workspace dependencies first')
     return str(command)
+
+
+def workspace_pnpm(repo: Path) -> str:
+    """Find the already installed pinned CLI without executing Corepack."""
+    manager = json.loads((repo / 'package.json').read_text()).get('packageManager', '')
+    assert manager.startswith('pnpm@'), 'Workspace does not pin pnpm'
+    version = manager[len('pnpm@'):].split('+', 1)[0]
+    candidates = [repo / 'node_modules/pnpm/package.json']
+    command = shutil.which('pnpm')
+    if command:
+        candidates.append(Path(command).resolve().parent.parent / 'package.json')
+    cache = os.environ.get('COREPACK_HOME')
+    if not cache:
+        base = os.environ.get('XDG_CACHE_HOME') or os.environ.get('LOCALAPPDATA') or str(Path.home() / '.cache')
+        cache = str(Path(base) / 'node/corepack')
+    candidates.append(Path(cache) / 'v1/pnpm' / version / 'package.json')
+    for manifest in candidates:
+        if not manifest.is_file():
+            continue
+        package = json.loads(manifest.read_text())
+        if package.get('name') != 'pnpm' or package.get('version') != version:
+            continue
+        bins = package.get('bin', {})
+        relative = bins.get('pnpm') if isinstance(bins, dict) else bins
+        if not isinstance(relative, str):
+            continue
+        cli = manifest.parent / relative
+        if cli.is_file():
+            return str(cli.resolve())
+    raise AssertionError(f'Installed workspace pnpm {version} CLI is unavailable; no download attempted')

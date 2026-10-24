@@ -213,9 +213,29 @@ def test_experiment_proxy_bounds_routing_and_never_copies_host_credentials(tmp_p
             assert proxy.model_observations[-1]['responseSchemaName'] == 'other-or-absent'
             assert proxy.model_observations[-1]['responseSchemaStrict'] is False
             assert 'PRIVATE_BODY_NOT_FOR_METADATA' not in json.dumps(proxy.model_observations)
+            responses = {'model': 'selected', 'instructions': '<project_memory_protocol>PRIVATE_BODY_NOT_FOR_METADATA</project_memory_protocol>',
+                'input': [{'type': 'message', 'role': 'developer', 'content': [{'type': 'input_text', 'text': '<project_memory_discovery>PRIVATE_BODY_NOT_FOR_METADATA</project_memory_discovery>'}]},
+                          {'type': 'function_call_output', 'call_id': 'PRIVATE_BODY_NOT_FOR_METADATA', 'output': 'PRIVATE_BODY_NOT_FOR_METADATA'}],
+                'reasoning': {'effort': 'max'}, 'tools': [{'type': 'function', 'name': 'PRIVATE_BODY_NOT_FOR_METADATA'}],
+                'tool_choice': 'auto', 'text': {'format': {'type': 'json_schema', 'name': 'memory_amendment', 'strict': True,
+                    'schema': {'private': 'PRIVATE_BODY_NOT_FOR_METADATA'}}}}
+            assert request('/v1/responses', responses)[0] == 200
+            row = proxy.model_observations[-1]
+            assert row['memoryDiscoveryOnWire'] and row['memoryProtocolOnWire']
+            assert row['reasoningEffortOnWire'] == 'max'
+            assert {key: row[key] for key in ('toolCount', 'toolChoice', 'messageCount', 'retainedToolResults', 'responseFormatType', 'responseSchemaName', 'responseSchemaStrict')} == {
+                'toolCount': 1, 'toolChoice': 'auto', 'messageCount': 2, 'retainedToolResults': 1,
+                'responseFormatType': 'json_schema', 'responseSchemaName': 'memory_amendment', 'responseSchemaStrict': True}
+            assert observed[-1]['path'] == '/v1/responses' and observed[-1]['body'] == responses
+            assert request('/v1/responses', {'model': 'selected', 'input': 'PRIVATE_BODY_NOT_FOR_METADATA',
+                'text': {'format': {'type': 'json_schema', 'name': 'PRIVATE_BODY_NOT_FOR_METADATA', 'strict': 'true'}}})[0] == 200
+            assert proxy.model_observations[-1]['messageCount'] == 1
+            assert proxy.model_observations[-1]['responseSchemaName'] == 'other-or-absent'
+            assert proxy.model_observations[-1]['responseSchemaStrict'] is False
+            assert 'PRIVATE_BODY_NOT_FOR_METADATA' not in json.dumps(proxy.model_observations)
             proxy.requests = 180
             assert request("/v1/chat/completions", {"model": "selected"})[0] == 429
-            assert len(observed) == 3
+            assert len(observed) == 5
     finally:
         upstream.shutdown()
         upstream.server_close()
@@ -305,6 +325,8 @@ def test_jev_bun_forwarder_preserves_wire_and_keeps_secret_out_of_arguments(tmp_
         body=json.dumps({'model':jev_model,'usage':{'input_tokens':17,'output_tokens':3},'answers':{}}) if status==200 else 'error HOST_JEV_SECRET MODEL_SECRET'
         return __import__('subprocess').CompletedProcess(args,0,json.dumps({'status':status,'body':body}).encode(),b'')
     monkeypatch.setattr(docker_experiment.subprocess,'run',run)
+    monkeypatch.setattr(docker_experiment, '_run_jev_forwarder',
+                        lambda args, **kwargs: (run(args, **{k: v for k, v in kwargs.items() if k != 'downstream'}), False))
     monkeypatch.setenv('NODE_TLS_REJECT_UNAUTHORIZED', '0')
     monkeypatch.setenv('NODE_OPTIONS', '--require=/untrusted/injection.cjs')
     monkeypatch.setenv('NODE_EXTRA_CA_CERTS', '/untrusted/ca.pem')
@@ -467,6 +489,8 @@ def test_shutdown_requires_counted_forwarder_quiescence_before_settlement(tmp_pa
         return subprocess.CompletedProcess(args, 0, json.dumps({'status': 200, 'body': json.dumps(answer)}).encode(), b'')
 
     monkeypatch.setattr(docker_experiment.subprocess, 'run', forward)
+    monkeypatch.setattr(docker_experiment, '_run_jev_forwarder',
+                        lambda args, **kwargs: (forward(args, **{k: v for k, v in kwargs.items() if k != 'downstream'}), False))
     proxy = InferenceProxy(root, jev_key='LOCAL_JEV_FIXTURE', jev_transport='node-https', retain_jev_envelopes=True)
     proxy.__enter__()
 
@@ -531,6 +555,181 @@ def test_shutdown_requires_counted_forwarder_quiescence_before_settlement(tmp_pa
             proxy.__exit__()
 
 
+@pytest.mark.parametrize('mode', ['reset', 'half-close', 'complete-before-reset'])
+def test_confirmed_downstream_reset_cancels_owned_node_forwarder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str) -> None:
+    # Given a real local Node forwarder waiting for a local HTTP response,
+    # when its downstream caller resets the connection after admission,
+    # then reap that owned child before reporting request quiescence.
+    import select
+    import socket
+    import struct
+
+    root = tmp_path / 'host'
+    root.mkdir()
+    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {
+        'apiKey': 'LOCAL_MODEL_FIXTURE', 'baseUrl': 'https://example.invalid/v1',
+        'models': [{'id': 'selected'}]}}}))
+    entered, release = (threading.Event() for _ in range(2))
+    received: list[bytes] = []
+
+    class Peer(BaseHTTPRequestHandler):
+        def log_message(self, *_args: object) -> None:
+            pass
+
+        def do_POST(self) -> None:
+            received.append(self.rfile.read(int(self.headers['Content-Length'])))
+            entered.set()
+            if not release.wait(10):
+                return
+            answer = json.dumps({'model': 'jev-1.13.0', 'usage': {'input_tokens': 23, 'output_tokens': 1}}).encode()
+            try:
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(answer)))
+                self.end_headers()
+                self.wfile.write(answer)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    peer = ThreadingHTTPServer(('127.0.0.1', 0), Peer)
+    peer_thread = threading.Thread(target=peer.serve_forever, daemon=True)
+    peer_thread.start()
+    # Use the actual forwardJev function with its existing request-injection
+    # seam. Only the fixture's explicit loopback port can receive HTTP traffic.
+    script = Path(docker_experiment.__file__).with_name('jev-https-forward.mjs').resolve().as_uri()
+    code = f'''
+      import http from 'node:http'; import {{forwardJev}} from {json.dumps(script)};
+      const chunks=[]; for await(const c of process.stdin) chunks.push(c);
+      const result=await forwardJev(Buffer.concat(chunks).toString(),{{key:process.env.TYPESAFE_API_KEY}},
+        (_url,options,callback)=>http.request({{...options,hostname:'127.0.0.1',port:{peer.server_address[1]},
+          path:'/v1/systemone'}},callback));
+      process.stdout.write(JSON.stringify(result));
+    '''
+    real_popen = subprocess.Popen
+    children: list[subprocess.Popen] = []
+
+    def popen(args: list[str], **kwargs: object) -> subprocess.Popen:
+        child = real_popen([args[0], '--input-type=module', '-e', code], **kwargs)
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(docker_experiment.subprocess, 'Popen', popen)
+    proxy = InferenceProxy(root, jev_key='LOCAL_JEV_FIXTURE', jev_transport='node-https',
+                           request_budget=1, retain_jev_envelopes=True)
+    original_get_request = proxy.server.get_request
+    downstream: list[socket.socket] = []
+
+    def get_request() -> tuple[socket.socket, object]:
+        connection, address = original_get_request()
+        downstream.append(connection)
+        return connection, address
+
+    monkeypatch.setattr(proxy.server, 'get_request', get_request)
+    proxy.__enter__()
+    caller = http.client.HTTPConnection('127.0.0.1', proxy.server.server_address[1], timeout=5)
+    payload = b'{"model":"jev-1.13.0","state":"local cancellation fixture"}'
+    try:
+        caller.request('POST', '/jev/v1/systemone', payload,
+                       headers={'Authorization': f'Bearer {proxy.token}'})
+        assert entered.wait(5), 'The actual owned Node child never reached the local peer'
+        assert received == [payload] and proxy.active_requests == proxy.requests == 1
+        assert caller.sock is not None
+        if mode == 'half-close':
+            caller.sock.shutdown(socket.SHUT_WR)
+            release.set()
+            assert caller.getresponse().status == 200
+        else:
+            if mode == 'complete-before-reset':
+                release.set()
+                assert children[0].wait(timeout=5) == 0
+            caller.sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+            caller.close()
+        settled = proxy.wait_for_quiescence(timeout=5)
+        reset_confirmed = False
+        if not settled:
+            # Failure-only readback proves this was RST, not a legal write
+            # half-close. Do not compete with a working cancellation monitor.
+            ready, _, _ = select.select(downstream, [], [], 0)
+            assert ready, 'Caller close did not yield a verifiable downstream event'
+            try:
+                ready[0].recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+            except ConnectionResetError:
+                reset_confirmed = True
+            assert reset_confirmed, 'Cannot distinguish caller reset from a write half-close'
+        print(json.dumps({'downstreamResetConfirmed': reset_confirmed, 'settledBeforePeerRelease': settled,
+                          'ownedChildCompleted': all(child.poll() is not None for child in children), 'activeRequests': proxy.active_requests,
+                          'requests': proxy.requests, 'externalRequests': 0}))
+        assert settled and all(child.poll() is not None for child in children), 'Confirmed downstream RST left owned Node upstream work running'
+        assert proxy.requests == proxy.jev_requests == 1
+        observation = proxy.jev_observations[0]
+        if mode == 'reset':
+            assert observation['status'] == 'caller-cancelled'
+            assert observation['callerCancellation'] == 'downstream-reset' and observation['usageUnknown'] is True
+            assert proxy.jev_usage == []
+        else:
+            assert proxy.jev_usage == [{'model': 'jev-1.13.0', 'input_tokens': 23, 'output_tokens': 1}]
+            assert not observation.get('usageUnknown') and not observation.get('callerCancellation')
+    finally:
+        release.set()
+        caller.close()
+        assert proxy.wait_for_quiescence(timeout=5), 'Fixture cleanup did not drain the owned child'
+        proxy.__exit__()
+        peer.shutdown()
+        peer.server_close()
+        peer_thread.join(timeout=5)
+
+
+@pytest.mark.parametrize('failure', ['pipe', 'popen', 'thread-start'])
+def test_owned_forwarder_setup_failure_closes_pipes_and_reaps_child(monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
+    # Given a local-only child, when setup fails, leave no owned process or FD.
+    import os
+    import shutil
+    import socket
+
+    real_pipe, real_popen, real_thread = os.pipe, subprocess.Popen, threading.Thread
+    pipes: list[int] = []
+    children: list[subprocess.Popen] = []
+
+    def fail() -> None:
+        raise RuntimeError('controlled setup failure')
+
+    def pipe() -> tuple[int, int]:
+        if failure == 'pipe':
+            fail()
+        descriptors = real_pipe()
+        pipes.extend(descriptors)
+        return descriptors
+
+    def popen(*args: object, **kwargs: object) -> subprocess.Popen:
+        if failure == 'popen':
+            fail()
+        child = real_popen(*args, **kwargs)
+        children.append(child)
+        return child
+
+    def thread(*args: object, **kwargs: object) -> threading.Thread:
+        worker = real_thread(*args, **kwargs)
+        monkeypatch.setattr(worker, 'start', fail)
+        return worker
+
+    monkeypatch.setattr(docker_experiment.os, 'pipe', pipe)
+    monkeypatch.setattr(docker_experiment.subprocess, 'Popen', popen)
+    monkeypatch.setattr(docker_experiment.threading, 'Thread', thread)
+    caller, downstream = socket.socketpair()
+    try:
+        with pytest.raises(RuntimeError, match='controlled setup failure'):
+            docker_experiment._run_jev_forwarder([shutil.which('node') or 'node', '-e', 'process.stdin.resume()'],
+                input=b'local fixture', env={key: value for key, value in os.environ.items() if key in ('PATH', 'HOME')},
+                capture_output=True, timeout=35, downstream=downstream)
+        assert all(child.poll() is not None for child in children)
+        for descriptor in pipes:
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+    finally:
+        caller.close()
+        downstream.close()
+
+
 def test_actual_wire_memory_discovery_observation_ignores_user_claims_and_retains_no_text() -> None:
     from docker_experiment import model_prompt_observation
     private = 'PRIVATE_MEMORY_METADATA_NOT_FOR_TELEMETRY'
@@ -539,12 +738,27 @@ def test_actual_wire_memory_discovery_observation_ignores_user_claims_and_retain
     observed = model_prompt_observation(base)
     assert observed['memoryDiscoveryOnWire'] and observed['memoryProtocolOnWire']
     assert observed['reasoningEffortOnWire'] == 'medium'
+    # Given a native max effort request, retain its fixed label without
+    # treating absent or unrecognized values as known effort.
+    assert model_prompt_observation({'reasoning_effort': 'max'})['reasoningEffortOnWire'] == 'max'
+    assert model_prompt_observation({})['reasoningEffortOnWire'] == 'other-or-absent'
     assert len(observed['systemTextSha256']) == 64
     assert private not in json.dumps(observed)
     assert model_prompt_observation({'messages': [{'role': 'user', 'content': system}]})['memoryDiscoveryOnWire'] is False
     assert model_prompt_observation({'messages': [{'role': 'developer', 'content': [{'type': 'text', 'text': system}]}]})['memoryDiscoveryOnWire'] is True
     assert model_prompt_observation({'messages': [{'role': 'system', 'content': private}]})['systemTextSha256'] != observed['systemTextSha256']
     assert model_prompt_observation({'reasoning_effort': private})['reasoningEffortOnWire'] == 'other-or-absent'
+    responses = {'instructions': system, 'input': [{'type': 'message', 'role': 'developer', 'content': [{'type': 'input_text', 'text': private}]}], 'reasoning': {'effort': 'high'}}
+    actual = model_prompt_observation(responses, responses=True)
+    expected = model_prompt_observation({'messages': [{'role': 'system', 'content': system}, {'role': 'developer', 'content': private}], 'reasoning_effort': 'high'})
+    assert actual == expected
+    assert private not in json.dumps(actual)
+    assert model_prompt_observation({'input': system}, responses=True)['memoryDiscoveryOnWire'] is False
+    assert model_prompt_observation({'input': [{'role': 'user', 'content': [{'type': 'input_text', 'text': system}]}]}, responses=True)['memoryDiscoveryOnWire'] is False
+    assert model_prompt_observation({'input': [{'type': 'function_call_output', 'role': 'developer', 'content': system, 'output': system}]}, responses=True)['memoryDiscoveryOnWire'] is False
+    assert model_prompt_observation({'input': [{'role': 'developer', 'content': [{'type': 'input_text', 'text': system}]}]}, responses=True)['memoryDiscoveryOnWire'] is True
+    assert model_prompt_observation({'instructions': private, 'reasoning': {'effort': private}}, responses=True)['reasoningEffortOnWire'] == 'other-or-absent'
+    assert model_prompt_observation({'instructions': system}, responses=False)['memoryDiscoveryOnWire'] is False
 
 
 @pytest.mark.parametrize('budget, expected', [(None, 3), (0, 0), (1, 1)])
@@ -563,6 +777,8 @@ def test_explicit_unlimited_proxy_retains_every_request_and_zero_preflight(tmp_p
         answer = {'model':'jev-1.13.0','usage':{'input_tokens':23,'output_tokens':1}}
         return subprocess.CompletedProcess(args, 0, json.dumps({'status':200,'body':json.dumps(answer)}).encode(), b'')
     monkeypatch.setattr(docker_experiment.subprocess, 'run', forward)
+    monkeypatch.setattr(docker_experiment, '_run_jev_forwarder',
+                        lambda args, **kwargs: (forward(args, **{k: v for k, v in kwargs.items() if k != 'downstream'}), False))
     with InferenceProxy(root, request_budget=budget, jev_key='LOCAL_JEV_FIXTURE', jev_transport='node-https') as proxy:
         statuses = []
         for _ in range(3):
@@ -583,7 +799,7 @@ def test_explicit_unlimited_proxy_retains_every_request_and_zero_preflight(tmp_p
     assert proxy.request_budget == proxy.requests == expected
 
 
-@pytest.mark.parametrize('mode', ['exact', 'request-secret', 'response-secret', 'unsafe-answer', 'oversize', 'budget-zero', 'write-failed', 'buffer-full', 'connection-failed'])
+@pytest.mark.parametrize('mode', ['exact', 'request-secret', 'response-secret', 'unsafe-answer', 'oversize', 'budget-zero', 'write-failed', 'buffer-full', 'connection-failed', 'cancel-after-response'])
 def test_opt_in_jev_envelopes_preserve_exact_buffers_without_changing_transport(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str) -> None:
     # Given explicit public-study capture, When an actual local proxy forwards
     # one admitted request, Then retain safe complete buffers after quiescence.
@@ -605,8 +821,11 @@ def test_opt_in_jev_envelopes_preserve_exact_buffers_without_changing_transport(
         forwarded.append(kwargs['input'])
         if mode == 'connection-failed':
             return subprocess.CompletedProcess(args, 0, b'{"transportFailure":"connection-reset"}', b'')
-        return subprocess.CompletedProcess(args, 0, json.dumps({'status':200,'body':raw_answer.decode()}).encode(), b'')
+        return subprocess.CompletedProcess(args, -15 if mode == 'cancel-after-response' else 0,
+                                           json.dumps({'status':200,'body':raw_answer.decode()}).encode(), b'')
     monkeypatch.setattr(docker_experiment.subprocess, 'run', forward)
+    monkeypatch.setattr(docker_experiment, '_run_jev_forwarder',
+                        lambda args, **kwargs: (forward(args, **{k: v for k, v in kwargs.items() if k != 'downstream'}), mode == 'cancel-after-response'))
     if mode == 'buffer-full':
         monkeypatch.setattr(docker_experiment, 'MAX_JEV_CAPTURE_TOTAL_BYTES', 1)
     proxy = InferenceProxy(root, jev_key='HOST_JEV_SECRET', jev_model='jev-1.14.0', jev_transport='node-https',
@@ -633,6 +852,9 @@ def test_opt_in_jev_envelopes_preserve_exact_buffers_without_changing_transport(
     assert proxy.requests == proxy.jev_requests == len(forwarded) == (0 if mode == 'budget-zero' else 1)
     assert forwarded == ([] if mode == 'budget-zero' else [payload])
     assert proxy.jev_usage == ([] if mode in ('budget-zero','connection-failed') else [{'model':'jev-1.14.0','input_tokens':17,'output_tokens':3}])
+    if mode == 'cancel-after-response':
+        assert proxy.jev_observations[0]['callerCancellation'] == 'downstream-reset'
+        assert 'usageUnknown' not in proxy.jev_observations[0]
     if mode == 'write-failed':
         assert result['status'] == 'write-failed' and (output / 'unrelated').read_text() == 'keep'
         repeated = tmp_path / 'repeat-after-failure'
@@ -671,3 +893,88 @@ def test_opt_in_jev_envelopes_preserve_exact_buffers_without_changing_transport(
         again = proxy.write_jev_envelopes(repeated)
         assert again['status'] == 'already-attempted' and again['complete'] is False
         assert not repeated.exists()
+
+
+def _study_freeze_fixture(tmp_path: Path):
+    import importlib.util
+    script = Path(__file__).resolve().parents[1] / 'scripts/freeze-correction-study-source.py'
+    spec = importlib.util.spec_from_file_location('study_freeze_contract', script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source = tmp_path / 'source'
+    for name in ('continual-learning', 'kit'):
+        root = source / 'packages' / name
+        root.mkdir(parents=True)
+        (root / 'index.ts').write_text('export {};\n')
+    sdk = source / module.SDK_RELATIVE
+    sdk.mkdir(parents=True)
+    (sdk / 'index.js').write_text('export {};\n')
+    parser = source / 'packages/continual-learning/node_modules/@babel/parser'
+    (parser / 'lib').mkdir(parents=True)
+    (parser / 'package.json').write_text('{"main":"./lib/index.js"}\n')
+    (parser / 'lib/index.js').write_text('exports.parse = () => ({});\n')
+    module.REPO = source
+    return module, source, tmp_path / 'frozen'
+
+
+def test_frozen_study_source_binds_the_native_kit_dependency(tmp_path: Path) -> None:
+    # Given local dependencies, When frozen, Then exact kit resolution is required.
+    module, source, destination = _study_freeze_fixture(tmp_path)
+    files, native = module.freeze(destination)
+    module.verify(destination, files, native)
+    manifest = json.loads((destination / 'native-dependency-bindings.json').read_text())
+    kit = destination / 'packages/kit'
+    link = destination / 'packages/continual-learning/node_modules/@fradser/pi-kit'
+    assert manifest['kitRoot'] == str(kit)
+    parser_entry = 'packages/continual-learning/node_modules/@babel/parser/lib/index.js'
+    assert parser_entry in native
+    assert (destination / parser_entry).read_bytes() == (source / parser_entry).read_bytes()
+    assert link.is_symlink() and link.resolve() == kit.resolve()
+    assert not Path(link.readlink()).is_absolute()
+    assert not link.parent.stat().st_mode & 0o222
+    link.parent.chmod(0o755)
+    link.unlink()
+    link.symlink_to(source / 'packages/kit', target_is_directory=True)
+    with pytest.raises(SystemExit, match='kit dependency'):
+        module.verify(destination, files, native)
+
+
+@pytest.mark.parametrize('missing', ['sdk', 'kit', 'kit-entry', 'parser', 'parser-entry'])
+def test_frozen_study_refuses_missing_dependencies(tmp_path: Path, missing: str) -> None:
+    # Given incomplete dependencies, When freezing, Then no verified freeze exists.
+    import shutil
+    module, source, destination = _study_freeze_fixture(tmp_path)
+    if missing == 'sdk':
+        shutil.rmtree(source / module.SDK_RELATIVE)
+    elif missing == 'parser':
+        shutil.rmtree(source / 'packages/continual-learning/node_modules/@babel/parser')
+    elif missing == 'parser-entry':
+        (source / 'packages/continual-learning/node_modules/@babel/parser/lib/index.js').unlink()
+    elif missing == 'kit':
+        shutil.rmtree(source / 'packages/kit')
+    else:
+        (source / 'packages/kit/index.ts').unlink()
+    with pytest.raises(SystemExit, match='dependency'):
+        module.freeze(destination)
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize('symlink', [False, True])
+@pytest.mark.parametrize('dependency', ['sdk', 'parser'])
+def test_frozen_study_refuses_unbound_native_entries(tmp_path: Path, symlink: bool, dependency: str) -> None:
+    # Given a verified SDK inventory, When a file/link is added, Then reverify fails.
+    module, source, destination = _study_freeze_fixture(tmp_path)
+    files, native = module.freeze(destination)
+    relative = module.SDK_RELATIVE if dependency == 'sdk' else Path('packages/continual-learning/node_modules/@babel/parser')
+    sdk = destination / relative
+    sdk.chmod(0o755)
+    extra = sdk / 'unbound.js'
+    if symlink:
+        entry = source / relative / ('index.js' if dependency == 'sdk' else 'lib/index.js')
+        extra.symlink_to(entry)
+    else:
+        extra.write_text('export {};\n')
+        extra.chmod(0o444)
+    with pytest.raises(SystemExit, match='native'):
+        module.verify(destination, files, native)

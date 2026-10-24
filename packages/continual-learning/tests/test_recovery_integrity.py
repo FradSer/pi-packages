@@ -6,6 +6,38 @@ import pytest
 from recovery_integrity import claim_recovery, verify_recovery_chains
 
 
+def test_bound_study_reader_rejects_links_nonregular_and_same_byte_replacement(tmp_path):
+    import os
+    from recovery_integrity import read_study_artifact, bind_study_artifact
+    root=tmp_path.resolve()/'owned';root.mkdir();(root/'nested').mkdir()
+    file=root/'nested'/'entry.json';file.write_bytes(b'actual')
+    expected=bind_study_artifact(root,'nested/entry.json',bound=32)
+    assert read_study_artifact(root,'nested/entry.json',bound=32,expected=expected)==b'actual'
+    with pytest.raises(ValueError):read_study_artifact(root,'nested/entry.json',bound=2)
+    replacement=file.with_suffix('.replacement');replacement.write_bytes(b'actual');replacement.replace(file)
+    with pytest.raises(ValueError):read_study_artifact(root,'nested/entry.json',bound=32,expected=expected)
+    (root/'leaf').symlink_to(file)
+    (root/'linkdir').symlink_to(root/'nested',target_is_directory=True)
+    os.mkfifo(root/'pipe')
+    for name in ('leaf','linkdir/entry.json','pipe'):
+        with pytest.raises(ValueError):read_study_artifact(root,name,bound=32)
+    with pytest.raises(ValueError):read_study_artifact(root,'nested/entry.json',bound=32,immutable=True)
+    file.chmod(0o400)
+    assert read_study_artifact(root,'nested/entry.json',bound=32,immutable=True)==b'actual'
+
+
+def test_bound_study_reader_refuses_unsafe_names_before_filesystem_access(monkeypatch,tmp_path):
+    import os
+    from recovery_integrity import read_study_artifact
+    accessed=[]
+    def forbidden(*args,**kwargs):accessed.append(args);raise AssertionError('Unexpected filesystem access')
+    monkeypatch.setattr(os,'open',forbidden)
+    for name in ('../outside','/outside','nested/../entry','nested\\entry','cost-ledger.jsonl',
+                 'nested/authorized-real-study-budget-600.json','nested/600-active-reservation.json'):
+        with pytest.raises(ValueError):read_study_artifact(tmp_path.resolve(),name,bound=32)
+    assert not accessed
+
+
 def test_current_native_history_matches_live_revision_bound_archive(tmp_path):
     # Given real parent-owned history, When captured, Then keep physical identity.
     import json
@@ -79,6 +111,36 @@ def test_recovery_delta_requires_complete_owned_history_not_one_private_change()
     del after['surfaceSnapshots']['project/.memory/unrecorded.md']
     before['attempts']=after['attempts']
     assert not verify_recovery_delta(before,after)['passed']
+
+
+def test_command_history_has_direct_receipt_ownership_without_a_fake_replay_attempt():
+    # Given a real command receipt owns a fresh history batch, When its full
+    # physical delta is checked, Then direct ownership stays separate from replay.
+    from recovery_integrity import verify_command_recovery_delta, verify_recovery_delta
+    import copy
+    receipt={'kind':'learning-pipeline-receipt','version':1,'mode':'manual','batchId':'owner',
+             'operations':1,'attempts':[{'phase':'memory','outcome':'applied','operations':1}]}
+    before={'surfaceSnapshots':{},'history':[],'attempts':[],'receipts':[]}
+    after={'surfaceSnapshots':{'private/fact.md':state('new')},
+           'history':[history('private','fact.md',None,state('new'))],
+           'attempts':[],'receipts':[receipt]}
+    assert verify_command_recovery_delta(before,after,receipt)['passed']
+    assert after['attempts']==[]
+    assert not verify_recovery_delta(before,after)['passed']
+    repaired=copy.deepcopy(receipt)
+    repaired['attempts'].insert(0,{'phase':'memory','outcome':'proposed','operations':0})
+    assert verify_command_recovery_delta(before,{**after,'receipts':[repaired]},repaired)['passed']
+    for kind in ('missing-receipt','duplicate-receipt','old-receipt','foreign-history','missing-history','extra-surface','held','changed-prior-attempt'):
+        old,current,owned=copy.deepcopy((before,after,receipt))
+        if kind=='missing-receipt':current['receipts']=[]
+        elif kind=='duplicate-receipt':current['receipts']*=2
+        elif kind=='old-receipt':old['receipts']=[owned]
+        elif kind=='foreign-history':current['history'][0]['batchId']='foreign'
+        elif kind=='missing-history':current['history']=[]
+        elif kind=='extra-surface':current['surfaceSnapshots']['project/.memory/unrecorded.md']=state('new')
+        elif kind=='held':owned['attempts'][0]['outcome']='proposed';current['receipts']=[owned]
+        elif kind=='changed-prior-attempt':old['attempts']=[{'receiptDigest':'old','receipt':{'batchId':'old-owner'}}]
+        assert not verify_command_recovery_delta(old,current,owned)['passed'],kind
 
 
 def test_recovery_delta_rejects_rewritten_or_removed_prior_history():

@@ -41,7 +41,11 @@ def test_incremental_planner_prompt_declares_the_exact_new_memory_kind_enum() ->
     assert '"preference" | "project"' in prompt
     assert '"project-fact"' in prompt and "invalid plan kinds" in prompt
     assert '"kind":"project"' in prompt
-    assert "type: project" in prompt
+    # Initial project metadata now comes from the parent, rather than a model
+    # frontmatter example. The kind and its complete knowledge stay explicit.
+    assert '"classification":"safe"' in prompt
+    assert 'generate new project proposals with `knowledge`' in prompt
+    assert '"sourceCitations"' in prompt and '"units"' in prompt
 
 
 @pytest.mark.parametrize("has_ui", [False, True])
@@ -413,11 +417,8 @@ def test_harness_only_evidence_runs_without_memory_mutation_and_records_receipt(
       const settledHandlers = hooks.get('agent_settled') ?? [];
       for (const handler of settledHandlers) await handler({}, ctx);
       const paths = resolveMemoryPaths(cwd);
-      const receipts = [];
-      if (fs.existsSync(paths.runsDir)) for (const run of fs.readdirSync(paths.runsDir)) {
-        const receipt = path.join(paths.runsDir, run, 'learning-pipeline-receipt.json');
-        if (fs.existsSync(receipt)) receipts.push(JSON.parse(fs.readFileSync(receipt, 'utf8')));
-      }
+      const receiptFile = path.join(paths.runsDir, 'learning-pipeline-receipt.json');
+      const receipts = fs.existsSync(receiptFile) ? [JSON.parse(fs.readFileSync(receiptFile, 'utf8'))] : [];
       const memoryFiles = fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir).filter(name => name.endsWith('.md') && name !== 'MEMORY.md') : [];
       await Promise.all((hooks.get('session_shutdown') ?? []).map(handler => handler({}, ctx)));
       fs.rmSync(temp, { recursive: true, force: true });

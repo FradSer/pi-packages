@@ -87,7 +87,7 @@ for discovery when the injected list omits entries.
 The Harness panel lets the user choose the target layer before submitting a
 rule request. Project shared configuration remains the default authoring target
 for `/harness <request>`; personal and user-shared scopes require an explicit
-choice in the panel. A missing target is a normal first-use state: a supported request creates one complete validated configuration without an empty placeholder. Broad operational safeguards can use scoped contextual guidance when no exact command gate is established; guidance does not enforce a traffic rate limit. Essential unknowns lead to an actionable clarification, not a missing-file dead end. Project tool access uses the relative target path. Authoring activates a read-only `harness_preview` tool: each changed enabled rule needs passing plain positive/negative fixtures before the exact candidate can be written. A preview is bound to predecessor bytes and consumed once; it never bypasses effective configuration or native replacement authorization. Verification never requires scratch files or a second write. The tool is removed when authoring ends.
+choice in the panel. A missing target is a normal first-use state: a supported request creates one complete validated configuration without an empty placeholder. Broad operational safeguards can use scoped contextual guidance when no exact command gate is established; guidance does not enforce a traffic rate limit. Essential unknowns lead to an actionable clarification, not a missing-file dead end. Project tool access uses the relative target path. Authoring activates a read-only `harness_preview` tool: each changed enabled rule needs passing plain positive/negative fixtures before the exact candidate can be written. A preview is bound to predecessor bytes and consumed once; it never bypasses effective configuration or native replacement authorization. Verification never requires scratch files or a second write. The tool remains available for follow-up turns. A new request replaces its scope; session changes, branch switches and shutdown remove it. Every write still needs an exact, single-use preview. Pending authoring does not block ordinary source writes or grant authority over another Harness target.
 
 ### Advanced and compatibility commands
 
@@ -224,11 +224,16 @@ turn a historical mention into permission to apply it to unrelated work.
 At `before_agent_start`, text matching scans the current prompt plus retained
 branch conversation: user and assistant text, visible tool results and string
 arguments, and retained summaries. Thinking, metadata, excluded shell output,
-abandoned history, and Harness's own messages are not matching sources.
+abandoned history, and Harness's own messages are not matching sources. Identified
+configuration definitions are excluded; failed reads, native write outcomes,
+mixed commands and ambiguous tool-call identities remain visible to matching.
 
 Guidance contributes an additive structured section at `before_agent_start`.
 It never returns a custom injection message or replaces the complete system prompt.
-Non-context branch entries record scoped delivery revisions and sources.
+Non-context branch entries record scoped delivery revisions and sources. Unchanged
+text guidance adds no duplicate row or ledger entry, while each matching run
+still receives its structured section. A historical delivery alone does not
+re-inject guidance after its ordinary matching text leaves the context.
 An incomplete scan or configuration read retains complete prior scoped guidance from those entries.
 The parent validates the saved scope header before delivery.
 Unscoped historical guidance remains in history, with an explicit notice; it is not delivered.
@@ -263,6 +268,11 @@ Harness authoring starts with one `[harness] started · <request>` row; the full
 procedure stays in model context. Failed and incomplete events use error and warning
 tones. Learning receipts retain failed/rejected/cancelled phases beside applied
 changes, so a partial success never appears as an unqualified success.
+Each learning batch retains its receipt under `runs/<project-scope>/receipts/<batch-id>/`.
+The flat `learning-pipeline-receipt.json` is the latest-result compatibility view.
+Later learning does not replace earlier batches. Cancellation updates the same
+batch's terminal receipt. Cost collection deduplicates equal batch views and
+rejects conflicting views; missing historical usage stays unknown.
 
 Expanded policy rows keep the policy, action, outcome, tool, source and file;
 check rows keep their phase, policy and artifact path. Reasons already shown in
@@ -323,21 +333,49 @@ call and its failures appear in the receipt; a source read is not itself a
 learned change. Existing citation, privacy, source-revision and semantic checks
 still control every write.
 
+For observed TypeScript declaration files, generation also receives a bounded
+syntax view that locates direct function return types and their local declared
+members. It uses the bundled parser without reading extra files or resolving
+imports. The original evidence stays intact. These locations describe observed
+syntax, not runtime behavior or accepted knowledge; the model still selects the
+Memory content and every existing validation gate still applies.
+
 An empty Memory index plus explicit human facts or preferences lets automatic
 learning route its already evidenced phases locally, without a selector model
 call. An initial `/memory <request>` likewise goes straight to Memory planning.
 The receipt marks this parent routing; planners and all validation still run.
 Nonempty indexes and ambiguous inputs retain the metadata selector, and ordinary
 manual `/consolidate` retains its reviewed routing.
-When Jev is enabled and applying Memory is authorized, an uncertain new record
-does not have to discard other independently verified knowledge. For a mixed
-pure-create plan, the parent reviews every original candidate and their
-relationships before applying an unchanged, independently usable subset.
-Rewrites and deletions remain atomic. Held records and the complete original
-proposal remain pending; partial learning is reported as partial, and verified
-records are available for retrieval in subsequent tasks. These extra bounded
-reviews retain their usage and cost; unavailable or uncertain proof grants no
-additional writes.
+With Jev enabled, normal parent Memory application requires a separate knowledge
+coverage review. New parent-selected question contract 2 separates each record's
+own completeness criteria from the unchanged whole-plan criteria. A local pass
+cannot override a missing global goal. Historical feedback keeps its exact
+original questions; a changed contract invalidates its binding. A coverage request
+without the complete cited review path is rejected before transport.
+It checks the complete plan, including an empty plan, every
+actual record and each named missing condition from the current or rejected
+version. Original source text is not a stored Memory location. Removed or
+replaced records cannot act as retained witnesses. Optional automatic nominations
+do not become mandatory storage goals.
+The coverage scores join the existing source, permission, preservation and
+consistency requirements at the original thresholds. A missing SDK, unavailable
+response or malformed proof cannot satisfy this required stage. A supported but
+incomplete body can use the existing bounded repair slot; its corrected actual
+plan receives every full review again. Each numeric decision and exact plan
+binding remains in the private run artifacts. These mechanisms do not establish
+that a model learned correctly or improved a later task.
+A complete, safe, retained coverage response can still fail account binding.
+That response stays invalid. The parent can continue its independent source and
+body checks once. Only an actual hold from those checks can use the existing
+single plan repair. A bad account alone cannot retry or write. A corrected plan
+still needs every fresh review. The parent saves the original source diagnostic
+and rejected-response binding without creating a coverage proof.
+
+A proof for a complete plan cannot authorize a changed subset. The new coverage
+protocol holds such partial application until an exact subset obligation proof
+exists. Explicitly bounded historical studies retain their original independent
+subset protocol and wire format. Held work remains pending and cannot start
+later Harness or AGENTS phases.
 Full maintenance also extracts grounded new knowledge when the Memory corpus is
 empty. If the current session has no user or tool evidence, the parent may freeze one recent session
 for the same canonical project (within seven days, at most 12 candidates and
@@ -391,6 +429,13 @@ leases prevent duplicate concurrent learning, and attempt ledgers retain failure
 and known usage. Automatic retries stop after three attempts with backoff; explicit
 backfill still has a finite attempt cap. Missing or changed source stays unresolved.
 An interrupted provider call without returned usage has unknown cost, not zero cost.
+For new coverage-reviewed rejections, backfill retains the exact historical
+questions, every occurrence, and the original answer distributions. The original
+receipt binds each private review artifact to its run, source, plan and bodies.
+Changed, missing, ambiguous, unsafe or oversized diagnostics stop replay. Legacy
+rejections without these fields keep their existing behavior. These diagnostics
+are questions to investigate, not source facts, required answers or write approval.
+Current source collection and every fresh review remain required.
 Pi 1.2 can remove an empty assistant error during retry. Exact replay accepts
 only this content-free null removal, strips the removed error metadata, and keeps
 the original source hash, task digest and evidence positions. Meaningful
@@ -840,7 +885,7 @@ Enabling a scope sends bounded frozen task evidence and permitted Memory content
 
 The integration uses `@typesafe-ai/sdk` 0.6.0. Independent Noul questions detect durable knowledge and lasting behavioral constraints; both can apply. Score questions rank metadata in the same request; selection uses the probability mass across both relevant levels, so ambiguity between two acceptable levels does not itself force fallback. Memory bodies are read only after selection. Empty-index explicit evidence keeps its local route with no semantic selector request. Disabled, missing-key, uncertain or failed selection uses the existing selector; explicit `/memory <request>` always retains Memory processing and excludes Harness and AGENTS.md.
 
-After parent structure, identity and frozen-quote validation, another batch checks candidate support using the knowledge body or rule rather than administrative frontmatter/evidence bookkeeping (while scanning the full original candidate for credentials). For fully cited new Memory, the support question includes only the complete knowledge body; filenames and write/storage metadata cannot become claims requiring user evidence. Rewrite/delete/mixed batches retain the complete preservation context. This batch also checks Memory grounding and relationships against already-read bodies (Choice), and general Harness scope (Choice). For an absolute-end anchored literal block or confirmation rule, parent code proves the exact command matcher and Jev separately checks lasting user authorization and message fidelity. A confirmation rule requires the real native Allow once or Block decision for each invocation; a one-time grant cannot revoke future confirmation, and confirmation cannot weaken an unconditional ban. Plain `$`, whitespace classes and operators never qualify for that proof. Duplicates, conflicts, unsupported or uncertain candidates become proposals; an unavailable candidate judge also produces proposals. For a proved literal/family rule whose message is byte-identical to its validated original user quote, code proves wording equality and omits only the paraphrase judgment. Authorization, matcher scope, complete counterevidence and parent write checks remain mandatory; changed messages still require semantic verification. In the proved ASCII command-family grammar, literal TAB and its regex escape have identical meaning. Counterevidence review receives the exact code-proved command range, block action and original explanation; unproved regexes retain full matching review. Generated fixtures and rule identifiers do not establish user permission. No Jev answer permits a write by itself or disables existing Harness rules. Normal requests have at most 32 questions and four concurrent requests; byte capacity is delegated to the configured service. Explicit historical experiments can retain a 64,000-byte bound. For quoted new Memory candidates and parent-validated Harness citations, support uses the complete cited entries and existing bodies; a separate counterevidence review covers **every** indexed original entry. Normal requests preserve preferred 20,000-byte whole-entry windows without a local request-byte cap; explicitly bounded experiments additionally preflight every encoded request. The configured service token limits still apply. Entries are never truncated or summarized. Every review also receives the original cited support to interpret meaning and scope; later corrections still override that support. There are at most sixteen windows and 68 logical requests, including split support requests (up to four batches per job); the existing connection-only retry permits at most 136 transport attempts. Windows are never merged based only on raw entry bytes. If a cited support entry is also in the current review window, supportEvidence.reviewEntryIndexes points to that exact original entry instead of transmitting it twice; the complete cited context remains present across both fields. All original evidence and all planned requests are checked for sensitive material and bounds and copied before the first transport. Only fully successful windows count toward coverage, and any failed, uncertain or conflicting judgment holds the entire plan. Rewrite/delete/mixed Memory plans and uncited legacy inputs retain full-evidence transport with at most four batches. Any explicit experimental wire-byte cap is not a token count; API context failures remain proposals rather than discarding possible later contradictions. A batch is atomic for this policy: one questionable candidate holds the whole plan for review. Supported supplements can be applied only under the existing apply policy. Full maintenance also checks its validated candidates; too much evidence falls back to proposals.
+After parent structure, identity and frozen-quote validation, another batch checks candidate support using the knowledge body or rule rather than administrative frontmatter/evidence bookkeeping (while scanning the full original candidate for credentials). For fully cited new Memory, the support question includes only the complete knowledge body; filenames and write/storage metadata cannot become claims requiring user evidence. Rewrite/delete/mixed batches retain the complete preservation context. This batch also checks Memory grounding and relationships against already-read bodies (Choice), and general Harness scope (Choice). For an absolute-end anchored literal block or confirmation rule, parent code proves the exact command matcher and Jev separately checks lasting user authorization and message fidelity. A confirmation rule requires the real native Allow once or Block decision for each invocation; a one-time grant cannot revoke future confirmation, and confirmation cannot weaken an unconditional ban. Plain `$`, whitespace classes and operators never qualify for that proof. Duplicates, conflicts, unsupported or uncertain candidates become proposals; an unavailable candidate judge also produces proposals. For a proved literal/family rule whose message is byte-identical to its validated original user quote, code proves wording equality and omits only the paraphrase judgment. Authorization, matcher scope, complete counterevidence and parent write checks remain mandatory; changed messages still require semantic verification. In the proved ASCII command-family grammar, literal TAB and its regex escape have identical meaning. Counterevidence review receives the exact code-proved command range, block action and original explanation; unproved regexes retain full matching review. Generated fixtures and rule identifiers do not establish user permission. No Jev answer permits a write by itself or disables existing Harness rules. Normal requests have at most 32 questions and four concurrent requests; byte capacity is delegated to the configured service. Explicit historical experiments can retain a 64,000-byte bound. For quoted new Memory candidates and parent-validated Harness citations, support uses the complete cited entries and existing bodies; a separate counterevidence review covers **every** indexed original entry. Normal requests preserve preferred 20,000-byte whole-entry windows without a local request-byte cap; explicitly bounded experiments additionally preflight every encoded request. The configured service token limits still apply. Entries are never truncated or summarized. Every review also receives the original cited support to interpret meaning and scope; later corrections still override that support. There are at most sixteen windows. The legacy and non-mutation path has at most 68 prepared logical requests, including split support requests (up to four batches per job); normal mutation review has the separate 576-request bound described below. Coverage jobs fit the applicable existing prepared bound before any transport; the existing connection-only retry permits at most 136 transport attempts. Windows are never merged based only on raw entry bytes. If a cited support entry is also in the current review window, supportEvidence.reviewEntryIndexes points to that exact original entry instead of transmitting it twice; the complete cited context remains present across both fields. All original evidence and all planned requests are checked for sensitive material and bounds and copied before the first transport. Only fully successful windows count toward coverage, and any failed, uncertain or conflicting judgment holds the entire plan. Rewrite/delete/mixed Memory plans and uncited legacy inputs retain full-evidence transport with at most four batches. Any explicit experimental wire-byte cap is not a token count; API context failures remain proposals rather than discarding possible later contradictions. A batch is atomic for this policy: one questionable candidate holds the whole plan for review. Supported supplements can be applied only under the existing apply policy. Full maintenance also checks its validated candidates; too much evidence falls back to proposals.
 
 Normal project requests use the configured service capacity without a local byte cap and retain 32 questions per request; explicit historical experiments may still set `maxRequestBytes: 64000`; cited evidence windows prefer 20,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests default to a 15-second timeout, honor explicit shorter deadlines, use zero SDK retries and at most one connection-only retry, propagate cancellation and disable SDK body logging. That single retry waits a bounded 500 ms backoff before re-issuing the same frozen request, and an abort during the wait is honoured immediately; the retry count, request bounds and per-request deadline are unchanged. A failed request group stops later groups of the same review, so an already-unusable review spends no further requests. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
 
@@ -1287,6 +1332,22 @@ thresholds, then requires delivery of that exact revision in the next task.
 Completed execution with missing evidence is `incomplete-coverage`; positive
 coverage alone does not establish a task-quality improvement.
 
+The opt-in `--explicit-command-initialization` protocol separates source work,
+Memory maintenance and automatic rule creation. It requires
+`--observed-idle-failure` and `--unlimited-budget`; it cannot be combined with
+`--verified-failure-learning`. Both arms first inspect the same source with
+automatic learning off. The learner then runs the actual same-session
+`/memory 整理记忆` command and at most one processing-only source closure.
+Both arms receive the same separate policy task with native tools disabled.
+Only the learner can create an automatically owned Harness rule. The original
+task failures remain failures. All added calls, time and costs remain counted.
+Complete source inventories and physical history link the Memory endpoint to
+the rule's birth and later correction. This is a separate treatment, not an
+unchanged comparison with historical automatic cohorts or an equal-total-compute
+claim. The five later tasks and all semantic thresholds stay unchanged. Fresh
+frozen-source preflight and independent admission are required before paid use;
+controlled tests do not establish learning benefit.
+
 Bounded semantic repair now preserves each independently accepted Memory field:
 when only the body is held, the original description/frontmatter and citations
 remain; when only the description is held, the body remains. A complete original
@@ -1399,13 +1460,17 @@ transport. The 64,000-byte, batch/window/request and semantic thresholds remain
 unchanged. A plan that still exceeds these bounds remains pending; reduced wire
 overhead alone does not demonstrate correct knowledge or downstream task benefit.
 
-For a verified Qwen3.8-Flash OpenAI-compatible gateway, set
+For a verified Qwen3.8-Flash or DeepSeek OpenAI-compatible gateway, set
 `"plannerJsonOutput": true` in the agent's `continual-learning.json` to request
 provider JSON Object output for isolated workers with no active tools. This is an
 explicit gateway capability opt-in; confirm that the gateway forwards and supports
 `response_format` before enabling it. Existing provider output constraints remain
 authoritative. The parent still checks the unique plan, exact citations, semantics,
 privacy and authorization. Valid JSON alone does not establish valid learning.
+Supported DeepSeek IDs are `deepseek-flash`, `deepseek-v4-pro`, and the
+`deepseek-v4.1-flash` gateway alias, including provider prefixes. DeepSeek uses
+JSON Object only. The separate strict-schema switch does not enable it or send
+a Qwen schema. Empty, incomplete or invalid responses remain rejected.
 
 For a gateway separately verified to support strict JSON Schema output, set
 `"plannerStructuredOutput": true`. The isolated metadata selector then requests
@@ -1663,7 +1728,9 @@ or better subsequent tasks.
 
 `jev.requestConcurrency` optionally limits each semantic-review batch to 1–4 concurrent requests (default 4). Use a lower value for a constrained service or unreliable concurrent transport; it does not drop source windows, lower probability gates, increase request bounds, or change per-request deadlines. Lower concurrency may increase total review time and does not by itself prove a transport fix or learning benefit.
 
-Semantic Memory amendment `content` is a complete replacement Markdown document, including name/description/type frontmatter and the full body. Its structured-output schema matches the parent document requirement; a body-only paragraph is not a complete amendment. Identity, protected metadata, source citations and fresh complete review remain mandatory. A content patch may omit unchanged evidence only when the parent explicitly grants original-source reuse for that candidate. The parent checks the exact candidate ID and frozen snapshot hash, run and scope, resolves the complete original citations again, and preserves locked fields. Explicit invalid evidence and an unchanged effective patch remain rejected. This supplies a candidate for fresh review, never a learned change or approval. Citation-only amendments still require evidence. When parent-bound source observations are available, correction generation receives the reviewer's validated same-path read-order links alongside the complete original evidence. The links establish provenance only. They do not establish semantic supersession, runtime success or user permission, and old Memory remains a correction target. Invalid source bindings stop generation before a model request. Fresh full review must still reject a repair that restores an obsolete declaration while citing newer source.
+Normal coverage-enabled body correction uses `knowledge.sourceCitations` and ordered `knowledge.units`. The parent derives the complete body and its citations together and preserves frontmatter. The final worker input retains the shared knowledge output contract once, including material dependencies, independent named-type requirements and the distinction between declarations and observed behavior. Atomic framing changes the output format, not that content contract. Units and matching citations do not prove that a correction is complete or useful; every fresh review gate still applies.
+
+For non-atomic semantic Memory amendments, `content` is a complete replacement Markdown document, including name/description/type frontmatter and the full body. Its structured-output schema matches the parent document requirement; a body-only paragraph is not a complete amendment. Identity, protected metadata, source citations and fresh complete review remain mandatory. A content patch may omit unchanged evidence only when the parent explicitly grants original-source reuse for that candidate. The parent checks the exact candidate ID and frozen snapshot hash, run and scope, resolves the complete original citations again, and preserves locked fields. Explicit invalid evidence and an unchanged effective patch remain rejected. This supplies a candidate for fresh review, never a learned change or approval. Citation-only amendments still require evidence. When parent-bound source observations are available, correction generation receives the reviewer's validated same-path read-order links alongside the complete original evidence. The links establish provenance only. They do not establish semantic supersession, runtime success or user permission, and old Memory remains a correction target. Invalid source bindings stop generation before a model request. Fresh full review must still reject a repair that restores an obsolete declaration while citing newer source.
 
 Semantic Memory repair and independent body review share the recorded
 `MEMORY_CORRECTION_WORKER_DEADLINE_MS` budget of 600 seconds (ADR 0009), with

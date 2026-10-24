@@ -23,18 +23,39 @@ def test_preservation_repair_receives_exact_old_new_changes_without_forcing_body
       const reply=await repairIncrementalMemoryPlan({identity,rejectedPlan,selectedNames:['a.md'],repairableNames:['a.md'],repairableFields:{'a.md':['body','description']},errors:['preservation held'],
         semanticContext:{frozenEvidence,existingMemories:existing}});
       const data=JSON.parse(prompt.split('\n').at(-1));
-      console.log(JSON.stringify({reply,comparison:data.semanticContext.preservationTextComparisons,
+      // Actual final repair builder, after caller prefixes and retention hints.
+      const errors=['Retained review index map: fixture', 'Semantic verification: uncertain',
+        ...Array.from({length:18},(_,i)=>'Retained diagnostic '+i),
+        'Candidate failures: 0:support:uncertain [observed-check=supported_0; choice=unsupported; probability=0.54; confidence=0.42]',
+        'Candidate failures: 0:internal-consistency:uncertain [observed-check=coherence_0; choice=compatible; probability=0.62; confidence=0.43]'];
+      await repairIncrementalMemoryPlan({identity,rejectedPlan,selectedNames:['a.md'],repairableNames:['a.md'],repairableFields:{'a.md':['body','description']},errors,
+        boundedSemanticDiagnostics:true,semanticContext:{frozenEvidence,existingMemories:existing}});
+      const finalErrors=JSON.parse(prompt.split('\n').at(-1)).errors;
+      console.log(JSON.stringify({finalErrors,reply,comparison:data.semanticContext.preservationTextComparisons,
         expected:memoryRewriteTextComparisons(existing,[{...candidate,candidateIndex:0}]),
         completeRecords:JSON.stringify(data.semanticContext.existingMemories)===JSON.stringify(existing)&&JSON.stringify(data.rejectedPlan)===JSON.stringify(rejectedPlan),
         unchanged:before===JSON.stringify({existing,rejectedPlan,frozenEvidence}),
         guidance:prompt.includes('A description-only patch or selecting the same source excerpt does not by itself resolve a preservation hold'),
-        noForcedBodyChange:prompt.includes('A supported description correction can resolve a real scope or condition error without changing an already correct body')}));
+        noForcedBodyChange:prompt.includes('A supported description correction can resolve a real scope or condition error without changing an already correct body'),
+        scopeRepair:prompt.includes('Check the original source before removing a draft condition that lacks a selected citation'),
+        sourceCondition:prompt.includes('If that source establishes the condition, retain it and add the matching original source citation'),
+        falseCondition:prompt.includes('Correct or remove a condition when the original evidence establishes that it is false or obsolete'),
+        noDraftAuthority:prompt.includes('The draft and the review account are not evidence that a condition is true'),
+        finalScopeCheck:prompt.includes('Before emitting the patch, compare its applicability with the rejected record and the complete source')}));
     ''')
     assert result.get('comparison') == result['expected']
     assert result['comparison']['writeAuthorized'] is False
     assert result['completeRecords'] and result['unchanged']
     assert result['guidance'] and result['noForcedBodyChange']
+    assert all(result[key] for key in ('scopeRepair', 'sourceCondition', 'falseCondition', 'noDraftAuthority', 'finalScopeCheck'))
     assert result['reply']['outcome'] == 'failed' and 'plan' not in result['reply']
+    errors = result['finalErrors']
+    assert len(errors) <= 16 and max(map(len, errors)) <= 800
+    assert errors[-1].startswith('Additional correction diagnostics omitted;')
+    assert any('observed-check=supported_0' in line for line in errors)
+    assert any('observed-check=coherence_0' in line for line in errors)
+    assert errors[0] == 'Retained review index map: fixture'
+    assert errors[1] == 'Semantic verification: uncertain'
 
 
 def test_only_reviewed_description_patches_disable_reasoning_when_no_body_is_held():

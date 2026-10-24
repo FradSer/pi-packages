@@ -105,8 +105,10 @@ def test_total_early_deadline_terminates_child_and_retains_partial_cost_without_
       console.log(JSON.stringify({bound,closed,alive,unchanged:fs.readFileSync(target,'utf8')===original,receipts}));
     ''', timeout=15)
     assert value['bound'] == 230000 and value['closed'] and not value['alive'] and value['unchanged']
-    assert len(value['receipts']) == 1
-    receipt = value['receipts'][0]
+    from continuous_failure_retention import deduplicate_receipt_views
+    receipts=deduplicate_receipt_views(value['receipts'])
+    assert len(receipts) == 1
+    receipt = receipts[0]
     assert receipt['operations'] == 0 and receipt['totals']['cost'] == 0.25 and not receipt['costAvailable']
     assert any(a.get('diagnostic') == 'Early Harness correction exceeded its 230-second deadline.' for a in receipt['attempts'])
     assert receipt['attempts'][-1]['outcome'] == 'cancelled'

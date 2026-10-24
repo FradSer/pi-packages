@@ -507,7 +507,7 @@ def test_actual_pi_receives_parent_bound_amendment_prompt_without_tools(tmp_path
       const result=await repairIncrementalMemoryPlan({identity,rejectedPlan:original,errors:['held'],selectedNames:[],repairableNames:['a.md'],semanticContext:{frozenEvidence:{entries:[{role:'toolResult',content:'Correct claim'+suffix}]},existingMemories:[]}});
       console.log(JSON.stringify({result,sections,expected:header+'Correct claim'+suffix+purpose,wroteMemory:fs.existsSync(path.join(root,'.memory'))}));
     '''.replace('ROOT', json.dumps(str(tmp_path))).replace('RAW_WHITESPACE', str(raw_whitespace).lower()).replace('INSIDE_COLON', json.dumps(inside_colon)))
-    assert result['result']['outcome'] == 'repaired', result['result']
+    assert result['result']['outcome'] == 'repaired', str(result['result'])['result']
     assert result['result']['plan']['newMemories'][0]['content'] == result['expected']
     assert result['sections'] == ['Why', 'How to apply']
     assert not result['wroteMemory']
@@ -554,7 +554,7 @@ def test_real_raw_json_whitespace_repair_keeps_content_and_parent_bindings(tmp_p
       const diagnostic=fs.existsSync(diagnosticFile)?JSON.parse(fs.readFileSync(diagnosticFile,'utf8')):null;
       console.log(JSON.stringify({result,original,rawPreserved:originalResponse.output===raw,diagnostic,prompt,sensitive:containsSensitiveMemoryMaterial(JSON.stringify(fixture)),sourceHash:sha256Digest(raw),citations:result.plan?candidateCitationProblems(snapshot,result.plan.newMemories):null}));
     ''', env={'PROBE_DIR': str(tmp_path)})
-    assert result['result']['outcome'] == 'repaired', result['result']
+    assert result['result']['outcome'] == 'repaired', str(result['result'])['result']
     assert result['rawPreserved'] and not result['sensitive']
     assert result['sourceHash'] == '6e257b548cd02902a26fdcb52924af2086f289b87ff209a51285a74853f84e55'
     assert result['citations'] == []
@@ -694,3 +694,104 @@ def test_parent_no_entry_requires_final_set_review_before_later_phases(mode):
         assert 'harness' not in result['planners'] and 'agents' not in result['planners']
         assert not result['receiptComplete']
     assert 'concise.md' not in result['privateFiles'] and 'concise.md' not in result['publicFiles']
+
+
+def test_atomic_knowledge_correction_materializes_body_and_sources_together():
+    """Given V121's new dependency, When corrected, Then its source selection travels with that body unit."""
+    result = isolated_run_bun(r'''
+      import {materializeMemoryKnowledge,materializeMemoryDescription} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const original='---\nname: failure\ndescription: Existing observation\ntype: project\n---\nOld body.';
+      const source={contextEnabled:true,entries:[{role:'toolResult',content:'const second = deferred();\nconst job = second.promise;\nassert.equal(reported, false);\nsecond.resolve();'},{role:'assistant',content:'An invented explanation.'}]};
+      const knowledge={sourceCitations:[{ref:'e0.b0.l1',endRef:'e0.b0.l2'},{ref:'e0.b0.l3',endRef:'e0.b0.l4'}],units:[{text:'**Condition**: Follow-up work depends on second.promise.',citationIndexes:[0]},{text:'**Order**: second.resolve() occurs after the assertion.',citationIndexes:[1]}]};
+      const good=materializeMemoryKnowledge(original,knowledge,source);
+      const denied=[];for(const k of [[],{sourceCitations:[],units:knowledge.units},{...knowledge,units:[]},{...knowledge,units:[{text:'new relation',citationIndexes:[]}]},{...knowledge,units:[{text:'new relation',citationIndexes:[2]}]},{...knowledge,units:[{text:'new relation',citationIndexes:[0,0]}]},{...knowledge,sourceCitations:[{ref:'e1.b0.l1'}]},{...knowledge,sourceCitations:[{ref:'e0.b0.l99'}]},{...knowledge,sourceCitations:Array(9).fill({ref:'e0.b0.l1'})},{...knowledge,units:[{text:'new relation',citationIndexes:[0],content:'hidden'}]}]){try{materializeMemoryKnowledge(original,k,source);denied.push(false)}catch{denied.push(true)}}
+      const formatted=original.replaceAll('\n','\r\n')+'\r\n\r\n    code indentation\r\n';
+      const described=materializeMemoryDescription(formatted,'Revised discovery');
+      const invalidDescriptions=[];for(const value of ['',null,42,'foreign\nname: injected']){try{materializeMemoryDescription(formatted,value);invalidDescriptions.push(false)}catch{invalidDescriptions.push(true)}}
+      console.log(JSON.stringify({good,denied,original,formatted,described,invalidDescriptions}));
+    ''')
+    assert all(result['denied'])
+    assert result['good']['content'].endswith('second.resolve() occurs after the assertion.')
+    assert 'second.promise' in result['good']['evidence'][0]['quote']
+    assert 'second.resolve()' in result['good']['evidence'][1]['quote']
+    assert 'Old body.' not in result['good']['content']
+    assert result['good']['content'].split('---\n')[1] == result['original'].split('---\n')[1]
+    assert result['described'] == result['formatted'].replace('description: Existing observation', 'description: Revised discovery')
+    assert all(result['invalidDescriptions'])
+
+
+def test_parent_atomic_repair_rejects_body_with_detached_stale_citations():
+    # Given atomic output framing, When the final repair worker is launched,
+    # Then it retains the shared knowledge contract once as well as citations.
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';const kit=await import('./packages/kit/src/index.ts');let next,prompt,args;
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async i=>{prompt=i.prompt;args=i.extraArgs;return {text:JSON.stringify(next),exitCode:0,stderr:'',cancelled:false,usage:{input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01},usageLedger:{complete:true}}}}));
+      const {MEMORY_KNOWLEDGE_GUIDANCE}=await import('./packages/continual-learning/extensions/planner-prompts.ts');
+      const {sha256Digest}=await import('./packages/continual-learning/extensions/consolidation-run.ts');
+      const {repairIncrementalMemoryPlan,semanticMemoryRepairCandidates}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const frozen={contextEnabled:true,runId:'r',scopeKey:'s',entries:[{role:'toolResult',content:'A source failure.\nFollow-up depends on second.promise.\nRelease occurs after the assertion.'}]};
+      const digest=sha256Digest(JSON.stringify(frozen,null,2)+'\n');const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:digest,snapshotDigest:digest};
+      const content='---\nname: failure\ndescription: Source failure\ntype: project\n---\nA source failure.';
+      const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{name:'failure.md',kind:'project',classification:'safe',content,evidence:[{ref:'e0.b0.l1'}]}]};
+      const candidate=semanticMemoryRepairCandidates(original)[0];const patch={candidateId:candidate.candidateId,knowledge:{sourceCitations:[{ref:'e0.b0.l1'},{ref:'e0.b0.l2',endRef:'e0.b0.l3'}],units:[{text:'A source failure.',citationIndexes:[0]},{text:'Follow-up depends on second.promise. Release occurs after the assertion.',citationIndexes:[1]}]}};
+      const envelope={kind:'incremental-memory-amendment',version:1,...identity,replacements:[patch]};
+      const input={identity,rejectedPlan:original,selectedNames:[],repairableNames:['failure.md'],repairableFields:{'failure.md':['body']},atomicBodyEvidence:true,errors:['held'],semanticContext:{frozenEvidence:frozen,existingMemories:[]}};
+      next=envelope;const good=await repairIncrementalMemoryPlan(input);const payload=JSON.parse(prompt.split('\n').at(-1));
+      const knowledgeContractCount=prompt.split(MEMORY_KNOWLEDGE_GUIDANCE).length-1;
+      next={...envelope,replacements:[{candidateId:candidate.candidateId,content:content+'\nNew unsupported relationship.',evidence:[{ref:'e0.b0.l1'}]}]};const detached=await repairIncrementalMemoryPlan(input);
+      next={...original,newMemories:[{...original.newMemories[0],content:content+'\nNew relationship.'}]};const regenerated=await repairIncrementalMemoryPlan(input);
+      next=structuredClone(envelope);next.replacements[0].knowledge.units[1].citationIndexes=[];const uncited=await repairIncrementalMemoryPlan(input);
+      next=structuredClone(envelope);next.replacements[0].knowledge.sourceCitations=Array(9).fill({ref:'e0.b0.l1'});const overflow=await repairIncrementalMemoryPlan(input);
+      next={...envelope,replacements:[{candidateId:candidate.candidateId,description:'Observed source failure',evidence:[{ref:'e0.b0.l1'}]}]};
+      const descriptionOnly=await repairIncrementalMemoryPlan({...input,repairableFields:{'failure.md':['description']}});
+      const unauthorizedDescription=await repairIncrementalMemoryPlan(input);
+      next.replacements[0].content=content+'\nDifferent body.';
+      const ambiguousDescription=await repairIncrementalMemoryPlan({...input,repairableFields:{'failure.md':['description']}});
+      console.log(JSON.stringify({good,detached,regenerated,uncited,overflow,descriptionOnly,unauthorizedDescription,ambiguousDescription,content,payload,args,knowledgeContractCount}));
+    ''')
+    assert result['knowledgeContractCount'] == 1
+    assert result['good']['outcome'] == 'repaired'
+    assert 'second.promise' in result['good']['plan']['newMemories'][0]['content']
+    assert any('Release occurs after' in row['quote'] for row in result['good']['plan']['newMemories'][0]['evidence'])
+    assert all(result[k]['outcome'] == 'failed' and result[k]['usage']['cost'] == .01 for k in ('detached', 'regenerated', 'uncited', 'overflow'))
+    assert result['payload']['atomicKnowledgeContract']['oldCitationsInherited'] is False
+    assert '--learning-atomic-knowledge' in result['args']
+
+    assert result['overflow']['failureKind'] == 'citation' and '1..8' in result['overflow']['error']
+    assert result['payload']['atomicKnowledgeContract']['version'] == 2
+    assert result['payload']['atomicKnowledgeContract']['maximumSourceCitationsPerCandidate'] == 8
+    assert result['descriptionOnly']['outcome'] == 'repaired', result['descriptionOnly']
+    corrected = result['descriptionOnly']['plan']['newMemories'][0]
+    assert corrected['content'] == result['content'].replace('description: Source failure', 'description: Observed source failure')
+    assert corrected['evidence'] == [{'index': 0, 'quote': 'A source failure.'}]
+    assert result['descriptionOnly']['usage']['cost'] == .01
+    assert all(result[k]['outcome'] == 'failed' and result[k]['failureKind'] == 'intent'
+               and result[k]['usage']['cost'] == .01 for k in ('unauthorizedDescription', 'ambiguousDescription'))
+
+def test_atomic_retained_body_correction_selects_native_worker_protocol():
+    # Given a retained body contradicted by source, When its atomic repair is
+    # prepared, Then the actual native Qwen hook accepts the retained protocol.
+    result = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true}));
+      import {mock} from 'bun:test';const kit=await import('./packages/kit/src/index.ts');let args,wire;
+      const {sha256Digest}=await import('./packages/continual-learning/extensions/consolidation-run.ts');
+      const frozen={contextEnabled:true,runId:'r',scopeKey:'s',scopeDigest:'d',entries:[{role:'toolResult',content:'Correct source contract.'}]};
+      const digest=sha256Digest(JSON.stringify(frozen,null,2)+'\n'),identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:digest,snapshotDigest:digest};
+      const header='---\nname: Example\ndescription: Source contract.\ntype: project\n---\n';
+      const prior={name:'a.md',classification:'private',type:'project',content:header+'Old source contract.'};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{
+        args=input.extraArgs;const flags=new Map();for(let n=0;n<args.length-1;n++)if(args[n].startsWith('--'))flags.set(args[n].slice(2),args[n+1]);
+        const extension=(await import('./packages/continual-learning/extensions/planner-json-output.ts')).default;let hook;
+        extension({registerFlag:()=>{},getFlag:n=>flags.get(n),on:(name,fn)=>{if(name==='before_provider_request')hook=fn},getActiveTools:()=>[]});
+        wire=hook({payload:{messages:[{role:'user',content:'Return JSON.'}]}},{model:{api:'openai-completions',id:'bailian/qwen3.8-flash'}});
+        return {exitCode:0,stderr:'',cancelled:false,text:JSON.stringify({kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[{name:'a.md',kind:'rewrite',classification:'private',knowledge:{sourceCitations:[{ref:'e0.b0.l1'}],units:[{text:'Correct source contract.',citationIndexes:[0]}]}}],newMemories:[]})};
+      }}));
+      const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const result=await repairIncrementalMemoryPlan({identity,rejectedPlan:{kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[]},selectedNames:['a.md'],retainedRepairNames:['a.md'],requiredTextChanges:{'a.md':['body']},atomicBodyEvidence:true,errors:['contradicted body'],semanticContext:{frozenEvidence:frozen,existingMemories:[prior]}});
+      console.log(JSON.stringify({result,args,wire}));
+    ''')
+    assert result['args'][result['args'].index('--learning-output-schema') + 1] == 'memory-retained-amendment'
+    assert result['result']['outcome'] == 'repaired', str(result['result'])
+    assert result['result']['plan']['operations'][0]['content'].endswith('Correct source contract.')
+    assert result['wire']['response_format']['json_schema']['name'] == 'memory_retained_amendment'

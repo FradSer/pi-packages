@@ -1,6 +1,9 @@
+import { validManualMemoryReference, type ManualMemoryReference } from "./learning-backlog";
 import { jevCounterLocationText, type JevTelemetry } from "./jev-learning";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { assertTransactionPath } from "./file-transaction";
 import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
 import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-guidance-planner.ts";
 
@@ -30,6 +33,8 @@ export interface LearningAttempt {
   usageComplete?: boolean;
   /** Parent-owned numeric ledger identity; included only with this attempt. */
   usageLedgerId?: string;
+  /** Parent-written review bytes, bound to this existing coverage-worker cost row. */
+  coverageReviewArtifact?: {file: string; sha256: string; reviewedPlanDigest: string};
   /** A parent preflight can fail before any planner call. Legacy attempts count as one. */
   modelCalls?: 0;
   costAvailable?: boolean;
@@ -142,12 +147,73 @@ function harnessOwnedNoteText(text: string): string[] {
   return notes;
 }
 
+/** Behavior telemetry supplies context, never a task outcome or rule authority. */
+function harnessBehaviorSummary(entry: unknown, data: Record<string, unknown>): string | undefined {
+  const row = entry as Record<string, unknown>;
+  const identity = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/u.test(value);
+  const digest = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
+  if (row.type !== "custom" || entryRole(entry) !== "" || data.version !== 1 || !identity(data.sessionId)
+    || !digest(data.toolCallIdDigest) || !digest(data.inputDigest)
+    || typeof data.phase !== "string" || !["decision", "handler-result"].includes(data.phase)) return undefined;
+  const summary: Record<string, unknown> = {
+    phase: data.phase, sessionId: data.sessionId, toolCallIdDigest: data.toolCallIdDigest, inputDigest: data.inputDigest,
+    taskOutcome: data.taskOutcome === "unverified" ? "unverified" : "unknown",
+    effect: data.effect === "cannot-attribute" ? "cannot-attribute" : "unknown",
+  };
+  if (data.phase === "handler-result") {
+    if (!identity(data.decisionEntryId)) return undefined;
+    summary.decisionEntryId = data.decisionEntryId;
+    summary.resultDigest = digest(data.resultDigest) ? data.resultDigest : null;
+    const timing = typeof data.durationMs === "number" && Number.isFinite(data.durationMs) && data.durationMs >= 0;
+    summary.handlerInvoked = data.handlerInvoked === false ? false
+      : data.handlerInvoked === true && data.handlerTiming === "observed" && timing ? true : null;
+    summary.handlerTiming = data.handlerTiming === "observed" && !timing ? "invalid"
+      : typeof data.handlerTiming === "string" && ["observed", "absent", "invalid"].includes(data.handlerTiming) ? data.handlerTiming : "unknown";
+    if (timing) summary.durationMs = data.durationMs;
+    summary.isError = typeof data.isError === "boolean" ? data.isError : null;
+  } else {
+    if (typeof data.decision !== "string" || !["execute", "block", "incomplete", "allow-once", "confirmation-blocked"].includes(data.decision)
+      || !digest(data.effectiveConfigDigest) || !Array.isArray(data.rules)) return undefined;
+    summary.decision = data.decision;
+    summary.effectiveConfigDigest = data.effectiveConfigDigest;
+    summary.revisionCoverage = typeof data.revisionCoverage === "string" && ["complete", "incomplete"].includes(data.revisionCoverage) ? data.revisionCoverage : "unknown";
+    summary.handlerTracking = typeof data.handlerTracking === "string" && ["pending", "unavailable"].includes(data.handlerTracking) ? data.handlerTracking : "unknown";
+    summary.producerOmittedRules = Number.isSafeInteger(data.omittedRules) && Number(data.omittedRules) >= 0 ? data.omittedRules : null;
+    summary.uninspectedRules = Math.max(0, data.rules.length - 128);
+    const matched: Array<{ idDigest: string; revision: string }> = [];
+    let invalidMatchedRules = 0;
+    for (const value of data.rules.slice(0, 128)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const rule = value as Record<string, unknown>;
+      if (rule.matched !== true) continue;
+      if (digest(rule.idDigest) && digest(rule.revision)) matched.push({ idDigest: rule.idDigest, revision: rule.revision });
+      else invalidMatchedRules += 1;
+    }
+    const retained: typeof matched = [];
+    summary.matchedRuleRevisions = retained;
+    summary.invalidMatchedRules = invalidMatchedRules;
+    summary.omittedMatchedRules = matched.length;
+    for (const rule of matched) {
+      retained.push(rule);
+      summary.omittedMatchedRules = matched.length - retained.length;
+      if (JSON.stringify(summary).length > MAX_HARNESS_EVENT_CHARS) {
+        retained.pop();
+        summary.omittedMatchedRules = matched.length - retained.length;
+        break;
+      }
+    }
+  }
+  const text = JSON.stringify(summary);
+  return text.length <= MAX_HARNESS_EVENT_CHARS ? text : undefined;
+}
+
 /** One bounded line for a harness-owned activity, in the order a planner reads
  * it: what the Harness surface decided, and the prose it recorded. Dossiers
  * carry this instead of repository text that merely names the harness. */
 export function harnessOwnedEventSummary(entry: unknown): string | undefined {
   if (!harnessOwnedActivity(entry)) return undefined;
   const data = entryData(entry);
+  if (entryCustomType(entry) === "harness-behavior-observation") return harnessBehaviorSummary(entry, data);
   const fields = HARNESS_EVENT_DATA_FIELDS
     .map((field) => typeof data[field] === "string" ? (data[field] as string).replace(/\s+/gu, " ").trim() : "")
     .filter(Boolean);
@@ -345,6 +411,7 @@ export interface LearningInputSource {
   sessionId?: string;
   sourceDigest?: string;
   backlogId?: string;
+  manualRequest?: ManualMemoryReference;
   /** Exact original owner range, retained even after its queue is completed. */
   backlogRange?: { from: number; to: number; digest: string };
   /** Parent-verified same-task slices covered by this one replay batch. */
@@ -379,11 +446,26 @@ export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen,
 }
 
 export async function writeLearningReceipt(directory: string, receipt: LearningPipelineReceipt): Promise<string> {
-  await fs.mkdir(directory, { recursive: true });
+  const batch = receipt.batchId;
+  if (batch !== undefined && !/^batch_[a-f0-9]{32}$/.test(batch)) throw new Error("Invalid learning receipt batch");
+  const bytes = `${JSON.stringify(receipt, null, 2)}\n`;
+  const write = async (target: string): Promise<void> => {
+    await assertTransactionPath(target);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await assertTransactionPath(target);
+    const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(temporary, bytes, { mode: 0o600, flag: "wx" });
+      await fs.rename(temporary, target);
+    } finally {
+      await fs.unlink(temporary).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; });
+    }
+  };
+  // The batch record survives later invocations. The flat file remains the
+  // compatibility view of the latest write, not the complete receipt history.
+  if (batch) await write(path.join(directory, "receipts", batch, "learning-pipeline-receipt.json"));
   const target = path.join(directory, "learning-pipeline-receipt.json");
-  const temporary = `${target}.${process.pid}.tmp`;
-  await fs.writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
-  await fs.rename(temporary, target);
+  await write(target);
   return target;
 }
 
@@ -418,6 +500,10 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   const validInput = input === undefined || Boolean(input && typeof input === "object"
     && ["current-session", "recent-project-session", "backlog-session", "existing-memory", "none"].includes(input.source)
     && (input.backlogId === undefined || (typeof input.backlogId === "string" && /^[a-f0-9]{64}$/.test(input.backlogId)))
+    && (input.manualRequest === undefined || validManualMemoryReference(input.manualRequest)
+      && input.backlogId !== undefined && input.backlogRange !== undefined && input.sessionId !== undefined
+      && input.sourceDigest !== undefined && input.backlogCoverage === undefined
+      && ["current-session", "backlog-session"].includes(input.source))
     && (input.backlogRange === undefined || ["current-session", "backlog-session"].includes(input.source)
       && input.backlogId !== undefined && input.backlogRange !== null && typeof input.backlogRange === "object"
       && !Array.isArray(input.backlogRange) && Object.keys(input.backlogRange).every(key => ["from", "to", "digest"].includes(key))
