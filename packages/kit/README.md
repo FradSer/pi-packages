@@ -81,6 +81,10 @@ the original argv path and its platform limits.
   bookkeeping alone cannot restore success; a successful assistant reply must
   follow. Usage remains unavailable after such recovery because the failed
   request prevents a complete total. Controlled errors omit provider response text.
+  Failed results also expose optional `terminal: {kind, nativeExitCode}` with a
+  fixed failure category and the native close status before normalization.
+  This metadata contains no error prose and does not identify an upstream cause.
+  Successful results omit it.
 - `getDirectorySessionKey(cwd)` — SHA-256 of the canonical directory path;
   existing paths use realpath and missing paths use an absolute path.
 - `isSameDirectory(left, right)` — compares those canonical directory paths.

@@ -1509,8 +1509,17 @@ export interface PiWorkerUsage {
   cost: number;
 }
 
+/** Safe failure provenance. These values never contain provider or process prose. */
+export interface PiWorkerTerminal {
+  kind: "model-error" | "cancelled" | "process-exit" | "spawn-error"
+    | "stdout-limit" | "jsonl-line-limit" | "stderr-limit" | "prompt-delivery-error";
+  /** Native close status, before failed replies are mapped to exitCode 1. */
+  nativeExitCode: number | null;
+}
+
 /** Result of a Pi worker run. */
 export interface PiWorkerResult {
+  terminal?: PiWorkerTerminal;
   text: string;
   usage?: PiWorkerUsage;
   /** Known reported calls, including a partial prefix on failure; never a bill. */
@@ -1682,6 +1691,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       text: "",
       exitCode: 1,
       stderr: "Pi worker cancelled before start.",
+      terminal: {kind: "cancelled", nativeExitCode: null},
       cancelled: true,
     };
   }
@@ -1723,6 +1733,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
     let stdoutBytes = 0;
     let stderrBytes = 0;
     let failureReason: string | undefined;
+    let failureKind: PiWorkerTerminal["kind"] | undefined;
     let cancelled = false;
     const progress = createPiWorkerProgress();
     const emitProgress = () => onUpdate?.({
@@ -1740,14 +1751,15 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
     });
 
     let termination: Promise<boolean> | undefined;
-    const failWorker = (reason: string) => {
+    const failWorker = (reason: string, kind: PiWorkerTerminal["kind"]) => {
       failureReason ??= reason;
+      failureKind ??= kind;
       stdoutBuffer = "";
       termination ??= terminateChildProcess(child);
     };
     const abortHandler = () => {
       cancelled = true;
-      failWorker("Pi worker cancelled.");
+      failWorker("Pi worker cancelled.", "cancelled");
     };
     if (signal?.aborted) {
       abortHandler();
@@ -1759,7 +1771,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       if (failureReason) return;
       const chunkBytes = chunk.byteLength;
       if (stdoutBytes + chunkBytes > PI_WORKER_STDOUT_LIMIT_BYTES) {
-        failWorker(`Pi worker stdout exceeded ${PI_WORKER_STDOUT_LIMIT_BYTES} bytes.`);
+        failWorker(`Pi worker stdout exceeded ${PI_WORKER_STDOUT_LIMIT_BYTES} bytes.`, "stdout-limit");
         return;
       }
       stdoutBytes += chunkBytes;
@@ -1771,13 +1783,13 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       let changed = false;
       for (const line of lines) {
         if (Buffer.byteLength(line, "utf8") > PI_WORKER_JSONL_LINE_LIMIT_BYTES) {
-          failWorker(`Pi worker JSONL line exceeded ${PI_WORKER_JSONL_LINE_LIMIT_BYTES} bytes.`);
+          failWorker(`Pi worker JSONL line exceeded ${PI_WORKER_JSONL_LINE_LIMIT_BYTES} bytes.`, "jsonl-line-limit");
           return;
         }
         changed = applyPiWorkerProgress(progress, line) || changed;
       }
       if (Buffer.byteLength(stdoutBuffer, "utf8") > PI_WORKER_JSONL_LINE_LIMIT_BYTES) {
-        failWorker(`Pi worker JSONL line exceeded ${PI_WORKER_JSONL_LINE_LIMIT_BYTES} bytes.`);
+        failWorker(`Pi worker JSONL line exceeded ${PI_WORKER_JSONL_LINE_LIMIT_BYTES} bytes.`, "jsonl-line-limit");
         return;
       }
       if (changed) emitProgress();
@@ -1786,7 +1798,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       if (failureReason) return;
       const chunkBytes = chunk.byteLength;
       if (stderrBytes + chunkBytes > PI_WORKER_STDERR_LIMIT_BYTES) {
-        failWorker(`Pi worker stderr exceeded ${PI_WORKER_STDERR_LIMIT_BYTES} bytes.`);
+        failWorker(`Pi worker stderr exceeded ${PI_WORKER_STDERR_LIMIT_BYTES} bytes.`, "stderr-limit");
         return;
       }
       stderrBytes += chunkBytes;
@@ -1814,6 +1826,8 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
         usageLedger: failed ? {...usageLedger, complete: false} : usageLedger,
         exitCode: code === 0 && failed ? 1 : code ?? 1,
         stderr: diagnostic,
+        ...(failed ? {terminal: {kind: cancelled ? "cancelled" as const
+          : failureKind ?? parsed.failure ?? "process-exit", nativeExitCode: code}} : {}),
         cancelled,
       });
     });
@@ -1824,12 +1838,13 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
         text: "",
         exitCode: 1,
         stderr: [failureReason, stderr.trim(), err.message].filter(Boolean).join("\n"),
+        terminal: {kind: cancelled ? "cancelled" : "spawn-error", nativeExitCode: null},
         cancelled,
       });
     });
 
     if (promptOnStdin) {
-      child.stdin?.on("error", () => failWorker("Pi worker prompt delivery failed."));
+      child.stdin?.on("error", () => failWorker("Pi worker prompt delivery failed.", "prompt-delivery-error"));
       child.stdin?.end(prompt, "utf8");
     }
   });

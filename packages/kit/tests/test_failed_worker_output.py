@@ -43,6 +43,10 @@ def test_real_child_exit_zero_with_failed_reply_is_not_success() -> None:
     assert all(row['exitCode'] != 0 and row['text'] == '' and 'usage' not in row for row in result)
     assert [row['cancelled'] for row in result] == [False, True]
     assert all('PRIVATE' not in row['stderr'] for row in result)
+    assert [row['terminal'] for row in result] == [
+        {'kind': 'model-error', 'nativeExitCode': 0},
+        {'kind': 'cancelled', 'nativeExitCode': 0},
+    ]
 
 
 def test_retry_bookkeeping_preserves_cancelled_until_a_successful_reply() -> None:
@@ -62,3 +66,21 @@ def test_recovered_reply_does_not_make_unknown_failed_usage_a_known_total() -> N
       console.log(JSON.stringify(parsePiWorkerOutput([reply('error','partial',0),reply('stop','recovered',10)].map(JSON.stringify).join('\n'))));
     ''')
     assert result == {'text': 'recovered'}
+
+
+def test_nonzero_child_exit_discards_recovered_semantic_text() -> None:
+    result = run_typescript(fr'''
+      import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+      const root=fs.mkdtempSync(path.join(os.tmpdir(),'kit-failed-exit-'));
+      fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({{name:'@earendil-works/pi-coding-agent'}}));
+      const cli=path.join(root,'cli.mjs'),prior=process.argv[1];process.argv[1]=cli;
+      const events=['error','stop'].map(stopReason=>({{type:'message_end',message:{{role:'assistant',stopReason,errorMessage:'PRIVATE',content:[{{type:'text',text:'recovered valid plan'}}],usage:{{input:1,output:1,totalTokens:2,cost:{{total:0}}}}}}}}));
+      fs.writeFileSync(cli,events.map(event=>'console.log('+JSON.stringify(JSON.stringify(event))+');').join('\n')+'\nprocess.exitCode=7;');
+      const {{runPiWorker}}=await import({json.dumps(KIT)});
+      const result=await runPiWorker({{prompt:'inspect',cwd:root,minimal:true,tools:[]}});
+      process.argv[1]=prior;fs.rmSync(root,{{recursive:true,force:true}});console.log(JSON.stringify(result));
+    ''')
+    assert result['text'] == '' and result['exitCode'] == 7 and 'usage' not in result
+    assert result['usageLedger']['complete'] is False
+    assert result['terminal'] == {'kind': 'process-exit', 'nativeExitCode': 7}
+    assert 'PRIVATE' not in json.dumps(result['terminal'])
