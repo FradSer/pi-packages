@@ -85,7 +85,8 @@ def main() -> None:
         try:
             until(lambda: any(entry["kind"] == "ready" for entry in entries()) and frames.count > 0)
             # One goal, created by the real create_goal tool, then stopped because three
-            # runs in a row changed nothing observable.
+            # runs in a row produced nothing new: the receipt they repeat is one the
+            # session had already seen.
             os.write(master, b"Start the goal.\r")
 
             def stopped_for_no_change() -> dict | None:
@@ -101,7 +102,7 @@ def main() -> None:
             drain()
             seeded = stopped_for_no_change()
             assert seeded is not None, open_goals()
-            assert "changed nothing observable" in (seeded.get("pauseReason") or ""), seeded
+            assert "produced nothing new" in (seeded.get("pauseReason") or ""), seeded
 
             # One real /goal request with that goal in place.
             os.write(master, ("/goal " + REQUEST + "\r").encode())

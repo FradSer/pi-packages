@@ -1086,23 +1086,21 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.equal(f.core.goal?.status,"active") holds for every observed invocation
     And the predicate assert.match(f.row(),/Goal waiting/) holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given repeated reads When each run settles Then stop repeated-output continuation
-    Given the isolated fixtures for Given repeated reads When each run settles Then stop repeated-output continuation
+  Scenario: Simplified thread Goal lifecycle: Given repeated identical output When each run settles Then count it in the change window
+    Given the isolated fixtures for Given repeated identical output When each run settles Then count it in the change window
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(f.core.scheduler.isArmed(),false) holds for every observed invocation
+    Then the predicate assert.equal(f.core.goal?.autoContinue,true,"two repeated receipts are inside the window") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false,"the third repeated run produced nothing new") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/) holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),false) holds for every observed invocation
     And the predicate assert.match(f.row(),/Goal waiting/) holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given novel reads When the change window fills Then stop autonomous continuation
-    Given the isolated fixtures for Given novel reads When the change window fills Then stop autonomous continuation
+  Scenario: Simplified thread Goal lifecycle: Given novel reads When each run settles Then keep continuing
+    Given the isolated fixtures for Given novel reads When each run settles Then keep continuing
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(f.core.goal?.autoContinue,true,"two read-only runs are inside the window") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue,true) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue,false,"the third no-change run stops the loop") holds for every observed invocation
-    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs changed nothing observable/) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.scheduler?.phase,"idle","the stop drops any dispatch") holds for every observed invocation
-    And the predicate assert.match(f.row(),/Goal waiting/) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue,true,"resume starts the window again") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue,false) holds for every observed invocation
+    Then the predicate assert.equal(f.core.goal?.autoContinue,true,`read-only run ${i} stays inside the window`) holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason,undefined,"nothing is reported as a stall") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.scheduler?.used,6,"every novel run was authorized") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a workspace change each run When the window fills Then keep continuing
     Given the isolated fixtures for Given a workspace change each run When the window fills Then keep continuing
@@ -1115,14 +1113,14 @@ Feature: Simplified thread Goal lifecycle
     Given the isolated fixtures for Given a reworded objective between repeated reads When the window fills Then stop
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(f.core.goal?.autoContinue,false,"a revision does not reset the change window") holds for every observed invocation
-    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs changed nothing observable/) holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/) holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.scheduler?.phase,"idle") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a repeated edit after each objective revision When the window fills Then stop
     Given the isolated fixtures for Given a repeated edit after each objective revision When the window fills Then stop
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(f.core.goal?.autoContinue,false,"rewriting the same content is not progress") holds for every observed invocation
-    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/changed nothing observable/) holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/produced nothing new/) holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a user turn that only reads When it settles Then keep the change window
     Given the isolated fixtures for Given a user turn that only reads When it settles Then keep the change window
@@ -1209,12 +1207,6 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.equal(result,undefined) holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.scheduler?.used,0) holds for every observed invocation
     And the predicate assert.equal(f.core.scheduler.isArmed(),false) holds for every observed invocation
-
-  Scenario: Simplified thread Goal lifecycle: Given new output When a read repeats Then allow meaningful work but stop identical output
-    Given the isolated fixtures for Given new output When a read repeats Then allow meaningful work but stop identical output
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(f.core.performedWork(),index < 2) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue,false) holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a checker's usage When it returns MET Then charge it and complete
     Given the isolated fixtures for Given a checker's usage When it returns MET Then charge it and complete
@@ -1363,13 +1355,17 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.equal(result.details.subject,"blocker reported") holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.status,"active") holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given a successful turn with no tools When settling Then wait without pausing or continuing
-    Given the isolated fixtures for Given a successful turn with no tools When settling Then wait without pausing or continuing
+  Scenario: Simplified thread Goal lifecycle: Given a successful turn with no tools When it settles Then spend the change window instead of waiting
+    Given the isolated fixtures for Given a successful turn with no tools When it settles Then spend the change window instead of waiting
     When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(f.sent.slice(before).every(message=>message.customType === "goal-event" && message.details?.subject === "waiting")) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.status,"active") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue,false) holds for every observed invocation
+    Then the predicate assert.equal(f.core.goal?.status,"active","the goal stays open") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"an answer does not end the goal") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason,undefined,"and writes no reason") holds for every observed invocation
+    And the predicate assert.ok(f.sent.slice(before).every(message=>message.details?.subject !== "waiting"),"and reports no wait") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false,"the third wasted run fills the window") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/) holds for every observed invocation
     And the predicate assert.equal(f.core.scheduler.isArmed(),false) holds for every observed invocation
+    And the predicate assert.match(f.row(),/Goal waiting/) holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a paused Goal When accepting an explicit full revision Then authorize work and show pursuing
     Given the isolated fixtures for Given a paused Goal When accepting an explicit full revision Then authorize work and show pursuing

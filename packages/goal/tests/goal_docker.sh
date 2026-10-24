@@ -93,11 +93,12 @@ fi
 cd /verify
 echo "=== goal package gate: pytest packages/goal/tests ==="
 PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python -m pytest packages/goal/tests/ -q
-echo "=== goal PTY probes: completion (scripted and autoload), request row, request continuation, revision ==="
+echo "=== goal PTY probes: completion (scripted and autoload), request row, request continuation, answer continuation, revision ==="
 PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
 PI_OFFLINE=1 PI_GOAL_AUTOLOAD=1 GOAL_INSTALLED_PATH=/isolated/node_modules/@fradser/pi-goal GOAL_CASES=empty,long GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
 PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_request_row.py
 PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_request_continuation.py
+PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_answer_continuation.py
 PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_revision.py
 node --input-type=module -e 'import {readFileSync,readdirSync} from "node:fs"; import {createHash} from "node:crypto"; const settings=JSON.parse(readFileSync("/isolated/agent/settings.json")); if(settings.packages.length!==1) throw Error("Expected only the Goal package"); const tarballs=Object.fromEntries(readdirSync("/receipts").filter(n=>/^fradser-pi-.*\.tgz$/.test(n)).map(n=>[n,createHash("sha256").update(readFileSync("/receipts/"+n)).digest("hex")])); console.log(JSON.stringify({piVersion:readFileSync("/receipts/pi-version.txt","utf8").trim(),packages:settings.packages,loadedPackages:readFileSync("/receipts/pi-list.txt","utf8").split("\n").map(l=>l.trim()).filter(Boolean),tarballs}));'
 SETUP

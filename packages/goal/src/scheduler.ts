@@ -17,7 +17,7 @@
  */
 
 import { randomToken, type GoalRecord, type ResumeReason } from "./record.ts";
-import { NO_CHANGE_RUN_LIMIT, type GoalSettings } from "./settings.ts";
+import { NO_NEW_WORK_RUN_LIMIT, type GoalSettings } from "./settings.ts";
 import type { GoalMutationOutcome } from "./store.ts";
 
 /** What the scheduler needs from its host. Kept to this narrow surface so the
@@ -61,9 +61,9 @@ export class GoalScheduler {
   /** Set when a checkpoint was refused, so the turn that received it cannot do
    * work even if the model ignores the block. */
   private denied = false;
-  /** Runs since the last workspace change. The loop's bound: a goal that keeps
-   * exploring without changing anything stops itself. */
-  private noChangeRuns = 0;
+  /** Runs since the last run that produced something new. The loop's bound: a goal
+   * that keeps doing the same thing, or nothing, stops itself. */
+  private noNewWorkRuns = 0;
 
   constructor(host: SchedulerHost) {
     this.host = host;
@@ -130,18 +130,19 @@ export class GoalScheduler {
    *
    * `successful` is false for a turn that errored or was aborted. A failed turn is
    * not completed work, and turning one into another run is how a provider
-   * outage becomes a retry storm. `changedState` says whether the run changed the
-   * workspace: a run that only explored does not earn another one forever, so
-   * consecutive runs without a change stop the loop.
+   * outage becomes a retry storm, so it stops the loop at once.
    *
-   * `userInitiated` says the user's own words started this run — a typed prompt
-   * or a `/goal <text>` request the command delivered. Their turn is an
-   * opportunity, not empty autonomous work: a model that only recorded the
-   * objective in it earns exactly one real run instead of stopping the goal
-   * before anything ran. The run after it is judged normally, so one unproductive
-   * turn cannot hold the loop open.
+   * `didWork` says whether the run produced anything this session had not already
+   * seen: a receipt new to it, or the user's own turn. Progress is novelty, not a
+   * particular tool, so an autonomous run that only explored still earns the next
+   * one — what stops the loop is *repetition*. Consecutive runs with nothing new
+   * stop it, which covers the run that answered instead of acting, the run that
+   * produced nothing at all, and the run that only repeated earlier receipts. The
+   * caller counts a user's own turn as new work, so a `/goal <text>` request that
+   * only records the objective spends no run and the work that follows keeps the
+   * full window.
    */
-  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, performedWork = true, changedState = true, userInitiated = false): void {
+  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, didWork = true): void {
     this.inRun = false;
     this.lastSettings = settings;
     if (this.denied || !goal || goal.status !== "active" || !goal.autoContinue) return;
@@ -150,22 +151,20 @@ export class GoalScheduler {
       this.pause(goal, reason, "agent", { requireRevision: goal.revision });
       return;
     }
-    if (!successful || (!performedWork && !userInitiated)) {
-      const reason = successful
-        ? "No effective work was recorded. Use /goal resume to continue."
-        : "Execution was interrupted or failed. Use /goal resume to continue.";
+    if (!successful) {
+      const reason = "Execution was interrupted or failed. Use /goal resume to continue.";
       if (this.pause(goal, reason, "agent", { requireRevision: goal.revision })) this.host.notify(reason, "warning");
       return;
     }
-    if (!changedState) {
-      this.noChangeRuns += 1;
-      if (this.noChangeRuns >= NO_CHANGE_RUN_LIMIT) {
-        const reason = `${this.noChangeRuns} consecutive runs changed nothing observable. Use /goal resume to continue.`;
+    if (!didWork) {
+      this.noNewWorkRuns += 1;
+      if (this.noNewWorkRuns >= NO_NEW_WORK_RUN_LIMIT) {
+        const reason = `${this.noNewWorkRuns} consecutive runs produced nothing new. Use /goal resume to continue.`;
         if (this.pause(goal, reason, "agent", { requireRevision: goal.revision })) this.host.notify(reason, "warning");
         return;
       }
     } else {
-      this.noChangeRuns = 0;
+      this.noNewWorkRuns = 0;
     }
     this.implicitReady(goal, goal.revision);
 
@@ -438,7 +437,7 @@ export class GoalScheduler {
     this.denied = false;
     // A user resume is a fresh opportunity: the window starts again, or a goal
     // stopped by it could never be resumed more than once.
-    this.noChangeRuns = 0;
+    this.noNewWorkRuns = 0;
     if (settings.maxAutonomousRuns === 0) {
       this.host.notify(this.allowanceReason(settings), "warning");
       return false;

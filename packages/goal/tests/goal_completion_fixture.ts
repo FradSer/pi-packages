@@ -36,13 +36,14 @@ export default function (pi: ExtensionAPI): void {
       const call=(name:string,args:JsonObject):AssistantMessage["content"]=>[{type:"toolCall",id:`native-${index}`,name,arguments:args}];
       let content:AssistantMessage["content"];
       // The revision case builds its precondition in deliberate runs: one creates the
-      // goal, and three runs that explore without changing anything fill the change
-      // window and stop it. The later /goal request is the run that merges the new
-      // words into that one goal and records real work.
+      // goal, one explores with a receipt the session has not seen, and three runs that
+      // repeat that same receipt produce nothing new and fill the window. The later
+      // /goal request is the run that merges the new words into that one goal and
+      // records real work.
       if(mode === "revision" && index === 0) content=call("create_goal",{objective:"Probe the live goal rows."});
       else if(mode === "revision" && index % 2 === 1) content=[{type:"text",text:"Native fixture turn finished."}];
-      else if(mode === "revision" && index <= 6) content=call("bash",{command:"printf 'PROBE_REVISION_READ "+String(index)+"\\n'"});
-      else if(mode === "revision" && index === 8) content=call("update_goal",{objective:"Probe the live goal rows. Audit the export path."});
+      else if(mode === "revision" && index <= 8) content=call("bash",{command:"printf 'PROBE_REVISION_READ\\n'"});
+      else if(mode === "revision" && index === 10) content=call("update_goal",{objective:"Probe the live goal rows. Audit the export path."});
       // From here the revision case keeps recording work, so the goal keeps pursuing and the
       // probe can read that state instead of racing a pause. Each receipt differs, because a
       // repeated identical receipt is not new work.
@@ -55,6 +56,12 @@ export default function (pi: ExtensionAPI): void {
       // Every later run changes the workspace, so the goal keeps pursuing and the probe
       // can read that state and its footer instead of racing a pause. The probe kills it.
       else if(mode === "request") content=call("write",{path:`probe-work-${index}.txt`,content:`REQUEST_CONTINUATION_WORK ${index}\n`});
+      // The answer case wastes its first two autonomous runs on text alone: a run that
+      // answers instead of acting spends one change window run, so the loop survives it
+      // and reaches real work afterwards.
+      else if(mode === "answer" && index === 0) content=call("create_goal",{objective:"Run a command printing NATIVE_COMPLETION_E2E_PASS."});
+      else if(mode === "answer" && index <= 3) content=[{type:"text",text:"Native fixture turn finished."}];
+      else if(mode === "answer") content=call("write",{path:`probe-answer-${index}.txt`,content:`ANSWER_CONTINUATION_WORK ${index}\n`});
       else if(index === 0) content=call("create_goal",{objective:mode === "long" ? "Preserve every requirement, including 中文字符. ".repeat(100)+"GOAL_REQUIREMENT_END" : "Run a command printing NATIVE_COMPLETION_E2E_PASS."});
       else if(mode === "long" && index === 1) content=call("get_goal",{});
       else if(mode === "blocked" && index <= 3) content=call("update_goal",{status:"blocked",reason:"Required fixture input is unavailable."});

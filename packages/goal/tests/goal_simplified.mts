@@ -154,24 +154,31 @@ await scenario("Given an execution error When settling Then wait without autonom
   await f.fire("agent_start"); await f.fire("agent_before_settle",{outcome:"failed"});
   assert.equal(f.core.goal?.status,"active"); assert.match(f.row(),/Goal waiting/);
 }));
-await scenario("Given repeated reads When each run settles Then stop repeated-output continuation", () => use(async f => {
-  for(let i=0;i<2;i++) {
+await scenario("Given repeated identical output When each run settles Then count it in the change window", () => use(async f => {
+  // A repeated receipt is not new work, so it is what fills the window; the first
+  // occurrence was work and restarted it. Two identical reads used to stop the loop
+  // at once, which is what this scenario no longer pins.
+  const read=async()=>{
     await f.fire("agent_start"); await f.fire("turn_start");
     await f.fire("tool_execution_end",{toolName:"read",isError:false,result:{content:[{type:"text",text:"same source"}]}});
     await f.fire("agent_before_settle",{outcome:"completed"});
-  }
+  };
+  await read();
+  await read(); await read();
+  assert.equal(f.core.goal?.autoContinue,true,"two repeated receipts are inside the window");
+  await read();
+  assert.equal(f.core.goal?.autoContinue,false,"the third repeated run produced nothing new");
+  assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/);
   assert.equal(f.core.scheduler.isArmed(),false); assert.match(f.row(),/Goal waiting/);
 }));
-await scenario("Given novel reads When the change window fills Then stop autonomous continuation", () => use(async f=>{
+await scenario("Given novel reads When each run settles Then keep continuing", () => use(async f=>{
+  // Progress is novelty, not a particular tool: a run that produced a receipt this
+  // session had not seen keeps the loop. Six read-only runs used to fill the window
+  // and stop it, which ended goals whose remaining work is a long investigation.
   const read=async(i:number)=>{await f.fire("agent_start");await f.fire("tool_execution_end",{toolName:"read",isError:false,result:{content:[{type:"text",text:`source ${i}`}]},args:{path:`src/f${i}.ts`}});await f.fire("agent_before_settle",{outcome:"completed"});};
-  await read(1); assert.equal(f.core.goal?.autoContinue,true,"two read-only runs are inside the window");
-  await read(2); assert.equal(f.core.goal?.autoContinue,true);
-  await read(3); assert.equal(f.core.goal?.autoContinue,false,"the third no-change run stops the loop");
-  assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs changed nothing observable/);
-  assert.equal(f.core.goal?.scheduler?.phase,"idle","the stop drops any dispatch"); assert.match(f.row(),/Goal waiting/);
-  await f.command("resume"); assert.equal(f.core.goal?.autoContinue,true,"resume starts the window again");
-  await read(4); assert.equal(f.core.goal?.autoContinue,true);
-  await read(5); await read(6); assert.equal(f.core.goal?.autoContinue,false);
+  for(let i=1;i<=6;i++){ await read(i); assert.equal(f.core.goal?.autoContinue,true,`read-only run ${i} stays inside the window`); }
+  assert.equal(f.core.goal?.pauseReason,undefined,"nothing is reported as a stall");
+  assert.equal(f.core.goal?.scheduler?.used,6,"every novel run was authorized");
 }));
 await scenario("Given a workspace change each run When the window fills Then keep continuing", () => use(async f=>{
   for(let i=0;i<5;i++){await f.fire("agent_start");await f.fire("tool_execution_start",{toolCallId:`w${i}`,toolName:"write",args:{path:`src/f${i}.ts`,content:`body ${i}`}});await f.fire("tool_execution_end",{toolCallId:`w${i}`,toolName:"write",isError:false,result:{content:[{type:"text",text:`wrote ${i}`}]}});await f.fire("agent_before_settle",{outcome:"completed"});}
@@ -180,13 +187,13 @@ await scenario("Given a workspace change each run When the window fills Then kee
   assert.equal(f.core.goal?.scheduler?.used,5,"every changed run was authorized");
 }));
 await scenario("Given a reworded objective between repeated reads When the window fills Then stop", () => use(async f=>{
-  for(let i=0;i<3;i++){
+  for(let i=0;i<4;i++){
     await f.call("update_goal",{objective:`Export CSV v${i}.`});
     await f.fire("agent_start");await f.fire("tool_execution_end",{toolName:"read",isError:false,result:{content:[{type:"text",text:"same source"}]},args:{path:"src/a.ts"}});
     await f.fire("agent_before_settle",{outcome:"completed"});
   }
   assert.equal(f.core.goal?.autoContinue,false,"a revision does not reset the change window");
-  assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs changed nothing observable/);
+  assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/);
   assert.equal(f.core.goal?.scheduler?.phase,"idle");
 }));
 await scenario("Given a repeated edit after each objective revision When the window fills Then stop", () => use(async f=>{
@@ -196,7 +203,7 @@ await scenario("Given a repeated edit after each objective revision When the win
     await f.fire("agent_before_settle",{outcome:"completed"});
   }
   assert.equal(f.core.goal?.autoContinue,false,"rewriting the same content is not progress");
-  assert.match(f.core.goal?.pauseReason ?? "",/changed nothing observable/);
+  assert.match(f.core.goal?.pauseReason ?? "",/produced nothing new/);
 }));
 await scenario("Given a user turn that only reads When it settles Then keep the change window", () => use(async f=>{
   for(let i=0;i<4;i++){
@@ -281,14 +288,6 @@ await scenario("Given queued user input When productive work settles Then no bou
   await f.fire("agent_start"); await f.fire("tool_execution_end",{toolName:"write",isError:false,result:{}}); f.pending(true);
   const result=await f.fire("agent_before_settle",{outcome:"completed"}); assert.equal(result,undefined);
   assert.equal(f.core.goal?.scheduler?.used,0); assert.equal(f.core.scheduler.isArmed(),false);
-}));
-await scenario("Given new output When a read repeats Then allow meaningful work but stop identical output", () => use(async f=>{
-  for(const [index,value] of ["before","after","after"].entries()){
-    await f.fire("agent_start"); await f.fire("tool_execution_end",{toolName:"read",isError:false,result:{content:[{type:"text",text:value}]}});
-    assert.equal(f.core.performedWork(),index < 2);
-    await f.fire("agent_before_settle",{outcome:"completed"});
-  }
-  assert.equal(f.core.goal?.autoContinue,false);
 }));
 await scenario("Given a checker's usage When it returns MET Then charge it and complete", () => use(async f=>{
   const before=f.sent.length; const r=await f.call("update_goal",{status:"complete"}); assert.equal(r.details.subject,"completed");
@@ -456,12 +455,24 @@ await scenario("Given two blocker turns When restoring the thread Then restart t
   const result = await f.call("update_goal",{status:"blocked",reason:"Missing external input."});
   assert.equal(result.details.subject,"blocker reported"); assert.equal(f.core.goal?.status,"active");
 }));
-await scenario("Given a successful turn with no tools When settling Then wait without pausing or continuing", () => use(async f => {
+await scenario("Given a successful turn with no tools When it settles Then spend the change window instead of waiting", () => use(async f => {
+  // A model that answered instead of acting used to end the goal in the turn that answered. It is
+  // not progress, but it is not a stop either: the window is the loop's only bound, so a wasted
+  // run costs one of its three, and the loop recovers instead of waiting for the user.
+  for(let run=0;run<2;run++){
+    const before = f.sent.length;
+    await f.fire("agent_start"); await f.fire("turn_start");
+    await f.fire("agent_before_settle",{outcome:"completed"});
+    assert.equal(f.core.goal?.status,"active","the goal stays open");
+    assert.equal(f.core.goal?.autoContinue,true,"an answer does not end the goal");
+    assert.equal(f.core.goal?.pauseReason,undefined,"and writes no reason");
+    assert.ok(f.sent.slice(before).every(message=>message.details?.subject !== "waiting"),"and reports no wait");
+  }
   await f.fire("agent_start"); await f.fire("turn_start");
-  const before = f.sent.length;
   await f.fire("agent_before_settle",{outcome:"completed"});
-  assert.ok(f.sent.slice(before).every(message=>message.customType === "goal-event" && message.details?.subject === "waiting")); assert.equal(f.core.goal?.status,"active");
-  assert.equal(f.core.goal?.autoContinue,false); assert.equal(f.core.scheduler.isArmed(),false);
+  assert.equal(f.core.goal?.autoContinue,false,"the third wasted run fills the window");
+  assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/);
+  assert.equal(f.core.scheduler.isArmed(),false); assert.match(f.row(),/Goal waiting/);
 }));
 await scenario("Given a paused Goal When accepting an explicit full revision Then authorize work and show pursuing", () => use(async f => {
   f.core.store.apply({expectedGoalId:"simple-goal",mutate:goal=>({...goal,status:"paused",autoContinue:false})});

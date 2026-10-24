@@ -23,19 +23,18 @@ independent user history, or Goal archive. Use ordinary tools for investigation.
 - A timer, settled turn or queued message is an opportunity, never authorization.
   Arm and claim separately; recheck identity, owner, generation, phase and dispatch.
   Accept a checkpoint once. Never replay unknown delivery.
-- Continue only after successful effective work and without pending user input.
-  Progress means a workspace change: only an unseen successful `edit` or `write`
-  earns the next run, while reading, searching, fetching, commands and delegated
-  child work explore.
-  Three consecutive runs that change nothing stop the loop and name the window;
-  a requirement revision must not clear that memory, and a user's own turn does
-  not count against it. A `/goal <text>` request is the user's own turn even though
-  the command delivers it as a custom message, so a run that only records the
-  objective still earns exactly one real run instead of stopping the goal.
-  Repeated identical tool receipts and pending monitors
-  cannot sustain the loop. Unrelated background activity is not progress. Empty
-  or failed work waits; only the user pauses. Resume preserves lifetime usage,
-  continuation count and a fresh change window.
+- Continue only after a successful run and without pending user input. Progress
+  means something new: a receipt this session has not already produced resets the
+  window, whatever the tool, so exploration, gate runs and delegated child work
+  count when they add something. Three consecutive runs that produce nothing new
+  stop the loop and name the window; repeated receipts, an answer with no tool
+  call, and an empty run are what fill it. Only a failed or interrupted run stops
+  it at once. Goal introspection and unfinished monitors are not work. A
+  requirement revision must not clear that memory, and a user's own turn is always
+  new work; `/goal <text>` is that user's turn even though the command delivers it
+  as a custom message, so it keeps the full window. Unrelated background activity
+  is not progress. Resume preserves lifetime usage, continuation count and a fresh
+  window.
 - A recurring blocker requires three consecutive model turns. The same-turn
   report counts once; effective work, changed requirements and restore reset it.
 - Only an explicit completion request runs one fresh tool-less completion check.

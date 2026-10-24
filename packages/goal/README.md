@@ -53,23 +53,26 @@ Pi 1.2 `before_agent_start` contributes Goal capability and current state throug
 ## Continuation and completion
 
 A normal settled turn does not invoke a checker. The runtime authorizes another
-run only after successful effective work, within the configured limits, with no
-queued user input. **Progress means a workspace change**: only a successful
-`edit` or `write` this goal has not already seen earns the next run. Reading,
-searching, fetching, running commands and delegating work to another process
-explore, and exploration does not hold the loop open. Three consecutive runs that change nothing stop automatic
-continuation and say so; `/goal resume` starts the window again. A requirement
-revision does not clear that memory, so re-wording the objective cannot make the
-same change count twice. A user's own turn is a fresh opportunity rather than a
-run that changed nothing, and `/goal <text>` is that user's turn even though the
-command delivers it as a custom message: a run that only records the objective
-still earns exactly one real run, and the run after it is judged normally.
-Pending monitor acknowledgements are not completed
-work. Unrelated background agents do not count as Goal progress.
+run after any successful turn, within the configured limits and with no queued
+user input, and **progress means something new**: a tool receipt this session has
+not already produced resets the window, whatever the tool. Reading, searching,
+running gates and delegating work count when they add something new, so a long
+investigation or verification stretch is not interrupted; repeating the same call
+with the same output, answering without calling a tool, and producing nothing at
+all are what fill the window. Three consecutive runs with nothing new stop
+automatic continuation and say so; `/goal resume` starts the window again. A
+failed or interrupted turn stops the goal at once, so an outage is not retried. A
+requirement revision does not clear that memory, so re-wording the objective
+cannot make the same receipt count twice. A user's own turn is always new work,
+and `/goal <text>` is that user's turn even though the command delivers it as a
+custom message, so a request keeps the full window for the work that follows.
+Goal introspection (`create_goal`, `get_goal`, `update_goal`) and a monitor that
+has not reached a terminal status are not work. Unrelated background agents do not
+count as Goal progress.
 
 Generation and dispatch checks authorize each continuation exactly once. User
-input invalidates a queued continuation. Failed, interrupted, empty or repeated
-runs wait for explicit recovery rather than fabricating a user pause. Restoring a
+input invalidates a queued continuation. Failed and interrupted runs wait for
+explicit recovery rather than fabricating a user pause. Restoring a
 session restores its objective but grants no continuation by itself.
 
 Only an explicit completion request invokes one fresh tool-less check. The check
@@ -86,8 +89,8 @@ new work, requirement revisions and a session boundary reset the streak.
 
 Usage is a report, not a ceiling. Main-model usage and completion-check usage are
 recorded against the goal, and nothing stops because a number got large: with no
-spending cap anywhere, the three-run no-change window above is the bound, and
-`maxAutonomousRuns` is the only optional ceiling. A record an earlier version wrote
+spending cap anywhere, the no-new-work window above is what stops a stalled loop,
+and `maxAutonomousRuns` is the only optional ceiling. A record an earlier version wrote
 with a `tokenBudget` is read without it, so a goal that stopped under one continues
 as any stopped goal does. A record that carries a `verificationContract` from an
 earlier version is read without it too: the objective is the only requirement the

@@ -167,7 +167,7 @@ export function registerGoalEvents(core: GoalCore): void {
     refreshDashboard(core, ctx);
   });
 
-  // Settling authorizes continuation only after successful effective work.
+  // Settling authorizes continuation only after a successful run with something new in it.
   pi.on("agent_before_settle", async (event, ctx) => {
     core.bindUi(ctx);
     // Unconsumed setting intent must not activate an unrelated later edit.
@@ -180,7 +180,7 @@ export function registerGoalEvents(core: GoalCore): void {
       refreshDashboard(core, ctx);
       return;
     }
-    core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork(), core.runChangedState() || userInitiated, userInitiated);
+    core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork() || userInitiated);
     if (failed) {
       refreshGoalToolSurface(core, ctx);
       refreshDashboard(core, ctx);

@@ -19,31 +19,41 @@ unapplied update rather than having the removed field dropped silently from a re
 the injected-budget case in `goal_simplified.mts` now pins that refusal instead of an ignored
 `token_budget`.
 
-A `/goal <text>` request is the user's own turn, and `settled` now says so explicitly. The command
+A `/goal <text>` request is the user's own turn, and `events.ts` still says so. The command
 delivers the request as a custom message, so `events.ts` used to see role `custom` and never mark the
-run user-initiated: a model that only recorded the objective in that run produced no tool receipt,
-hit the `!performedWork` stop and paused the goal with `No effective work was recorded. Use /goal
-resume to continue.` before any work ran — the exact wait the user reported. `events.ts` now treats
-the `goal-procedure` message as that user turn, and `GoalScheduler.settled` takes `userInitiated` and
-skips the no-work stop for it, so the request earns exactly one real run; the run after it is judged
-normally, so an unproductive turn cannot hold the loop open. `goalBody` also stopped appending
-`Tokens used:`, which is a record field, not a transcript line. Reasoning is in
-`.changeset/goal-request-run-continuation.md`; the pinned contract is the `/goal` scenario in
-`goal_simplified.mts` and the scripted native probe `goal_native_request_continuation.py`.
+run user-initiated: a model that only recorded the objective in that run produced no tool receipt
+and paused the goal with `No effective work was recorded. Use /goal resume to continue.` before any
+work ran — the exact wait the user reported. That wait is gone with the run-level stop it belonged
+to (see the window below). What remains is what the user is owed: `events.ts` passes a user's own
+turn as a change whether or not it changed anything, so the request spends no window run and the work
+after it keeps the full window. That branch is pinned by the "Given a user turn that only reads"
+scenario in `goal_simplified.mts`, and the scripted native probe `goal_native_request_continuation.py`
+accepts the whole shape on a real CLI screen. `goalBody` also stopped appending `Tokens used:`, which
+is a record field, not a transcript line. Reasoning is in `.changeset/goal-request-run-continuation.md`
+and `.changeset/goal-autonomous-run-window.md`.
 
-Automatic continuation bounds itself by the work a run does. Progress is a workspace change: only an
-unseen successful `edit` or `write` earns the next run, and three consecutive runs that change
-nothing pause the goal with `3 consecutive runs changed nothing observable. Use /goal resume to
-continue.` The change memory lives in `GoalCore.changedWork` and `GoalScheduler.noChangeRuns`; it is
-session-scoped, deliberately not cleared by a requirements revision (a re-worded objective must not
-reset the loop's only bound), reset by a user resume, and a user-initiated run counts as a fresh
-opportunity rather than as a no-change run. There is no budget concept at all. `GoalStatus` has no
-capped state, `GoalRecord` has no `tokenBudget`, and no path stops, refuses or resumes on a number:
-usage is recorded and reported, and the three-run no-change window is the loop's bound with
-`maxAutonomousRuns` as the only optional ceiling. A cap-era record is tolerated rather than migrated: a
-`budget_limited` status reads as `paused`, and a `tokenBudget` field is dropped by normalization, so a
-goal that stopped under a cap resumes and completes normally. Docs and features no longer describe a
-cap; reasoning is in `.changeset/goal-no-change-loop-bound.md`.
+Automatic continuation bounds itself by whether a run adds anything, and by nothing else. Progress is novelty:
+a receipt this session has not already produced — whatever the tool — resets the window, and three
+consecutive runs that produce nothing new pause the goal with `3 consecutive runs produced nothing new.
+Use /goal resume to continue.` Repeated receipts, an answer with no tool call, and a run that produced
+nothing at all are what fill it. That is a deliberate reversal: an earlier version reset the window only
+on an unseen `edit` or `write`, so a verification-heavy stretch — a run that runs the whole gate suite
+and reads its output, then another, then another — filled the window and stopped a goal that was
+working. Novelty is the cheaper and more honest signal, and the cost is that a model can keep a loop
+alive with novel no-ops, which is what `maxAutonomousRuns` is for. The only immediate stop is a failed
+or interrupted run, which is what keeps a provider outage from becoming a retry storm. The receipt
+memory lives in `GoalCore.seenWork` and `GoalScheduler.noNewWorkRuns`; it is session-scoped,
+deliberately not cleared by a requirements revision (a re-worded objective must not reset the loop's
+only bound), and reset by a user resume. Goal introspection (`create_goal`, `get_goal`,
+`update_goal`, `monitor_stop`) and a `monitor_start` that has not reached a terminal status are not
+work. There is no budget
+concept at all. `GoalStatus` has no capped state, `GoalRecord` has no `tokenBudget`, and no path
+stops, refuses or resumes on a number: usage is recorded and reported, and the no-new-work window is
+what stops a stalled loop with `maxAutonomousRuns` as the only optional ceiling. A cap-era record is
+tolerated rather than migrated: a `budget_limited` status reads as `paused`, and a `tokenBudget` field
+is dropped by normalization, so a goal that stopped under a cap resumes and completes normally. Docs
+and features no longer describe a cap; reasoning is in `.changeset/goal-no-change-loop-bound.md` and
+`.changeset/goal-autonomous-run-window.md`.
 
 Goal state moved out of the working tree. It now lives at
 `~/.pi/agent/goals/<project key>/<id>/record.json`, keyed by a readable Memory-style project name
@@ -73,18 +83,23 @@ produces them. Fixed items are named in place.
   it lives; nothing is migrated and nothing is deleted. Fixed earlier: a duplicate reader, the
   misleading `readPrompt` name (now `readObjective`) and the fabricated `activePath`.
 - `scheduler.ts` — arm and claim are separate; a claim is spent once and never replayed, and the
-  no-change window (`NO_CHANGE_RUN_LIMIT`) is what stops a loop that keeps exploring. The delivery
-  failure path had no test, so two scenarios were added. Fixed: `settled` stopped a user-initiated
-  run with no tool receipt, which ended a goal in the turn that created it.
+  no-new-work window (`NO_NEW_WORK_RUN_LIMIT`) is what stops a loop that keeps repeating itself. The
+  delivery failure path had no test, so two scenarios were added. Fixed: `settled` stopped a run for
+  having no tool receipt, which ended a goal in the turn that answered, and then counted only an
+  unseen `edit` or `write` as progress, which stopped working goals whose last three runs were
+  verification. It now takes `(goal, settings, successful, didWork)`: only a failed run stops
+  immediately, and the window counts runs that added nothing new.
 - `prompt.ts` — bounded, escaped, prefix-stable blocks. Fixed: `statusLabel` was exported with no
-  reader.
+  reader. Fixed: the policy block claimed only `edit` and `write` count as progress, which taught the
+  model a rule the runtime had already stopped using.
 - `check.ts` — tool-less child, final-line marker only. Fixed: three verdict fields that were
   never set or read, and their comment.
 - `evidence.ts` — bounded, redacted observations. `research_goal` stays excluded as a retired
   tool, now with a comment. No defect.
 - `core.ts` — focus and owner rules, activation handshake, usage accounting, stop guard, and the
-  change memory the loop's bound reads. Fixed:
-  `currentTurnSeq` and `focusedId` had no reader.
+  receipt memory the loop's bound reads. `performedWork` is now the one progress fact — a receipt new
+  to this session — and the same set still resets a blocker streak. Fixed: `currentTurnSeq` and
+  `focusedId` had no reader.
 - `tools.ts` — three tools, validation, stop guard, paging. Fixed: comments describing a removed
   refusal count and a dead prose file; two exports with no external reader. Fixed: `goalBody`
   repeated `Tokens used:` on every creation, revision and status row.
@@ -94,7 +109,8 @@ produces them. Fixed items are named in place.
 - `events.ts` — handler order is the runtime; checkpoint messages stay hidden and are accepted
   once. Fixed: `event.prompt` was read directly, which Pi 1.2.0 types as a union — see the
   cohort section. Fixed: the `goal-procedure` request message was not recognised as the user's own
-  turn, so a create-only request run stopped the goal.
+  turn, so a create-only request run stopped the goal. Fixed: a settlement no longer asks whether the
+  run produced a tool receipt, because that question was the stop.
 - `settings.ts` — layer order, sanitizing, no refusal on save. The project override now sits next
   to that project's goals under the agent directory, and the legacy project-relative override is
   read first so an existing preference keeps applying. Fixed earlier: two path helpers with no
@@ -115,6 +131,9 @@ produces them. Fixed items are named in place.
 - `goal_native_request_row.py` — the composed-screen proof of the request row. No defect.
 - `goal_native_request_continuation.py` — the composed-screen proof that a create-only `/goal`
   request keeps pursuing and runs its continuation. No defect.
+- `goal_native_answer_continuation.py` — the composed-screen proof that an autonomous run which only
+  answers spends one change window run instead of stopping the goal, and that the loop reaches real
+  work afterwards. No defect.
 - `goal_native_revision.py` — the revision contract, replacing a stale probe that asserted
   removed archive, ledger and research behaviour. No defect.
 - `goal_native_rejection.mts` — SDK-level preflight refusal; now driven by `test_goal.py`. No
@@ -189,12 +208,26 @@ package gate (`pytest packages/goal/tests/`) plus every PTY probe. Verified `GOA
   `pnpm --dir packages/goal pack --dry-run` and `pnpm pack:check` (18 manifests) pass.
 - Native: `goal_native_completion.py`, `goal_native_request_row.py`, `goal_native_revision.py`
   and `goal_native_request_continuation.py` pass on the workspace Pi and inside the container. The
-  last one is the reproduction of the reported wait: reverting the `events.ts` recognition makes it
-  fail with `No effective work was recorded. Use /goal resume to continue.` on a real CLI screen,
-  and restoring the line makes it pass.
+  last one accepts the shape a real model produces on a request: the goal keeps pursuing, exactly the
+  authorized continuation runs and changes the workspace, and neither `[goal] waiting` nor a
+  no-effective-work reason is ever written or painted. It can no longer be made to fail by reverting
+  the `events.ts` recognition, because no run-level stop exists for a talkative request turn to hit;
+  the user-turn branch is pinned at harness level by the "Given a user turn that only reads" scenario,
+  which fails if a user's own turn starts advancing the window.
 - The repository suite was run in two halves for the cohort change: 2318 passed and 1 skipped,
   then 1602 passed with two load-sensitive native tests, both of which pass in isolation or after
   the timeout fix above.
+- The autonomous-run window change was verified in this order: `goal_simplified.mts` grew two
+  rewritten scenarios and lost the receipt-dedupe one, `features/goal.feature` was re-derived from its
+  own recorded observations, the mutated `src` was restored and the whole package gate re-run, and
+  `goal_native_answer_continuation.py` reproduced the reported stall on a real CLI under the pre-change
+  `src` and passes with the change. Commands, raw output and the restore check are in
+  `tests/red-evidence-current.md` (RED 5).
+- The novelty rule was verified the same way: the real goal's session shows the three edit-free runs
+  that filled the window, the rewritten scenarios fail against the committed `src` (5 of 58) and pass
+  against the change, `goal_native_revision.py` now builds its stop out of a repeated receipt and
+  passes on the workspace Pi, and `goal_native_answer_continuation.py` and
+  `goal_native_request_continuation.py` still pass. Evidence: `tests/red-evidence-current.md` (RED 6).
 
 ## Accepted limitations
 

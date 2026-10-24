@@ -37,12 +37,6 @@ export interface GoalCoreOptions {
   projectRoot?: string;
 }
 
-/** Tools whose contract is to modify the workspace. Only one of these, with a
- * change this goal has not seen before, is progress. Reading, searching,
- * fetching and running commands can produce fresh output forever without moving
- * the goal, so none of them can hold the automatic loop open. */
-const STATE_CHANGING_TOOLS = new Set(["edit", "write"]);
-
 export class GoalCore {
   readonly pi: ExtensionAPI;
   readonly store: GoalStore;
@@ -145,7 +139,6 @@ export class GoalCore {
     const restored = this.goal;
     if (restored?.status === "active") this.scheduler.takeover(restored);
     this.seenWork.clear();
-    this.changedWork.clear();
     this.blocker = undefined;
     this.setUnmet(undefined);
     // Only this thread's persisted entries identify its goal.
@@ -161,7 +154,7 @@ export class GoalCore {
     }
     if (this.focusedGoalId !== goalId || reason === "created") this.setUnmet(undefined);
     this.focusedGoalId = goalId;
-    if (reason === "created") { this.seenWork.clear(); this.changedWork.clear(); this.blocker = undefined; }
+    if (reason === "created") { this.seenWork.clear(); this.blocker = undefined; }
     this.appendFocusEntry(goalId, reason);
     this.store.apply({
       expectedGoalId: goalId,
@@ -458,22 +451,22 @@ export class GoalCore {
     return outcome;
   }
 
+  /** Whether this run did anything this session had not already seen. */
   private runPerformedWork = false;
-  /** Whether this run changed the workspace. A run that only explored did not. */
-  private changedThisRun = false;
 
   /** A provider run can contain several tool turns. Work belongs to the whole run. */
   beginRun(): void {
     this.runPerformedWork = false;
-    this.changedThisRun = false;
   }
 
+  /** Receipts this session has already produced. Two things read this set: a
+   * receipt new to it is what the loop's bound counts as work, and it resets a
+   * blocker streak, so a goal is not marked blocked because the same words recurred
+   * while the model kept working. Goal introspection and a monitor that has not
+   * reached a terminal status are not work at all. It is deliberately not cleared by
+   * a requirements change: a re-worded objective must not let the same receipt count
+   * as new again, because that would reset the loop's only bound. */
   private readonly seenWork = new Set<string>();
-  /** Workspace changes this goal has already seen, remembered for the whole
-   * session and deliberately not cleared by a requirements change: a model that
-   * re-words the objective must not be able to make the same change count as new
-   * progress again, because that would reset the loop's only bound. */
-  private readonly changedWork = new Set<string>();
   noteWork(toolName: string, successful: boolean, details?: unknown, output?: unknown, args?: unknown): void {
     if (!successful || ["create_goal", "get_goal", "update_goal", "monitor_stop"].includes(toolName)) return;
     if (toolName === "monitor_start") {
@@ -481,29 +474,20 @@ export class GoalCore {
       const terminal = details.result;
       if (typeof terminal !== "object" || terminal === null || !("status" in terminal) || terminal.status !== "success") return;
     }
-    // A receipt is new work only once. Repeating a successful read is not a
-    // reason to run forever; changing its result or making an edit is useful.
+    // Repeating one receipt is not new work, whatever the tool: the call and the
+    // output it produced are what this session has already seen.
     const key = createHash("sha256").update(JSON.stringify([toolName, args, output ?? details])).digest("hex");
     if (this.seenWork.has(key)) return;
     this.seenWork.add(key);
-    this.runPerformedWork = true;
     this.blocker = undefined;
-    if (!STATE_CHANGING_TOOLS.has(toolName)) return;
-    // The change is the call, not its output: rewriting the same content is the
-    // same state, however the tool chose to report it.
-    const change = createHash("sha256").update(JSON.stringify([toolName, args])).digest("hex");
-    if (this.changedWork.has(change)) return;
-    this.changedWork.add(change);
-    this.changedThisRun = true;
+    this.runPerformedWork = true;
   }
 
+  /** Whether this run produced anything new. That, not a workspace change in
+   * particular, is the progress an automatic continuation is allowed to spend on. */
   performedWork(): boolean { return this.runPerformedWork; }
 
-  /** Whether this run changed the workspace. That, not a fresh receipt, is the
-   * progress an automatic continuation is allowed to spend on. */
-  runChangedState(): boolean { return this.changedThisRun; }
-
-  requirementsChanged(): void { this.blocker = undefined; this.seenWork.clear(); this.setUnmet(undefined); }
+  requirementsChanged(): void { this.blocker = undefined; this.setUnmet(undefined); }
 
   private blocker: { reason: string; count: number; turn: number } | undefined;
   reportBlocker(reason: string): boolean {

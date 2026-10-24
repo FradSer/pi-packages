@@ -7,7 +7,7 @@ directory. The probe types one `/goal` request with no goal in place. The script
 objective and stops without doing anything else, which is the shape a real model produces when it
 plans to work in the continuation. The probe asserts what the runtime owes the user: the goal is
 created, it keeps pursuing, exactly the authorized continuation runs and changes the workspace, and
-the "No effective work" wait is never written or painted.
+the goal is never reported as waiting because that run called no tool.
 """
 from __future__ import annotations
 import fcntl
@@ -26,8 +26,9 @@ from goal_native_frames import TerminalFrames
 from goal_native_tui import terminate_fixture
 
 REQUEST = "Add Windows CSV export."
-# The wait a create-only request must not receive. The reason is written by the
-# runtime and painted by the durable `[goal] waiting` row, so both are checked.
+# The reason an earlier runtime wrote when a settled run had no tool receipt, and the row it painted.
+# Both are checked so a run-level no-work stop cannot come back unnoticed: a run that only answered
+# spends a slot in the change window instead of stopping the goal.
 NO_WORK_WAIT = "No effective work was recorded"
 
 
@@ -118,7 +119,7 @@ def main() -> None:
             assert phase in {"ready", "claimed", "running"}, phase
             provider = [entry for entry in entries() if entry["kind"] == "provider"]
             assert len(provider) >= 3, entries()
-            assert NO_WORK_WAIT not in painted(), "the wait must never be painted"
+            assert NO_WORK_WAIT not in painted(), "the run-level no-work wait must never be painted"
             assert NO_WORK_WAIT not in raw_output.decode(errors="replace"), "the wait must never be written"
             assert not (root / ".pi").exists(), "no goal state is written into the working directory"
             print("PASS native request continuation: " + str(frames.count) + " composed frames · one goal " + goal_id

@@ -14,7 +14,7 @@
  */
 
 import type { GoalRecord } from "./record.ts";
-import { NO_CHANGE_RUN_LIMIT, type GoalSettings } from "./settings.ts";
+import { NO_NEW_WORK_RUN_LIMIT, type GoalSettings } from "./settings.ts";
 
 /** Cap on the objective block in a prompt. There is no stored cap, because a
  * record is not read by a model; a prompt is, so this bounds what the model pays
@@ -59,7 +59,7 @@ function policyBlock(_settings: { maxAutonomousRuns?: number }): string {
   return [
     "[OUTCOMES]",
     "Continue using ordinary work tools while the objective remains unmet and the user-authorized boundaries permit progress.",
-    "Change the workspace with edit or write to count as progress. Three consecutive runs that change nothing stop automatic continuation until the user resumes.",
+    "Do something new each run: a tool receipt this session has not already produced counts as progress. Three consecutive runs that produce nothing new stop automatic continuation until the user resumes.",
     "Only update_goal({status: \"complete\"}) requests the completion check. Gather concrete evidence first; ordinary turns do not check automatically.",
     "Use update_goal({status: \"blocked\", reason}) only when the same blocker recurs on three consecutive turns and no defensible progress remains.",
     "Use update_goal({status: \"paused\", reason}) only when the user explicitly requests pausing. The user controls pause, resume and clear.",
@@ -144,7 +144,7 @@ export interface GoalPromptState {
 export function goalPromptParts(goal: GoalRecord, settings: GoalSettings, promptState: GoalPromptState = {}): { state: string; counters: string } {
   const unmet = promptState.unmet;
   const state = memoizedPolicy(goal, settings);
-  const limits = `Limits: runs=${settings.maxAutonomousRuns ?? "unlimited"}; no-change runs=${NO_CHANGE_RUN_LIMIT}.`;
+  const limits = `Limits: runs=${settings.maxAutonomousRuns ?? "unlimited"}; no-new-work runs=${NO_NEW_WORK_RUN_LIMIT}.`;
   const counters = [
     `Goal snapshot: ${formatUsage(goal)}`,
     `Autonomous runs used: ${goal.scheduler?.used ?? 0}`,

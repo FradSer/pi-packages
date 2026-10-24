@@ -13,10 +13,10 @@ import * as path from "node:path";
 import { nonEmpty, parseModelRef, writeJsonAtomic } from "@fradser/pi-kit";
 import { SETTINGS_FILE, agentDir, goalsRoot, legacyGoalsRoot } from "./paths.ts";
 
-/** Consecutive runs that change nothing observable before autonomous
- * continuation stops. Fixed rather than layered: this is the loop's bound, and it
+/** Consecutive runs that produce nothing new before autonomous continuation
+ * stops. Fixed rather than layered: this is the loop's bound, and it
  * has to be the same everywhere. */
-export const NO_CHANGE_RUN_LIMIT = 3;
+export const NO_NEW_WORK_RUN_LIMIT = 3;
 
 export interface GoalSettings {
   /** Lifetime automatic continuation allowance. Undefined is
