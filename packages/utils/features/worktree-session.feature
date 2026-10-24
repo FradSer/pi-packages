@@ -11,9 +11,21 @@ Feature: EnterWorktree and ExitWorktree session switching
     Given a persisted Pi session in the repository root
     When EnterWorktree is called with the name "feature-auth"
     Then a worktree is created at ".pi/worktrees/feature-auth"
-    And a branch named "pi/worktree/feature-auth" is created
+    And a branch named "feature-auth" is created
     And the replacement session cwd is the new worktree root
     And the replacement session records the original session as its parent
+
+  Scenario: EnterWorktree refuses a name that cannot form a branch
+    Given a persisted Pi session in the repository root
+    When EnterWorktree is called with the name ".hidden"
+    Then the operation fails before creating a worktree
+    And no managed directory or branch is created
+
+  Scenario: EnterWorktree refuses a name whose branch already exists
+    Given a persisted Pi session in the repository root and an existing branch "feature-auth"
+    When EnterWorktree is called with the name "feature-auth"
+    Then the operation fails before creating a worktree
+    And the user is told to choose another name or to pass an existing worktree path
 
   Scenario: EnterWorktree enters an existing worktree without recreating it
     Given a persisted Pi session and an existing registered git worktree

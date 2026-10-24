@@ -2,6 +2,20 @@
 
 Tasks is a durable work list with dependencies and completion evidence. A goal is one objective pursued until achieved; a task is one unit of work to order, take, and finish.
 
+[简体中文](README.zh-CN.md)
+
+## When to use Tasks
+
+Tasks is optional infrastructure, not a required memory aid for every coding request. For ordinary work by one model in one session, conversation context is often sufficient. Maintaining a separate task list adds tool calls and state updates, and the list can drift from the actual work. Multiple steps or files alone do not establish a need for Tasks.
+
+Use Tasks when work needs explicit shared state: participant ownership, dependency checks, durable recovery, or recorded completion evidence. Context recall helps a model remember prior work; it does not enforce these coordination rules. Agent Teams uses this package's store and transition interfaces, so removing the package requires changes to that consumer too.
+
+Tasks does not guarantee that work will finish or that a completion claim is correct. It is a passive recorder: open tasks do not trigger another turn, and a recorded verification verdict does not execute a check. See [Passive monitoring](#passive-monitoring).
+
+The recommended policy is to leave Tasks out of ordinary single-session work and enable it when coordination or recovery requires it. This recommendation does not override repository instructions that require task records.
+
+## Installation
+
 ```bash
 pi install npm:@fradser/pi-tasks
 ```

@@ -1,0 +1,42 @@
+{
+  "name": "pi-sdlc",
+  "version": "0.1.0",
+  "description": "Run an artifact-driven SDLC with intent, design, plan, verification, review, release and metric feedback.",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "sdlc",
+    "intent",
+    "handoff"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "references",
+    "templates",
+    "README.md",
+    "scripts/*.py"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
+  }
+}

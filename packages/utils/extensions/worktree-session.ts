@@ -26,9 +26,11 @@ import {
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
 import {
+	branchExists,
 	canonicalize,
 	currentWorktreeRoot,
 	isManagedWorktreesIgnored,
+	isValidBranchName,
 	listWorktrees,
 	managedWorktreesDir,
 	MANAGED_WORKTREES_SHELL_PATH,
@@ -202,6 +204,17 @@ export function resolveEnterTarget(
 	}
 	if (fs.existsSync(target)) return { error: `path exists but is not a registered git worktree: ${target}` };
 
+	// Only a target that is about to be created needs a usable branch. Refuse it
+	// here, before `git worktree add -b` runs, so the user reads one clear reason
+	// instead of git's fatal and no empty managed directory is left behind.
+	if (!isValidBranchName(root, name)) {
+		return { error: `worktree name cannot form a valid git branch: ${name}` };
+	}
+	// The branch is the worktree name itself, so a name the user already used as a
+	// branch is the common collision. `-b` would refuse it; say so with the way out.
+	if (branchExists(root, name)) {
+		return { error: `branch already exists: ${name}. Choose another name, or pass path to enter an existing worktree.` };
+	}
 	const baseCommit = currentHead(cwd);
 	if (!baseCommit) return { error: "EnterWorktree requires at least one commit" };
 	return { created: true, name, path: target, repoRoot: root, baseCommit };
@@ -210,7 +223,10 @@ export function resolveEnterTarget(
 function createWorktree(
 	target: CreatedEnterTarget,
 ): WorktreeSessionState | { error: string } {
-	const branch = `pi/worktree/${target.name}`;
+	// The branch carries the worktree name and nothing else. The managed path
+	// already says this checkout belongs to Pi, so a tool namespace on the branch
+	// would only repeat what `.pi/worktrees/<name>` states.
+	const branch = target.name;
 	fs.mkdirSync(path.dirname(target.path), { recursive: true });
 	const result = runGit(target.repoRoot, ["worktree", "add", target.path, "-b", branch, target.baseCommit]);
 	if (result.status !== 0) {

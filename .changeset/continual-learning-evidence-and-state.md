@@ -1,5 +1,6 @@
 ---
 "pi-continual-learning": patch
+"@fradser/pi-kit": patch
 "@fradser/pi-plan-mode": patch
 "pi-skill-router": patch
 "@fradser/pi-vision": patch
@@ -19,7 +20,10 @@ and `reviewEvidence` fields. Keep source-support fields, complete evidence,
 historical bounded encoding and every approval gate unchanged.
 
 Use complete Memory content for evidenced maintenance purpose or applicability,
-with exact declarations and supported Why/How sections. Keep the source-only
+with supported Why/How sections. Require an exact declaration only when the
+knowledge concerns an inspected declared API contract. Behavior and failure
+observations retain explicit source-backed subjects, dependencies and conditions
+without a required declaration excerpt. Keep the source-only
 excerpt interface and existing records unchanged. This is generation guidance,
 not evidence of better learning.
 
@@ -41,8 +45,16 @@ Keep explicit `/memory` commands after their older task evidence. Preserve the c
 Refresh complete original-task source during explicitly requested Memory
 backfill, retaining original evidence and binding the fresh read-only observations
 through validation and writes. Keep stored Memory out of that collector's scope,
-and account for its failed calls and costs. Failure planning prioritizes observed
-pitfalls without treating API inventory or unverified causes as learned fixes.
+and account for its failed calls and costs. Preserve complete historical coverage
+obligations and claim-condition relationships instead of flattening their questions.
+Bind failed manual Memory requests to their own native invocation, original source
+and cost-bearing receipt so authorized backfill can recover their correction input
+without acknowledging another task or broadening beyond Memory. Superseded or
+abandoned requests cannot replay; a new input or session change cancels active
+manual work. Process the newest pending manual invocation first without skipping
+an invalid request into ordinary learning. Failure planning
+prioritizes observed pitfalls without treating API inventory or unverified causes
+as learned fixes. These changes do not establish accepted knowledge or later benefit.
 
 Give automatic Harness planning and repair a bounded read-only case evaluator using the same parent validation. Retain real rejected cases as regressions; passing a preview grants no evidence, semantic approval, ownership or mutation authorization.
 
@@ -638,3 +650,178 @@ Let retained Memory corrections add original-source evidence without retyping un
 Clarify the outer and inner return annotations of a function that returns a callable. Keep the exact observed declaration, declared members and invocation result distinct. A function-typed input parameter keeps its callable type separate from its call-signature return annotation. Retain the rejected real proposals and all source, consistency and correction checks.
 
 Name the Memory maintenance actors in the fixed retrieval protocol. The user enters maintenance commands; the parent owns automatic maintenance. Indexed reads do not authorize configuration discovery or agent launches. Keep separately authorized diagnostics possible, and retain all privacy, source and mutation checks.
+
+Keep independently observed failure conditions when the cause remains unknown. Separate missing causal evidence from established source state. Require useful failure observations to retain supported applicability and the new evidence needed for later review, without creating permanent instructions or task logs. Retain rejected real drafts, unresolved corrections, costs and all semantic gates.
+
+Keep support diagnostics separate from full Memory approval. Capture the current production question with isolated configuration and blind case labels. Require an accounting owner proxy for real requests; keep one SDK call per case, reject redirects, and retain numeric answers, usage, partial rows and unknown costs. Authored examples grant no threshold change or learning claim.
+
+Generate each supported Memory fact once. Keep complete declarations, independent named-type requirements, known failure conditions and necessary source scope. Avoid duplicate interpretations and incidental inventories without imposing a length limit or shortening correct stored records. Preserve all semantic gates and historical failures.
+
+Require a separate evidence-bound Memory coverage account and independent whole-plan, record and named-omission judgments in the parent. Review empty plans, bind exact records and original references, and preserve the existing source-blind consistency check. Reject source observations and removed records as storage witnesses. Combine new judgments with the original probability, confidence and conservative joint gates before mutation.
+
+Allow the existing bounded correction slot to fix a coverage-only body omission. Keep rejected-version questions, full fresh review and protected identity. Save each actual semantic decision and its exact plan binding separately. A complete-plan proof cannot authorize a changed subset. Preserve historical bounded protocols and hold any subset without its own complete obligation proof.
+
+Retain coverage-worker costs after parent interruption. Own retained-record judgment costs before another source check or artifact write, keep cancelled runs separate and count actual invocations once. Preserve all failures and unknown costs. Controlled and native Pi checks establish these mechanisms only; real-model learning and later task benefit remain unverified.
+
+Keep a complete rejected coverage account invalid while allowing the original
+independent source and body checks to diagnose a genuine draft error. Use only the
+existing single plan repair when those checks hold the knowledge. Require fresh
+complete reviews before writing. A rejected account alone cannot retry or write.
+Keep unsafe, incomplete, cancelled, unavailable and unsaved output blocked.
+Clarify the Memory-only coverage scope and existing cross-field output rules.
+
+Preserve complete rejected coverage questions and version-specific draft bodies
+for failed-task backfill. Bind every artifact and original answer distribution
+to its original receipt. Keep these historical diagnostics separate from fresh
+source and require all current reviews before mutation.
+
+Keep diagnostic labels separate from executed operations during Memory
+generation and correction. Limit simplified traces to their observed scope and
+preserve relevant original setup order and unreleased work. Retain the actual
+rejected plans; this guidance change does not establish learning benefit.
+
+Retain each learning receipt by batch before updating the latest-result view.
+Keep cancellation in the same canonical batch record. Preserve earlier command,
+backfill and policy receipts and all known or unknown usage. Deduplicate only
+identical receipt views. This fixes observed receipt loss during native backfill;
+it does not establish that later tasks improve.
+
+Compare confirmed retained-Memory text corrections with a copied frozen
+predecessor when the record is absent from the original delta. Reject unchanged
+required bodies, including description-only patches, before full re-review.
+Keep uncertain evidence-only and valid description-only corrections available.
+Shorten duplicate repair guidance and replace the blanket explanation ban with
+the existing source constraints. State supported dependency relations in the
+body rather than relying on descriptions or citations. All semantic thresholds
+and final review remain unchanged; no real learning benefit is established.
+
+Keep Harness authoring preview available across follow-up turns, while session
+and branch changes clear the request. Scope preview and predecessor checks to
+the exact target; ordinary source writes and other targets retain their normal
+checks. Deduplicate unchanged text-guidance events while delivering each
+matching run-start section and preserving skill delivery metadata. Exclude only
+identified configuration operations from matching; ordinary text and mixed
+commands remain eligible even when they mention a rule ID or config path.
+
+Bind corrected body sections and their original references as atomic knowledge units.
+Use separate parent-labelled body positions for coverage witnesses, and enforce the
+knowledge-body boundary after frontmatter so descriptions cannot cover absent body facts.
+Keep exact body offsets and choose valid body positions in format examples. Enforce the
+initial paired source-task boundary before native tools execute. Keep all semantic
+thresholds and retain rejected plans and usage. These changes do not establish a
+learning benefit.
+Retain the existing shared knowledge output contract once when atomic correction
+replaces the output framing. Remove duplicate content instructions from that
+framing without dropping its source, identity or permission rules.
+
+Use one bounded source catalog for semantic body corrections so the citation
+limit applies to the complete candidate. Keep body witness and original source
+reference domains separate, and report citation failures without claiming an
+identity change. Preserve all original review thresholds and failed attempts.
+
+Reject line-ending and boundary-whitespace changes as required body corrections.
+Recognize leading BOMs when separating metadata from knowledge, so description-only
+edits of a BOM record cannot satisfy a required body correction.
+Keep returned Markdown and internal formatting unchanged during comparison.
+Materialize admitted description-only patches with their explicit source evidence
+while preserving the original body bytes and every complete review gate.
+
+Extend the existing explicit JSON syntax opt-in to documented DeepSeek models,
+the current gateway alias and exact gpt-6.1-sol no-tool workers on Responses.
+Preserve caller output formats and use Responses text.format for JSON objects.
+Keep Qwen strict-schema support separate. Record Responses system discovery,
+reasoning and output-format metadata without storing prompt text. Preserve all
+semantic gates and reject incomplete outputs without extra retries.
+
+Retain the existing source-order guidance when atomic Memory correction replaces
+the output format. Keep the complete bound observations and all review gates.
+
+Include native Harness decision and handler-result records in the learning
+summary. Keep exact rule revisions, bounded omissions and unknown outcomes.
+Rule execution does not establish task success or learning benefit.
+
+Derive the necessary facts and conditions within each Memory record's scope
+from original evidence before matching its body. Keep optional nominations
+optional, retain every actual claim in review, and preserve all independent
+judgments. This review-order change does not establish better learning.
+
+Clarify state relations in existing Memory generation and coverage guidance. For relational API knowledge, connect a source-established factory or call site to the named return type and relevant declared member. Do not expand unrelated definitions or hardcode project answers. A retained public record omitted this direct declaration bridge; its original negative runtime claim remains correct, and the omission does not establish the cause of historical scores. Real learning improvement remains unverified.
+
+Keep initial incremental Memory generation on its complete parent-reference
+template and knowledge contract. Remove the appended legacy quote-index and
+semantic-repair guidance from that entry point; maintenance and correction keep
+their existing guidance. Source evidence, namespace and replay isolation, output
+bounds and all review gates remain unchanged. This phase simplification does not
+establish why a historical model omitted a relationship or improve its verdict.
+
+Pass parent-collected source bindings into the existing initial and structural
+Memory excerpt materialization paths. Fresh audited reads now have the same
+required snapshot, call, source-hash and private-storage checks as their existing
+semantic-repair counterpart. Keep ordinary read/edit excerpts and all review
+gates unchanged. This restores exact source copying, not omitted knowledge.
+New project entries use ordered knowledge units combining parent-copied source selections with
+ordered explanatory units using the existing knowledge citation catalog. Derive
+the complete body and evidence together; retain exact source checks, body limits
+and all later semantic gates. Ordinary content, standalone excerpts and existing
+correction formats stay compatible. Exact copying does not establish complete
+knowledge relations or later task benefit.
+Keep the original safe/private classification and all sharing gates; source
+copying does not grant public permission. User-stated project facts may use only
+cited text units. Standalone source excerpts remain private-only.
+
+Pass the existing parent-bound unchanged-knowledge coverage restriction to the repair worker. Qualify citation-only guidance when that restriction is active, and permit an evidence-supported knowledge correction or empty refusal. Preserve citation-only corrections on other paths and all validation gates. This feedback repair does not resolve low semantic certainty or establish learning benefit.
+
+Retain actual manual Memory command phase provenance through frozen review
+snapshots, separately from original task evidence. Reject citation-only redraws
+of a coverage-only hold on unchanged knowledge. Also preserve an independently
+held coverage question when source or counterevidence is held: citation-only
+corrections cannot obtain another coverage draw for the same knowledge. Validate
+the complete bound question set and its actual positive probabilities. Evidence-only
+correction remains available when coverage itself passed; changed knowledge still
+requires every fresh review gate. This conservative rule may reject citation-only
+repairs that previously reached another review. These fixes do not
+establish accepted learning or subsequent task benefit.
+
+Align normal counterevidence answer criteria with their transmitted indexed
+window and supplied context. Preserve all original windows, independent global
+coverage and approval thresholds; bounded historical wires remain unchanged.
+
+Retain safe worker failure categories and native exit status in Memory review
+diagnostics. Keep provider error text private, failed output unusable and
+incomplete usage unknown. No retries or semantic gates change.
+
+Preserve the typed cause of initial knowledge-catalog citation failures and use
+the existing citation-only structural slot. Replace only its same-length source
+catalog while retaining ordered body units and metadata; current source and all
+semantic gates still follow. Align the generic structural project example with
+the existing knowledge producer format. Keep the 2000-character bound, failed
+proposals and all correction costs; this repair does not prove learning benefit.
+
+Replace the incremental generator's preference for one minimal failure pitfall
+with complete evidenced relationships and their applicability conditions. Keep
+unrelated inventories out, retain local corrections to existing records, and
+clarify preference prose versus project knowledge output. This prospective
+selection policy changes no validation gate or call count and does not establish
+the cause of historical omissions or learning benefit.
+
+Pass parent-generated source-catalog positions and validation categories to the
+existing citation correction worker. Keep unexpected error text private. This
+repairs feedback lost between a typed citation error and the worker input; it
+does not select replacement sources, change bounds, retry a held plan or prove
+that a model corrects the cited knowledge.
+
+Enforce the existing project-knowledge output contract at the fresh incremental
+producer boundary, independently of provider schema support. Reuse the existing
+single structural correction; legacy reads, preferences and retained corrections
+keep their existing formats. Retain the bound parsed initial candidate with
+hash-only handling for sensitive output, without reasoning or full transport.
+This prevents a generation-format bypass and distinguishes selection from
+materialization; it does not prove complete extraction or learning benefit.
+
+Expose a bounded, generation-only view of observed declaration syntax beside
+unchanged original evidence. Direct outer return annotations can identify a
+unique type candidate within the observed region and its direct member spans;
+callbacks, imports, merged declarations and shadowed type parameters do not
+supply guessed bindings. Keep all original references and citation bounds. The
+view neither generates stored knowledge nor establishes complete extraction,
+semantic approval, runtime behavior or improved later tasks.

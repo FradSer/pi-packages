@@ -157,6 +157,25 @@ export function isManagedWorktreesIgnored(cwd: string): boolean {
 }
 
 /**
+ * True when git accepts `branch` as a branch name. A sanitized worktree name is
+ * a valid directory name, which is not the same as a valid ref: git rejects a
+ * leading dot or a trailing `.lock`. Ask git instead of restating its rules, so
+ * the check cannot drift from the branch `git worktree add -b` is handed.
+ */
+export function isValidBranchName(cwd: string, branch: string): boolean {
+	return runGit(cwd, ["check-ref-format", "--branch", branch]).status === 0;
+}
+
+/**
+ * True when `refs/heads/<branch>` already exists. A managed worktree is created
+ * with `git worktree add -b <name>`, which refuses an existing branch, so a name
+ * the user already used is refused before any directory is made.
+ */
+export function branchExists(cwd: string, branch: string): boolean {
+	return runGit(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]).status === 0;
+}
+
+/**
  * Repository root for a shell command running in `cwd`, or null when `cwd` is
  * not inside a repository. Used by the redirect so a command issued from a
  * subdirectory still targets the repository's own managed directory.

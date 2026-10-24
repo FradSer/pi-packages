@@ -1,0 +1,43 @@
+{
+  "name": "@fradser/pi-magpie",
+  "version": "0.2.0",
+  "description": "Pi provider for the magpie gateway: every magpie model and routing group in Pi's model list, refreshed from magpie's live catalog",
+  "keywords": [
+    "pi-package",
+    "magpie",
+    "provider",
+    "model-catalog",
+    "gateway"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "extensions",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "1.3.0",
+    "@earendil-works/pi-coding-agent": "1.3.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module"
+}

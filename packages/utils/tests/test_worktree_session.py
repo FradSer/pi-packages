@@ -159,7 +159,7 @@ console.log(JSON.stringify({{
         self.assertTrue(result["worktreeExists"])
         self.assertTrue(result["cwd"].endswith("/.pi/worktrees/feature-auth"))
         self.assertEqual(result["parentSession"], result["state"]["parentSession"])
-        self.assertEqual("pi/worktree/feature-auth", result["branch"])
+        self.assertEqual("feature-auth", result["branch"])
         # This repository ignores nothing, so the unmanaged-directory risk is
         # reported instead of silently editing .gitignore.
         self.assertEqual(
@@ -179,6 +179,115 @@ console.log(JSON.stringify({{
             text=True,
             check=True,
         )
+
+    def test_enter_command_refuses_a_name_that_cannot_form_a_branch(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import path from "node:path";
+import {{ SessionManager }} from "@earendil-works/pi-coding-agent";
+import registerWorktreeSession from {json.dumps(SESSION_EXTENSION.as_uri())};
+
+const repo = {json.dumps(str(self.repo))};
+const source = SessionManager.create(repo, {json.dumps(str(self.session_dir))});
+const sourceFile = source.getSessionFile();
+const notifications = [];
+const commands = {{}};
+registerWorktreeSession({{
+  registerCommand(name, options) {{ commands[name] = options; }},
+  registerTool() {{}},
+  sendUserMessage() {{}},
+}});
+let switched = false;
+const ctx = {{
+  cwd: repo,
+  hasUI: true,
+  sessionManager: {{ getSessionFile: () => sourceFile, getBranch: () => [] }},
+  ui: {{
+    notify(message, type) {{ notifications.push([type, message]); }},
+    select: async () => "Keep worktree",
+  }},
+  isIdle: () => true,
+  async waitForIdle() {{}},
+  async switchSession() {{ switched = true; return {{ cancelled: false }}; }},
+}};
+await commands["enter-worktree"].handler(".hidden", ctx);
+console.log(JSON.stringify({{
+  notifications,
+  switched,
+  repoState: fs.existsSync(path.join(repo, ".pi")),
+}}));
+"""
+        result = run_ts(script)
+        # One clear reason, before git is asked to create anything: a leading dot
+        # cannot form the branch this command would hand to `git worktree add -b`.
+        self.assertEqual(
+            [tuple(notification) for notification in result["notifications"]],
+            [("error", "worktree name cannot form a valid git branch: .hidden")],
+        )
+        self.assertFalse(result["switched"])
+        self.assertFalse(result["repoState"])
+        branches = subprocess.run(
+            ["git", "-C", str(self.repo), "branch", "--list", ".hidden"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual("", branches.stdout.strip())
+
+    def test_enter_command_refuses_a_name_whose_branch_already_exists(self) -> None:
+        subprocess.run(
+            ["git", "-C", str(self.repo), "branch", "feature-auth"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        script = f"""
+import fs from "node:fs";
+import path from "node:path";
+import {{ SessionManager }} from "@earendil-works/pi-coding-agent";
+import registerWorktreeSession from {json.dumps(SESSION_EXTENSION.as_uri())};
+
+const repo = {json.dumps(str(self.repo))};
+const source = SessionManager.create(repo, {json.dumps(str(self.session_dir))});
+const sourceFile = source.getSessionFile();
+const notifications = [];
+const commands = {{}};
+registerWorktreeSession({{
+  registerCommand(name, options) {{ commands[name] = options; }},
+  registerTool() {{}},
+  sendUserMessage() {{}},
+}});
+let switched = false;
+const ctx = {{
+  cwd: repo,
+  hasUI: true,
+  sessionManager: {{ getSessionFile: () => sourceFile, getBranch: () => [] }},
+  ui: {{
+    notify(message, type) {{ notifications.push([type, message]); }},
+    select: async () => "Keep worktree",
+  }},
+  isIdle: () => true,
+  async waitForIdle() {{}},
+  async switchSession() {{ switched = true; return {{ cancelled: false }}; }},
+}};
+await commands["enter-worktree"].handler("feature-auth", ctx);
+console.log(JSON.stringify({{
+  notifications,
+  switched,
+  repoState: fs.existsSync(path.join(repo, ".pi")),
+  branches: Bun.spawnSync(["git", "-C", repo, "branch", "--list"]).stdout.toString().trim().split("\\n"),
+}}));
+"""
+        result = run_ts(script)
+        # The branch is the name itself, so an existing branch is refused with the
+        # way out instead of git's `a branch named ... already exists` fatal.
+        self.assertEqual(
+            [tuple(notification) for notification in result["notifications"]],
+            [("error", "branch already exists: feature-auth. Choose another name, or pass path to enter an existing worktree.")],
+        )
+        self.assertFalse(result["switched"])
+        self.assertFalse(result["repoState"])
+        self.assertEqual(["* main", "feature-auth"], sorted(result["branches"]))
 
     def test_enter_command_skips_the_ignore_warning_when_already_ignored(self) -> None:
         (self.repo / ".gitignore").write_text(".pi/\n", encoding="utf-8")
@@ -358,7 +467,7 @@ await commands["enter-worktree"].handler("cancelled-switch", ctx);
 const worktree = path.join(worktreeRoot, ".pi", "worktrees", "cancelled-switch");
 const switchFile = events.find((event) => event[0] === "switch")[1];
 const waitingNotice = events.find((event) => event[0] === "notify" && event[2].includes("Waiting for the current turn"));
-const branch = Bun.spawnSync(["git", "-C", repo, "branch", "--list", "pi/worktree/cancelled-switch"]).stdout.toString().trim();
+const branch = Bun.spawnSync(["git", "-C", repo, "branch", "--list", "cancelled-switch"]).stdout.toString().trim();
 // An absent wait yields -1, which would satisfy a plain `<` comparison.
 const waitedAt = events.findIndex((event) => event[0] === "waited");
 const switchedAt = events.findIndex((event) => event[0] === "switch");

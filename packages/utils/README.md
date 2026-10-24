@@ -281,10 +281,17 @@ are all rebound to the selected worktree:
 /exit-worktree
 ```
 
-`/enter-worktree` creates a managed worktree at `.pi/worktrees/<name>` on a
-`pi/worktree/<name>` branch, or enters an existing registered git worktree when
-`path` is supplied. The replacement session preserves the current conversation
-and records the parent session. The LLM-facing `enter_worktree` and
+`/enter-worktree` creates a managed worktree at `.pi/worktrees/<name>` and
+enters an existing registered git worktree when `path` is supplied. The branch
+is the name itself: `/enter-worktree feature-auth` creates
+`.pi/worktrees/feature-auth` on branch `feature-auth`. The managed path already
+says the checkout belongs to Pi, so the branch carries no tool namespace — it
+stays the name you typed, the same way a plain
+`git worktree add .pi/worktrees/<name> <branch>` reads. A name that cannot form
+a valid git branch (a leading dot, a trailing `.lock`) or whose branch already
+exists is refused before anything is created; pass `path` to enter an existing
+worktree instead. The replacement session preserves the current conversation and
+records the parent session. The LLM-facing `enter_worktree` and
 `exit_worktree` tools defer these commands until the current agent run settles
 and report `queued` until session replacement is applied. Other tools in the
 same transition batch are blocked, regardless of their order, and the block

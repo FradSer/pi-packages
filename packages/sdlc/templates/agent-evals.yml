@@ -1,0 +1,35 @@
+name: Agent evaluations
+on:
+  pull_request:
+    paths:
+      - AGENTS.md
+      - .agents/**
+      - .codex/**
+      - .sdlc/config.json
+      - evals/**
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evaluate:
+    # This runner image provides the installed engine, read-only suite and policy.
+    # Do not run untrusted fork code on a persistent privileged runner.
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ vars.SDLC_EVAL_IMAGE }}
+    env:
+      SDLC_POLICY_FILE: /managed/sdlc/policy.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Evaluate current agent setup against historical tasks
+        run: /managed/sdlc/ci-evaluate "$GITHUB_WORKSPACE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-evaluation-results
+          path: /tmp/sdlc-eval-report.json

@@ -38,6 +38,16 @@ package; its entry point is exercised through native Node and tsx.
   session switcher must import them instead of re-deriving roots; that
   duplication is what previously let a command run from a subdirectory create
   a worktree where no other layer looked for it.
+- **Managed branch naming**: a worktree this package creates takes the name
+  itself as its branch, with no tool namespace: `.pi/worktrees/<name>` is
+  created on branch `<name>`, because the managed path already says the checkout
+  belongs to Pi and a prefixed branch would only repeat it. Two names are
+  refused before anything is created, so the user reads one reason instead of
+  git's fatal and no empty managed directory is left behind: a name git rejects
+  as a ref (`git check-ref-format --branch`) and a name whose branch already
+  exists (`git worktree add -b` would refuse it). The second is the common
+  collision of a bare name, and its message names the way out — another name, or
+  `path` for an existing worktree.
 - **Automatic entry after a redirected creation**: a rewritten `git worktree add`
   moves the session into the worktree it made. The redirect does not switch
   sessions itself: it reserves the transition in `message_end`, before any tool

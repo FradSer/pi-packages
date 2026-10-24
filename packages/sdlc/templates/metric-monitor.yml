@@ -1,0 +1,26 @@
+name: SDLC metric monitor
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ vars.SDLC_MONITOR_IMAGE }}
+    env:
+      SDLC_POLICY_FILE: /managed/sdlc/policy.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Classify readings and write a triage intent
+        run: /managed/sdlc/monitor "$GITHUB_WORKSPACE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metric-intents
+          path: .sdlc/inbox/
+          include-hidden-files: true
