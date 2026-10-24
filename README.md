@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-19-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-21-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -7,6 +7,18 @@
 Native Pi packages for reusable skills, extensions, and workflow commands.
 
 ## Packages
+
+### [`pi-sdlc`](packages/sdlc/)
+
+Run an artifact-driven SDLC from intent through design, plan, verification,
+review, release and metric feedback. Keep a concise current `HANDOFF.md` linked
+to `INTENT.md`. Native Pi events preserve input and interrupted work. The `sdlc`
+tool checks stage transitions, independent approvals and current evidence.
+Requires Python 3.11+, Git and configured organization adapters for full progression.
+
+```bash
+pi install npm:pi-sdlc
+```
 
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
@@ -75,9 +87,11 @@ Automatic Memory, Harness and AGENTS.md still default to applying validated chan
 
 Learning freezes the task before asynchronous work and stops on shutdown. Invalid learning settings disable automatic learning with a diagnosis. `/memory status` reports effective controls, storage, pipeline and backlog diagnostics. Skipped task references are private and project-scoped; `/consolidate backfill` reports their status without historical replay or model calls. Existing knowledge remains available when automatic learning is off.
 
-Optional Jev judgments use the TypeSafe SDK when `jev` is configured in user-level `continual-learning.json` or `TYPESAFE_API_KEY` is present. Jev selects learning directions and checks validated candidates; the parent retains evidence, privacy, write permissions and Harness enforcement. Unknown or unavailable judgments fall back to the existing selector or save proposals. No new commands. See the [package configuration and evaluation notes](packages/continual-learning/README.md#optional-jev-judgments). See the [bounded improvement acceptance](packages/continual-learning/tests/jev-improvement-evaluation.md) for real bilingual judgments, native learning effects and remaining false holds. The [strict workflow audit](packages/continual-learning/tests/jev-workflow-strict-evaluation.md) distinguishes capability from actual paired improvement. The earlier same-version four-case public native cohort improved 36/50 effects to 50/50, with fourteen gains and no regression; fees increased, and general cross-project superiority remains unverified. The [expanded bilingual and Docker evaluation](packages/continual-learning/tests/jev-expanded-evaluation.md) records new real-project failures and fixes; short-candidate safety gains do not establish improved automatic output on large repository traces. The [latest frozen follow-up](packages/continual-learning/tests/jev-cited-followup-evaluation.md) retains failed Docker rounds and independent Git-option probes: fewer false blocks have not yet established fewer missed constraints or better complete workflows. Complete candidate failures now guide the existing bounded repair without granting partial writes.
+Optional Jev judgments use the TypeSafe SDK when `jev` is configured in user-level `continual-learning.json` or `TYPESAFE_API_KEY` is present. Jev selects learning directions and checks validated candidates; the parent retains evidence, privacy, write permissions and Harness enforcement. Unknown or unavailable judgments fall back to the existing selector or save proposals. No new commands. See the [package configuration and evaluation notes](packages/continual-learning/README.md#optional-jev-judgments). See the [bounded improvement acceptance](packages/continual-learning/tests/jev-improvement-evaluation.md) for real bilingual judgments, native learning effects and remaining false holds. The [strict workflow audit](packages/continual-learning/tests/jev-workflow-strict-evaluation.md) distinguishes capability from actual paired improvement. The earlier same-version four-case public native cohort improved 36/50 effects to 50/50, with fourteen gains and no regression; fees increased, and general cross-project superiority remains unverified. The [expanded bilingual and Docker evaluation](packages/continual-learning/tests/jev-expanded-evaluation.md) records new real-project failures and fixes; short-candidate safety gains do not establish improved automatic output on large repository traces. The [latest frozen follow-up](packages/continual-learning/tests/jev-cited-followup-evaluation.md) retains failed Docker rounds and independent Git-option probes: fewer false blocks have not yet established fewer missed constraints or better complete workflows. Complete candidate failures now guide the existing bounded repair without granting partial writes. Normal parent Memory application also checks complete-plan and record coverage, including named missing conditions. Corrected bodies receive every full review again. Missing proof holds the plan; controlled acceptance is not evidence of later-task benefit.
 
 Full maintenance extracts new knowledge even with an empty Memory corpus. If the current session has no usable evidence, it may freeze one bounded recent session for the same project and record its source digest. With neither evidence nor existing Memory, it makes zero model calls and reports `no learning input`.
+
+Observed TypeScript declaration files also supply source locations for direct return-type and member relationships during Memory generation. The bundled parser does not resolve imports, add facts to Memory, or approve knowledge. Complete original evidence and all validation gates remain required.
 
 Harness authoring and automatic learning default to project `.pi/harness.json`; `.pi/harness.local.json` is for explicitly requested personal configuration (`/harness --local`). User layers are `~/.pi/agent/harness.json` and project-scoped `~/.pi/agent/harness/<scopeKey>.json`; project layers take precedence. Skill guidance requires a registered skill and its expanded invocation; persistence is not trigger verification or global semantic enforcement.
 
@@ -222,6 +236,18 @@ for the numbers and for what stays unverified.
 
 ```bash
 pi install npm:@fradser/pi-loop
+```
+
+### [`@fradser/pi-magpie`](packages/magpie/)
+
+Registers the [magpie](https://github.com/yetone/magpie) gateway as a Pi provider and fills the model list from magpie's own catalog: every routing group and provider model, with magpie's context window, output limit, modalities and reasoning efforts. A session start refreshes the catalog, so a model added or removed in magpie appears without editing `models.json`; a failed or empty answer keeps the last one.
+
+**Environment:** `MAGPIE_BASE_URL`, `MAGPIE_API_KEY`, `MAGPIE_PI_MODELS`
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-magpie
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)

@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-19-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-21-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -7,6 +7,16 @@
 面向 Pi 的原生包，用于复用 skills、extensions 和工作流命令。
 
 ## 包列表
+
+### [`pi-sdlc`](packages/sdlc/)
+
+覆盖意图、设计、计划、实施验证、评审发布与运维反馈。通过 `sdlc` 工具检查阶段转换、
+独立批准和最新证据；原生 Pi 事件保留用户输入与中断状态。`HANDOFF.md` 仅记录当前状态，
+并引用 `INTENT.md`。需要 Python 3.11+、Git；完整推进需配置组织的审批、评估和服务适配器。
+
+```bash
+pi install npm:pi-sdlc
+```
 
 ### [`@fradser/pi-agent-teams`](packages/agent-teams/)
 
@@ -206,6 +216,18 @@ pi install npm:@fradser/pi-goal
 
 ```bash
 pi install npm:@fradser/pi-loop
+```
+
+### [`@fradser/pi-magpie`](packages/magpie/)
+
+把 [magpie](https://github.com/yetone/magpie) 网关注册为 Pi 的 provider，并用 magpie 自己的目录填充模型列表：包含所有路由组与上游模型，带上 magpie 上报的上下文窗口、输出上限、多模态能力与推理档位。每次会话启动会刷新目录，magpie 中新增或下线的模型无需修改 `models.json` 即可出现；刷新失败或返回空目录时保留上一次的结果。
+
+**环境变量：** `MAGPIE_BASE_URL`、`MAGPIE_API_KEY`、`MAGPIE_PI_MODELS`
+
+**安装：**
+
+```bash
+pi install npm:@fradser/pi-magpie
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
