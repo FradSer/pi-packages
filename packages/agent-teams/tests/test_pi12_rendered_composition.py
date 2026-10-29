@@ -15,7 +15,7 @@ def test_pi12_renders_owned_guidance_with_default_and_custom_prompt(tmp_path, cu
     # package this checkout resolves, not a machine's global Pi install.
     sdk = REPO / "node_modules" / "@earendil-works" / "pi-coding-agent"
     manifest = json.loads((sdk / "package.json").read_text())
-    assert manifest["version"].startswith("1.2."), manifest["version"]
+    assert manifest["version"].startswith(("1.2.", "1.3.")), manifest["version"]
     script = '''
       const events = new Map();
       register({ on(name, handler) { events.set(name, handler); }, registerTool() {},

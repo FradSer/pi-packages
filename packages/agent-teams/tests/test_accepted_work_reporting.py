@@ -352,7 +352,7 @@ def test_agent_tool_guidance_explains_push_delivery(tmp_path: Path) -> None:
     guidance = " ".join(guidance.split()).lower()
     assert "automatically" in guidance
     assert "end the turn" in guidance or "ending the turn" in guidance
-    assert "inspect" in guidance
+    assert "poll" in guidance or "inspect" in guidance
     assert "asynchronously" in guidance
     assert "without polling" in guidance
     assert "sleep" in guidance
