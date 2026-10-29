@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-magpie",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Pi provider for the magpie gateway: every magpie model and routing group in Pi's model list, refreshed from magpie's live catalog",
   "keywords": [
     "pi-package",
