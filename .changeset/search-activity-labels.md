@@ -1,7 +1,7 @@
 ---
 "@fradser/pi-kit": patch
 "@fradser/pi-agent-teams": patch
-"pi-odk": patch
+"pi-open-deskos": patch
 "pi-continual-learning": patch
 ---
 

@@ -1,4 +1,4 @@
-# pi-odk
+# pi-open-deskos
 
 把本机的 Pi 会话及其运作事件上报给 Open DeskOS；也可选择成为 **Console**，远程驱动 Open DeskOS 上托管的 Pi 会话。
 
@@ -11,7 +11,7 @@ Open DeskOS 通常靠扫描来发现 Pi 会话：本地扫，或经 SSH 扫。�
 ## 安装
 
 ```bash
-pi install npm:pi-odk
+pi install npm:pi-open-deskos
 ```
 
 若要从本地 checkout 安装，在仓库根目录执行：

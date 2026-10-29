@@ -1,5 +1,5 @@
 {
-  "name": "pi-odk",
+  "name": "pi-open-deskos",
   "version": "0.3.0",
   "description": "Report this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Open DeskOS Link, and optionally drive a Pi session Open DeskOS hosts",
   "type": "module",

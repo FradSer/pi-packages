@@ -91,7 +91,11 @@ Optional Jev judgments use the TypeSafe SDK when `jev` is configured in user-lev
 
 Full maintenance extracts new knowledge even with an empty Memory corpus. If the current session has no usable evidence, it may freeze one bounded recent session for the same project and record its source digest. With neither evidence nor existing Memory, it makes zero model calls and reports `no learning input`.
 
-Observed TypeScript declaration files also supply source locations for direct return-type and member relationships during Memory generation. The bundled parser does not resolve imports, add facts to Memory, or approve knowledge. Complete original evidence and all validation gates remain required.
+Observed TypeScript declaration files also supply source locations for direct return-type and member relationships during Memory generation. The bundled parser does not resolve imports or approve knowledge. New incremental project bodies retain eligible complete function declarations already selected and cited by their text units as observed-source blocks, including parameter types. These blocks receive the original source, privacy, size and semantic checks; they do not establish runtime behavior or current truth. Existing entries and correction contracts remain unchanged.
+
+For narrowly proved local API relationships, missing factory, return-type or member citations enter the existing single structural correction before semantic review. Related statements may span sentences within one source-cited knowledge unit; the original request must explicitly name the relation. The model must select the evidence; removing a trigger citation from that rejected draft's correction cannot erase its missing-role obligation. This temporary generation safeguard ends after complete materialization and does not establish learning benefit.
+
+Fresh source blocks also require an explicit file-read reference matching the selected citation. Terminal observations remain usable as cited text, while the original current-file checks still govern every copied source block.
 
 Harness authoring and automatic learning default to project `.pi/harness.json`; `.pi/harness.local.json` is for explicitly requested personal configuration (`/harness --local`). User layers are `~/.pi/agent/harness.json` and project-scoped `~/.pi/agent/harness/<scopeKey>.json`; project layers take precedence. Skill guidance requires a registered skill and its expanded invocation; persistence is not trigger verification or global semantic enforcement.
 
@@ -159,7 +163,7 @@ The [TUI review](packages/monitor/README.md#tui-rendering-review) adds outcome-s
 pi install npm:@fradser/pi-monitor
 ```
 
-### [`pi-odk`](packages/open-deskos/)
+### [`pi-open-deskos`](packages/open-deskos/)
 
 Reports this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Open DeskOS Link, using the same bounded event rules as the runtime's local collector. With a separate control credential it also becomes a Console that lists, launches, attaches to, steers, cancels, ends, and reads the history of the Pi sessions the desk hosts.
 
@@ -168,7 +172,7 @@ Reports this machine's Pi sessions and their operating events to Open DeskOS ove
 **Install:**
 
 ```bash
-pi install npm:pi-odk
+pi install npm:pi-open-deskos
 ```
 
 ### [`@fradser/pi-tasks`](packages/tasks/)

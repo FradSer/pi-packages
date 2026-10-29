@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-`packages/open-deskos/` publishes `pi-odk`. Package root `index.ts`
+`packages/open-deskos/` publishes `pi-open-deskos`. Package root `index.ts`
 re-exports `src/index.ts`. Implementation is in `src/`:
 - `discovery.ts`: machine-wide Pi session discovery (`~/.pi/agent/directory-sessions/`), PID liveness checks, UUID alias merging, and bounded refresh.
 - `session-identity.ts`: process identity extraction, title detection, and exit status tracking.

@@ -1,4 +1,4 @@
-# pi-odk
+# pi-open-deskos
 
 Report this machine's Pi sessions and their operating events to Open DeskOS, and optionally drive a Pi session that Open DeskOS hosts.
 
@@ -11,7 +11,7 @@ A machine may also hold a **Control Credential** and become a **Console**: it op
 ## Install
 
 ```bash
-pi install npm:pi-odk
+pi install npm:pi-open-deskos
 ```
 
 To install from this checkout instead, run the following from the repository root:

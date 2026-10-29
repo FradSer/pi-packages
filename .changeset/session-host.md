@@ -1,5 +1,5 @@
 ---
-"pi-odk": minor
+"pi-open-deskos": minor
 ---
 
 A desk's voice agent can drive the Pi session this machine is running, from inside that session, with no process installed.

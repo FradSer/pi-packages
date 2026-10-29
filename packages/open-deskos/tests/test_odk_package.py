@@ -58,7 +58,7 @@ def report(script: str) -> dict:
 def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
-    assert manifest["name"] == "pi-odk"
+    assert manifest["name"] == "pi-open-deskos"
     assert manifest["pi"]["extensions"] == ["./index.ts"]
     assert set(manifest["files"]) >= {"index.ts", "src", "fixtures", "README.md", "README.zh-CN.md", "session-control"}
     fixture = json.loads((PACKAGE / "fixtures" / "control-v2.json").read_text(encoding="utf-8"))
