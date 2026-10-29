@@ -31,11 +31,15 @@ jobs:
         with:
           python-version: "3.x"
 
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Install pytest
-        run: python3 -m pip install --disable-pip-version-check pytest
+        run: python3 -m pip install --disable-pip-version-check pytest pytest-xdist
 
       - name: Run quality gate
         run: pnpm check

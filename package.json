@@ -4,7 +4,8 @@
   "private": true,
   "description": "Monorepo of Frad's pi packages — skills and extensions published to npm and listed on pi.dev/packages",
   "scripts": {
-    "test": "python3 -m pytest packages tests",
+    "test": "uv run pytest packages tests",
+    "test:serial": "python3 -m pytest packages tests",
     "check:install": "node scripts/check-installation.mjs",
     "example:sdk": "tsx examples/sdk-session.ts",
     "publish": "pnpm check && node scripts/publish-release.mjs",

@@ -70,7 +70,7 @@ def test_intent_rows_use_readable_subjects_and_hide_handles_until_expanded() -> 
         // expansion, and a count that says "all of them" says nothing.
         rows.agent_list = { collapsed: render("agent_list", listed, false), expanded: render("agent_list", listed, true) };
         assert.ok(rows.agent_list.collapsed.includes("[agent] listed"), rows.agent_list.collapsed);
-        assert.ok(!/\d+ of \d+/.test(rows.agent_list.collapsed), rows.agent_list.collapsed);
+        assert.ok(!/\\d+ of \\d+/.test(rows.agent_list.collapsed), rows.agent_list.collapsed);
         assert.ok(!rows.agent_list.collapsed.includes("reviewer"), rows.agent_list.collapsed);
         assert.ok(rows.agent_list.expanded.includes("reviewer") && rows.agent_list.expanded.includes(handle), rows.agent_list.expanded);
         // The roster carries each child's live facts, printed once, after expansion.

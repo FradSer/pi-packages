@@ -1,0 +1,31 @@
+[project]
+name = "fradser-pi-packages"
+version = "0.0.0"
+description = "Monorepo of Frad's pi packages — skills and extensions for pi coding agent"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8.0.0",
+    "pytest-xdist>=3.5.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["packages", "tests"]
+norecursedirs = [
+    ".*",
+    "node_modules",
+    "build",
+    "dist",
+    "*.egg",
+    "__pycache__",
+    ".pytest_cache",
+    ".git",
+    ".changeset",
+    "packages/*/node_modules",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::SyntaxWarning",
+]
+addopts = "-q -n auto"

@@ -21,7 +21,7 @@ pnpm check
 `pnpm check` requires Python 3 with pytest and Bun 1.4.1 and runs
 package/root tests, the extension TypeScript project, and registry-free
 packed-manifest validation. CI installs both runtimes before this command.
-Focus: `python3 -m pytest packages/<name>/tests/ -q`.
+Focus: `uv run pytest packages/<name>/tests/ -q` (or `python3 -m pytest packages/<name>/tests/ -q`).
 Pack: `pnpm --dir packages/<name> pack --dry-run`.
 SDK example: `pnpm example:sdk`. Pi loads TypeScript without a build step.
 
