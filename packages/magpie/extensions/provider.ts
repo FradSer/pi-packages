@@ -60,16 +60,18 @@ export function createMagpieProvider(options: MagpieProviderOptions = {}): Provi
 	const streams = openAICompletionsApi();
 
 	/**
-	 * Where requests and refreshes go. A gateway saved by `/login` wins, because
-	 * that is the one the user proved reachable; otherwise Pi's registered URL
-	 * (which already reflects `models.json`) and the environment decide.
+	 * The gateway this provider knows for sure, or `undefined` when it knows none.
+	 *
+	 * Returning `undefined` is the important case: Pi treats a resolved `baseUrl` as
+	 * an override of the model's own address. Inventing the localhost default here
+	 * would redirect requests away from the gateway `models.json` names — the exact
+	 * failure where a saved key alone made every turn go to 127.0.0.1.
 	 */
-	const baseUrlFor = (credential: Credential | undefined, registered?: string): string =>
-		loginBaseUrl ??
-		resolveBaseUrl(
-			(credential?.type === "api_key" ? credential.env?.MAGPIE_BASE_URL : undefined) ?? registered,
-			env,
-		);
+	const knownBaseUrl = (credential: Credential | undefined): string | undefined => {
+		if (loginBaseUrl) return loginBaseUrl;
+		const stored = credential?.type === "api_key" ? credential.env?.MAGPIE_BASE_URL?.trim() : undefined;
+		return stored ? resolveBaseUrl(stored, env) : undefined;
+	};
 
 	return {
 		id: MAGPIE_PROVIDER_ID,
@@ -109,12 +111,12 @@ export function createMagpieProvider(options: MagpieProviderOptions = {}): Provi
 				resolve: async ({ ctx, credential }) => {
 					const key = await keyFrom(ctx, credential);
 					if (!key) return undefined;
-					const baseUrl = baseUrlFor(credential);
-					if (credential?.type === "api_key" && credential.env?.MAGPIE_BASE_URL) {
-						loginBaseUrl = credential.env.MAGPIE_BASE_URL;
-					}
+					const known = knownBaseUrl(credential);
+					if (known) loginBaseUrl = known;
 					return {
-						auth: { apiKey: key, baseUrl },
+						// Omit `baseUrl` entirely when no gateway is known, so the model's own
+					// address — from `models.json` or the provider registration — stands.
+						auth: known ? { apiKey: key, baseUrl: known } : { apiKey: key },
 						env: credential?.type === "api_key" ? credential.env : undefined,
 						source: credential ? "stored credential" : "MAGPIE_API_KEY",
 					};
@@ -146,7 +148,7 @@ export function createMagpieProvider(options: MagpieProviderOptions = {}): Provi
 				return;
 			}
 
-			const baseUrl = baseUrlFor(context.credential, context.baseUrl);
+			const baseUrl = resolveBaseUrl(knownBaseUrl(context.credential) ?? context.baseUrl, env);
 			const key = gatewayKey(context.credential);
 			if (!key) return;
 			const entries = await fetchMagpieCatalog(baseUrl, key, context.signal, options.fetch);

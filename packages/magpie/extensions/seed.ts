@@ -72,16 +72,43 @@ export function magpieConfigFromModelsJson(
 }
 
 /**
+ * The credential `/login magpie` saved. A login is a complete setup on its own:
+ * the gateway it proved reachable is stored beside the key, so neither an
+ * environment variable nor a `models.json` entry is required to seed.
+ */
+export function magpieConfigFromAuthJson(agentDir: string): ConfiguredMagpie {
+	try {
+		const raw = JSON.parse(fs.readFileSync(path.join(agentDir, "auth.json"), "utf8")) as {
+			magpie?: { type?: string; key?: string; env?: Record<string, string> };
+		};
+		const credential = raw.magpie;
+		if (credential?.type !== "api_key") return {};
+		const key = credential.key?.trim();
+		const baseUrl = credential.env?.MAGPIE_BASE_URL?.trim();
+		return {
+			...(baseUrl ? { baseUrl } : {}),
+			...(key ? { apiKey: key } : {}),
+		};
+	} catch {
+		return {};
+	}
+}
+
+/**
  * magpie's catalog for the model Pi starts on. Empty when magpie is not
  * configured, the process runs offline, or the gateway cannot answer in time.
  */
 export async function loadMagpieSeed(options: MagpieSeedOptions = {}): Promise<MagpieChatModel[]> {
 	const env = options.env ?? (process.env as Record<string, string | undefined>);
 	if (env.PI_OFFLINE) return [];
-	const configured = magpieConfigFromModelsJson(options.agentDir ?? getAgentDir(), env);
-	const key = configured.apiKey ?? env.MAGPIE_API_KEY?.trim();
+	const agentDir = options.agentDir ?? getAgentDir();
+	const configured = magpieConfigFromModelsJson(agentDir, env);
+	// A stored login complements `models.json`: either may supply the key, the
+	// gateway, or both.
+	const stored = magpieConfigFromAuthJson(agentDir);
+	const key = configured.apiKey ?? stored.apiKey ?? env.MAGPIE_API_KEY?.trim();
 	if (!key) return [];
-	const configuredBase = env.MAGPIE_BASE_URL?.trim() || configured.baseUrl;
+	const configuredBase = env.MAGPIE_BASE_URL?.trim() || configured.baseUrl || stored.baseUrl;
 	if (!configuredBase) return [];
 	const baseUrl = resolveBaseUrl(configuredBase, env);
 	try {

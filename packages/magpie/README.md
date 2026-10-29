@@ -23,15 +23,27 @@ pi install npm:@fradser/pi-magpie
 
 Run `/login magpie`. It asks for two things and proves both before saving:
 
+![Login asks for the gateway URL](assets/login-1-gateway.png)
+
 1. **Gateway URL** — press Enter for `http://127.0.0.1:3425/v1`, or type the
    address magpie runs on. A bare `10.10.0.195:3425` works: the `http://` scheme
    and the `/v1` prefix are added for you. An address that already has a path is
    kept as typed.
-2. **Gateway key**.
+2. **Gateway key** — the second prompt names the gateway it will be checked
+   against.
+
+![Login asks for the key, naming the gateway it verified](assets/login-2-key.png)
 
 Pi then requests the catalog once. If the key is refused or the gateway is
 unreachable, the login reports it and saves nothing — so a wrong URL shows up
 immediately instead of as a timeout on your first turn.
+
+![Login saved the credential](assets/login-3-saved.png)
+
+After that the models are in Pi's picker, and every turn goes to the gateway you
+logged in to:
+
+![magpie models and routing groups in Pi's model picker](assets/login-4-models.png)
 
 The address is stored with the key in `~/.pi/agent/auth.json`, so nothing needs
 to be exported afterwards:
@@ -52,23 +64,28 @@ For CI or a shared machine, skip `/login` and export:
 | `MAGPIE_BASE_URL` | Gateway origin, e.g. `http://10.10.0.195:3425/v1`. Default `http://127.0.0.1:3425/v1`. |
 | `MAGPIE_PI_MODELS` | Comma-separated globs of model ids to expose, e.g. `group/*`. Unset lists everything. |
 
-A stored credential wins over the environment, and an address saved by `/login`
-wins over `MAGPIE_BASE_URL`.
+A stored credential wins over the environment for the key, and a gateway saved
+by `/login` wins over both `MAGPIE_BASE_URL` and `models.json`.
 
 ### Why address precedence matters
 
-Pi applies `models.json` above an extension per model. So a `baseUrl` there is
-the one **requests** use, while the extension's own value only drives the catalog
-fetch — and a mismatch looks like a request timeout against an endpoint that
-never saw the traffic. Keep the two the same:
+Pi applies `models.json` above an extension per model, so a `baseUrl` there is
+the one **requests** use. The extension therefore never invents a gateway: it
+only overrides the address when `/login` stored one, or `models.json`/the
+environment supplied one. Anything else would redirect traffic away from the
+gateway you configured — which is exactly what happened when a saved key was
+paired with a `models.json` gateway and the provider assumed `127.0.0.1`.
 
-- **`/login magpie` only** — nothing else to configure. Recommended.
-- **`models.json` only** — supply the gateway and key there, with no `models`
-  array, so the extension keeps owning the catalog:
+Each of these works on its own:
 
-  ```json
-  { "providers": { "magpie": { "baseUrl": "http://10.10.0.195:3425/v1", "apiKey": "$MAGPIE_API_KEY" } } }
-  ```
+| Configuration | Gateway from | Key from |
+|---|---|---|
+| `/login magpie` only | saved with the credential | saved with the credential |
+| `models.json` only, no `models` array | `baseUrl` there | `apiKey` there (literal, `$VAR`, or `!cmd`) |
+| Environment only | `MAGPIE_BASE_URL` (default `127.0.0.1:3425/v1`) | `MAGPIE_API_KEY` |
+
+They also combine: a `models.json` gateway with a `/login` key works, since the
+key and the address are resolved independently.
 
 ## How the catalog updates
 
@@ -125,6 +142,6 @@ restoring the persisted catalog.
 | Symptom | Cause |
 |---|---|
 | `/login magpie` reports an HTTP status | Wrong key, or the URL is not magpie's gateway. Nothing was saved. |
-| Turns time out but the catalog lists models | `models.json` names a gateway the process cannot reach; check the precedence note above. |
-| No magpie models at all | Not logged in: run `/login magpie`, or set `MAGPIE_API_KEY`. `pi auth check --provider magpie` reports `ready` or `not_ready`. |
+| No magpie models at all | Nothing configured: run `/login magpie`, or set `MAGPIE_API_KEY` plus a gateway. `pi auth check --provider magpie` reports `ready` or `not_ready`. |
+| Worked only after a new shell | An older version made a saved key imply `127.0.0.1`, overriding the gateway in `models.json`. Upgrade: the key and the address are now independent. |
 | Costs are zero | magpie reported no price for that model, or a `models` array in `models.json` overrides the live one. |

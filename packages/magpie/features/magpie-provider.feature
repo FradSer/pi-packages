@@ -33,6 +33,13 @@ Feature: magpie provider
     Then the persisted catalog stays selectable
     And the provider contacts no gateway
 
+  Scenario: A saved key alone never redirects requests
+    Given a credential holds a key but no gateway address
+    When Pi resolves authentication for a model
+    Then no base URL is returned for that request
+    And the address the model already carries stays in force
+    And the provider does not substitute its localhost default
+
   Scenario: A keyless provider stays unconfigured
     Given neither a stored credential nor MAGPIE_API_KEY exists
     When the provider considers a network refresh
@@ -68,6 +75,12 @@ Feature: magpie provider
     Given models.json lists the model with its own cost
     When a turn completes
     Then Pi bills from that local cost, not from magpie's effective price
+
+  Scenario: The README shows the real login screens
+    Given the README documents /login magpie
+    When a reader follows it
+    Then every screenshot it embeds ships with the package
+    And each screenshot shows a screen captured from a running Pi session
 
   Scenario: Streaming goes through Pi's own OpenAI chat implementation
     Given a magpie model is selected

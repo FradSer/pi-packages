@@ -192,13 +192,55 @@ const provider = createMagpieProvider({ env: { MAGPIE_API_KEY: "env-key", MAGPIE
 const resolved = await provider.auth.apiKey.resolve({ ctx: { env: async () => undefined } });
 const check = await provider.auth.apiKey.check({ ctx: { env: async () => undefined }, signal: new AbortController().signal });
 const none = await createMagpieProvider({ env: {} }).auth.apiKey.resolve({ ctx: { env: async () => undefined } });
-console.log(JSON.stringify({ resolved, check, none: none ?? null }));
+console.log(JSON.stringify({ resolved, check, none: none ?? null, providerBase: provider.baseUrl }));
 """
         )
         self.assertEqual("env-key", payload["resolved"]["auth"]["apiKey"])
-        self.assertEqual("http://env.test:3425/v1", payload["resolved"]["auth"]["baseUrl"])
         self.assertEqual("MAGPIE_API_KEY", payload["check"]["source"])
         self.assertIsNone(payload["none"])
+        # The environment names the gateway on the provider, not as a per-request
+        # override: an override would outrank `models.json` and the model's own address.
+        self.assertEqual("http://env.test:3425/v1", payload["providerBase"])
+        self.assertNotIn("baseUrl", payload["resolved"]["auth"])
+
+    def test_a_stored_key_alone_never_invents_a_gateway(self) -> None:
+        """Given a credential holding only a key, When it resolves,
+        Then no baseUrl is returned — otherwise Pi would send every request to
+        the localhost default instead of the gateway models.json names."""
+        payload = run_magpie(
+            """
+const provider = createMagpieProvider({ env: {} });
+const keyOnly = await provider.auth.apiKey.resolve({
+  ctx: { env: async () => undefined },
+  credential: { type: "api_key", key: "stored-key" },
+});
+const withGateway = await provider.auth.apiKey.resolve({
+  ctx: { env: async () => undefined },
+  credential: { type: "api_key", key: "stored-key", env: { MAGPIE_BASE_URL: "http://nas.test:3425/v1" } },
+});
+console.log(JSON.stringify({ keyOnly, withGateway }));
+"""
+        )
+        self.assertEqual("stored-key", payload["keyOnly"]["auth"]["apiKey"])
+        self.assertNotIn("baseUrl", payload["keyOnly"]["auth"])
+        self.assertEqual("http://nas.test:3425/v1", payload["withGateway"]["auth"]["baseUrl"])
+
+class ReadmeAssetsTest(unittest.TestCase):
+    def test_every_readme_image_ships_in_the_package(self) -> None:
+        """Given the README's screenshots, When the package is published,
+        Then each referenced file exists and is declared in `files`."""
+        readme = (MAGPIE_PKG_DIR / "README.md").read_text(encoding="utf-8")
+        references = [
+            line.split("](")[1].split(")")[0]
+            for line in readme.splitlines()
+            if line.startswith("![")
+        ]
+        self.assertGreaterEqual(len(references), 4)
+        manifest = json.loads((MAGPIE_PKG_DIR / "package.json").read_text(encoding="utf-8"))
+        self.assertIn("assets", manifest["files"])
+        for reference in references:
+            self.assertFalse(reference.startswith("http"), f"{reference} would not render on npm")
+            self.assertTrue((MAGPIE_PKG_DIR / reference).is_file(), reference)
 
 
 if __name__ == "__main__":
