@@ -1,5 +1,5 @@
 @design_contract
-Feature: Flat Harness rules with consistent resolution and append-only guidance
+Feature: Flat Harness rules with consistent resolution and scoped structured guidance
   These scenarios define the flat-rule runtime and its verification contract.
   Known runtime limitations remain documented separately from tested behavior.
 
@@ -179,8 +179,8 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
   Rule: Skill guidance belongs to a real expanded invocation
     Scenario: Supply guidance once per invocation
       Given a registered skill has two effective matching rules
-      When one expanded invocation is processed repeatedly by lifecycle hooks
-      Then each rule is attached once for that invocation
+      When one run starts with the actual expanded invocation
+      Then each effective rule occurs once in that run's structured section
       And a subsequent invocation can receive the guidance again
       And each message identifies its invocation scope
 
@@ -189,7 +189,7 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       When a later unrelated task retains that guidance in history
       Then the guidance text names the skill task it applies to
       And retaining the message does not make it a project-wide instruction
-      And skill and text guidance are both delivered without rewriting the system prompt
+      And skill and text guidance use additive sections without replacing the complete system prompt
 
     Scenario: Distinguish reading a skill from invoking it
       Given a tool reads a SKILL.md file
@@ -225,7 +225,7 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       Given a text rule matches A项目 or Project A
       And the current conversation contains Project A in "<source>"
       When the next assistant request is prepared
-      Then the project's configured status is eligible for tail append
+      Then the project's scoped status is eligible for the run-start section
       Examples:
         | source                           |
         | the current user message         |
@@ -277,102 +277,86 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       When text rules scan retained model-visible messages
       Then the explicit text remains eligible evidence
 
-  Rule: Guidance preserves the existing request prefix
-    Scenario: Append newly matched guidance at the tail
-      Given retained conversation H contains a keyword
-      When guidance G is first delivered
-      Then the model request contains H followed by G
-      And subsequent requests retain G at that same position before newer conversation
-      And the system prompt remains unchanged by this guidance
+  Rule: Guidance composes through complete run-start sections
+    Scenario: Preserve other prompt owners
+      Given another extension supplies sections, guidelines, context files or a custom prompt
+      When Harness prepares applicable skill and text guidance
+      Then it contributes one harness_guidance structured section
+      And the other owner's contributions remain unchanged
+      And no complete system prompt replacement or custom injection message is returned
 
-    Scenario: Deduplicate unchanged text guidance by current retained state
-      Given the current branch retains an active delivery of a rule revision
-      When the same rule matches again without changing
-      Then no additional copy is appended
-      And a session-global already-seen flag is not the authority
-      And each matching run still receives the current structured system section
-      And unchanged text delivery does not append duplicate lifecycle or ledger rows
-      And skill-only deliveries retain their own metadata
-      And a historical delivery without an ordinary retained match does not re-inject guidance
-      And a rule identity mentioned alongside ordinary work cannot hide its matching subject
-      And only identified configuration operations and linked results are excluded as self-material
-      And mixed shell commands and ordinary text mentioning configuration paths remain eligible
+    Scenario: Deliver unchanged guidance in every applicable run without duplicate rows
+      Given the current branch retains an active text delivery revision
+      And ordinary retained text still matches that rule
+      When successive turns prepare assistant requests
+      Then each run receives the complete current scoped section
+      And unchanged text delivery appends no duplicate lifecycle or ledger row
+      And reload does not depend on a session-global seen set
 
-    Scenario: Replace guidance through a new tail update
-      Given the current branch retains a delivered rule revision
-      When the effective instructions change and still apply
-      Then one new tail message identifies the replacement revision
-      And the earlier message remains at its original position as history
+    Scenario: A delivery ledger alone cannot keep a trigger alive
+      Given the current branch retains only a non-context delivery of Project A guidance
+      And ordinary retained conversation and the current prompt do not match Project A
+      When the next assistant request is prepared
+      Then that rule contributes no guidance section
+      And retaining the delivery does not expand its subject scope
 
-    Scenario: Retire previously delivered guidance
-      Given the current branch retains guidance from a rule
-      When the rule becomes disabled or is removed without revealing a replacement
-      Then one tail notice identifies the prior guidance as retired
-      And repeated preparations do not duplicate the notice
+    Scenario: Preserve an earlier ordinary topic's explicit scope
+      Given retained ordinary text still matches Project A
+      And the current prompt concerns Project B
+      When Harness prepares a text section
+      Then Project A guidance includes its exact selector and subject limit
+      And its instructions do not become a project-wide condition
 
-    Scenario: Re-enable an already retired revision
-      Given a text rule revision was delivered and subsequently retired
-      When the same complete revision is enabled again and matches retained text
-      Then one new activation message is appended at the tail
-      And the older delivery does not suppress that activation
+    Scenario: Replace the delivered body after a reviewed owned correction
+      Given an automatically learned text rule has parent-written ownership provenance
+      And a current original user corrects its permanent instructions
+      When the exact owned correction passes every original gate and is persisted
+      Then the next applicable section contains the corrected body
+      And that section does not contain the obsolete body
+      And only one changed text delivery row is recorded
+      And an unreviewed correction changes no rule bytes
 
-    Scenario: Retire guidance whose winning definition is invalid
-      Given the current branch retains guidance from a text rule
-      When a same-id winning declaration becomes invalid
-      Then one tail notice identifies the earlier guidance as no longer current
-      And the rule is shown as invalid
-      And repeated preparations do not duplicate the notice
+    Scenario: Retire a previously delivered owned definition
+      Given the current branch retains an owned text delivery
+      When a reviewed permanent retirement is persisted
+      Then the next section identifies the prior guidance as retired
+      And subsequent starts neither re-inject its body nor duplicate the retirement
 
-    Scenario: Preserve delivery state when matching is indeterminate
-      Given the current branch retains guidance from a valid text rule
-      When the next matching pass times out or is cancelled
-      Then existing delivery state remains unchanged
-      And no unmatched or retirement conclusion is inferred from incomplete evaluation
-      And the status reports incomplete evaluation
+    Scenario: Re-enable a retired revision
+      Given a rule was delivered and subsequently retired
+      When a complete enabled definition matches ordinary retained text again
+      Then the next section contains the current scoped activation
+      And the older delivery does not suppress it
 
-    Scenario: Refresh a retained delivery after guidance format changes
-      Given the current branch retains a pre-scope delivery of an unchanged text rule
-      When the scoped guidance format is loaded after reload or resume
-      Then one scoped replacement message is appended at the tail
-      And the earlier message remains at its original position
-      And subsequent starts deduplicate the scoped delivery
+    Scenario: Preserve scoped guidance during incomplete evaluation
+      Given complete scoped text delivery exists on the current branch
+      When matching or configuration cannot be fully evaluated
+      Then the section preserves complete prior scoped guidance
+      And the transcript reports incomplete evaluation
+      And no removal is inferred from incomplete matching
+      And historical unscoped bodies are not reintroduced
 
-    Scenario: Retire an outdated delivery whose original trigger was compacted away
-      Given the current branch retains an unscoped text guidance delivery
-      And compaction removed every ordinary text segment matching that rule
-      When a later unrelated task starts with the scoped delivery format
-      Then one retirement notice marks the old guidance as inapplicable
-      And no unrelated replacement instructions are injected
-      And repeated starts do not duplicate retirement
-      And a later matching task receives one scoped activation
+    Scenario: Respect actual branch and compaction contents
+      Given compaction or branching changes retained ordinary text
+      When the next run rebuilds its text matching snapshot
+      Then only retained model-visible text and the current prompt can establish a match
+      And abandoned branches, removed text and non-context delivery records cannot establish it
+      And a current ordinary match still receives the section after reload
 
-    Scenario: Recover after compaction
-      Given compaction removed the identifiable guidance message
-      And retained ordinary text still matches the rule
-      When the next request is prepared
-      Then one current guidance message is appended
-      And a historical delivery record alone does not suppress it
+    Scenario: Filter historical injection messages
+      Given the branch retains prior harness-guidance or skill-prompt-guidance custom messages
+      When the context hook prepares the request
+      Then those historical injections are removed from model context
+      And unrelated custom messages remain unchanged
+      And current guidance is supplied only through the structured section
 
-    Scenario: Restore branch-local delivery state
-      Given another branch already received guidance
-      When the current branch matches the rule without retaining that delivery
-      Then the current branch receives its own tail append
-
-    Scenario: Deliver guidance durably at the next agent start
-      Given a keyword is present in the retained conversation, including a prior tool result
-      When the next user turn starts and before_agent_start runs
-      Then the guidance is appended once as a persistent tail message
-      And it is retained on the branch and present in later requests at that same position
-      And delivering it does not schedule an extra model response
-      # Limitation: a keyword first introduced by a tool result within the SAME run
-      # is picked up at the next agent start, not mid-run; mid-run durable delivery
-      # is a documented follow-up pending a verified Pi request-preparation seam.
-
-    Scenario: Report incomplete matching
-      Given regular-expression evaluation exceeds its enforceable budget
-      When Harness reports its result
-      Then status identifies incomplete evaluation rather than no match
-      And the regex work can be cancelled without hanging the main runtime
+    Scenario: Defer a new same-run tool keyword until the next agent start
+      Given a tool result introduces a matching keyword after the run has started
+      When the current run continues without another agent start
+      Then no mid-run text delivery is claimed
+      When the next user turn starts with that result retained
+      Then the current scoped guidance is eligible for its run-start section
+      And delivery does not schedule another model response
 
   Rule: Authoring verifies effective behavior while preserving ownership
     Scenario: Report a saved but shadowed rule

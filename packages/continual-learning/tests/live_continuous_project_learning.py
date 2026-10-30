@@ -127,9 +127,31 @@ def read_command_session(c: str, label: str) -> bytes:
     return base.checked(['docker','exec',c,'python3','-c',code,base.AGENT,'sessions/continuous/'+label+'.jsonl'])
 
 
-def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label: str, *, command: bool = False, feedback_observation: dict | None = None, unlimited_budget: bool = False, prior_session_digest: str | None = None, capture_command_origin: bool = False, capture_policy_origin: bool = False, initial_source_paths: list[str] | None = None) -> dict:
+def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label: str, *, command: bool = False, feedback_observation: dict | None = None, unlimited_budget: bool = False, prior_session_digest: str | None = None, capture_command_origin: bool = False, capture_policy_origin: bool = False, initial_source_paths: list[str] | None = None, expected_pi_version: str = '1.3.0', source_task_boundary: dict | None = None) -> dict:
+    if expected_pi_version not in ('1.3.0','1.4.0') or capture_policy_origin and expected_pi_version!='1.3.0':
+        raise ValueError('Unsupported native study Pi version')
     if initial_source_paths is not None and (command or feedback_observation is not None or label != 'stage-0' or capture_policy_origin):
         raise ValueError('Initial source boundary belongs only to the original read-only task')
+    if source_task_boundary is not None:
+        if (command or feedback_observation is not None or capture_command_origin or capture_policy_origin
+                or prior_session_digest is not None or initial_source_paths is not None or label not in ('source-v1','source-v2')):
+            raise ValueError('Source v2 boundary requires an explicit ordinary source-v1/source-v2 task')
+        boundary=source_task_boundary
+        example='examples/native-wrapper-'+label.removeprefix('source-')+'.js'
+        def public_path(path: object) -> bool:
+            return (isinstance(path,str) and bool(path) and not path.startswith('/') and '\\' not in path
+                and not any(ord(char)<32 or ord(char)==127 for char in path)
+                and all(part and part not in ('.','..','.git','.pi','.memory','node_modules')
+                        and part!='.env' and not part.startswith('.env.') for part in path.split('/')))
+        if (not isinstance(boundary,dict) or set(boundary)!={'version','readPaths','writePaths','commands'}
+                or type(boundary.get('version')) is not int or boundary['version']!=2
+                or boundary.get('writePaths')!=[example]
+                or any(not isinstance(boundary.get(key),list) or not boundary[key]
+                       or any(not isinstance(item,str) for item in boundary[key])
+                       or len(boundary[key])!=len(set(boundary[key])) for key in ('readPaths','writePaths','commands'))
+                or not all(public_path(path) for path in boundary['readPaths'])
+                or any(value not in ('node '+example,'pnpm test') for value in boundary['commands'])):
+            raise ValueError('Invalid source v2 boundary or example/stage mismatch')
     if capture_policy_origin and (command or capture_command_origin or prior_session_digest is not None
             or feedback_observation is not None or not unlimited_budget or prompt!=INITIAL_HARNESS_POLICY):
         raise ValueError('Policy origin requires the distinct no-tools unlimited user task')
@@ -162,6 +184,7 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
     for key,value in proxy.jev_environment().items():args+=['-e',key+'='+value]
     if feedback_observation is not None:args+=['-e','PI_STUDY_VERIFIER_FILE='+feedback_file,'-e','PI_STUDY_TASK_TOOL_LIMIT=1']
     if initial_source_paths is not None:args+=['-e','PI_STUDY_INITIAL_SOURCE_FILES='+json.dumps(initial_source_paths)]
+    if source_task_boundary is not None:args+=['-e','PI_STUDY_SOURCE_TASK_BOUNDARY='+json.dumps(source_task_boundary,separators=(',',':'))]
     native_args=['node',base.PI,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve',
              '--model',proxy.selection['provider']+'/'+proxy.selection['model'],'--thinking','off',
              *(['--no-tools'] if capture_policy_origin else ['--tools','read' if feedback_observation is not None else 'read,bash' if initial_source_paths is not None else 'read,bash,edit,write']),
@@ -180,7 +203,7 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
             raise RuntimeError('Sensitive original command evidence cannot be retained')
         (output/'original-session.jsonl').write_bytes(prior_bytes)
         version=base.checked(['docker','exec',c,'node',base.PI,'--version']).decode().strip()
-        if version!='1.3.0':raise RuntimeError('Command origin requires actual Pi 1.3.0')
+        if version!=expected_pi_version:raise RuntimeError('Command origin does not match the expected actual Pi version')
         (output/'command-source-before').mkdir()
         before_command=capture_failure_candidate(c,proxy,output/'command-source-before',prior_bytes)
         owner={'kind':'native-automatic-harness-policy' if capture_policy_origin else 'native-memory-command','version':1,'container':c,'argv':native_args,
@@ -283,6 +306,7 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
             'deliveredMemoryEntries':[item for row in references for item in row.get('details',{}).get('retrieved',[])],
             'observedMemoryReads':observed_memory_reads(rows,cwd='/work/p-limit',home='/home/node',roots=(base.AGENT+'/memory/--work-p-limit--','/work/p-limit/.memory')),
             **task_deadline_evidence(rows,required=unlimited_budget and not command),
+            **({'sourceTaskBoundary':source_task_boundary} if source_task_boundary is not None else {}),
             'toolBudgetEvents':[r.get('data') for r in rows if r.get('customType')=='continuous-study-tool-budget'],
             'verifierReadBoundaryViolations':sum(r.get('customType')=='continuous-study-tool-budget' and r.get('data',{}).get('outcome')=='verifier-read-blocked' for r in rows),
             'toolBudgetExceeded':any(r.get('customType')=='continuous-study-tool-budget' and r.get('data',{}).get('outcome') in ('blocked','summary-tool-loop-stopped') for r in rows),
@@ -366,9 +390,11 @@ def native_initialization_proof(c: str, name: str, evidence: dict, prior: dict, 
     """
     if name not in ('automaticHarnessPolicyProof','commandMemoryCorpusProof') or evidence.get('owner',{}).get('container')!=c:
         raise ValueError('Unknown proof or foreign native container')
+    runtime_version=base.checked(['docker','exec',c,'node',base.PI,'--version']).decode().strip()
+    if runtime_version not in ('1.3.0','1.4.0'):raise ValueError('Unsupported actual initialization proof Pi version')
     file='/home/node/native-initialization-proof-'+uuid.uuid4().hex+'.json'
     module=file.removesuffix('.json')+'.mts'
-    payload=json.dumps({'input':evidence,'prior':prior,'current':current},ensure_ascii=False).encode()
+    payload=json.dumps({'input':evidence,'prior':prior,'current':current,**({'runtimeVersion':runtime_version} if runtime_version else {})},ensure_ascii=False).encode()
     create='''import os,sys
 fd=os.open(sys.argv[1],os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
 try:
@@ -384,7 +410,7 @@ except BaseException:
     base.checked(['docker','exec','-i',c,'python3','-c',create,file],data=payload)
     module_created=False
     try:
-        code="import fs from 'node:fs';import {"+name+" as check} from '/home/node/continuous-command-proof.mts';const x=JSON.parse(fs.readFileSync("+json.dumps(file)+",'utf8'));console.log(JSON.stringify(check(x.input,x.prior,x.current)));"
+        code="import fs from 'node:fs';import {"+name+" as check} from '/home/node/continuous-command-proof.mts';const x=JSON.parse(fs.readFileSync("+json.dumps(file)+",'utf8'));console.log(JSON.stringify(check(x.input,x.prior,x.current"+(",x.runtimeVersion" if runtime_version else "")+")));"
         base.checked(['docker','exec','-i',c,'python3','-c',create,module],data=code.encode())
         module_created=True
         return json.loads(base.checked(['docker','exec',c,'tsx',module],timeout=60))
@@ -529,8 +555,10 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path, *, source_review: boo
 
 
 
-def load_command_origin(output: Path, inference: dict, *, container: str, policy: bool = False) -> dict:
+def load_command_origin(output: Path, inference: dict, *, container: str, policy: bool = False, expected_pi_version: str | None = None) -> dict:
     """Load an exclusive owner's bound output; hashes alone do not prove who ran it."""
+    if expected_pi_version is not None and expected_pi_version not in ('1.3.0','1.4.0'):
+        raise ValueError('Unsupported expected native Pi version')
     origin=inference.get('policyOrigin' if policy else 'commandOrigin',{})
     names=POLICY_ORIGIN_ARTIFACTS if policy else COMMAND_ORIGIN_ARTIFACTS
     owner_name='policy-started.json' if policy else 'memory-command-started.json'
@@ -542,7 +570,7 @@ def load_command_origin(output: Path, inference: dict, *, container: str, policy
     raw={name:read_study_artifact(output,name,bound=32*1024*1024,expected=bindings[name]) for name in names}
     owner=json.loads(raw[owner_name]);closed=json.loads(raw[closed_name])
     original=raw['original-session.jsonl'];native=raw['session.jsonl'];stdout=raw['stdout.jsonl']
-    if (owner.get('container')!=container or owner.get('cwd')!='/work/p-limit' or owner.get('piVersion')!='1.3.0'
+    if (owner.get('container')!=container or owner.get('cwd')!='/work/p-limit' or policy and owner.get('piVersion')!='1.3.0'
             or owner.get('kind')!=('native-automatic-harness-policy' if policy else 'native-memory-command')
             or closed.get('ownerDigest')!=hashlib.sha256(raw[owner_name]).hexdigest()
             or closed.get('exitCode')!=0 or closed.get('cancelled') is not False or closed.get('timedOut') is not False
@@ -550,6 +578,11 @@ def load_command_origin(output: Path, inference: dict, *, container: str, policy
             or closed.get('sessionDigest')!=hashlib.sha256(native).hexdigest()
             or closed.get('stdoutDigest')!=hashlib.sha256(stdout).hexdigest() or not native.startswith(original)):
         raise ValueError('Changed actual command invocation')
+    if not policy:
+        actual_version=base.checked(['docker','exec',container,'node',base.PI,'--version']).decode().strip()
+        if (actual_version not in ('1.3.0','1.4.0') or owner.get('piVersion')!=actual_version
+                or expected_pi_version is not None and actual_version!=expected_pi_version):
+            raise ValueError('Actual native Memory runtime version does not match command owner')
     if policy:
         if original:raise ValueError('Policy task was not a fresh native session')
         count=0

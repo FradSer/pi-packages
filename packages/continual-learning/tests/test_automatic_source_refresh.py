@@ -42,8 +42,8 @@ def test_native_command_initialization_creates_memory_then_genuinely_owned_harne
 
 
 def test_installed_workspace_pnpm_runs_offline_with_isolated_home(tmp_path,monkeypatch):
-    # Given the real installed pinned CLI and a Corepack cache override, when
-    # --version runs with a fresh HOME, no registry or Corepack execution follows.
+    # Given the pinned CLI and a non-executable disposable wrapper, when actual
+    # Bash runs pnpm with a fresh HOME, no registry or Corepack request follows.
     import json
     from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
     from pathlib import Path
@@ -72,8 +72,13 @@ def test_installed_workspace_pnpm_runs_offline_with_isolated_home(tmp_path,monke
     home=tmp_path/'home';home.mkdir();project=tmp_path/'project';project.mkdir()
     env=support.isolated_environment(home,tmp_path/'agent')
     env.update(COREPACK_ENABLE_NETWORK='0',NODE_DISABLE_COMPILE_CACHE='1',npm_config_registry=f'http://127.0.0.1:{server.server_port}')
+    from live_automatic_source_refresh import _install_fixture_pnpm
+    _install_fixture_pnpm(REPO,tmp_path,env)
+    # A noexec tmpfs also rejects a 0700 wrapper. Removing execute bits
+    # reproduces that boundary without changing the host mount.
+    (tmp_path/'bin/pnpm').chmod(0o600)
     try:
-        result=subprocess.run([real_which('node'),actual,'--version'],cwd=project,env=env,capture_output=True,text=True,timeout=10)
+        result=subprocess.run(['/bin/bash','-c','pnpm --version'],cwd=project,env=env,capture_output=True,text=True,timeout=10)
         assert result.returncode==0,result.stderr
         assert result.stdout.strip()==expected and not calls
         assert env['HOME']==str(home) and env['PI_CODING_AGENT_DIR']==str(tmp_path/'agent')
@@ -339,3 +344,49 @@ def test_native_rejected_coverage_continues_only_independent_source_correction(t
     assert result['coverageCorrection']['repairedBody']
     assert result['receipt']['operations'] == 1
     assert result['externalRequests'] == result['paidRequests'] == 0
+
+
+def test_native_api_relation_closure_requires_one_explicit_source_role_repair(tmp_path):
+    # Given a valid proposal that claims an API relationship but omits its
+    # source roles, When the actual Memory command runs, Then its existing
+    # structural repair must explicitly select the missing observed roles
+    # before any complete-body semantic review or write.
+    from live_automatic_source_refresh import run
+    value=run(tmp_path/'api-closure','manual-initialization-api-closure-repair')
+    closure=value['apiRelationClosure']
+    assert closure['initialCatalogSize']==2
+    assert closure['correctedModelCatalogSize']==closure['finalEvidenceSize']==5
+    assert closure['parentAddedReferences'] is False
+    assert closure['originalRawPlanPreserved'] and closure['originalKnowledgeTextPreserved']
+    assert closure['generationPlanCalls']==closure['existingStructuralRepairCalls']==1
+    assert closure['semanticStartedAfterRepair'] and closure['fullRoleBodyInFreshReviews']
+    assert closure['sourceFiles']==['runtime.js','runtime.d.ts','package.json']
+    assert closure['safeMirrorsEqual'] and closure['physicalHistoryVerified']
+    assert closure['catalogBound']==8 and closure['quoteCharacterBound']==2000 and closure['unitBound']==32
+    assert closure['controlledJudgmentsOnly'] and closure['learningBenefitEstablished'] is False
+    assert value['receipt']['operations']==1 and value['commandSourceReview']['ready']
+    assert value['commandHistoryIntegrity']['passed'] and value['commandCorpusProof']['ready']
+    assert value['externalRequests']==value['paidRequests']==0
+    assert value['semanticOrLearningBenefitEstablished'] is False
+
+
+def test_native_terminal_source_unit_requires_one_explicit_text_repair(tmp_path):
+    # Given complete file API roles and a terminal observation selected as a
+    # source unit, When the native Memory command runs, Then typed file-only
+    # selection rejects it and one existing repair explicitly uses plain text.
+    from live_automatic_source_refresh import run
+    value=run(tmp_path/'terminal-source','manual-initialization-terminal-source-repair')
+    proof=value['terminalSourceCapability']
+    assert proof['initialCatalogSize']==proof['correctedModelCatalogSize']==proof['finalEvidenceSize']==6
+    assert proof['allFileRolesCompleteInInitial'] and proof['terminalSourceUnitRejected']
+    assert proof['modelSelectedOrdinaryTextReplacement'] and proof['originalFileSourceUnitsPreserved']
+    assert proof['originalRawPlanPreserved'] and proof['parentAddedReferences'] is False
+    assert proof['generationPlanCalls']==proof['existingStructuralRepairCalls']==1
+    assert proof['semanticStartedAfterRepair'] and proof['fullRoleBodyInFreshReviews']
+    assert proof['sourceFiles']==['runtime.js','runtime.d.ts','package.json']
+    assert proof['safeMirrorsEqual'] and proof['physicalHistoryVerified']
+    assert proof['catalogBound']==8 and proof['quoteCharacterBound']==2000 and proof['unitBound']==32
+    assert value['receipt']['operations']==1 and value['commandSourceReview']['ready']
+    assert value['commandHistoryIntegrity']['passed'] and value['commandCorpusProof']['ready']
+    assert value['externalRequests']==value['paidRequests']==0
+    assert proof['learningBenefitEstablished'] is False

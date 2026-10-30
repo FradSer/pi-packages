@@ -10,6 +10,7 @@ def test_frozen_initialization_proof_uses_owned_container_runtime(monkeypatch):
     import live_continuous_project_learning as study
     calls=[]
     def checked(args,**kwargs):
+        if '--version' in args:return b'1.4.0\n'
         calls.append((args,kwargs))
         return b'{"ready":true,"mutationAuthority":false,"learningBenefitEstablished":false}\n' if 'tsx' in args else b''
     monkeypatch.setattr(study.base,'checked',checked)
@@ -18,7 +19,7 @@ def test_frozen_initialization_proof_uses_owned_container_runtime(monkeypatch):
     assert len(calls)==4 and all(args[2 if args[1]=='exec' and args[2]!='-i' else 3]=='owned' for args,_ in calls)
     create,module,check,cleanup=[args for args,_ in calls]
     assert 'O_EXCL' in create[-2] and 'O_NOFOLLOW' in create[-2] and '0o600' in create[-2]
-    payload=json.loads(calls[0][1]['data']);assert payload=={'input':{'owner':{'container':'owned'}},'prior':{},'current':{}}
+    payload=json.loads(calls[0][1]['data']);assert payload=={'input':{'owner':{'container':'owned'}},'prior':{},'current':{},'runtimeVersion':'1.4.0'}
     assert '/home/node/continuous-command-proof.mts' in calls[1][1]['data'].decode() and 'automaticHarnessPolicyProof' in calls[1][1]['data'].decode()
     assert check[-1]==module[-1] and check[-1].endswith('.mts')
     assert cleanup[-3]=='--' and cleanup[-2:]==[create[-1],module[-1]]
@@ -33,6 +34,7 @@ def test_owned_container_proof_failure_cleans_only_created_inputs(monkeypatch):
     for failure in ('module-create','execution','invalid-output'):
         calls=[]
         def checked(args,**kwargs):
+            if '--version' in args:return b'1.3.0\n'
             calls.append(args)
             if failure=='module-create' and len(calls)==2:raise RuntimeError('exclusive create refused')
             if 'tsx' in args:
@@ -53,6 +55,7 @@ def test_owned_proof_create_removes_partial_files_and_preserves_existing(monkeyp
     import live_continuous_project_learning as study
     scripts=[]
     def checked(args,**kwargs):
+        if '--version' in args:return b'1.3.0\n'
         scripts.append(args[-2])
         raise RuntimeError('Capture create only')
     monkeypatch.setattr(study.base,'checked',checked)
@@ -81,7 +84,8 @@ os.fdopen=Broken
         assert result.returncode!=0 and target.read_bytes()==b'preexisting'
 
 
-def test_native_command_origin_records_only_actual_cli_and_complete_source(monkeypatch,tmp_path):
+@__import__('pytest').mark.parametrize('pi_version',['1.3.0','1.4.0'])
+def test_native_command_origin_records_only_actual_cli_and_complete_source(monkeypatch,tmp_path,pi_version):
     # Given an owned complete session, When the real command launcher records
     # its invocation, Then preserve raw evidence and only count the new suffix.
     import hashlib,json,subprocess
@@ -99,7 +103,8 @@ def test_native_command_origin_records_only_actual_cli_and_complete_source(monke
         else:launched.append(args)
         return subprocess.CompletedProcess(args,0,b'{"type":"result"}\n',b'')
     monkeypatch.setattr(study.base,'process',process)
-    monkeypatch.setattr(study.base,'checked',lambda args,**kwargs:b'1.3.0\n' if '--version'in args else prefix)
+    actual_version={'value':pi_version}
+    monkeypatch.setattr(study.base,'checked',lambda args,**kwargs:(actual_version['value']+'\n').encode() if '--version'in args else prefix)
     monkeypatch.setattr(study.base,'shell',lambda *args,**kwargs:b'')
     calls=[]
     def source_capture(container,provider,path,session):
@@ -112,13 +117,13 @@ def test_native_command_origin_records_only_actual_cli_and_complete_source(monke
     monkeypatch.setattr(study,'capture_failure_candidate',source_capture)
     output=tmp_path/'command'
     result=study.run_session('owned','/memory 整理记忆',proxy,output,'stage-0',command=True,
-        prior_session_digest=hashlib.sha256(prefix).hexdigest(),capture_command_origin=True)
+        prior_session_digest=hashlib.sha256(prefix).hexdigest(),capture_command_origin=True,expected_pi_version=pi_version)
     assert result['commandOrigin']['verified'] is True
     owner=json.loads((output/'memory-command-started.json').read_text())
     closed=json.loads((output/'memory-command-closed.json').read_text())
     assert owner['argv']==launched[0][launched[0].index('owned')+1:]
     assert owner['argv'][-1]=='/memory 整理记忆' and owner['arguments']=='整理记忆'
-    assert owner['piVersion']=='1.3.0' and owner['container']=='owned'
+    assert owner['piVersion']==pi_version and owner['container']=='owned'
     assert calls==['command-source-before','command-source-after']
     assert (output/'original-session.jsonl').read_bytes()==prefix
     assert closed['ownerDigest']==hashlib.sha256((output/'memory-command-started.json').read_bytes()).hexdigest()
@@ -126,6 +131,7 @@ def test_native_command_origin_records_only_actual_cli_and_complete_source(monke
     assert closed['sessionDigest']==hashlib.sha256(prefix+suffix).hexdigest()
     assert result['usage']['totalTokens']==3 and result['reportedCost']==.1
     assert not any(secret in json.dumps(owner)+json.dumps(closed) for secret in (proxy.key,proxy.token,'synthetic-jev-credential'))
+    actual_version['value']='1.3.0' # Harness policy remains its historical baseline.
     policy=study.run_session('owned',study.INITIAL_HARNESS_POLICY,proxy,tmp_path/'policy','policy',
         unlimited_budget=True,capture_policy_origin=True)
     policy_owner=json.loads((tmp_path/'policy/policy-started.json').read_text())
@@ -1141,7 +1147,7 @@ def test_initial_policy_caller_retains_both_arms_and_postlaunch_costs(monkeypatc
     assert total['with-learning']['unknownLeaderUsageAttempts']==1
 
 
-def _bound_command_artifacts(tmp_path, *, policy=False):
+def _bound_command_artifacts(tmp_path, *, policy=False, pi_version='1.3.0'):
     # Synthetic complete files exercise loading, never real model semantics.
     import hashlib,io,json,tarfile
     import live_continuous_project_learning as study
@@ -1150,7 +1156,7 @@ def _bound_command_artifacts(tmp_path, *, policy=False):
         record,bridge,_=_command_policy_transition_fixture()
         command={**bridge['policyEvidence'],'sources':record['sources'],'originalSession':''}
     else:command=_command_audit_fixture()['commandEvidence']
-    owner={**command['owner'],'container':'owned'}
+    owner={**command['owner'],'container':'owned','piVersion':pi_version}
     owner['sourceHashes']={name:hashlib.sha256(body.encode()).hexdigest()for name,body in command['sources'].items()}
     output=tmp_path/'command';output.mkdir()
     raw_owner=json.dumps(owner).encode()
@@ -1219,9 +1225,11 @@ def test_policy_origin_loader_binds_actual_native_generation(tmp_path,damage):
     assert loaded['usageLedgerPath'].endswith('/harness-task-usage.json')
 
 
-def test_command_origin_loader_keeps_complete_native_source_and_actual_ledgers(tmp_path):
+@__import__('pytest').mark.parametrize('pi_version',['1.3.0','1.4.0'])
+def test_command_origin_loader_keeps_complete_native_source_and_actual_ledgers(tmp_path,monkeypatch,pi_version):
     import live_continuous_project_learning as study
-    output,inference,artifacts,command=_bound_command_artifacts(tmp_path)
+    output,inference,artifacts,command=_bound_command_artifacts(tmp_path,pi_version=pi_version)
+    monkeypatch.setattr(study.base,'checked',lambda args,**kwargs:(pi_version+'\n').encode())
     loaded=study.command_review_input(output,inference,artifacts,container='owned')
     for key in ('originalSession','nativeSession','stdout','sources','receipt','snapshotText','plan','reviewManifest','sourceAudit','usageLedger'):
         assert loaded[key]==command[key]
@@ -1230,10 +1238,11 @@ def test_command_origin_loader_keeps_complete_native_source_and_actual_ledgers(t
 
 
 @__import__('pytest').mark.parametrize('damage',['replaced','symlink','missing-binding','wrong-container','json-array','alias-path','duplicate-ledger','missing-source'])
-def test_command_origin_loader_refuses_changed_or_ambiguous_artifacts(tmp_path,damage):
+def test_command_origin_loader_refuses_changed_or_ambiguous_artifacts(tmp_path,monkeypatch,damage):
     import json,pytest
     import live_continuous_project_learning as study
     output,inference,artifacts,command=_bound_command_artifacts(tmp_path)
+    monkeypatch.setattr(study.base,'checked',lambda args,**kwargs:b'1.3.0\n')
     container='owned'
     if damage=='replaced':
         file=output/'session.jsonl';raw=file.read_bytes();file.unlink();file.write_bytes(raw)
@@ -2000,3 +2009,85 @@ def test_scoped_storage_protocol_keeps_execution_rules_in_both_actual_session_in
     assert 'necessary limits for future maintenance' in prompt
     assert TASKS==historical
     assert any('temporary formatting request' in t['prompt'] for t in TASKS)
+
+
+def test_memory_command_pure_proofs_bind_explicit_parent_runtime_version():
+    # Given complete controlled command evidence, the caller's actual runtime
+    # must match the owner. Rehashing a foreign owner cannot bypass the binding.
+    import json
+    from support import run_bun
+    record=_command_audit_fixture()
+    result=run_bun('''
+      import {createHash} from 'node:crypto';
+      import {commandMemoryCorpusProof,commandMemorySourceProof} from './packages/continual-learning/tests/continuous-command-proof.ts';
+      const record=RECORD;
+      const test=(ownerVersion,runtimeVersion)=>{
+        const input=structuredClone(record.commandEvidence);input.owner.piVersion=ownerVersion;
+        input.completion.ownerDigest=createHash('sha256').update(JSON.stringify(input.owner)).digest('hex');
+        return {source:commandMemorySourceProof(input,runtimeVersion).ready,
+          corpus:commandMemoryCorpusProof(input,record.priorState,record.currentState,runtimeVersion).ready};
+      };
+      console.log(JSON.stringify({legacy:test('1.3.0',undefined),fresh:test('1.4.0','1.4.0'),
+        oldOwner:test('1.3.0','1.4.0'),oldRuntime:test('1.4.0','1.3.0'),unknown:test('1.5.0','1.5.0')}));
+    '''.replace('RECORD',json.dumps(record)))
+    assert result['legacy']==result['fresh']=={'source':True,'corpus':True}
+    assert all(result[name]=={'source':False,'corpus':False} for name in ('oldOwner','oldRuntime','unknown'))
+
+
+@__import__('pytest').mark.parametrize('actual',['1.3.0','1.4.0','1.5.0'])
+def test_memory_owned_proof_selects_runtime_only_from_caller_container(monkeypatch,actual):
+    import json,pytest
+    import live_continuous_project_learning as study
+    calls=[]
+    def checked(args,**kwargs):
+        calls.append((args,kwargs))
+        if '--version' in args:return (actual+'\n').encode()
+        if 'tsx' in args:return b'{"ready":true}'
+        return b''
+    monkeypatch.setattr(study.base,'checked',checked)
+    evidence={'owner':{'container':'owned','piVersion':'untrusted-version'}}
+    if actual=='1.5.0':
+        with pytest.raises(ValueError):study.native_initialization_proof('owned','commandMemoryCorpusProof',evidence,{},{})
+        assert len(calls)==1
+    else:
+        assert study.native_initialization_proof('owned','commandMemoryCorpusProof',evidence,{},{}).get('ready')
+        assert calls[0][0]==['docker','exec','owned','node',study.base.PI,'--version']
+        assert json.loads(calls[1][1]['data'])['runtimeVersion']==actual
+        assert 'x.runtimeVersion' in calls[2][1]['data'].decode()
+        assert all('untrusted-version' not in str(args) for args,_ in calls)
+
+
+@__import__('pytest').mark.parametrize('owner_version,actual_version,expected',[
+    ('1.3.0','1.4.0',None),('1.4.0','1.3.0',None),('1.4.0','1.5.0',None),
+    ('1.4.0','1.4.0','1.3.0'),('1.4.0','1.4.0','1.5.0')])
+def test_memory_origin_loader_rejects_runtime_owner_or_expected_mismatch(tmp_path,monkeypatch,owner_version,actual_version,expected):
+    import pytest
+    import live_continuous_project_learning as study
+    output,inference,_,_=_bound_command_artifacts(tmp_path,pi_version=owner_version)
+    calls=[]
+    def checked(args,**kwargs):
+        calls.append(args)
+        assert args==['docker','exec','owned','node',study.base.PI,'--version']
+        return (actual_version+'\n').encode()
+    monkeypatch.setattr(study.base,'checked',checked)
+    with pytest.raises(ValueError):study.load_command_origin(output,inference,container='owned',expected_pi_version=expected)
+    assert len(calls)==(0 if expected=='1.5.0' else 1)
+
+
+@__import__('pytest').mark.parametrize('actual,expected',[('1.3.0','1.4.0'),('1.4.0','1.3.0'),('1.5.0','1.4.0'),('1.4.0','1.5.0')])
+def test_native_memory_capture_rejects_runtime_before_model_launch(tmp_path,monkeypatch,actual,expected):
+    import hashlib,json,pytest
+    from types import SimpleNamespace
+    import live_continuous_project_learning as study
+    prefix=(json.dumps({'type':'session','id':'source','cwd':'/work/p-limit'})+'\n').encode()
+    proxy=SimpleNamespace(key='fixture-key',jev_key=None,token='fixture-token',
+        selection={'provider':'fixture','model':'fixture'},jev_environment=lambda:{})
+    calls=[]
+    monkeypatch.setattr(study,'read_command_session',lambda *args:prefix)
+    monkeypatch.setattr(study.base,'shell',lambda *args,**kwargs:b'')
+    monkeypatch.setattr(study.base,'checked',lambda args,**kwargs:(actual+'\n').encode())
+    monkeypatch.setattr(study.base,'process',lambda *args,**kwargs:calls.append(args))
+    with pytest.raises((ValueError,RuntimeError)):
+        study.run_session('owned','/memory inspect source',proxy,tmp_path/'command','stage-0',command=True,
+            prior_session_digest=hashlib.sha256(prefix).hexdigest(),capture_command_origin=True,expected_pi_version=expected)
+    assert calls==[]

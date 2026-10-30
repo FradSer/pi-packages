@@ -1,3 +1,4 @@
+import path from "node:path";
 import {memoryDeclarationViews} from "./memory-declaration-view";
 import { memoryReferenceResults } from "./memory-evidence-provenance";
 import { MAX_NEW_MEMORY_EVIDENCE, normalizeSnapshotEvidence, snapshotEditPatchText } from "./consolidation-run";
@@ -103,13 +104,36 @@ export function locatedMemoryEvidence(value: unknown, options: {declarationViews
   return {...outer, entries};
 }
 
+/** Provenance candidates only. Current files, grants and hashes are still
+ * checked by the source resolver; observed tool output is not file authority. */
+function fileObservation(entries: unknown[], index: number, cwd: string): boolean {
+  const result = message(entries[index]);
+  if (result?.role !== "toolResult" || result.isError !== false || !["read", "edit", "learning_read"].includes(String(result.toolName)) || typeof result.toolCallId !== "string") return false;
+  const calls = entries.flatMap((entry, at) => {
+    const row = message(entry);return row?.role === "assistant" && Array.isArray(row.content)
+      ? row.content.flatMap(value => {const call = record(value);return call?.type === "toolCall" && call.id === result.toolCallId ? [{call, at}] : [];}) : [];
+  });
+  if (calls.length !== 1 || calls[0].at >= index || calls[0].call.name !== result.toolName
+    || entries.filter(entry => message(entry)?.role === "toolResult" && message(entry)?.toolCallId === result.toolCallId).length !== 1) return false;
+  const args = record(calls[0].call.arguments);
+  if (!path.isAbsolute(cwd) || typeof args?.path !== "string" || !args.path || args.path.includes("\0")) return false;
+  const relative = path.relative(path.resolve(cwd), path.resolve(cwd, args.path));
+  if (!relative || path.isAbsolute(relative) || relative.split(path.sep).some(part => ["..", ".pi", ".memory", ".git"].includes(part.toLowerCase()))) return false;
+  if (["offset", "limit"].some(key => args[key] !== undefined && (!Number.isSafeInteger(args[key]) || Number(args[key]) < 1))) return false;
+  if (result.toolName === "learning_read") {
+    const details = record(result.details);
+    if (details?.readOnlyMaintenanceAudit !== true || details.sourcePath !== args.path || typeof details.sourceSha256 !== "string" || !/^[a-f0-9]{64}$/.test(details.sourceSha256)) return false;
+  }
+  return true;
+}
+
 /** Complete positional catalog, without source text or evidence selection. */
-export function memoryCitationDomain(value: unknown): {indices: number[]; refs: string[]} {
+export function memoryCitationDomain(value: unknown, options: {fileSourcesFromCwd?: string} = {}): {indices: number[]; refs: string[]; fileRefs?: string[]} {
   const outer = record(value);
-  if (outer?.kind === "incremental-learning-dossier") return memoryCitationDomain(outer.taskSlice);
+  if (outer?.kind === "incremental-learning-dossier") return memoryCitationDomain(outer.taskSlice, options);
   if (!Array.isArray(outer?.entries)) throw new Error("Memory citation domain requires frozen entries");
   const memoryReferences = memoryReferenceResults(outer.entries);
-  const indices: number[] = [], refs: string[] = [];
+  const indices: number[] = [], refs: string[] = [], fileRefs: string[] = [];
   const addText = (text: string, block: number, index: number, patch = false) => {
     for (const row of lineView(text, block, index, patch).lines as RecordValue[]) {
       if (typeof row.ref === "string") refs.push(row.ref);
@@ -128,8 +152,20 @@ export function memoryCitationDomain(value: unknown): {indices: number[]; refs: 
     const patch = snapshotEditPatchText(entry);
     if (patch !== undefined) addText(patch, 0, index, true);
     if (refs.length > before) indices.push(index);
+    if (options.fileSourcesFromCwd && fileObservation(outer.entries as unknown[], index, options.fileSourcesFromCwd)) {
+      const edit = message(entry)?.toolName === "edit", patchLines = patch?.split("\n");
+      // These labels were just emitted by lineView. Do not rebuild the entire
+      // source view once per reference, and do not spread a large file's refs.
+      for (let at = before; at < refs.length; at++) {
+        const ref = refs[at];
+        if (!edit) {if (/\.l[1-9]\d*(?:\.c(?:0|[1-9]\d*)-[1-9]\d*)?$/.test(ref)) fileRefs.push(ref);continue;}
+        const position = /^e(?:0|[1-9]\d*)\.b0\.p([1-9]\d*)(?:\.c(0|[1-9]\d*)-[1-9]\d*)?$/.exec(ref);
+        const line = position ? patchLines?.[Number(position[1]) - 1] : undefined;
+        if (position && (position[2] === undefined || position[2] === "0") && line?.startsWith("+") && !line.startsWith("+++")) fileRefs.push(ref);
+      }
+    }
   });
-  return {indices, refs};
+  return {indices, refs, ...(options.fileSourcesFromCwd === undefined ? {} : {fileRefs})};
 }
 
 /** Parent-controlled positions and categories only; source and model strings
@@ -169,6 +205,16 @@ function referencePosition(ref: unknown, entries: unknown[], memoryReferences: R
       && ref === `e${index}.b${block}.${patch ? "p" : "l"}${line}.c${item.start}-${item.end}`);
   if (!chunk) return fail();
   return {index, block, line, patch, start: chunk.start as number, end: chunk.end as number};
+}
+
+export function memoryCitationReferenceMatches(outer: unknown, inner: unknown, snapshot: unknown): boolean {
+  try {
+    const entries = record(snapshot)?.entries;
+    if (!Array.isArray(entries) || !record(outer) || !record(inner)) return false;
+    const excluded = memoryReferenceResults(entries);
+    const a = expandReference(record(outer)!, entries, excluded), b = expandReference(record(inner)!, entries, excluded);
+    return a.index === b.index && JSON.stringify(a.lines) === JSON.stringify(b.lines);
+  } catch {return false;}
 }
 
 function expandReference(ref: RecordValue, entries: unknown[], memoryReferences: ReadonlySet<number>): RecordValue {
@@ -280,19 +326,24 @@ export function hasMemoryCitationLocations(raw: unknown): boolean {
  * This binds positions only. Complete source/body/coverage review still follows. */
 export class MemoryKnowledgeCitationError extends Error {}
 
+// Existing entries and coverage accept a leading BOM. Preserve it with the
+// exact frontmatter bytes for both admitted body and description corrections.
+export function splitMemoryFrontmatter(content: string): RegExpExecArray | null {
+  return /^(\uFEFF*---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))([\s\S]*)$/.exec(content);
+}
+
 /** Replace admitted discovery metadata without copying or rewriting the body. */
 export function materializeMemoryDescription(priorContent: string, description: unknown): string {
-  const header = /^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n)/.exec(priorContent);
-  if (!header || typeof description !== "string" || !description.trim() || /[\r\n]/.test(description)
-    || !/^description:[^\r\n]*/m.test(header[0])) throw new Error("Invalid Memory description correction");
-  return header[0].replace(/^description:[^\r\n]*/m, () => `description: ${description}`)
-    + priorContent.slice(header[0].length);
+  const parts = splitMemoryFrontmatter(priorContent);
+  if (!parts || !parts[3].endsWith("\n") || typeof description !== "string" || !description.trim() || /[\r\n]/.test(description)
+    || !/^description:[^\r\n]*/m.test(parts[2])) throw new Error("Invalid Memory description correction");
+  return parts[1] + parts[2].replace(/^description:[^\r\n]*/m, () => `description: ${description}`) + parts[3] + parts[4];
 }
 
 export function materializeMemoryKnowledge(priorContent: string, knowledge: unknown, snapshot: unknown,
   description?: string): {content: string; evidence: ReturnType<typeof normalizeSnapshotEvidence>} {
-  const header = /^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n)/.exec(priorContent);
-  if (!header) throw new Error("Invalid atomic Memory frontmatter");
+  const parts = splitMemoryFrontmatter(priorContent);
+  if (!parts || !parts[3].endsWith("\n")) throw new Error("Invalid atomic Memory frontmatter");
   const catalog = record(knowledge);
   if (!catalog || Object.keys(catalog).some(key => !["sourceCitations", "units"].includes(key))
     || !Array.isArray(catalog.sourceCitations) || !catalog.sourceCitations.length
@@ -302,7 +353,7 @@ export function materializeMemoryKnowledge(priorContent: string, knowledge: unkn
   if (!Array.isArray(catalog.units) || !catalog.units.length || catalog.units.length > 32) {
     throw new MemoryKnowledgeCitationError("Atomic Memory knowledge requires 1..32 cited body units");
   }
-  let frontmatter = header[0];
+  let frontmatter = parts[1] + parts[2] + parts[3];
   if (description !== undefined) {
     frontmatter = materializeMemoryDescription(frontmatter, description);
   }

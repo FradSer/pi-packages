@@ -457,3 +457,41 @@ def test_declaration_view_bounds_members_and_refuses_ambiguous_read_provenance()
     assert value['big']['omittedNodeCount'] == 130
     assert value['dossier'] == value['big']
     assert not value.get('duplicate') and not value.get('offset') and not value.get('privatePath') and not value.get('defaultDossier')
+
+
+def test_file_reference_capabilities_require_unique_successful_project_file_observations():
+    value = isolated_run_bun(r'''
+      import {memoryCitationDomain} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const base=()=>({entries:[{role:'user',content:'A fact.'},{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'/project/source.ts',offset:1,limit:10}}]},{role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:'first\nsecond'}]});
+      const files=v=>memoryCitationDomain(v,{fileSourcesFromCwd:'/project'}).fileRefs;
+      const bad={};for(const [name,mutate]of Object.entries({failed:v=>v.entries[2].isError=true,bash:v=>{v.entries[1].content[0].name='bash';v.entries[2].toolName='bash'},outside:v=>v.entries[1].content[0].arguments.path='/other/source.ts',private:v=>v.entries[1].content[0].arguments.path='/project/.MeMoRy/fact.md',settings:v=>v.entries[1].content[0].arguments.path='/project/.pi/settings.json',git:v=>v.entries[1].content[0].arguments.path='/project/.git/config',duplicateCall:v=>v.entries[1].content.push(v.entries[1].content[0]),duplicateResult:v=>v.entries.push(v.entries[2]),wrongName:v=>v.entries[1].content[0].name='edit',missingCall:v=>v.entries[1].content=[],badOffset:v=>v.entries[1].content[0].arguments.offset=0,badLimit:v=>v.entries[1].content[0].arguments.limit=-1})){
+        const v=base();mutate(v);bad[name]=files(v);
+      }
+      const edit=base();edit.entries[1].content[0]={type:'toolCall',id:'r',name:'edit',arguments:{path:'/project/source.ts',oldText:'old',newText:'new'}};edit.entries[2]={role:'toolResult',toolCallId:'r',toolName:'edit',isError:false,content:'Edited',details:{patch:'-old\n+new'}};
+      console.log(JSON.stringify({good:files(base()),bad,legacy:memoryCitationDomain(base()),edit:files(edit)}));
+    ''')
+    assert value['good'] == ['e2.b0.l1', 'e2.b0.l2']
+    assert all(refs == [] for refs in value['bad'].values())
+    assert 'fileRefs' not in value['legacy']
+    assert value['edit'] == ['e2.b0.p2']
+
+
+def test_linear_file_reference_projection_preserves_prior_position_selection_and_order():
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence,memoryCitationDomain} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const wide=String.fromCodePoint(0x20000),long='z'.repeat(511)+wide+'x'.repeat(2500),results=[];
+      for(const [tool,content,patch] of [['read','first\r\n'+long+'\nlast',null],['read',[{type:'text',text:'first\nsecond'},{type:'image',data:'ignored'},{type:'text',text:long}],null],['edit','Edit completed','-old\r\n+new\r\n+'+long+'\n context\n+++ metadata']]){
+        const result={role:'toolResult',toolName:tool,toolCallId:'r',isError:false,content,...(patch===null?{}:{details:{patch}})};
+        const snapshot={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:tool,arguments:{path:'/project/api.ts',oldText:'old',newText:'new'}}]},result]};
+        const shown=locatedMemoryEvidence(snapshot).entries[1].entry;
+        const positions=(lines,isPatch)=>lines.flatMap(row=>row.ref?[{ref:row.ref,patch:isPatch,line:row.line}]:((row.chunks??[]).filter(c=>c.ref).map(c=>({ref:c.ref,patch:isPatch,line:row.line,start:c.start}))));
+        const parts=Array.isArray(shown.content)?shown.content:[shown.content];
+        const observed=parts.flatMap(part=>part?.citationLines?positions(part.citationLines.lines,false):[]);
+        if(shown.details?.patch?.citationLines)observed.push(...positions(shown.details.patch.citationLines.lines,true));
+        const prior=observed.filter(position=>tool==='read'?!position.patch:position.patch&&(position.start===undefined||position.start===0)&&patch.split('\n')[position.line-1].startsWith('+')&&!patch.split('\n')[position.line-1].startsWith('+++')).map(position=>position.ref);
+        const actual=memoryCitationDomain(snapshot,{fileSourcesFromCwd:'/project'}).fileRefs;
+        results.push({same:JSON.stringify(prior)===JSON.stringify(actual),count:actual.length});
+      }
+      console.log(JSON.stringify({results}));
+    ''')
+    assert all(result['same'] and result['count'] > 0 for result in value['results'])

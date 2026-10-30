@@ -198,6 +198,10 @@ Feature: Select the minimum sufficient scope for incremental learning
     And cited entries colocated in a window remain available by exact index
     And late or cited-window contradictions and transport failures hold the plan
     And windows are not merged using raw entry size alone
+    And normal unbounded Memory source support sees the complete indexed original execution context without adding citations
+    And only all-new Memory runs keep that context in body and description counter windows to explain selected observations, without adding counterevidence or overriding window revocations
+    And self-injected references stay excluded and Memory readbacks remain ineligible independent sources
+    And explicitly bounded historical support keeps its original wire encoding
 
   Scenario: Unresolved source defects can be learned without inventing a recovery
     Given actual failed verification and matching inspected source establish an unresolved defect
@@ -322,7 +326,7 @@ Feature: Select the minimum sufficient scope for incremental learning
     And changed or unverified extensions do not suppress unrelated work
 
   Scenario: Larger verified citations preserve protected claims without duplicate overflow
-    Given a field correction with eight valid citations and a protected original description
+    Given a legacy non-atomic field correction with eight valid citations and a protected original description
     And a new quote contains an original quote verbatim at the same source index and role
     When the parent merges the corrected body and its sources
     Then the larger quote retains every original and corrected source byte
@@ -354,6 +358,9 @@ Feature: Select the minimum sufficient scope for incremental learning
     When a reusable fact is nominated for Memory
     Then its coverage scope is optional unless an original request or predecessor establishes an obligation
     And a tool result cannot be used as an original user request
+    And the opted-in Luna Responses coverage producer restricts every requested scope and obligation reference to original user entries
+    And source references remain available to optional scopes, claims and conditions without granting request authority
+    And empty user domains, unsupported profiles and bounded historical studies retain their original parent validation and semantic gates
     And temporary instructions and no-remember restrictions remain subject to complete semantic review
 
   Scenario: A complete plan account includes a wholly omitted requested goal
@@ -447,6 +454,20 @@ Feature: Select the minimum sufficient scope for incremental learning
     Given one candidate preserves its bounded knowledge and another requested goal is missing
     When the parent selects the scoped-record question contract
     Then the candidate and retained-record questions use their own knowledge scope
+    And current named-issue instructions identify their exact binding key and candidate or retained location without relying on outer question IDs
+    And only unbounded current coverage wire includes exact parent-extracted named-issue witness text from its bound current, prior or predecessor body without changing the stored accounts or finite wire
+
+  Scenario: Semantic coverage reads canonical knowledge instead of producer verdicts
+    Given complete parent-bound current and prior reviews with the original task
+    When normal unbounded coverage uses semantic wire version 3
+    Then all original task entries remain inline in their original order
+    And complete current and prior plans and existing bodies remain inline once in their canonical fields
+    And candidate selectors preserve every flattened operation position including bodyless deletes
+    And retained selectors identify exact existing records without repeating their bodies
+    And all current and prior named-issue occurrences retain their exact own-domain witnesses and locations
+    And producer verdicts and full account narratives stay in the immutable parent review instead of semantic state
+    And complete-plan, record, omission questions and all acceptance thresholds remain unchanged
+    And finite and absent wire-view contracts remain byte-identical
     And the unchanged complete-plan question still holds the incomplete plan
     And all source, privacy, permission, preservation and numeric gates remain required
     And historical reviews without that contract retain their exact original questions
@@ -575,6 +596,15 @@ Feature: Select the minimum sufficient scope for incremental learning
     And complete parent source, citation, knowledge and mutation reviews still apply
     And native loopback transport does not establish real-model learning benefit
 
+  Scenario: Low-confidence coverage alone does not launch a knowledge correction
+    Given complete bound coverage accounts name no missing knowledge
+    And complete source, counterevidence and body-consistency checks pass their original gates
+    When only the positive coverage judgment fails its probability or confidence gate
+    Then the original plan, coverage hold, response and costs remain retained
+    And no optional withdrawal or semantic correction worker starts
+    And no later task or Memory write is admitted
+    But a separately established knowledge defect retains its existing bounded correction path
+
   Scenario: Citation-only correction cannot resample a valid coverage hold
     Given complete bound coverage accounts and a held independent coverage judgment
     And the repair worker receives the parent-bound requirement for a real source-supported knowledge change or empty refusal
@@ -614,3 +644,107 @@ Feature: Select the minimum sufficient scope for incremental learning
     And callback return annotations do not become the outer function's returned object
     And ambiguous, malformed or oversized syntax adds no guessed relationship
     And original evidence, source order, citation bounds and every learning gate remain unchanged
+
+  Scenario: New project knowledge retains an already selected complete declaration as observed data
+    Given a text unit references a selected complete outer declaration from a successful bound declaration-source read
+    When the new project knowledge body is materialized
+    Then the original units remain in their original order and text
+    And unused declarations and new source references are not added
+    And selected declarations are retained as neutral source excerpts in catalog order without duplicating explicit source units
+    And the original unit, citation, body, privacy, source-binding and complete semantic review gates remain mandatory
+    And legacy prose, user facts, preferences and existing Memory amendments retain their existing behavior
+    And the existing manual-initialization-knowledge native case exposes the retained declaration to review and persisted history
+
+  Scenario: A selected observed API relationship requires explicit dependency source selection
+    Given the original user names the wrapper and member in the same visible sentence
+    And one used source-cited knowledge unit names that relationship, possibly across its sentences
+    And a selected complete wrapper declaration and selected direct local call are linked by observed package exports
+    And unambiguous lexical and declaration syntax binds that call to a factory, named owner and direct member
+    When the initial proposal omits factory, owner-heading or member source roles
+    Then bounded missing-role reference diagnostics enter the existing single structural repair
+    And the diagnostic identifies its snapshot projection digest separately from the verified run snapshot identity
+    And parent-owned requirements survive removal of trigger references from the repair
+    And a retained same-name proposal cannot escape its roles by changing its knowledge format
+    And an empty initial proposal has no forced dependency selection
+    And the parent does not select or add missing references
+    When the model explicitly selects and uses every required role
+    Then neutral observed syntax preserves the selected relationship in the complete reviewed body
+    And all citation, unit, body, source, privacy and semantic gates remain unchanged
+    And separate knowledge units and descriptions cannot combine identifiers to create a relationship
+    And unrelated user topics, quoted-only intent, ambiguous modules and shadowed or dynamic calls grant no guessed relation
+    And the existing manual-initialization-api-closure-repair native case exercises the single repair before complete body review
+
+  Scenario: Fresh declared API relations normalize complete explicit file-role selections
+    Given complete parent-bound project-file observations and ordinary terminal evidence
+    When a fresh producer selects complete role citations used by text units
+    Then factory, named return owner heading and direct member refs must belong to one observed declaration file
+    And every role belongs to the complete file-reference domain
+    And the parent normalizes only these explicit refs through the existing bounded source materialization
+    And the fresh machine contract exposes only text units and one catalog rather than repeated role objects
+    And successful source closure uses the original catalog indexes without requiring another unit shape
+    And correct older atomic relation inputs remain readable without a new format refusal
+    And snapshot-only validation reports metadata, catalog and unit counts, quote bounds and missing roles together
+    And missing-role obligations survive that failed static validation before current-file reads
+    And the parent preserves every text unit and original catalog entry, including duplicate citations
+    And missing or mismatched roles and terminal refs remain rejected in the existing single structural repair
+    And fresh producers cannot use legacy source units or standalone excerpts to bypass relation selection
+    And ordinary observations retain text units and original catalog citations
+    And legacy stored and materialized plans retain their existing read contract
+
+    And the complete machine output contract reaches both initial dossier and the single correction input with the same frozen domain digests
+    And providers without native schema transport still receive that contract as data outside the citation entries
+    And the optional CLI schema channel keeps its explicit 64KB overflow marker
+    And complete task-data contracts use the existing snapshot resource bound without trimming their schema or domains
+    And malformed, duplicate or foreign source selections never become unrestricted parent authority
+    And legacy stored data and semantic amendments retain their existing reader contracts
+    And current source, root containment, read success, symlink, race, privacy and all semantic checks remain mandatory
+    And the existing manual-initialization-terminal-source-repair native case verifies one correction without new model stages
+
+  Scenario: Opted-in Luna Responses semantic repair binds exact parent identity on the wire
+    Given a bound semantic amendment and complete parent-owned candidate references
+    And the operator explicitly enables structured planner output
+    When a no-tool gpt-6-luna Responses worker generates the existing correction
+    Then its native strict amendment schema binds every supplied parent identity value
+    And only the original candidate references and parent-approved withdrawals are offered
+    And every native object has all properties required and forbids additional properties
+    And complete original source catalogs stay in task data without enum truncation
+    And the parent still rejects wrong identities, unsupported citations and protected-field changes
+    And other models and operators without this opt-in keep their existing contracts
+    And independently held project descriptions require an explicit value beside corrected knowledge
+    And that requirement covers new project proposals and rewrites of exactly selected known project predecessors
+    And preference, unknown-type, unselected and non-atomic candidates retain their existing contracts
+    And paired description permission or coverage conjunction alone does not require that value
+    And complete original source questions, observations, distributions and windows stay bound to candidate and evidence digests
+    And oversized complete repair data is refused without clipping checks
+    And native delivery adds no model stage, repair slot or semantic approval
+
+  Scenario: Opted-in Luna fresh empty-selection plans use the parent-bound native shape
+    Given a fresh empty-selection Memory delta or its sole structural correction
+    And the operator explicitly enables structured planner output for no-tool gpt-6-luna Responses
+    When the parent supplies the actual kind, version, schemaVersion and five identity values
+    Then the native schema binds those values and requires empty operations
+    And project text and citations remain one bounded knowledge value
+    And preference content and evidence remain legal with omitted or explicit classification
+    And citation roles and range endpoints remain optional explicit alternatives without null
+    And complete source references stay in task data and the parent rejects foreign or unsupported evidence
+    And the parent retains UTF-16, source, privacy, history and complete semantic checks
+    And selected-record plans and unsupported models retain their existing behavior
+    And no additional model stage, repair slot or synthesized value is introduced
+
+  Scenario: Atomic project correction retains selected declaration proof
+    Given a new or exact-selected typed project rewrite has parent-verified declaration roles
+    When its admitted semantic body correction selects the same frozen source catalog
+    Then the parent copies original source bytes and retains the neutral declaration bridge
+    And an already selected and used initiating wrapper declaration stays bound through structural and semantic correction
+    And the three ownership roles remain separate from that source witness
+    And explicitly selected and used equivalent read aliases share one frozen canonical path and complete source digest across correction
+    And a sole source-role structural correction can rebind one valid fresh project catalog while the parent retains every original text unit and metadata byte
+    And later admitted semantic correction can still correct body knowledge and citations together under fresh complete review
+    And an atomic body correction keeps its explicit complete citation catalog without re-inheriting obsolete body citations
+    And protected description text remains exact and must pass its independent source review against the replacement catalog
+    And automatic relation blocks copy only their matched role-local source spans while complete selected quotes and model text stay unchanged
+    And a shared catalog index preserves distinct owner and member spans without narrowing explicit legacy excerpts
+    And legacy proofs without a wrapper keep their three roles without parent-added references
+    And the prior frontmatter, including supported leading byte-order markers and line endings, and model text remain intact
+    And a complete unambiguous direct factory signature may witness its named owner role
+    But missing selected role proofs, ambiguous owners and changed source are rejected without added citations

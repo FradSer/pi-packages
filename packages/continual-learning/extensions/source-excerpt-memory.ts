@@ -1,15 +1,22 @@
 import fs from "node:fs/promises";
 import {constants} from "node:fs";
 import path from "node:path";
+import {isMemoryFilename} from "./memory-files";
 import {containsSensitiveMemoryMaterial, MAX_MEMORY_BYTES, MAX_SNAPSHOT_BYTES, normalizeSnapshotEvidence, sha256Digest, snapshotEditPatchText} from "./consolidation-run";
-import {materializeMemoryKnowledge, resolveMemoryPlanCitations} from "./memory-citation-locations";
+import {materializeMemoryKnowledge, resolveMemoryPlanCitations, memoryCitationDomain, memoryCitationReferenceMatches, MemoryCitationLocationError} from "./memory-citation-locations";
+import {isObservedFunctionDeclaration, isCompleteOuterFunctionDeclaration} from "./memory-declaration-view";
+import {MemoryRelationClosureError, declaredMemoryRelation, selectedMemoryRelationClosures, type MemoryRelationObligations} from "./memory-relation-closure";
 
 type Row = Record<string, unknown>;
 type Run = {manifest: {cwd: string}};
 type Binding = {file: string; identity: string; digest: string};
+type SelectedAtomicRelation = ReturnType<typeof declaredMemoryRelation>["relation"];
 /** Only the parent collector can supply this grant; plan fields cannot. */
 type AuditSources = {evidenceDigest: string; entryDigests: readonly string[]; requireAudit?: boolean};
 const bindings = new WeakMap<Run, Binding[]>();
+// Parent-only state through this run, including its admitted semantic correction.
+const relationObligations = new WeakMap<Run, Map<string, MemoryRelationObligations>>();
+const roleOnlyRejections = new WeakMap<Error, {run: Run; planDigest: string; snapshotDigest: string}>();
 const record = (value: unknown): Row | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Row : undefined;
 const message = (value: unknown) => record(record(value)?.message) ?? record(value);
 function invalid(): never {throw new Error("Source excerpt is not bound to an eligible current project source observation");}
@@ -74,7 +81,7 @@ export async function assertSourceExcerptBindings(run: Run): Promise<void> {
 /** One provenance path for standalone excerpts and exact-source body units.
  * It returns data only; the outer transaction commits bindings after all units. */
 async function resolveSourceSelection(run: Run, selection: unknown, rawEvidence: unknown, snapshot: unknown,
-  audit?: AuditSources): Promise<{body: string; description: string; binding: Binding}> {
+  audit?: AuditSources, completeDeclaration = false, sourceSpan?: {start: number; end: number}): Promise<{body: string; description: string; binding: Binding}> {
   const entries = record(snapshot)?.entries;
   if (!Array.isArray(entries)) invalid();
   const ref = record(selection);
@@ -124,6 +131,21 @@ async function resolveSourceSelection(run: Run, selection: unknown, rawEvidence:
   const source = await readSource(path.join(await fs.realpath(root), relative));
   if (!source.text.includes(quote) || result.toolName === "learning_read"
     && record(result.details)?.sourceSha256 !== source.binding.digest) invalid();
+  if (completeDeclaration) {
+    const start = /^e\d+\.b0\.l(\d+)$/.exec(ref.ref);
+    const end = /^e\d+\.b0\.l(\d+)$/.exec(String(ref.endRef ?? ref.ref));
+    const offset = args.offset ?? 1;
+    if (!/\.d\.(?:ts|mts|cts)$/.test(relative) || !start || !end || !Number.isSafeInteger(offset) || Number(offset) < 1
+      || !isCompleteOuterFunctionDeclaration(source.text, quote, Number(offset) + Number(start[1]) - 1,
+        Number(offset) + Number(end[1]) - 1)) invalid();
+  }
+  if (sourceSpan) {
+    if (!Number.isSafeInteger(sourceSpan.start) || !Number.isSafeInteger(sourceSpan.end)
+      || sourceSpan.start < 0 || sourceSpan.end <= sourceSpan.start || sourceSpan.end > source.text.length) invalid();
+    const local = source.text.slice(sourceSpan.start, sourceSpan.end);
+    if (!quote.includes(local)) invalid();
+    quote = local;
+  }
   const filename = relative.split(path.sep).join("/");
   const description = excerptDescription(filename, quote);
   const fence = "`".repeat(Math.max(3, ...[...quote.matchAll(/`+/g)].map(match => match[0].length + 1)));
@@ -135,53 +157,305 @@ function projectHeader(name: unknown, description: string): string {
   return `---\nname: ${JSON.stringify(name)}\ndescription: ${JSON.stringify(description)}\ntype: project\n---\n`;
 }
 
+function projectMetadataProblems(item: Row, position: string): Error[] {
+  const errors: Error[] = [];
+  if (item.classification !== "safe" && item.classification !== "private") errors.push(new Error(`${position}.classification must be safe or private`));
+  if (Object.keys(item).some(key => !["name", "kind", "classification", "description", "knowledge"].includes(key))) errors.push(new Error(`${position} has unsupported project knowledge fields`));
+  if (typeof item.description !== "string" || !item.description.trim() || item.description.length > 120 || /[\r\n]/.test(item.description)) {
+    errors.push(new Error(`${position}.description must be a non-empty single-line string of 1..120 UTF-16 code units (actual=${typeof item.description === "string" ? item.description.length : "non-string"})`));
+  }
+  return errors;
+}
+
+/** Snapshot-only diagnostics before current-file reads or source bindings.
+ * Original choices stay unchanged; closure obligations remain bound to the run. */
+function preflightFreshMemoryPlan(run: Run, plan: Row, snapshot: unknown): void {
+  const errors: Error[] = [];
+  if (!Array.isArray(plan.newMemories) || plan.newMemories.length > 16) return;
+  for (const [itemIndex, value] of plan.newMemories.entries()) {
+    const item = record(value);
+    if (item?.kind !== "project" || !Object.hasOwn(item, "knowledge")) continue;
+    const position = `newMemories[${itemIndex}]`, knowledge = record(item.knowledge);
+    errors.push(...projectMetadataProblems(item, position));
+    const catalog = knowledge?.sourceCitations, units = knowledge?.units;
+    const catalogBounded = Array.isArray(catalog) && catalog.length >= 1 && catalog.length <= 8;
+    const unitsBounded = Array.isArray(units) && units.length >= 1 && units.length <= 32;
+    if (!catalogBounded) errors.push(new Error(`${position}.knowledge.sourceCitations requires 1..8 citations`));
+    if (!unitsBounded) errors.push(new Error(`${position}.knowledge.units requires 1..32 body units`));
+    const selections: {position: string; value: unknown}[] = catalogBounded
+      ? catalog.map((value, index) => ({position: `${position}.knowledge.sourceCitations[${index}]`, value})) : [];
+    if (unitsBounded) for (const [index, value] of units.entries()) {
+      const unit = record(value);
+      if (unit?.kind !== "declared-api-relation") continue;
+      // Legacy atomic input stays readable, while fresh producers use text.
+      for (const role of ["factory", "owner", "member"]) selections.push({position: `${position}.knowledge.units[${index}].${role}`, value: unit[role]});
+      try {declaredMemoryRelation(snapshot, unit, run.manifest.cwd);}
+      catch (error) {errors.push(error instanceof MemoryRelationClosureError ? error : new Error(`${position}.knowledge has invalid declaration roles`));}
+    }
+    for (const selection of selections) {
+      try {
+        const resolved = record(resolveMemoryPlanCitations({newMemories: [{evidence: [selection.value]}]}, snapshot))!;
+        normalizeSnapshotEvidence((resolved.newMemories as Row[])[0].evidence, snapshot);
+      } catch (error) {
+        errors.push(error instanceof MemoryCitationLocationError
+          ? new MemoryCitationLocationError([`${selection.position}: ${error.message.replace("Memory citation locations are invalid: ", "")}`])
+          : new Error(`${selection.position}: citation-gate-rejected`));
+      }
+    }
+    if (catalogBounded && unitsBounded) {
+      const name = String(item.name).toLowerCase();
+      try {selectedMemoryRelationClosures(snapshot, knowledge, run.manifest.cwd, relationObligations.get(run)?.get(name), value => {
+          if (!value.requirements.length) return;
+          const retained = relationObligations.get(run) ?? new Map<string, MemoryRelationObligations>();
+          retained.set(name, value);relationObligations.set(run, retained);
+        });}
+      catch (error) {
+        if (error instanceof MemoryRelationClosureError) {
+          if (error.obligations) {
+            const retained = relationObligations.get(run) ?? new Map<string, MemoryRelationObligations>();
+            retained.set(name, structuredClone(error.obligations));relationObligations.set(run, retained);
+          }
+          errors.push(error);
+        } else errors.push(new Error(`${position}.knowledge: invalid source-role selection`));
+      }
+    }
+  }
+  if (!errors.length) return;
+  if (errors.length === 1) {
+    const error = errors[0];
+    const manifest = record(run.manifest)!;
+    const identityMatches = ["runId", "scopeKey", "scopeDigest", "snapshotDigest"].every(key =>
+      typeof plan[key] === "string" && plan[key] === manifest[key]) && plan.artifactHash === manifest.snapshotDigest;
+    if (identityMatches && error instanceof MemoryRelationClosureError && error.obligations?.requirements.length) {
+      roleOnlyRejections.set(error, {run, planDigest: sha256Digest(JSON.stringify(plan)), snapshotDigest: sha256Digest(JSON.stringify(snapshot))});
+    }
+    throw error;
+  }
+  const message = "Fresh Memory proposal validation failed: " + errors.map(error => error.message).join("; ");
+  if (Buffer.byteLength(message) > 32_000) throw new Error("Fresh Memory diagnostics exceed the unchanged 32KB metadata bound");
+  const closure = errors.find(error => error instanceof MemoryRelationClosureError) as MemoryRelationClosureError | undefined;
+  if (closure) throw new MemoryRelationClosureError(message, closure.snapshotProjectionDigest, closure.obligations);
+  if (errors.every(error => error instanceof MemoryCitationLocationError)) throw new MemoryCitationLocationError(errors.map(error => error.message.replace("Memory citation locations are invalid: ", "")));
+  throw new Error(message);
+}
+
+/** Only an actual sole source-role rejection can freeze one fresh text proposal. */
+export function sourceRoleOnlyRepairAdmitted(run: Run, raw: unknown, snapshot: unknown, error: unknown): boolean {
+  const admission = error instanceof Error ? roleOnlyRejections.get(error) : undefined;
+  if (!admission) return false;
+  if (admission.run !== run || admission.planDigest !== sha256Digest(JSON.stringify(raw))
+    || admission.snapshotDigest !== sha256Digest(JSON.stringify(snapshot))) throw new Error("Bound source-role repair admission changed");
+  const plan = record(raw), item = Array.isArray(plan?.newMemories) && plan.newMemories.length === 1 ? record(plan.newMemories[0]) : undefined;
+  const knowledge = record(item?.knowledge), catalog = knowledge?.sourceCitations, units = knowledge?.units;
+  if (plan?.kind !== "incremental-memory-plan" || plan.version !== 1 || plan.schemaVersion !== 1
+    || Object.keys(plan).some(key => !["kind", "version", "schemaVersion", "runId", "scopeKey", "scopeDigest", "artifactHash", "snapshotDigest", "operations", "newMemories"].includes(key))
+    || !Array.isArray(plan.operations) || plan.operations.length || !item || item.kind !== "project"
+    || typeof item.name !== "string" || !isMemoryFilename(item.name) || projectMetadataProblems(item, "proposal").length
+    || !Array.isArray(catalog) || !Array.isArray(units)
+    || !relationObligations.get(run)?.has(item.name.toLowerCase())) return false;
+  try {
+    const materialized = materializeMemoryKnowledge(projectHeader(item.name, String(item.description)), knowledge, snapshot);
+    if (Buffer.byteLength(materialized.content) > MAX_MEMORY_BYTES) return false;
+  } catch {return false;}
+  if (containsSensitiveMemoryMaterial(JSON.stringify(raw))) throw new Error("Sensitive source-role repair input");
+  return true;
+}
+
 /** Initial project proposals select existing evidence rather than
  * regenerate technical claims. This materializes data, never write authority. */
-export async function materializeSourceExcerptPlan(run: Run, raw: unknown, snapshot: unknown, audit?: AuditSources): Promise<unknown> {
+export async function materializeSourceExcerptPlan(run: Run, raw: unknown, snapshot: unknown, audit?: AuditSources,
+  options: {retainSelectedDeclarations?: true; priorContents?: ReadonlyMap<string, string>} = {}): Promise<unknown> {
   const plan = record(raw);
   const selected = (item: unknown) => ["sourceExcerpt", "knowledge"].some(key => Object.hasOwn(record(item) ?? {}, key));
+  if (options.retainSelectedDeclarations && Array.isArray(plan?.newMemories)) {
+    for (const value of plan.newMemories) {
+      const item = record(value);
+      if (relationObligations.get(run)?.has(String(item?.name).toLowerCase())
+        && (item?.kind !== "project" || !record(item.knowledge))) {
+        throw new Error("Retained API relation proposal requires project knowledge with explicitly selected source roles");
+      }
+    }
+  }
   if (!plan || !Array.isArray(plan.newMemories) || !plan.newMemories.some(selected)) return raw;
+  if (options.retainSelectedDeclarations) preflightFreshMemoryPlan(run, plan, snapshot);
   await assertSourceExcerptBindings(run);
   const pending: Binding[] = [];
   const newMemories = [];
-  for (const value of plan.newMemories) {
+  const fileRefs = options.retainSelectedDeclarations ? new Set(memoryCitationDomain(snapshot, {fileSourcesFromCwd: run.manifest.cwd}).fileRefs) : undefined;
+  const fileSelection = (value: unknown, position: string): Row => {
+    const fail = (category: string): never => {throw new Error(`Memory file-source selection is invalid: ${position}: ${category}`);};
+    const ref = record(value);
+    if (!ref || Object.keys(ref).some(key => !["ref", "endRef"].includes(key)) || typeof ref.ref !== "string") return fail("invalid-file-reference");
+    if (!fileRefs?.has(ref.ref) || ref.endRef !== undefined && (typeof ref.endRef !== "string" || !fileRefs.has(ref.endRef))) return fail("ineligible-file-reference");
+    return ref;
+  };
+  for (const [itemIndex, value] of plan.newMemories.entries()) {
     const item = record(value);
     if (!item || !selected(item)) {newMemories.push(value);continue;}
     if (Object.hasOwn(item, "content") || item.kind !== "project") invalid();
     let replacement: Row;
     if (Object.hasOwn(item, "knowledge")) {
-      if (item.classification !== "safe" && item.classification !== "private"
-        || Object.keys(item).some(key => !["name", "kind", "classification", "description", "knowledge"].includes(key))
-        || typeof item.description !== "string" || !item.description.trim() || item.description.length > 120
-        || /[\r\n]/.test(item.description)) invalid();
-      const knowledge = record(item.knowledge);
-      if (!knowledge || !Array.isArray(knowledge.units) || !Array.isArray(knowledge.sourceCitations)) invalid();
-      const units = knowledge.units.map(value => {
+      const metadataProblems = projectMetadataProblems(item, `newMemories[${itemIndex}]`);
+      if (metadataProblems.length) throw metadataProblems[0];
+      const originalKnowledge = record(item.knowledge);
+      if (!originalKnowledge || !Array.isArray(originalKnowledge.units) || !Array.isArray(originalKnowledge.sourceCitations)) invalid();
+      let knowledge = originalKnowledge as Row & {units: unknown[]; sourceCitations: unknown[]};
+      const atomicRelations: SelectedAtomicRelation[] = [];
+      if (options.retainSelectedDeclarations) {
+        const catalog = [...knowledge.sourceCitations], normalized: unknown[] = [];
+        for (const [unitIndex, value] of knowledge.units.entries()) {
+          const unit = record(value);
+          if (unit && (Object.hasOwn(unit, "sourceCitationIndex") || Object.hasOwn(unit, "fileSourceRef"))) {
+            throw new Error(`Fresh Memory source units require text and citationIndexes: newMemories[${itemIndex}].knowledge.units[${unitIndex}]`);
+          }
+          if (unit?.kind !== "declared-api-relation") {normalized.push(value);continue;}
+          const selected = declaredMemoryRelation(snapshot, unit, run.manifest.cwd);
+          const name = String(item.name).toLowerCase();
+          const retained = relationObligations.get(run) ?? new Map<string, MemoryRelationObligations>();
+          const prior = retained.get(name);
+          if (prior && prior.snapshotProjectionDigest !== selected.obligations.snapshotProjectionDigest) {
+            throw new MemoryRelationClosureError("Selected API relation snapshot projection changed");
+          }
+          const requirements = [...(prior?.requirements ?? [])];
+          for (const requirement of selected.obligations.requirements) {
+            if (!requirements.some(value => value.sourcePath === requirement.sourcePath && value.sourceSha256 === requirement.sourceSha256
+              && value.factory === requirement.factory && value.owner === requirement.owner && value.member === requirement.member)) {
+              requirements.push(requirement);
+            }
+          }
+          retained.set(name, {...selected.obligations, requirements});relationObligations.set(run, retained);
+          const indexes = selected.refs.map(ref => {
+            fileSelection(ref, "declared-api-relation");
+            let index = catalog.findIndex(citation => memoryCitationReferenceMatches(citation, ref, snapshot));
+            if (index < 0) {index = catalog.length;catalog.push(ref);}
+            return index;
+          });
+          atomicRelations.push({...selected.relation, indexes});
+          selected.refs.forEach((ref, at) => normalized.push({sourceCitationIndex: indexes[at], fileSourceRef: ref}));
+        }
+        knowledge = {...knowledge, sourceCitations: catalog, units: normalized};
+      }
+      const fileSelections = new Map<number, Row>();
+      const units = knowledge.units.map((value, unitIndex) => {
         const unit = record(value);
         if (!unit || !Object.hasOwn(unit, "sourceCitationIndex")) return value;
         const index = unit.sourceCitationIndex;
-        if (Object.keys(unit).length !== 1 || !Number.isSafeInteger(index)
+        if (Object.keys(unit).some(key => !["sourceCitationIndex", ...(options.retainSelectedDeclarations ? ["fileSourceRef"] : [])].includes(key)) || !Number.isSafeInteger(index)
           || Number(index) < 0 || Number(index) >= (knowledge.sourceCitations as unknown[]).length) invalid();
+        if (options.retainSelectedDeclarations) {
+          const position = `newMemories[${itemIndex}].knowledge.units[${unitIndex}]`;
+          const selection = fileSelection(unit.fileSourceRef, position);
+          if (!memoryCitationReferenceMatches((knowledge.sourceCitations as unknown[])[Number(index)], selection, snapshot)) {
+            throw new Error(`Memory file-source selection is invalid: ${position}: catalog-slot-does-not-match-selection`);
+          }
+          fileSelections.set(unitIndex, selection);
+        }
         return {text: "Original source selection", citationIndexes: [index]};
       });
-      const header = projectHeader(item.name, item.description);
+      const header = options.priorContents?.get(String(item.name)) ?? projectHeader(item.name, item.description as string);
       // Validate every unit and the complete catalog before reading current source.
       materializeMemoryKnowledge(header, {...knowledge, units}, snapshot);
+      let relations: ReturnType<typeof selectedMemoryRelationClosures> = [];
+      if (options.retainSelectedDeclarations) {
+        const name = String(item.name).toLowerCase();
+        try {relations = selectedMemoryRelationClosures(snapshot, knowledge, run.manifest.cwd, relationObligations.get(run)?.get(name), value => {
+          if (!value.requirements.length) return;
+          const retained = relationObligations.get(run) ?? new Map<string, MemoryRelationObligations>();
+          retained.set(name, value);relationObligations.set(run, retained);
+        });}
+        catch (error) {
+          if (error instanceof MemoryRelationClosureError && error.obligations) {
+            const retained = relationObligations.get(run) ?? new Map<string, MemoryRelationObligations>();
+            retained.set(name, structuredClone(error.obligations));relationObligations.set(run, retained);
+          }
+          throw error;
+        }
+      }
       for (const [index, value] of knowledge.units.entries()) {
         const unit = record(value)!;
         if (!Object.hasOwn(unit, "sourceCitationIndex")) continue;
         const citation = record(knowledge.sourceCitations[Number(unit.sourceCitationIndex)]);
         if (!citation) invalid();
         const {body, binding} = await resolveSourceSelection(run,
-          {ref: citation.ref, ...(citation.endRef === undefined ? {} : {endRef: citation.endRef})},
+          fileSelections.get(index) ?? {ref: citation.ref, ...(citation.endRef === undefined ? {} : {endRef: citation.endRef})},
           knowledge.sourceCitations, snapshot, audit);
         units[index] = {text: body, citationIndexes: [unit.sourceCitationIndex]};
         pending.push(binding);
       }
+      // The model already chose these references for its prose. Preserve only
+      // complete observed declarations as neutral source data, never select facts.
+      const explicit = new Set(knowledge.units.flatMap(value => {
+        const unit = record(value);return unit && Object.hasOwn(unit, "sourceCitationIndex") ? [unit.sourceCitationIndex] : [];
+      }));
+      const used = new Set(knowledge.units.flatMap(value => {
+        const unit = record(value);return unit && typeof unit.text === "string" && Array.isArray(unit.citationIndexes) ? unit.citationIndexes : [];
+      }));
+      const covers = (outer: unknown, inner: unknown) => {
+        const a = record(outer), b = record(inner);
+        const first = (value: unknown) => typeof value === "string" ? /^(e\d+\.b\d+\.l)(\d+)$/.exec(value) : null;
+        const x = first(a?.ref), y = first(b?.ref), xe = first(a?.endRef ?? a?.ref), ye = first(b?.endRef ?? b?.ref);
+        return !!x && !!y && !!xe && !!ye && x[1] === y[1] && xe[1] === x[1] && ye[1] === y[1]
+          && Number(x[2]) <= Number(y[2]) && Number(xe[2]) >= Number(ye[2]);
+      };
+      const retained = [...explicit].map(index => (knowledge.sourceCitations as unknown[])[Number(index)]);
+      const additions = options.retainSelectedDeclarations ? knowledge.sourceCitations.flatMap((citation, index) => {
+        if (!used.has(index) || retained.some(prior => covers(prior, citation)) || !isObservedFunctionDeclaration(snapshot, citation)) return [];
+        retained.push(citation);return [index];
+      }) : [];
+      if (units.length + additions.length > 32) throw new Error("Atomic Memory knowledge requires 1..32 cited body units including retained declarations");
+      for (const index of additions) {
+        const citation = record(knowledge.sourceCitations[index])!;
+        const {body, binding} = await resolveSourceSelection(run,
+          {ref: citation.ref, ...(citation.endRef === undefined ? {} : {endRef: citation.endRef})},
+          knowledge.sourceCitations, snapshot, audit, true);
+        units.push({text: body, citationIndexes: [index]});
+        pending.push(binding);
+      }
+      // Successful closure already proves every source role was explicitly
+      // selected and used. Normalize those same catalog indexes through the
+      // atomic path without requiring a second producer spelling of the choice.
+      const selectedRelations = [...atomicRelations];
+      for (const relation of relations) {
+        if (!selectedRelations.some(selected => selected.sourcePath === relation.sourcePath && selected.factory === relation.factory && selected.owner === relation.owner && selected.member === relation.member)) {
+          selectedRelations.push(relation);
+        }
+      }
+      const derivedCopies = new Set<string>();
+      for (const relation of selectedRelations) {
+        // Verify the complete original selections before projecting any derived
+        // block. Narrowing must not conceal an oversized, stale or sensitive quote.
+        if (relation.sourceSelections) for (const index of new Set(relation.indexes)) {
+          const citation = record((knowledge.sourceCitations as unknown[])[index])!;
+          const original = await resolveSourceSelection(run,
+            {ref: citation.ref, ...(citation.endRef === undefined ? {} : {endRef: citation.endRef})},
+            knowledge.sourceCitations, snapshot, audit);
+          if (containsSensitiveMemoryMaterial(original.body)) invalid();
+          pending.push(original.binding);
+        }
+        const selections: NonNullable<SelectedAtomicRelation["sourceSelections"]> = relation.sourceSelections ?? relation.indexes.map(index => {
+          const citation = record((knowledge.sourceCitations as unknown[])[index])!;
+          return {index, ref: citation.ref as string, ...(citation.endRef === undefined ? {} : {endRef: citation.endRef as string})};
+        });
+        for (const {index, sourceSpan, ...selection} of selections) {
+          const key = `${index}:${selection.ref}:${selection.endRef ?? selection.ref}:${sourceSpan?.start ?? ""}:${sourceSpan?.end ?? ""}`;
+          if (derivedCopies.has(key)
+            || [...explicit].some(prior => covers((knowledge.sourceCitations as unknown[])[Number(prior)], selection))
+            || additions.some(prior => covers((knowledge.sourceCitations as unknown[])[prior], selection))) continue;
+          const {body, binding} = await resolveSourceSelection(run, selection, knowledge.sourceCitations, snapshot, audit, false, sourceSpan);
+          units.push({text: body, citationIndexes: [index]});derivedCopies.add(key);pending.push(binding);
+          if (!relation.sourceSelections) explicit.add(index);
+        }
+        const roleBindings = pending.filter(binding => binding.file === relation.sourcePath);
+        if (!roleBindings.length || roleBindings.some(binding => binding.digest !== relation.sourceSha256)) invalid();
+        units.push({text: `Observed declaration syntax from ${JSON.stringify(relation.file)} (source observation only):\n\n` +
+          `\`${relation.factory}\` has the named return type \`${relation.owner}\`.\n\n` +
+          `\`${relation.owner}\` declares \`${relation.member}\`.`, citationIndexes: [...new Set(relation.indexes)]});
+      }
       const materialized = materializeMemoryKnowledge(header, {...knowledge, units}, snapshot);
       replacement = {name: item.name, kind: item.kind, classification: item.classification, ...materialized};
     } else {
-      if (item.classification !== "private") invalid();
+      if (options.retainSelectedDeclarations || item.classification !== "private") invalid();
+      if (options.retainSelectedDeclarations) fileSelection(item.sourceExcerpt, `newMemories[${itemIndex}].sourceExcerpt`);
       const {body, description, binding} = await resolveSourceSelection(run, item.sourceExcerpt, item.evidence, snapshot, audit);
       const {sourceExcerpt: _selection, ...rest} = item;
       replacement = {...rest, content: projectHeader(item.name, description) + "\n" + body};
@@ -196,5 +470,41 @@ export async function materializeSourceExcerptPlan(run: Run, raw: unknown, snaps
     if (binding.identity !== expected.identity || binding.digest !== expected.digest) invalid();
   }
   bindings.set(run, [...(bindings.get(run) ?? []), ...pending]);
+  // Weak parent state survives correction and is released with the run object.
   return {...plan, newMemories};
+}
+
+/** Parent DATA only; callers bind it to their existing run/snapshot identity. */
+export function selectedProjectSourceObligations(run: Run): Record<string, MemoryRelationObligations> {
+  return Object.fromEntries([...(relationObligations.get(run) ?? [])].map(([name, value]) => {
+    const publicValue = structuredClone(value);
+    for (const requirement of publicValue.requirements) {
+      for (const reference of [...requirement.roles.flatMap(role => role.alternatives), ...(requirement.initiatingWrapperWitness?.alternatives ?? [])]) {
+        delete reference.sourceSpan;
+      }
+    }
+    return [name, publicValue];
+  }));
+}
+
+/** Same source materializer, with the exact existing frontmatter rather than a new header. */
+export async function materializeSemanticProjectKnowledge(run: Run, name: string, prior: string, knowledge: unknown,
+  snapshot: unknown, audit?: AuditSources): Promise<{content: string; evidence: ReturnType<typeof normalizeSnapshotEvidence>}> {
+  const result = record(await materializeSourceExcerptPlan(run, {operations: [], newMemories: [{name, kind: "project",
+    classification: "private", description: "Source-bound correction.", knowledge}]}, snapshot, audit,
+    {retainSelectedDeclarations: true, priorContents: new Map([[name, prior]])}))!;
+  const item = record((result.newMemories as unknown[])[0])!;
+  return {content: item.content as string, evidence: item.evidence as ReturnType<typeof normalizeSnapshotEvidence>};
+}
+
+/** Retain original parent-selected relation requirements, including an incomplete initial selection. */
+export function retainProjectSourceObligations(run: Run, name: string, knowledge: unknown, snapshot: unknown): void {
+  const key = name.toLowerCase();
+  const capture = (value: MemoryRelationObligations) => {
+    if (!value.requirements.length) return;
+    const retained = relationObligations.get(run) ?? new Map<string, MemoryRelationObligations>();
+    retained.set(key, value);relationObligations.set(run, retained);
+  };
+  try {selectedMemoryRelationClosures(snapshot, knowledge, run.manifest.cwd, relationObligations.get(run)?.get(key), capture);}
+  catch (error) {if (!(error instanceof MemoryRelationClosureError && error.obligations)) throw error;}
 }

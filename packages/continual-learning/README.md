@@ -340,6 +340,57 @@ imports. The original evidence stays intact. These locations describe observed
 syntax, not runtime behavior or accepted knowledge; the model still selects the
 Memory content and every existing validation gate still applies.
 
+New incremental project Memory also retains an exact observed-source block when a text unit
+uses a citation that selects one eligible complete outer function declaration. This applies
+only to successfully observed TypeScript declaration files. It preserves the
+selected declaration's parameters as well as its return type, without expanding
+the citation or inferring runtime behavior. Existing source units are not repeated.
+The added blocks count toward the original unit and body limits and receive the
+complete source, privacy and semantic review. They record an observation, including
+when cited as older or contrary evidence; they do not establish current truth.
+Existing entries, legacy formats and semantic corrections keep their contracts.
+Unsupported syntax, oversized views and unproved source occurrences do not qualify.
+
+For new project API knowledge, the parent also checks a narrowly proved source
+relationship. A selected JavaScript wrapper call, its declaration and an observed
+package export map must identify one local factory, named return type and direct
+member. The original user's request must name the wrapper and member in one
+visible sentence. Within a single source-cited knowledge unit, the related
+statements may span sentences; separate units and descriptions are not combined.
+Missing role citations go to the existing single structural correction;
+the model must explicitly select and use them. For a draft rejected because
+roles are missing, the parent retains that obligation through correction, so
+dropping a trigger citation cannot erase it. Validated obligations remain bound to
+the same run and snapshot through admitted atomic project BODY correction,
+including exact-selected existing project rewrites. An initiating wrapper declaration
+already explicitly selected, used and validated by the same AST proof remains a
+separate source witness through structural and semantic correction; it is not a
+fourth ownership role or an added reference. Legacy proofs without that witness
+retain their original three roles. Both paths copy selected
+source bytes and neutral declaration relations while preserving model text,
+catalog entries and the prior frontmatter. Under the unique local direct-owner
+AST proof, a selected complete factory signature can witness both its factory
+and named owner roles; the direct member still needs its selected source span.
+Generic, imported, indirect, inherited, merged or overloaded owners do not gain
+this alternative. The original owner-heading selection remains valid. This does
+not infer runtime behavior, add unselected evidence or bypass any source,
+privacy, preservation or semantic check. Legacy formats retain compatibility.
+
+Fresh project generation uses only `knowledge` with cited text units and one
+source catalog. It does not ask the model to repeat factory/owner/member objects.
+The existing source-relationship check proves complete roles from original
+catalog citations already selected and used by text units, then retains only
+that observed syntax through the same bounded source materializer. It adds no
+missing role or unselected reference and preserves every original text/catalog
+entry. Correct older atomic relation inputs remain readable.
+Before current-file reads, snapshot-only validation collects metadata, catalog
+and unit counts, quote bounds and missing source roles into the existing single
+structural correction. The parent retains bound closure obligations across that
+correction. Description errors identify the exact 120 UTF-16 code-unit limit;
+JSON Schema's character bounds do not replace the parent check. Source, privacy,
+current-file binding and complete semantic validation remain mandatory.
+Already materialized, legacy and semantic-correction formats keep their contracts.
+
 An empty Memory index plus explicit human facts or preferences lets automatic
 learning route its already evidenced phases locally, without a selector model
 call. An initial `/memory <request>` likewise goes straight to Memory planning.
@@ -889,7 +940,7 @@ After parent structure, identity and frozen-quote validation, another batch chec
 
 Normal project requests use the configured service capacity without a local byte cap and retain 32 questions per request; explicit historical experiments may still set `maxRequestBytes: 64000`; cited evidence windows prefer 20,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests default to a 15-second timeout, honor explicit shorter deadlines, use zero SDK retries and at most one connection-only retry, propagate cancellation and disable SDK body logging. That single retry waits a bounded 500 ms backoff before re-issuing the same frozen request, and an abort during the wait is honoured immediately; the retry count, request bounds and per-request deadline are unchanged. A failed request group stops later groups of the same review, so an already-unusable review spends no further requests. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
 
-For an apply-policy Harness plan or incremental Memory plan, an unsupported or uncertain semantic hold may use the existing single read-only repair slot, shared with structural repair. With Jev enabled, the first incremental Memory structural repair also receives the original hash-checked snapshot and selected Memory dossier; it must not turn one-task instructions into lasting preferences. Both files are rechecked after repair, valid original privacy classifications must remain unchanged, and a rejected completed call still retains its usage. This does not add a second repair slot or relax subsequent validation. Memory correction uses frozen evidence and already-read bodies, preserves names, intents and privacy classifications, and retains the original proposal if correction remains held. Duplicate, conflict and service failure do not trigger another correction. A semantic Harness repair may omit unsupported operations, but their exact original evidence is reindexed and saved as private pending proposals. Semantic repair receives an explicit table of the original operation kind, rule identity and complete evidence objects. Retained rule identities and all citation properties must stay unchanged apart from operation indexes; an empty or replacement repair retains the original proposal. Repaired candidates repeat parent validation and Jev judgment; service failures do not cause retries, and unresolved candidates remain proposals. Frozen evidence is checked after each judgment and again in the mutation queue before writing. A direct apply cannot bypass a semantic proposal. Memory index descriptions receive independent support, existing-Memory relationship and full-evidence checks alongside the original body checks. A duplicate description can accompany a body that adds supported knowledge; duplicate bodies and conflicting descriptions remain proposals. All additional questions fit the existing request limits before any call; budget exhaustion retains a proposal.
+For an apply-policy Harness plan, an unsupported or uncertain semantic hold may use its existing single read-only repair slot shared with structural repair. Incremental Memory permits one structural correction followed by at most one separate semantic correction, without retrying either phase or replanning. With Jev enabled, the first incremental Memory structural repair also receives the original hash-checked snapshot and selected Memory dossier; it must not turn one-task instructions into lasting preferences. Both files are rechecked after repair, valid original privacy classifications must remain unchanged, and a rejected completed call still retains its usage. These existing phase budgets do not relax subsequent validation. Memory correction uses frozen evidence and already-read bodies, preserves names, intents and privacy classifications, and retains the original proposal if correction remains held. Duplicate, conflict and service failure do not trigger another correction. A semantic Harness repair may omit unsupported operations, but their exact original evidence is reindexed and saved as private pending proposals. Semantic repair receives an explicit table of the original operation kind, rule identity and complete evidence objects. Retained rule identities and all citation properties must stay unchanged apart from operation indexes; an empty or replacement repair retains the original proposal. Repaired candidates repeat parent validation and Jev judgment; service failures do not cause retries, and unresolved candidates remain proposals. Frozen evidence is checked after each judgment and again in the mutation queue before writing. A direct apply cannot bypass a semantic proposal. Memory index descriptions receive independent support, existing-Memory relationship and full-evidence checks alongside the original body checks. A duplicate description can accompany a body that adds supported knowledge; duplicate bodies and conflicting descriptions remain proposals. All additional questions fit the existing request limits before any call; budget exhaustion retains a proposal.
 
 Receipts show directions, selected filenames, phase outcomes, controlled fallback/proposal reasons, Jev latency, actual model version and returned tokens. Cited judgments also report complete reviewed entries and windows; coverage does not itself establish semantic accuracy. `estimatedCostUsd` uses the published `jev-1.13.0` input-token tariff; it is separate from worker totals and is not an invoice. Failed requests without usage have unknown cost. Multi-request failures retain known input/cost lower bounds and completed request counts without claiming a complete total. A held judgment may identify a controlled candidate index, judgment dimension and optional `field: "description"` to explain correction; it does not include candidate text. After complete responses, `candidateFailures` records the first failure on each held candidate and supplies bounded repair hints; it never grants partial application permission. Complete counterevidence failures additionally report a zero-based evidence window and inclusive original entry range; the range is captured before transport and shown in bounded repair hints. Missing, cancelled or inconsistent responses never infer a failure window from coverage. Persisted location fields are rendered only as validated nonnegative safe integers, with no evidence text. Incomplete service responses do not produce this list. Parent Harness rejections report fixed validation categories and counts. Rejected semantic repairs distinguish identity, citation, structure and omitted-plan validation mismatches without revealing their content. A service failure may include `httpStatus` (400–599) from the first failed SDK request; multi-request receipts keep that status without treating partial responses as acceptance. It does not reveal error bodies, headers or the request URL. Sensitive evidence, SDK error text and raw responses are not added to the receipt.
 
@@ -1472,7 +1523,7 @@ Supported DeepSeek IDs are `deepseek-flash`, `deepseek-v4-pro`, and the
 JSON Object only. The separate strict-schema switch does not enable it or send
 a Qwen schema. Empty, incomplete or invalid responses remain rejected.
 
-For a gateway separately verified to support strict JSON Schema output, set
+For a Qwen gateway separately verified to support strict JSON Schema output, set
 `"plannerStructuredOutput": true`. The isolated metadata selector then requests
 its exact position/phase schema. Incremental Memory workers request the complete
 delta schema; candidate-bound semantic repairs request the amendment schema.
@@ -1487,6 +1538,23 @@ This capability is separate from JSON syntax support and excludes unknown models
 out-of-range or duplicate positions and invalid decisions; schema conformance
 cannot authorize learning or establish semantic correctness. A service refusal
 remains a failure, with no silent downgrade or synthesized phase defaults.
+The same explicit opt-in permits `gpt-6-luna` on Responses to use a narrow native
+strict schema for parent-admitted candidate-bound atomic body repairs. It binds
+all supplied `requiredTopLevelValues` and the candidate-reference domain exactly;
+body text and citations remain one `knowledge` catalog/unit value, with description
+changes offered only for admitted candidates. A new project proposal or a rewrite of an exactly selected predecessor with known
+project type must include its description when the complete bound independent description checks actually
+hold it below the original thresholds; paired permission alone does not require
+a change. Original ordered questions, distributions and evidence windows travel
+as complete bound repair data, replacing representative-only feedback. Overflow
+refuses the task without clipping the checklist. Complete source catalogs stay in
+task data and every parent source, identity, privacy and semantic check still runs.
+The same opt-in binds fresh empty-selection plans and their sole structural
+correction to the exact parent kind/version/schemaVersion and five identity
+values, empty operations, and bounded project text/catalog or preference output.
+Optional citation roles and ranges remain explicit alternatives. Other models,
+selected-record plans and repair modes outside these profiles keep their contracts. Controlled wire tests do not prove gateway acceptance; an
+actual service refusal remains a recorded failure, without a fallback or retry.
 
 When an explicit `/memory <request>` encounters private Memory and Jev review
 is enabled, Pi asks permission to send the relevant private bodies and task
@@ -1686,21 +1754,20 @@ can identify the declared API and source file while the body preserves its full
 type structure. This changes generation guidance, not evidence or semantic gates.
 
 
-New private project proposals may select `sourceExcerpt: {ref, endRef?}` instead
-of generated `content`. The parent requires a successful original project `read`
-or complete added lines from a uniquely bound successful `edit`, matching
-candidate evidence and unchanged current source bytes. It copies the
-exact excerpt and supplies a neutral file description before ordinary expansion,
-complete-record review and semantic/privacy validation. Existing rewrites and
-preferences keep their current representation. Protected directories, symlinks,
-stale excerpts and source changes around application are rejected. This optional
-representation reduces opportunities for paraphrase errors; its availability
-alone does not establish effective learning or downstream task benefit.
-When original evidence supports a maintenance purpose or applicability condition,
-generation uses the existing `content` format instead. It retains the complete
-exact declaration and concise supported **Why** and **How to apply** sections.
-It must not invent a purpose, currentness guarantee or runtime behavior. This
-generation policy does not migrate old records or establish learning benefit.
+Legacy private project proposals retain `sourceExcerpt: {ref, endRef?}`
+compatibility. The parent requires a successful original project `read` or
+complete added lines from a uniquely bound successful `edit`, matching candidate
+evidence and unchanged current source bytes. It copies the exact excerpt and
+supplies a neutral file description before complete-record and semantic/privacy
+review. Protected directories, symlinks, stale excerpts and source changes around
+application remain rejected. Parent-enabled semantic correction of a held private
+body also retains its separate `sourceExcerpt` alternative described above.
+Fresh project generation uses `knowledge` and the source-selection contract above,
+for both safe and private records. Supported maintenance purpose and applicability
+conditions use cited text units with concise **Why** and **How to apply** context.
+Preferences keep their current representation. Do not invent a purpose,
+currentness guarantee or runtime behavior. This generation policy does not migrate
+old records or establish learning benefit.
 
 
 Operators may set `plannerThinkingLevel` in the agent's `continual-learning.json`
@@ -1714,7 +1781,7 @@ all source, privacy and semantic validation; it does not establish learning bene
 
 Memory source review distinguishes earlier inspected source from a later successful source edit, and still checks later reverts and failed edits. A failed compound command may contain individually evidenced configuration or lint observations; these never establish overall command success, a successful fix, or verified runtime behavior. These are review questions, not parent-granted semantic acceptance.
 
-For new private project Memory, `sourceExcerpt` also accepts complete contiguous added lines from an original successful `edit` patch. The parent checks its unique invocation, matching `newText` and current regular source file before removing `+` markers for the body; original patch evidence stays unchanged. Removed lines, headers, partial-line references, failed edits and source drift are rejected. This supplies a candidate only and retains every existing semantic and mutation gate.
+For compatible legacy private project proposals, `sourceExcerpt` also accepts complete contiguous added lines from an original successful `edit` patch. The parent checks its unique invocation, matching `newText` and current regular source file before removing `+` markers for the body; original patch evidence stays unchanged. Removed lines, headers, partial-line references, failed edits and source drift are rejected. This supplies a candidate only and retains every existing semantic and mutation gate.
 
 Complete manual `/consolidate backfill` now refreshes source observations for
 paths from the original task before Memory selection. This addresses tasks whose

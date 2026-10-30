@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from datetime import datetime
 import hmac
 import ipaddress
 import http.client
@@ -30,6 +31,29 @@ PROJECTS = (
     {"name": "p-limit", "repository": "https://github.com/sindresorhus/p-limit.git", "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb"},
     {"name": "mitt", "repository": "https://github.com/developit/mitt.git", "commit": "6b41670516ed8e8b738612f60491995470aa63b3"},
 )
+
+
+def _model_retry_after(response: http.client.HTTPResponse, credentials: tuple[str | None, ...]) -> str | None:
+    """Forward only one valid end-to-end delay; leave retry policy to Pi."""
+    values = response.headers.get_all('Retry-After', [])
+    connection_tokens = ','.join(response.headers.get_all('Connection', [])).lower().split(',')
+    if len(values) != 1 or 'retry-after' in (token.strip() for token in connection_tokens):
+        return None
+    value = values[0]
+    if not 0 < len(value) <= 128 or any(ord(char) < 32 or ord(char) > 126 for char in value):
+        return None
+    if any(credential and credential in value for credential in credentials):
+        return None
+    if not value.isdecimal():
+        for date_format in ('%a, %d %b %Y %H:%M:%S GMT', '%A, %d-%b-%y %H:%M:%S GMT', '%a %b %d %H:%M:%S %Y'):
+            try:
+                datetime.strptime(value, date_format)
+                break
+            except ValueError:
+                continue
+        else:
+            return None
+    return value
 
 
 def _run_jev_forwarder(args: list[str], *, input: bytes, env: dict[str, str],
@@ -235,7 +259,11 @@ class InferenceProxy:
     def __init__(self, config_root: Path, *, jev_key: str | None = None, request_budget: int | None = 180,
                  selection: dict[str, str] | None = None, jev_transport: str = "python-http", jev_model: str = "jev-1.13.0",
                  max_request_bytes: int | None = None, jev_resolved_address: str | None = None,
-                 retain_jev_envelopes: bool = False) -> None:
+                 retain_jev_envelopes: bool = False, expected_api: str | None = None) -> None:
+        if expected_api not in (None,"openai-responses","openai-completions"):
+            raise ValueError("Unsupported expected model API")
+        self.expected_api = expected_api
+        self.model_route_refusals: dict[str,int] = {}
         if jev_resolved_address is not None:
             try:
                 address = ipaddress.IPv4Address(jev_resolved_address)
@@ -283,6 +311,9 @@ class InferenceProxy:
         self.active_requests = 0
         self.quiescence = threading.Condition(self.counter_lock)
         selected_model = next(model for model in provider["models"] if model["id"] == self.selection["model"])
+        self.effective_api = selected_model.get("api",provider.get("api"))
+        if expected_api is not None and self.effective_api != expected_api:
+            raise ValueError("Selected effective model API does not match expected API")
         self.model = {name: value for name, value in selected_model.items()
                       if name in {"id", "name", "api", "contextWindow", "maxTokens", "input", "cost", "reasoning", "compat", "thinkingLevelMap"}}
         self.public_provider = {name: value for name, value in provider.items() if name in {"name", "api", "compat"}}
@@ -304,6 +335,12 @@ class InferenceProxy:
                     return
                 if not hmac.compare_digest(self.headers.get("Authorization", "").encode(), f"Bearer {owner.token}".encode()):
                     self.send_error(401)
+                    return
+                expected_route = {"openai-responses":"/v1/responses","openai-completions":"/v1/chat/completions"}.get(owner.expected_api)
+                if not is_jev and expected_route is not None and self.path != expected_route:
+                    with owner.counter_lock:
+                        owner.model_route_refusals[self.path] = owner.model_route_refusals.get(self.path,0) + 1
+                    self.send_error(403,"Unexpected model API route")
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
@@ -361,7 +398,7 @@ class InferenceProxy:
                             schema = response_format if responses else response_format.get('json_schema')
                             schema = schema if format_type == 'json_schema' and isinstance(schema, dict) else {}
                             schema_name = schema.get('name')
-                            owner.model_observations.append({'request': owner.requests,
+                            owner.model_observations.append({'request': owner.requests,'route':self.path,
                                 **model_prompt_observation(payload, responses=responses),
                                 'toolCount': len(tools) if isinstance(tools, list) else None,
                                 'toolChoice': choice if choice in ('none', 'auto', 'required') else 'other-or-absent',
@@ -445,6 +482,10 @@ class InferenceProxy:
                         observation['status'] = 'receiving' if response.status < 400 else 'http-error'
                     self.send_response(response.status)
                     self.send_header("Content-Type", response.getheader("Content-Type", "application/json"))
+                    if not is_jev:
+                        retry_after = _model_retry_after(response, (owner.key, owner.jev_key, owner.token))
+                        if retry_after is not None:
+                            self.send_header("Retry-After", retry_after)
                     self.send_header("Connection", "close")
                     self.end_headers()
                     if response.status >= 400:

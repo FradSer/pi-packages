@@ -80,6 +80,18 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     And the parent still preserves the original header before full review
     And deletion reconsideration examples use the selected record header instead of inventing metadata
 
+  Scenario: A validated semantic repair retains parent-owned causal provenance
+    Given one actual repair worker invocation and its complete rejected plan
+    When the parent constrains, materializes and validates the returned plan
+    Then one receipt binds its native ledger, task input, identity, raw response and actual plan bytes
+    And canonical plan digests remain distinct from serialized artifact byte digests
+    And copied results, swapped ledgers and changed output cannot borrow another result's provenance
+    And each invocation retains its immutable response while the generic response remains a latest view
+    And publication cannot replace an artifact created concurrently
+    And partial or unpriced usage remains recorded without invalidating a proved causal association
+    And invalid or sensitive output keeps its existing rejection and hash-only handling
+    And the receipt grants no semantic approval, Memory write authority or learning success
+
   Scenario: A held review does not require an invented factual correction
     Given a candidate-bound semantic correction with complete original evidence
     When the worker considers the held claims
@@ -88,6 +100,13 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     And it returns an empty amendment when no supported correction exists
     And the parent keeps an empty amendment failed with its usage
     And structural plan repair does not receive an incompatible amendment-only directive
+
+  Scenario: Word apostrophes preserve an explicit API relationship
+    Given selected source and an explicitly named wrapper-member relationship
+    When visible prose uses word-internal possessives or contractions
+    Then the existing relationship checks retain those identifiers
+    And true quoted, fenced and blockquoted examples remain isolated
+    And missing roles are not automatically selected or inferred
 
   Scenario: Declared roles do not imply runtime object inequality
     Given an observed declaration and a callable that can return itself
@@ -103,3 +122,10 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     Then the run artifact retains the exact rejected plan and its digest
     And a sensitive rejected output retains its digest without its plan
     And the original rejection, usage and all validation gates remain
+
+  Scenario: Initial Memory planner preserves the configured network route
+    Given the parent uses explicit HTTP and HTTPS proxy settings with Node environment-proxy opt-in
+    When the parent starts its initial read-only Memory planner
+    Then the planner retains that proxy route and local bypass list
+    And unrelated credentials, arbitrary Node preloads and TLS-verification overrides are not inherited
+    And source validation, semantic thresholds and retry budgets remain unchanged

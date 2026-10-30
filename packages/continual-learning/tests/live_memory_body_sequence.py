@@ -30,7 +30,7 @@ NAME = 'runtime.md'
 
 def markdown(mode: str, *, complete: bool = True) -> str:
     body = f'Observed source in runtime.ts: `export const mode = "{mode}";`.\n'
-    return ('---\nname: runtime\ndescription: runtime.ts declares the release mode\n'
+    return ('---\nname: ' + json.dumps(NAME) + '\ndescription: ' + json.dumps('runtime.ts declares the release mode') + '\n'
             'type: project\n---\n' + body + ('\n'.join(RELATIONS) + '\n' if complete else ''))
 
 
@@ -43,7 +43,7 @@ def citation_lines(value: object) -> list[dict]:
     return []
 
 
-def run(output: Path) -> dict:
+def run(output: Path, *, pi_version: str = '1.3.0') -> dict:
     output.mkdir(parents=True, exist_ok=False)
     project, agent = output / 'project', output / 'agent'
     project.mkdir(); agent.mkdir()
@@ -140,8 +140,8 @@ def run(output: Path) -> dict:
                         assert payload['rejectedPlan']['operations'] == []
                         assert NAME in payload['retainedRepairNames']
                         predecessor = next(x for x in payload['semanticContext']['existingMemories'] if x['name'] == NAME)
-                        content = (predecessor['content'].replace('description: runtime.ts declares the release mode',
-                                   'description: runtime.ts declares the corrected release mode')
+                        content = (predecessor['content'].replace('description: ' + json.dumps('runtime.ts declares the release mode'),
+                                   'description: ' + json.dumps('runtime.ts declares the corrected release mode'))
                                    if phase['name'] == 'description-only' else markdown(mode))
                         fields = ({'knowledge': controlled_knowledge_units(content, evidence)}
                                   if payload.get('atomicKnowledgeContract') and phase['name'] != 'description-only' else {'content': content, 'evidence': evidence})
@@ -184,14 +184,15 @@ def run(output: Path) -> dict:
                     snapshot = json.loads((Path(paths['runsDir']) / field(text, 'runId') / 'snapshot.json').read_text())
                     audit_index = next(i for i, entry in enumerate(snapshot['entries'])
                                        if entry.get('message', {}).get('details', {}).get('readOnlyMaintenanceAudit'))
-                    evidence = [{'index': audit_index, 'quote': 'export const mode = "new";'}]
+                    evidence = [{'ref': f'e{audit_index}.b0.l1'}]
                     answer = {'kind': 'incremental-memory-plan', 'version': 1, 'schemaVersion': 1,
                               **{k: field(text, k) for k in ('runId', 'scopeKey', 'scopeDigest', 'artifactHash', 'snapshotDigest')},
                               'operations': [], 'newMemories': []}
                     if phase['name'] == 'generation':
                         assert evidence
                         answer['newMemories'] = [{'name': NAME, 'kind': 'project', 'classification': 'safe',
-                                                  'content': markdown('new', complete=False), 'evidence': evidence}]
+                                                  'description': 'runtime.ts declares the release mode',
+                                                  'knowledge': controlled_knowledge_units(markdown('new', complete=False), evidence)}]
                     stream_response(self, json.dumps(answer))
                 elif 'Review each complete candidate Memory below' in text:
                     targets = json.loads(text.split('\n')[-1])['targets']
@@ -269,7 +270,7 @@ def run(output: Path) -> dict:
 
     try:
         report['piVersion'] = subprocess.check_output([workspace_pi(REPO), '--version'], text=True).strip()
-        assert report['piVersion'] == '1.3.0'
+        assert report['piVersion'] == pi_version, 'Unexpected native Pi version'
         invoke('source-new', 'Update runtime.ts mode from old to new. Read and preserve its registry dependency, readiness boundary and release-only applicability.')
         assert not receipts()
         invoke('generation', '/memory 整理记忆')
@@ -324,7 +325,8 @@ def run(output: Path) -> dict:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('output', type=Path)
+    parser.add_argument('--pi-version', default='1.3.0')
     args = parser.parse_args()
-    result = run(args.output.resolve())
+    result = run(args.output.resolve(), pi_version=args.pi_version)
     print(json.dumps({key: result[key] for key in ('status', 'piVersion', 'stages', 'localRequests',
                                                  'paidRequests', 'externalRequests', 'learningBenefitEstablished')}))

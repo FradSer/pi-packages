@@ -123,3 +123,98 @@ def test_exact_rewrite_text_comparison_preserves_duplicates_order_warnings_and_l
     assert reordered['unmatchedPredecessorLines'] == reordered['unmatchedReplacementLines'] == []
     assert 'order' in value['reorder']['meaning'] and 'semantic preservation' in value['reorder']['meaning']
     assert value.get('ignored') is None and value.get('ambiguous') is None
+
+
+def test_complete_source_observations_retain_the_original_questions_and_windows():
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const questions={};const judge=createJevJudge({enabled:true,apiKey:'controlled-fixture',allowPrivateMemory:true,independentMemoryApplication:true,requestConcurrency:1,fetch:async(_u,init)=>{
+        const r=JSON.parse(String(init.body));Object.assign(questions,r.questions);
+        return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(r.questions).map(([k,q])=>{
+          const labels=Object.keys(q.criteria),positive=['compatible','grounded','unrelated'].find(x=>labels.includes(x))??labels[0];return [k,{type:'choice',choice:positive,confidence:1,probabilities:Object.fromEntries(labels.map(x=>[x,+(x===positive)]))}];
+        }))}));
+      }});
+      const evidence={schemaVersion:1,contextEnabled:true,entries:[{role:'user',content:'Keep the observed project callable interface.'}]},candidates=[{name:'interface.md',kind:'project',classification:'private',content:'---\nname: interface\ndescription: Observed project callable interface\ntype: project\n---\nThe user identified a project callable interface.',evidence:[{index:0,quote:'Keep the observed project callable interface.',role:'user'}]}];
+      const result=await judge.validate('memory',evidence,candidates,[]),review=result.candidateReview;
+      console.log(JSON.stringify({complete:review?.complete,keysMatch:review&&JSON.stringify(Object.keys(review.checkQuestions))===JSON.stringify(Object.keys(review.checkObservations)),questionsExact:review&&Object.entries(review.checkQuestions).every(([k,q])=>JSON.stringify(q)===JSON.stringify(questions[k])),windows:review?.counterWindows,observations:review?.checkObservations}));
+    ''')
+    assert value.get('complete') and value['keysMatch'] and value['questionsExact'], str(value)
+    assert value['windows'] and value['observations']
+
+
+def test_unbounded_support_keeps_original_execution_context_without_adding_citations():
+    value = isolated_run_bun(r'''
+      import {createHash} from 'node:crypto';
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const build=expression=>({schemaVersion:1,contextEnabled:true,entries:[
+        {role:'user',content:'Keep the observed callable property result as bounded project knowledge.'},
+        {role:'assistant',content:[{type:'toolCall',id:'w',name:'write',arguments:{path:'probe.js',content:'const receiver = createCallable(); console.log("property:", '+expression+');'}}]},
+        {role:'toolResult',toolName:'write',toolCallId:'w',isError:false,content:'Successfully wrote probe.js'},
+        {role:'assistant',content:[{type:'toolCall',id:'b',name:'bash',arguments:{command:'node probe.js'}}]},
+        {role:'toolResult',toolName:'bash',toolCallId:'b',isError:false,content:'property: false'},
+        {role:'assistant',customType:'continual-learning-memory-reference',content:'INJECTED_REFERENCE_MUST_NOT_REENTER'},
+        {role:'assistant',content:[{type:'toolCall',id:'m',name:'read',arguments:{path:'.memory/old.md'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'m',isError:false,content:'Old Memory reference, not independent source.'}
+      ]});
+      const candidate={name:'probe.md',kind:'project',classification:'safe',content:'---\nname: probe\ndescription: Observed callable property\ntype: project\n---\nThe executed probe reported that "flush" in receiver was false.',evidence:[{index:4,quote:'property: false',role:'toolResult'}]};
+      const run=async(expression,bounded=false,mode='normal')=>{
+        const evidence=build(expression),item=structuredClone(candidate),before=JSON.stringify({evidence,item});
+        if(mode==='secret')evidence.entries.push({role:'user',content:'api_key: abcdefghijklmnop'});
+        if(mode==='memory-citation')item.evidence=[{index:7,quote:'Old Memory reference, not independent source.',role:'toolResult'}];
+        if(mode==='false-invocation')item.content+=' The returned callable was invoked.';
+        if(mode==='late')evidence.entries.push({role:'user',content:'Later unrelated audit context '+'.'.repeat(24000)});
+        const requests=[];
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,...(bounded?{maxRequestBytes:64000}:{}),fetch:async(_url,init)=>{
+          const text=String(init.body),r=JSON.parse(text);requests.push({text,payload:r,state:typeof r.state==='string'?JSON.parse(r.state):r.state});
+          return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
+            const labels=Object.keys(q.criteria);let label=['grounded','compatible','independent','unrelated'].find(x=>labels.includes(x))??labels[0];
+            if(mode==='false-invocation' && key==='supported_0')label='unsupported';
+            return [key,{type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(labels.map(x=>[x,+(x===label)]))}];
+          }))}));
+        }});
+        const result=await judge.validate('memory',evidence,mode==='mixed'?[item,{...item,name:'old.md',kind:'rewrite'}]:[item],mode==='mixed'?[{...item,name:'old.md'}]:[]);const support=requests.find(x=>x.payload.questions.supported_0),context=support?.state.originalTaskContext;
+        return {decision:result.decision,reason:result.telemetry.reason,calls:requests.length,context,
+          frozen:support?.state.frozenEvidence,citations:support?.state.originalCitationsByCandidate?.['0'],
+          finiteHash:support?createHash('sha256').update(support.text).digest('hex'):null,
+          instruction:support?.payload.questions.supported_0.instructions.question,
+          otherContext:requests.filter(x=>!Object.keys(x.payload.questions).every(k=>/^(?:supported(?:_description)?_\d+|counter(?:_description)?_\d+_\d+)$/.test(k))).some(x=>Object.hasOwn(x.state,'originalTaskContext')),
+          counters:requests.filter(x=>Object.keys(x.payload.questions).some(k=>/^counter_\d+_\d+$/.test(k))).map(x=>({keys:Object.keys(x.payload.questions),context:x.state.originalTaskContext,windowIndexes:x.state.reviewEvidence.entries.map(e=>e.index),supportIndexes:x.state.supportEvidence.entries.map(e=>e.index),instructions:Object.values(x.payload.questions).map(q=>q.instructions.question)})),
+          unchanged:mode==='normal'?before===JSON.stringify({evidence,item}):true};
+      };
+      const normal=await run('"flush" in receiver'),other=await run('false'),finite=await run('"flush" in receiver',true),secret=await run('"flush" in receiver',false,'secret'),memory=await run('"flush" in receiver',false,'memory-citation'),falseInvocation=await run('"flush" in receiver',false,'false-invocation');
+      const late=await run('\"flush\" in receiver',false,'late');
+      const mixed=await run('\"flush\" in receiver',false,'mixed');
+      console.log(JSON.stringify({normal,other,finite,secret,memory,falseInvocation,late,mixed}));
+    ''')
+    normal, other, finite = value['normal'], value['other'], value['finite']
+    assert normal.get('context'), {'finiteHash': finite['finiteHash'], 'normalContextPresent': bool(normal.get('context'))}
+    assert [entry['index'] for entry in normal['context']['entries']] == [0, 1, 2, 3, 4, 6, 7]
+    assert normal['context']['entries'][1]['entry']['content'][0]['arguments']['content'] != other['context']['entries'][1]['entry']['content'][0]['arguments']['content']
+    assert normal['frozen'] == other['frozen']
+    assert [entry['index'] for entry in normal['frozen']['entries']] == [4]
+    assert normal['citations'] == [{'index': 4, 'quote': 'property: false', 'role': 'toolResult'}]
+    reference = next(entry for entry in normal['context']['entries'] if entry['index'] == 7)
+    assert reference['citationEligible'] is False
+    assert reference['sourceKind'] == 'memory-reference-or-mixed-output'
+    assert {call['resultIndex'] for call in normal['context']['citationToolCalls']} == {2, 4, 7}
+    assert 'originalTaskContext' in normal['instruction']
+    assert not normal['otherContext'] and not finite.get('context')
+    assert finite['finiteHash'] == '022acb2bf48aa8a53c0af2046a946e33ecbcb985f289aac49e8b350df2e81aee'
+    assert normal['unchanged'] and other['unchanged'] and finite['unchanged']
+    assert value['secret']['calls'] == 0 and value['secret']['reason'] == 'sensitive'
+    assert value['memory']['calls'] == 0
+    assert value['falseInvocation']['decision'] == 'propose'
+
+    late = value['late']
+    late_window = next(counter for counter in late['counters'] if 1 not in counter['windowIndexes'])
+    assert late_window.get('context'), {'window': late_window['windowIndexes'], 'support': late_window['supportIndexes']}
+    assert late_window['context']['entries'][1]['index'] == 1
+    assert late_window['context']['entries'][2]['entry']['content'] == 'Successfully wrote probe.js'
+    assert late_window['supportIndexes'] == [4]
+    assert all(counter.get('context') == normal['context'] for counter in normal['counters'])
+    assert all(not counter.get('context') for counter in finite['counters'])
+    assert all('originalTaskContext' in question for question in late_window['instructions'])
+    assert all('cannot add support' in question and 'cannot override' in question for question in late_window['instructions'])
+
+    assert value['mixed']['counters']
+    assert all(not counter.get('context') for counter in value['mixed']['counters'])

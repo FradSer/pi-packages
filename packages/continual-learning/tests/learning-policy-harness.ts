@@ -232,7 +232,8 @@ mock.module("../../kit/src/index.ts", () => ({
           const answer=fixtureReason === "coverage-real-repair-retained-only"
             ? {kind:"incremental-memory-plan",version:1,schemaVersion:1,...payload.identity,operations:[retained],newMemories:[]}
             : {kind:"incremental-memory-amendment",version:1,...payload.identity,replacements:payload.repairCandidates.map(candidate=>({candidateId:candidate.candidateId,evidence:[{ref:"e0.b0.l1",endRef:"e0.b0.l2"}]})),operations:[retained]};
-          return {exitCode:0,text:JSON.stringify(answer),usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01}};
+          const usage={input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01};
+          return {exitCode:0,text:JSON.stringify(answer),usage,usageLedger:{knownUsage:usage,complete:true}};
         }
         const corrected=structuredClone(payload.rejectedPlan);
         const repairTarget=coverageRepairFixture ? [...corrected.operations,...corrected.newMemories][0] : corrected.newMemories[0];
@@ -249,7 +250,7 @@ mock.module("../../kit/src/index.ts", () => ({
               {knowledge:{sourceCitations:corrected.newMemories[0].evidence,
                 units:corrected.newMemories[0].content.split(/\r?\n---\r?\n/).at(-1).split(/\n\n+/).filter(Boolean)
                   .map(text=>({text,citationIndexes:corrected.newMemories[0].evidence.map((_,index)=>index)}))}})}]}:corrected;
-        return {exitCode:0,usage,text:JSON.stringify(answer)};
+        return {exitCode:0,usage,usageLedger:{knownUsage:usage,complete:true},text:JSON.stringify(answer)};
       }
 
       repairErrors.push(payload.errors);
@@ -271,9 +272,10 @@ mock.module("../../kit/src/index.ts", () => ({
           return {exitCode:0,stderr:"",text:JSON.stringify({kind:"incremental-memory-amendment",version:1,...payload.identity,replacements:[]})};
         }
         if (!candidate.withdrawalAllowed) throw new Error("Parent optional review missing");
+        const usage={input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01};
         return {exitCode:0,stderr:"",text:JSON.stringify({kind:"incremental-memory-amendment",version:1,...payload.identity,
           replacements:[],withdrawals:[{candidateRef:candidate.candidateRef,reason:"insufficient-evidence"}]}),
-          usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01}};
+          usage,usageLedger:{knownUsage:usage,complete:true}};
       }
       const repaired = structuredClone(payload.rejectedPlan.malformedPlanText || payload.rejectedPlan.missingPlanEnvelope ? lastMemoryPlan : payload.rejectedPlan);
       if (fixtureReason?.startsWith("distill-fresh")) repaired.newMemories[0].content =
@@ -314,7 +316,8 @@ mock.module("../../kit/src/index.ts", () => ({
         return {exitCode:0,stderr:"",text:"",cancelled:true};
       }
       if (process.env.CL_JEV_FIXTURE === "repair-private") repaired.newMemories[0].classification = "private";
-      return { exitCode: 0, stderr: "", text: JSON.stringify(prompt.includes("existing structural correction slot") ? freshProjectFixture(repaired) : repaired), usage: {input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01} };
+      const usage={input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01};
+      return { exitCode: 0, stderr: "", text: JSON.stringify(prompt.includes("existing structural correction slot") ? freshProjectFixture(repaired) : repaired), usage,usageLedger:{knownUsage:usage,complete:true} };
     }
     selectors += 1;
     if (isRemember) requestCaptured = prompt.includes(quote);
@@ -372,6 +375,7 @@ mock.module("../../kit/src/index.ts", () => ({
     };
     if (coverageRepairFixture && !harness && !agents) {
       plan.newMemories[0].evidence=[{ref:"e0.b0.l1"}];
+      if(fixtureReason === "coverage-real-repair-body-conflict") plan.newMemories[0].content += "Prefer concise progress updates.\nNever provide concise progress updates.\n";
       if(fixtureReason === "coverage-real-repair-joint") {
         plan.operations=[{...plan.newMemories[0],name:"known.md",kind:"rewrite"}];plan.newMemories=[];
       }
@@ -490,7 +494,11 @@ if (process.env.CL_JEV_FIXTURE) {
           }));
           if(coverageRepairFixture && request.state.memoryKnowledgeCoverage === true) coverageRepairTransports.push({
             requestSha256:fixtureDigest(request),answers,usage:{input_tokens:1,output_tokens:1},
-            body:request.state.targets.map(item=>item.content).join("\n\n"),
+            body:(request.state.semanticWireVersion === 3
+              ? [...request.state.candidateSelectors.map(item=>request.state.completeCurrentPlan[item.field][item.index]),
+                ...request.state.retainedSelectors.map(item=>request.state.existingMemories[item.existingIndex])]
+                .filter(item=>typeof item.content === "string")
+              : request.state.targets).map(item=>item.content).join("\n\n"),
             sourceDigest:fixtureDigest(request.state.originalEvidence),
           });
           return new Response(JSON.stringify({model:request.model,answers,usage:{input_tokens:1,output_tokens:1}}));

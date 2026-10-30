@@ -626,12 +626,16 @@ def _native_initialization_proof(name: str, evidence: dict, prior: dict, current
                                  runner: Callable[[str,dict,dict,dict],dict] | None = None) -> dict:
     """Recompute one fixed shared proof without large argv or service calls."""
     import tempfile
+    import subprocess
     from pathlib import Path
     from support import REPO, run_bun
+    from live_acceptance_support import workspace_pi
     if name not in ('automaticHarnessPolicyProof','commandMemoryCorpusProof'):
         raise ValueError('Unknown native initialization proof')
     if runner is not None:
         return runner(name,evidence,prior,current)
+    runtime_version=subprocess.check_output([workspace_pi(REPO),'--version'],cwd=REPO,text=True).strip()
+    if runtime_version not in ('1.3.0','1.4.0'):raise ValueError('Unsupported actual initialization proof Pi version')
     with tempfile.TemporaryDirectory(prefix='cl-policy-bridge-') as directory:
         file=Path(directory)/'input.json'
         file.write_text(json.dumps({'input':evidence,'prior':prior,'current':current},ensure_ascii=False))
@@ -639,7 +643,7 @@ def _native_initialization_proof(name: str, evidence: dict, prior: dict, current
         return run_bun("import fs from 'node:fs';import {"+name+" as check} from "
             +json.dumps(str(REPO/'packages/continual-learning/tests/continuous-command-proof.ts'))
             +";const x=JSON.parse(fs.readFileSync("+json.dumps(str(file))+",'utf8'));"
-            +"console.log(JSON.stringify(check(x.input,x.prior,x.current)));")
+            +"console.log(JSON.stringify(check(x.input,x.prior,x.current,"+json.dumps(runtime_version)+")));")
 
 
 def policy_initialization_bridge(prior: dict, current: dict, evidence: dict, *, source_files: dict,

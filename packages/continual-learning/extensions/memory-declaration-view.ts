@@ -136,3 +136,42 @@ function declarationView(block: DeclarationBlock, index: number, tool: string, a
   if (Buffer.byteLength(JSON.stringify(view)) > MAX_VIEW_BYTES) return omitted("view-size-limit", nodeCount);
   return view;
 }
+
+/** A selected reference is body-copy eligible only for one whole observed outer
+ * function declaration. This chooses no reference and infers no runtime fact. */
+export function isObservedFunctionDeclaration(snapshot: unknown, selection: unknown): boolean {
+  const entries = row(snapshot)?.entries, citation = row(selection);
+  if (!Array.isArray(entries) || typeof citation?.ref !== "string") return false;
+  const start = /^e(\d+)\.b(\d+)\.l(\d+)$/.exec(citation.ref);
+  if (!start) return false;
+  const index = Number(start[1]), block = Number(start[2]), result = message(entries[index]);
+  const content = result?.content, part = Array.isArray(content) ? content[block] : block === 0 ? content : undefined;
+  const text = typeof part === "string" ? part : row(part)?.type === "text" ? row(part)?.text : undefined;
+  if (typeof text !== "string") return false;
+  const lines = text.split("\n").map((text, line) => ({text, ...(text.trim() && text.length <= 2000 ? {ref: `e${index}.b${block}.l${line + 1}`} : {})}));
+  const views = memoryDeclarationViews(entries, index, [{block, text, lines}]);
+  return !!views?.some(view => Array.isArray(view.declarations) && view.declarations.some(value => {
+    const node = row(value), source = row(node?.source);
+    return ["TSDeclareFunction", "FunctionDeclaration"].includes(String(node?.syntaxKind))
+      && source?.ref === citation.ref && source?.endRef === (citation.endRef ?? citation.ref)
+      && typeof source?.quote === "string" && typeof node?.syntax === "string" && source.quote.trim() === node.syntax.trim();
+  }));
+}
+
+/** Recheck outer syntax against the complete current source already read by the
+ * source-binding path. Exact selected line coordinates prevent borrowing an
+ * equal outer declaration from a different comment or namespace occurrence. */
+export function isCompleteOuterFunctionDeclaration(text: string, quote: string, firstLine: number, lastLine: number): boolean {
+  if (Buffer.byteLength(text) > MAX_SOURCE_BYTES || !quote.trim() || !Number.isSafeInteger(firstLine)
+    || !Number.isSafeInteger(lastLine) || firstLine < 1 || lastLine < firstLine
+    || text.split("\n").slice(firstLine - 1, lastLine).join("\n") !== quote) return false;
+  try {
+    const statements = parse(text, {sourceType: "module", plugins: [["typescript", {dts: true}]], errorRecovery: false}).program.body;
+    return statements.filter(whole => {
+      const node = row(whole)?.declaration ?? whole;
+      return ["TSDeclareFunction", "FunctionDeclaration"].includes(String(row(node)?.type))
+        && whole.loc?.start.line === firstLine && whole.loc?.end.line === lastLine
+        && text.slice(whole.start!, whole.end!).trim() === quote.trim();
+    }).length === 1;
+  } catch {return false;}
+}

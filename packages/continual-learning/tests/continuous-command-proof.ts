@@ -33,14 +33,14 @@ function nativeRows(text:string):Record<string,any>[] {
 /** Bind a fresh no-tools user task to one newly auto-owned rule. The frozen
  * owner, production semantic gates and later execution evidence remain required.
  * This is not permission to add arbitrary receipt owners to a replay chain. */
-export function automaticHarnessPolicyProof(input:any,prior:any,current:any):Record<string,unknown> {
+export function automaticHarnessPolicyProof(input:any,prior:any,current:any,expectedPiVersion="1.3.0"):Record<string,unknown> {
  const base={origin:'automatic-user-policy',mutationAuthority:false,learningBenefitEstablished:false};
  try{
   if(input?.kind!=='automatic-harness-policy-review' || input.version!==1)throw Error('Unknown policy proof');
   const {owner,completion,receipt,reviewManifest:manifest,usageLedger,postReceipt:post}=input;
   if(!record(owner) || owner.kind!=='native-automatic-harness-policy' || owner.version!==1
     || !record(completion) || completion.ownerDigest!==hash(JSON.stringify(owner))
-    || owner.piVersion!=='1.3.0' || completion.exitCode!==0 || completion.timedOut!==false || completion.cancelled!==false
+    || !['1.3.0','1.4.0'].includes(expectedPiVersion) || owner.piVersion!==expectedPiVersion || completion.exitCode!==0 || completion.timedOut!==false || completion.cancelled!==false
     || !Number.isSafeInteger(owner.startedAt) || !Number.isSafeInteger(completion.settledAt) || completion.settledAt<owner.startedAt
     || !path.isAbsolute(owner.cwd) || !path.isAbsolute(owner.agentDir) || !path.isAbsolute(owner.sessionPath)
     || !owner.sessionPath.startsWith(path.join(owner.agentDir,'sessions')+path.sep)
@@ -168,7 +168,7 @@ export function automaticHarnessPolicyProof(input:any,prior:any,current:any):Rec
 
 /** This discriminated adapter never calls a model, writes state, fabricates a
  * replay attempt, or converts provenance into semantic/mutation authority. */
-export function commandMemorySourceProof(input:any):Record<string,unknown> {
+export function commandMemorySourceProof(input:any,runtimeVersion:string="1.3.0"):Record<string,unknown> {
  const base={origin:'explicit-memory-command',mutationAuthority:false,initializationApproved:false,learningBenefitEstablished:false};
  try{
   if(input?.kind!=='explicit-command-source-review' || input.version!==1)throw Error('Unknown command proof');
@@ -177,7 +177,7 @@ export function commandMemorySourceProof(input:any):Record<string,unknown> {
     || !record(completion) || completion.ownerDigest!==hash(JSON.stringify(owner))
     || completion.exitCode!==0 || completion.cancelled!==false || completion.timedOut!==false
     || !Number.isSafeInteger(owner.startedAt) || !Number.isSafeInteger(completion.settledAt)
-    || completion.settledAt<owner.startedAt || owner.piVersion!=='1.3.0'
+    || completion.settledAt<owner.startedAt || !['1.3.0','1.4.0'].includes(runtimeVersion) || owner.piVersion!==runtimeVersion
     || !Array.isArray(owner.argv) || owner.argv.some((arg:any)=>typeof arg!=='string')
     || !path.isAbsolute(owner.cwd) || !path.isAbsolute(owner.sessionPath) || !path.isAbsolute(owner.agentDir)
     || !owner.sessionPath.startsWith(`${owner.agentDir}${path.sep}sessions${path.sep}`)
@@ -266,10 +266,10 @@ export function commandMemorySourceProof(input:any):Record<string,unknown> {
 /** Bind the actual CREATE-only initial plan to the complete stored corpus and
  * receipt-owned physical history. Independent semantics and original task
  * safety are still required; this never authorizes mutation. */
-export function commandMemoryCorpusProof(input:any,prior:any,current:any):Record<string,unknown> {
+export function commandMemoryCorpusProof(input:any,prior:any,current:any,runtimeVersion:string="1.3.0"):Record<string,unknown> {
  const base={mutationAuthority:false,initializationApproved:false,learningBenefitEstablished:false};
  try{
-  if(!commandMemorySourceProof(input).ready || !record(prior) || !record(current)
+  if(!commandMemorySourceProof(input,runtimeVersion).ready || !record(prior) || !record(current)
     || !Array.isArray(prior.history) || !Array.isArray(current.history)
     || !record(prior.surfaceSnapshots) || !record(current.surfaceSnapshots)
     || !Array.isArray(current.memoryEntries) || !current.memoryEntries.length)throw Error('Missing command corpus inputs');

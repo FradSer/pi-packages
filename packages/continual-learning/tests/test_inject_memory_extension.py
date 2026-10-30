@@ -922,10 +922,8 @@ def test_selected_aliases_normalize_to_one_canonical_scope() -> None:
 
 def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
     content = source()
-    assert "const workerEnv = Object.fromEntries" in content
-    assert "process.env.PATH" in content
-    assert "process.env.HOME" in content
-    assert "process.env.PI_CODING_AGENT_DIR" in content
+    assert "const workerEnv = memoryWorkerEnvironment();" in content
+    assert "env: workerEnv" in content
     assert "process.env.ANTHROPIC_API_KEY" not in content
     assert "env: { ...process.env" not in content
 
@@ -1136,9 +1134,19 @@ def test_memory_plan_expansion_checks_citations_before_any_judge_call() -> None:
     assert initial < expansion
     repaired_expansion = text.index('plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);', repair)
     assert repair < repaired_expansion < text.index('opts.jevJudge!.validate("memory"')
-    corrected = text.index('let corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, distilled.plan);')
-    assert text.index('const distilled = distillReviewedNewMemory(repaired.plan, candidates, mutationReview?.candidateReview,') < corrected
-    assert corrected < text.index('let correctedVerdict = await validateKnowledge(correctedCandidates, corrected, originalCoverageContext);')
+    # The parent preparation helper validates citations before returning a
+    # corrected plan to the existing fresh semantic review in its caller.
+    helper_start = text.index('export async function prepareSemanticMemoryRepairProposal(')
+    helper = text[helper_start:text.index('/** Reconsideration never gains application', helper_start)]
+    distilled = helper.index('const distilled = distillReviewedNewMemory(result.plan, input.candidates, input.candidateReview,')
+    corrected = helper.index('const corrected = await expandCitedIncrementalMemoryPlan(run, input.selectedScope, distilled.plan);')
+    validator = helper.index('await runConsolidationValidator(input.pkgDir, run, correctedPath, "plan", input.preSelected);')
+    assert distilled < corrected < validator < helper.index('return {distilled, corrected, correctedCandidates,')
+    assert '.validate(' not in helper and 'await validateKnowledge(' not in helper
+    prepared = text.index('const prepared = await prepareSemanticMemoryRepairProposal({result: repaired, run, pkgDir: opts.pkgDir,')
+    prepared_return = text.index('if (!prepared) return;', prepared)
+    corrected_review = text.index('let correctedVerdict = await validateKnowledge(correctedCandidates, corrected, originalCoverageContext);', prepared)
+    assert prepared < prepared_return < corrected_review
 
 
 def test_screened_constraint_with_no_harness_rule_is_named_not_silent() -> None:

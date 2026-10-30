@@ -113,3 +113,111 @@ def test_semantic_patch_schema_distinguishes_source_reuse_from_citation_correcti
     assert all(not row[key] for row in value for key in ['mixed', 'excerptWithoutEvidence', 'outsideExcerpt'])
     assert all(row['citationOnly'] for row in value)
     assert all(not row[key] for row in value for key in ['emptyPatch','emptyEvidence','foreign','bodyOnly','missingIdentity'])
+
+
+def test_fresh_text_catalog_contract_omits_redundant_role_fields():
+    value = isolated_run_bun(r'''
+      import {Value} from 'typebox/value';
+      import {learningOutputSchema,assertFreshMemoryProjectOutput} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      import {memoryCitationDomain} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const snapshot={entries:[{role:'user',content:'Keep observed behavior.'},{role:'assistant',content:[{type:'toolCall',id:'f',name:'read',arguments:{path:'/project/api.ts'}},{type:'toolCall',id:'b',name:'bash',arguments:{command:'node example.js'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'f',isError:false,content:'export const enabled = true;\nexport const mode = 1;'},
+        {role:'toolResult',toolName:'bash',toolCallId:'b',isError:false,content:'observed true'}]};
+      const domain=memoryCitationDomain(snapshot,{fileSourcesFromCwd:'/project'}),schema=learningOutputSchema('memory-delta',domain);
+      const base={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h',operations:[],
+        newMemories:[{name:'fact.md',kind:'project',classification:'safe',description:'Observed source.',knowledge:{sourceCitations:[{ref:'e2.b0.l1'},{ref:'e3.b0.l1'}],units:[{text:'Observed source and execution.',citationIndexes:[0,1]}]}}]};
+      const check=unit=>Value.Check(schema,{...base,newMemories:[{...base.newMemories[0],knowledge:{...base.newMemories[0].knowledge,units:[unit]}}]});
+      let missingRejected=false;try{assertFreshMemoryProjectOutput({...base,newMemories:[{...base.newMemories[0],knowledge:{...base.newMemories[0].knowledge,units:[{sourceCitationIndex:0}]}}]})}catch{missingRejected=true}
+      console.log(JSON.stringify({fileRefs:domain.fileRefs,valid:Value.Check(schema,base),terminal:check({sourceCitationIndex:1,fileSourceRef:{ref:'e3.b0.l1'}}),missing:check({sourceCitationIndex:0}),emptyFileDomain:Value.Check(learningOutputSchema('memory-delta',{...domain,fileRefs:[]}),base),legacyDomain:Value.Check(learningOutputSchema('memory-delta',{indices:domain.indices,refs:domain.refs}),base),text:check({text:'Observed output.',citationIndexes:[1]}),atomic:check({kind:'declared-api-relation',factory:{ref:'e2.b0.l1'},owner:{ref:'e2.b0.l1'},member:{ref:'e2.b0.l2'}}),missingRejected}));
+    ''')
+    assert value['fileRefs'] == ['e2.b0.l1', 'e2.b0.l2']
+    assert value['valid'] and value['text'] and value['missingRejected']
+    assert not any(value[key] for key in ('terminal', 'missing', 'atomic'))
+    assert value['emptyFileDomain'] and value['legacyDomain']
+
+
+def test_file_reference_domain_cli_is_complete_bounded_and_not_an_optional_source_hint():
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import extension from './packages/continual-learning/extensions/planner-json-output.ts';
+      import {learningPlannerArgs} from './packages/continual-learning/extensions/planner-prompts.ts';
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true}));
+      let domain={indices:[0,1],refs:['e0.b0.l1','e1.b0.l1'],fileRefs:['e1.b0.l1']},encoded=JSON.stringify(domain),handler;
+      extension({registerFlag:()=>{},getFlag:name=>name==='learning-output-schema'?'memory-delta':name==='learning-citation-domain'?encoded:undefined,getActiveTools:()=>[],on:(name,fn)=>{if(name==='before_provider_request')handler=fn}});
+      const event={payload:{messages:[{role:'user',content:'Return JSON'}]}},ctx={model:{api:'openai-completions',id:'qwen3.8-flash'}};
+      const valid=handler(event,ctx);const refusals=[];
+      for(const bad of [{...domain,fileRefs:['e1.b0.l1','e1.b0.l1']},{...domain,fileRefs:['e2.b0.l1']},{...domain,fileRefs:'e1.b0.l1'},{...domain,untrustedFileRefs:[]}]){
+        encoded=JSON.stringify(bad);try{handler(event,ctx);refusals.push(false)}catch{refusals.push(true)}
+      }
+      for(const bad of ['complete-catalog-overflow','x'.repeat(64001)]){encoded=bad;try{handler(event,ctx);refusals.push(false)}catch{refusals.push(true)}}
+      const snapshot={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'/project/source.ts'}}]},{role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:'observed file'}]};
+      const args=learningPlannerArgs('memory-delta',snapshot,undefined,undefined,'/project');const at=args.indexOf('--learning-citation-domain');
+      const sent=JSON.parse(args[at+1]);
+      console.log(JSON.stringify({valid:!!valid,refusals,sent}));
+    ''', temp_dirs=('PI_CODING_AGENT_DIR',))
+    assert value['valid'] and all(value['refusals'])
+    assert value['sent']['fileRefs'] == ['e1.b0.l1']
+
+
+def test_provider_independent_file_contract_preserves_frozen_entries_and_complete_domain():
+    value = isolated_run_bun(r'''
+      import {createHash} from 'node:crypto';
+      import {freshMemoryOutputContract,projectFreshMemoryDossier} from './packages/continual-learning/extensions/planner-prompts.ts';
+      import {locatedMemoryEvidence,memoryCitationDomain} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const snapshot={entries:[{role:'user',content:'Keep observed source.'},{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'/project/source.ts'}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:'export const observed = true;'},
+        {role:'toolResult',toolName:'bash',toolCallId:'b',isError:false,content:'observed true'}]};
+      const dossier={kind:'incremental-learning-dossier',taskSlice:snapshot},before=JSON.stringify(dossier);
+      const shown=projectFreshMemoryDossier(dossier,'/project'),repair=freshMemoryOutputContract(snapshot,'/project'),domain=memoryCitationDomain(snapshot,{fileSourcesFromCwd:'/project'});
+      const hash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
+      const huge=structuredClone(snapshot);huge.entries[2].content=Array.from({length:6000},(_,i)=>'source '+i).join('\n');const completeLarge=freshMemoryOutputContract(huge,'/project');const largeComplete=completeLarge.schema.$defs.memorySourceReference.enum.length===memoryCitationDomain(huge,{fileSourcesFromCwd:'/project'}).refs.length;
+      console.log(JSON.stringify({same:JSON.stringify(shown.memoryOutputContract)===JSON.stringify(repair),enum:repair.schema.$defs.memorySourceReference.enum,
+        domainMatches:repair.domainDigest===hash(domain),fileMatches:repair.fileDomainDigest===hash(domain.fileRefs),
+        frozenUnchanged:before===JSON.stringify(dossier),originalEntriesPreserved:JSON.stringify(shown.taskSlice.entries)===JSON.stringify(locatedMemoryEvidence(snapshot,{declarationViews:true}).entries),largeComplete}));
+    ''')
+    assert value['same'] and value['domainMatches'] and value['fileMatches']
+    assert 'e2.b0.l1' in value['enum'] and 'e0.b0.l1' in value['enum']
+    assert value['frozenUnchanged'] and value['originalEntriesPreserved'] and value['largeComplete']
+
+
+def test_file_contract_task_data_is_independent_of_optional_cli_argument_budget():
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import {freshMemoryOutputContract,learningPlannerArgs} from './packages/continual-learning/extensions/planner-prompts.ts';
+      import {memoryCitationDomain} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true}));
+      const snapshot={entries:[{role:'assistant',content:[{type:'toolCall',id:'r',name:'read',arguments:{path:'/project/source.ts',limit:3000}}]},
+        {role:'toolResult',toolName:'read',toolCallId:'r',isError:false,content:Array.from({length:2600},()=> 'x=1;').join('\n')}]};
+      const domain=memoryCitationDomain(snapshot,{fileSourcesFromCwd:'/project'}),contract=freshMemoryOutputContract(snapshot,'/project');
+      const args=learningPlannerArgs('memory-delta',snapshot,undefined,undefined,'/project');
+      console.log(JSON.stringify({domainBytes:Buffer.byteLength(JSON.stringify(domain)),enumSize:contract.schema.$defs.memorySourceReference.enum.length,contractBytes:Buffer.byteLength(JSON.stringify(contract)),cli:args[args.indexOf('--learning-citation-domain')+1]}));
+    ''', temp_dirs=('PI_CODING_AGENT_DIR',))
+    assert value['domainBytes'] > 64000 and 0 < value['contractBytes'] < 64000  # Only redundant machine metadata shrank.
+    assert value['enumSize'] == 2600 and value['cli'] == 'complete-catalog-overflow'
+
+
+def test_file_contract_checks_complete_task_json_bytes_and_refuses_without_trimming():
+    value = isolated_run_bun(r'''
+      import {mock} from 'bun:test';
+      import {MAX_SNAPSHOT_BYTES} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const schema=await import('./packages/continual-learning/extensions/planner-output-schema.ts');
+      mock.module('./packages/continual-learning/extensions/planner-output-schema.ts',()=>({...schema,learningOutputSchema:()=>({type:'object',properties:{payload:{type:'string',enum:['x'.repeat(MAX_SNAPSHOT_BYTES)]}}})}));
+      const {freshMemoryOutputContract}=await import('./packages/continual-learning/extensions/planner-prompts.ts');
+      const snapshot={entries:[{role:'user',content:'Observed fact.'}]};let error=null;
+      try{freshMemoryOutputContract(snapshot,'/project')}catch(e){error=e.message}
+      console.log(JSON.stringify({error,maximumTaskDataBytes:MAX_SNAPSHOT_BYTES}));
+    ''')
+    assert value['error'] and 'task-data' in value['error']
+    assert str(value['maximumTaskDataBytes']) in value['error']
+
+
+def test_description_schema_bounds_cover_fresh_and_atomic_repair_branches():
+    value = isolated_run_bun(r'''
+      import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      const fresh=learningOutputSchema('memory-delta',{indices:[0],refs:['e0.b0.l1']});
+      const semantic=learningOutputSchema('memory-semantic-amendment',undefined,['newMemories:0:'+ 'a'.repeat(64)],undefined,[],false,true);
+      const retained=learningOutputSchema('memory-retained-amendment',undefined,undefined,undefined,undefined,false,true);
+      console.log(JSON.stringify([fresh.properties.newMemories.items.anyOf.find(x=>x.properties.knowledge).properties.description,semantic.properties.replacements.items.properties.description,retained.properties.operations.items.anyOf.find(x=>x.properties.knowledge).properties.description]));
+    ''')
+    assert all(item['minLength'] == 1 and item['maxLength'] == 120 for item in value)
+    assert all('UTF-16' in item['description'] for item in value)

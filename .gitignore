@@ -372,6 +372,9 @@ pyrightconfig.json
 !packages/impeccable/scripts/lib/
 !packages/impeccable/scripts/lib/*.mjs
 
+# Draft folders and temporary artifacts
+draft_*
+
 # Pi's own runtime state: goal ledger, harness overrides, worktrees.
 # Not source, and a checkout should never carry another session's goals.
 .pi/

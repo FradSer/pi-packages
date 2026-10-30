@@ -2,6 +2,36 @@ import pytest
 from support import isolated_run_bun
 
 
+def _stream_responses_fixture(handler, payload: dict, content: str) -> None:
+    import json
+    assert handler.path == '/v1/responses'
+    item = {'id': 'msg_fixture', 'type': 'message', 'role': 'assistant', 'status': 'in_progress', 'content': []}
+    part = {'type': 'output_text', 'text': '', 'annotations': []}
+    response = {'id': 'resp_fixture', 'object': 'response', 'created_at': 1,
+                'model': payload['model'], 'status': 'in_progress', 'output': []}
+    complete_part = {**part, 'text': content}
+    complete_item = {**item, 'status': 'completed', 'content': [complete_part]}
+    events = [
+        {'type': 'response.created', 'response': response},
+        {'type': 'response.output_item.added', 'output_index': 0, 'item': item},
+        {'type': 'response.content_part.added', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'part': part},
+        {'type': 'response.output_text.delta', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'delta': content},
+        {'type': 'response.output_text.done', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'text': content},
+        {'type': 'response.content_part.done', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'part': complete_part},
+        {'type': 'response.output_item.done', 'output_index': 0, 'item': complete_item},
+        {'type': 'response.completed', 'response': {**response, 'status': 'completed', 'output': [complete_item],
+         'usage': {'input_tokens': 10, 'output_tokens': 10, 'total_tokens': 20,
+                   'input_tokens_details': {'cached_tokens': 0}, 'output_tokens_details': {'reasoning_tokens': 0}}}},
+    ]
+    wire = ''.join('event: ' + event['type'] + '\ndata: ' + json.dumps({**event, 'sequence_number': i}) + '\n\n'
+                   for i, event in enumerate(events)).encode()
+    handler.send_response(200)
+    handler.send_header('Content-Type', 'text/event-stream')
+    handler.send_header('Content-Length', str(len(wire)))
+    handler.end_headers()
+    handler.wfile.write(wire)
+    handler.wfile.flush()
+
 def test_incremental_knowledge_contract_precedes_untrusted_dossier() -> None:
     value = isolated_run_bun(r'''
       import {buildIncrementalMemoryConsolidatorPrompt, buildMemoryConsolidatorPrompt, MEMORY_KNOWLEDGE_GUIDANCE, MEMORY_CITATION_GUIDANCE} from './packages/continual-learning/extensions/planner-prompts.ts';
@@ -266,33 +296,7 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
                     'basis': 'requested', 'statement': 'Keep the requested tooling fact',
                     'evidence': [{'ref': 'e0.b0.l1'}], 'coveredBy': [], 'status': 'missing'}]}, 'reviews': {}})
             if responses_api:
-                assert self.path == '/v1/responses'
-                item = {'id': 'msg_fixture', 'type': 'message', 'role': 'assistant', 'status': 'in_progress', 'content': []}
-                part = {'type': 'output_text', 'text': '', 'annotations': []}
-                response = {'id': 'resp_fixture', 'object': 'response', 'created_at': 1,
-                            'model': payload['model'], 'status': 'in_progress', 'output': []}
-                complete_part = {**part, 'text': content}
-                complete_item = {**item, 'status': 'completed', 'content': [complete_part]}
-                events = [
-                    {'type': 'response.created', 'response': response},
-                    {'type': 'response.output_item.added', 'output_index': 0, 'item': item},
-                    {'type': 'response.content_part.added', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'part': part},
-                    {'type': 'response.output_text.delta', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'delta': content},
-                    {'type': 'response.output_text.done', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'text': content},
-                    {'type': 'response.content_part.done', 'item_id': item['id'], 'output_index': 0, 'content_index': 0, 'part': complete_part},
-                    {'type': 'response.output_item.done', 'output_index': 0, 'item': complete_item},
-                    {'type': 'response.completed', 'response': {**response, 'status': 'completed', 'output': [complete_item],
-                     'usage': {'input_tokens': 10, 'output_tokens': 10, 'total_tokens': 20,
-                               'input_tokens_details': {'cached_tokens': 0}, 'output_tokens_details': {'reasoning_tokens': 0}}}},
-                ]
-                wire = ''.join('event: ' + event['type'] + '\ndata: ' + json.dumps({**event, 'sequence_number': i}) + '\n\n'
-                               for i, event in enumerate(events)).encode()
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/event-stream')
-                self.send_header('Content-Length', str(len(wire)))
-                self.end_headers()
-                self.wfile.write(wire)
-                self.wfile.flush()
+                _stream_responses_fixture(self, payload, content)
             else:
                 stream_response(self, content)
 
@@ -592,3 +596,445 @@ def test_no_entry_schema_requires_explicit_parent_reviewed_new_candidate_domain(
     assert value['combined'][1]['properties']['withdrawals']['maxItems'] == 0
     assert value['combined'][2]['properties']['operations']['minItems'] == 1
     assert value['rejected'] == [True] * 4
+
+
+@pytest.mark.parametrize("source_lines", [2, 2600])
+def test_actual_luna_responses_receives_same_frozen_file_contract_initial_and_repair(tmp_path, source_lines) -> None:
+    import hashlib
+    import os
+    import shutil
+    import time
+    from pathlib import Path
+    import json
+    import subprocess
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from live_acceptance_support import isolated_environment, workspace_pi
+    from support import REPO
+
+    source_text='export const ready = true;\nexport interface Pool { flush(): void; }' if source_lines==2 else 'x=1;\n'*source_lines
+    (tmp_path / 'source.ts').write_text(source_text)
+    received = []
+    received_raw = []
+    identity = {'runId': 'wire-fixture', 'scopeKey': 'wire-scope', 'scopeDigest': 'wire-digest',
+                'artifactHash': 'wire-artifact', 'snapshotDigest': 'wire-snapshot'}
+    plan = {'kind': 'incremental-memory-plan', 'version': 1, 'schemaVersion': 1,
+            **identity, 'operations': [], 'newMemories': []}
+
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_POST(self):
+            raw=self.rfile.read(int(self.headers['Content-Length']))
+            received_raw.append(raw)
+            payload = json.loads(raw)
+            received.append(payload)
+            _stream_responses_fixture(self, payload, json.dumps(plan))
+
+    agent = tmp_path / 'agent'
+    agent.mkdir()
+    (agent / 'settings.json').write_text(json.dumps({'quietStartup': True, 'packages': []}))
+    (agent / 'continual-learning.json').write_text(json.dumps({'plannerStructuredOutput': True, 'jev': False}))
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        (agent / 'models.json').write_text(json.dumps({'providers': {'contract-loopback': {
+            'baseUrl': f'http://127.0.0.1:{server.server_port}/v1', 'api': 'openai-responses',
+            'apiKey': 'offline-fixture-only', 'models': [{'id': 'gpt-6-luna', 'reasoning': True,
+            'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
+            'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}]}}}))
+        source = r'''
+          import fs from 'node:fs';import path from 'node:path';import cp from 'node:child_process';
+          import {buildIncrementalMemoryConsolidatorPrompt,learningPlannerArgs,projectFreshMemoryDossier} from './packages/continual-learning/extensions/planner-prompts.ts';
+          import {memoryCitationDomain} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+          import {repairIncrementalMemoryPlan} from './packages/continual-learning/extensions/inject-memory.ts';
+          const root=process.env.CONTRACT_WIRE_ROOT,identity=JSON.parse(process.env.CONTRACT_WIRE_IDENTITY),plan=JSON.parse(process.env.CONTRACT_WIRE_PLAN);
+          const sourceText=fs.readFileSync(path.join(root,'source.ts'),'utf8');
+          const evidence={entries:[{role:'user',content:'Retain the inspected source.'},
+            {role:'assistant',content:[{type:'toolCall',id:'read-source',name:'read',arguments:{path:path.join(root,'source.ts'),offset:1,limit:Number(process.env.CONTRACT_WIRE_LINES)}}]},
+            {role:'toolResult',toolName:'read',toolCallId:'read-source',isError:false,content:sourceText},
+            {role:'toolResult',toolName:'bash',toolCallId:'terminal',isError:false,content:'TERMINAL_ONLY'}]};
+          const dossier={kind:'incremental-learning-dossier',taskSlice:evidence,selectedMemories:[]};
+          const projected=projectFreshMemoryDossier(dossier,root);
+          const task=buildIncrementalMemoryConsolidatorPrompt({...identity,dossierPath:path.join(root,'dossier.json'),dossierContents:JSON.stringify(projected)});
+          const file=path.join(root,'initial-task.md');fs.writeFileSync(file,task);
+          const plannerArgs=learningPlannerArgs('memory-delta',dossier,undefined,undefined,root,undefined,{selectedNames:[],requiredTopLevelValues:{kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity}});
+          const initial=cp.spawnSync(process.env.CONTRACT_WIRE_PI,['--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve','--no-tools','--thinking','off',...plannerArgs,'--model','contract-loopback/gpt-6-luna','--print','--mode','json','@'+file],{cwd:root,env:process.env,encoding:'utf8'});
+          if(initial.status!==0)throw Error('Initial actual Pi command failed: '+initial.stderr);
+          const repaired=await repairIncrementalMemoryPlan({identity,rejectedPlan:plan,errors:['Controlled structural repair request'],selectedNames:[],model:'contract-loopback/gpt-6-luna',structuralCorrection:true,requireNewProjectKnowledge:true,fileSourcesFromCwd:root,semanticContext:{frozenEvidence:dossier,existingMemories:[]}});
+          console.log(JSON.stringify({initialExit:initial.status,repaired:repaired.outcome,domain:memoryCitationDomain(dossier,{fileSourcesFromCwd:root}),cliDomainTransport:plannerArgs[plannerArgs.indexOf('--learning-citation-domain')+1],initialTaskBytes:fs.statSync(file).size}));
+        '''
+        env = isolated_environment(tmp_path, agent)
+        env.update(CONTRACT_WIRE_ROOT=str(tmp_path), CONTRACT_WIRE_IDENTITY=json.dumps(identity),
+                   CONTRACT_WIRE_PLAN=json.dumps(plan), CONTRACT_WIRE_PI=workspace_pi(REPO), CONTRACT_WIRE_LINES=str(source_lines))
+        result = subprocess.run(['bun', '-e', source], cwd=REPO, env=env, capture_output=True, text=True, timeout=90)
+        (tmp_path / 'target-wire-process.stdout').write_text(result.stdout)
+        (tmp_path / 'target-wire-process.stderr').write_text(result.stderr)
+        (tmp_path / 'target-wire-requests.json').write_text(json.dumps(received, indent=2))
+        assert result.returncode == 0, result.stderr
+        value = json.loads(result.stdout.strip().splitlines()[-1])
+        assert value['initialExit'] == 0 and value['repaired'] == 'repaired'
+        assert len(received) == 2
+        assert all(request['model'] == 'gpt-6-luna' and not request.get('tools') for request in received)
+        assert all(request['text']['format']['type'] == 'json_schema' and request['text']['format']['strict'] is True for request in received)
+        assert all(request['text']['format']['schema']['properties']['runId']['enum'] == [identity['runId']] for request in received)
+        texts = []
+        for request in received:
+            texts.append('\n'.join(part['text'] for item in request['input'] if item.get('role') == 'user'
+                                   for part in item.get('content', []) if part.get('type') == 'input_text'))
+        marker = 'Use every original indexed entry and selected predecessor body without repository exploration.\n\n'
+        initial_data = json.loads(texts[0].split(marker, 1)[1].split('\n\nEnd of complete Learning Dossier.', 1)[0])
+        repair_data = json.loads(texts[1].splitlines()[-1])
+        assert 'memoryOutputContract' in initial_data, 'Initial actual Responses input omitted the file-source machine contract'
+        assert 'memoryOutputContract' in repair_data, 'Repair actual Responses input omitted the file-source machine contract'
+        contract = initial_data['memoryOutputContract']
+        assert contract == repair_data['memoryOutputContract']
+        assert contract['kind'] == 'fresh-memory-file-source-contract' and contract['version'] == 1
+        domain = value['domain']
+        assert domain['fileRefs'] == [f'e2.b0.l{line}' for line in range(1,source_lines+1)]
+        if source_lines==2600:
+            assert value['cliDomainTransport']=='complete-catalog-overflow'
+            assert value['initialTaskBytes']>64_000
+            assert all(len(json.dumps(request).encode())>64_000 for request in received)
+        else:assert json.loads(value['cliDomainTransport'])==domain
+        assert contract['domainDigest'] == hashlib.sha256(json.dumps(domain, separators=(',', ':')).encode()).hexdigest()
+        assert contract['fileDomainDigest'] == hashlib.sha256(json.dumps(domain['fileRefs'], separators=(',', ':')).encode()).hexdigest()
+        assert contract['schema']['$defs']['memorySourceReference']['enum'] == domain['refs']
+        def typed_source_shapes(node):
+            if isinstance(node,dict):
+                if {'kind','factory','owner','member'}.issubset(node.get('required',[])):yield node
+                for item in node.values():yield from typed_source_shapes(item)
+            elif isinstance(node,list):
+                for item in node:yield from typed_source_shapes(item)
+        shapes=list(typed_source_shapes(contract['schema']))
+        assert not shapes, 'Fresh machine contract must not require redundant relation-role objects'
+        project = next(item for item in contract['schema']['properties']['newMemories']['items']['anyOf'] if 'knowledge' in item['properties'])
+        assert set(project['properties']['knowledge']['properties']['units']['items']['required']) == {'text', 'citationIndexes'}
+        version = subprocess.run([workspace_pi(REPO), '--version'], check=True, capture_output=True, text=True)
+        assert version.stdout.strip() == os.environ.get('CL_EXPECTED_PI_VERSION', '1.3.0')
+    finally:
+        server.shutdown()
+        server.server_close()
+        parent=Path(os.environ.get('CL_WIRE_EVIDENCE_PARENT',str(tmp_path/'wire-evidence')))
+        assert parent.is_absolute() and not {'cost-ledger.jsonl','authorized-real-study-budget-600.json','600-active-reservation.json'}.intersection(parent.parts)
+        archive=parent/f'{source_lines}-{time.time_ns()}'
+        archive.mkdir(parents=True,exist_ok=False)
+        (archive/'target-wire-requests.json').write_text(json.dumps(received,indent=2))
+        files={}
+        for index,raw in enumerate(received_raw):
+            name=f'request-{index+1}.body.json'
+            (archive/name).write_bytes(raw)
+            files[name]={'sha256':hashlib.sha256(raw).hexdigest(),'bytes':len(raw)}
+        for name in ('target-wire-process.stdout','target-wire-process.stderr','initial-task.md'):
+            original=tmp_path/name
+            if original.is_file():
+                target=archive/name;shutil.copy2(original,target)
+                assert target.read_bytes()==original.read_bytes()
+                files[name]={'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'bytes':target.stat().st_size}
+        (archive/'evidence.json').write_text(json.dumps({'sourceLines':source_lines,'sourceBytes':len(source_text.encode()),
+            'model':'gpt-6-luna','api':'openai-responses','actualRequests':len(received),'files':files,
+            'externalRequests':0,'paidCalls':0,'learningBenefitEstablished':False},indent=2))
+
+
+def test_luna_responses_semantic_repair_native_schema_binds_parent_identity_only_when_opted_in():
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';import {Value} from 'typebox/value';
+      import extension from './packages/continual-learning/extensions/planner-json-output.ts';
+      import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      const file=path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json');
+      fs.writeFileSync(file,JSON.stringify({plannerStructuredOutput:true}));
+      const identity={runId:'fresh-independent-run',scopeKey:'scope',scopeDigest:'s',artifactHash:'a',snapshotDigest:'h'};
+      const ids=['newMemories:0:'+ 'a'.repeat(64)];
+      const flags={'learning-output-schema':'memory-semantic-amendment','learning-native-repair-binding':JSON.stringify({requiredTopLevelValues:{kind:'incremental-memory-amendment',version:1,...identity},descriptionCandidateIds:[]}), 'learning-atomic-knowledge':'true','learning-candidate-ids':JSON.stringify(ids),'learning-citation-domain':'complete-catalog-overflow'};
+      let handler,tools=[];extension({registerFlag:()=>{},getFlag:name=>flags[name],getActiveTools:()=>tools,on:(event,fn)=>{if(event==='before_provider_request')handler=fn}});
+      const event={payload:{input:[{role:'user',content:'Controlled unrelated evidence.'}],text:{verbosity:'low'}}},ctx={model:{api:'openai-responses',id:'gpt-6-luna'}};
+      const result=handler(event,ctx),format=result?.text?.format,schema=format?.schema;
+      const body='---\nname: sample\ndescription: Observed fact\ntype: project\n---\nWhy: observed. How to apply: revisit.';
+      const response={kind:'incremental-memory-amendment',version:1,...identity,replacements:[{candidateRef:'newMemories:0',knowledge:{sourceCitations:[{ref:'e2.b0.l1',endRef:'e2.b0.l1'}],units:[{text:'Why: observed. How to apply: revisit.',citationIndexes:[0]}]}}]};
+      const valid=schema?Value.Check(schema,response):false;
+      const bad=schema?[{...response,runId:'foreign-run'},{...response,replacements:[{...response.replacements[0],candidateRef:'newMemories:1'}]},{...response,extra:true},{...response,replacements:[{...response.replacements[0],knowledge:{...response.replacements[0].knowledge,sourceCitations:[]}}]}].map(v=>Value.Check(schema,v)):[];
+      const strict=[];const visit=v=>{if(!v||typeof v!=='object')return;if(v.type==='object')strict.push(v.additionalProperties===false&&Object.keys(v.properties).sort().join()===v.required.slice().sort().join());for(const child of Object.values(v)){if(Array.isArray(child))child.forEach(visit);else visit(child)}};if(schema)visit(schema);
+      const legacy=learningOutputSchema('memory-semantic-amendment',undefined,ids);
+      const absent=[];
+      for(const model of [{api:'openai-responses',id:'gpt-6.1-sol'},{api:'openai-responses',id:'other-model'},{api:'openai-completions',id:'gpt-6-luna'}])absent.push(handler(event,{model})===undefined);
+      const originalBinding=flags['learning-native-repair-binding'];delete flags['learning-native-repair-binding'];absent.push(handler(event,ctx)===undefined);flags['learning-native-repair-binding']=originalBinding;
+      tools=['read'];absent.push(handler(event,ctx)===undefined);tools=[];
+      fs.writeFileSync(file,JSON.stringify({plannerStructuredOutput:false}));absent.push(handler(event,ctx)===undefined);
+      console.log(JSON.stringify({formatType:format?.type,name:format?.name,nativeStrict:format?.strict,valid,bad,strict,enum:schema?.properties.runId.enum,preservedText:result?.text?.verbosity,absent,legacyIdentity:legacy.properties.runId,legacyUnchanged:!legacy.properties.runId.enum}));
+    ''')
+    assert value.get('formatType') == 'json_schema' and value['nativeStrict'] is True
+    assert value['name'] == 'memory_amendment' and value['valid']
+    assert value['enum'] == ['fresh-independent-run']
+    assert value['strict'] and all(value['strict'])
+    assert not any(value['bad']) and all(value['absent'])
+    assert value['preservedText'] == 'low' and value['legacyUnchanged']
+    assert value['legacyIdentity'] == {'type': 'string'}
+
+
+def test_luna_native_fresh_empty_selection_binds_shape_and_preserves_legal_citations():
+    # Given an explicit empty-selection parent binding, constrain fresh generation
+    # at the Responses wire without treating syntactic refs as source authority.
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';import {Value} from 'typebox/value';
+      import extension from './packages/continual-learning/extensions/planner-json-output.ts';
+      import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      const config=path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json');fs.writeFileSync(config,JSON.stringify({plannerStructuredOutput:true}));
+      const top={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'fresh-r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'};
+      const flags={'learning-output-schema':'memory-delta','learning-native-fresh-binding':JSON.stringify({requiredTopLevelValues:top,selectedNames:[]}), 'learning-citation-domain':'complete-catalog-overflow'};
+      let hook,tools=[];extension({registerFlag:()=>{},getFlag:n=>flags[n],getActiveTools:()=>tools,on:(event,fn)=>{if(event==='before_provider_request')hook=fn}});
+      const ctx={model:{api:'openai-responses',id:'gpt-6-luna'}},event={payload:{input:[{role:'user',content:'Complete authored source catalog remains task DATA.'}],text:{verbosity:'low'}}};
+      const result=hook(event,ctx),format=result?.text?.format,schema=format?.schema;
+      const citations=[{ref:'e0.b0.l1'},{ref:'e0.b0.l1',endRef:'e0.b0.l2'},{ref:'e0.b0.l1',role:'user'},{ref:'e0.b0.l1',endRef:'e0.b0.l2',role:'toolResult'}];
+      const project={name:'fact.md',kind:'project',classification:'private',description:'Observed fact.',knowledge:{sourceCitations:citations,units:[{text:'Observed fact.',citationIndexes:[0,1,2,3]}]}};
+      const preference={name:'preference.md',kind:'preference',content:'---\nname: preference\ndescription: User preference\ntype: preference\n---\nObserved user preference.',evidence:[citations[2]]};
+      const base={...top,operations:[],newMemories:[project]};const check=p=>schema?Value.Check(schema,p):false;
+      const good=[base,{...base,newMemories:[preference]},{...base,newMemories:[{...preference,classification:'safe'}]},...citations.map(c=>({...base,newMemories:[{...project,knowledge:{sourceCitations:[c],units:[{text:'Observed fact.',citationIndexes:[0]}]}}]}))].map(check);
+      const bad=[{...base,runId:'foreign'}, {...base,schemaVersion:2},{...base,operations:[{}]},...[
+        {...project,description:'x'.repeat(123)},{...project,sourceExcerpt:{ref:'e0.b0.l1'}},
+        {...project,knowledge:{sourceCitations:[{ref:'e0.b0.l1',role:null}],units:project.knowledge.units}},
+        {...project,knowledge:{sourceCitations:[{index:0,quote:'legacy coordinate'}],units:project.knowledge.units}},
+      ].map(p=>({...base,newMemories:[p]}))].map(check);
+      const strict=[];function walk(n){if(!n||typeof n!=='object')return;if(n.type==='object')strict.push(n.additionalProperties===false&&Object.keys(n.properties).sort().join()===n.required.slice().sort().join());for(const v of Object.values(n))if(Array.isArray(v))v.forEach(walk);else walk(v)}walk(schema);
+      const absent=[];for(const model of [{api:'openai-responses',id:'other'},{api:'openai-completions',id:'gpt-6-luna'}])absent.push(hook(event,{model})===undefined);
+      tools=['read'];absent.push(hook(event,ctx)===undefined);tools=[];
+      const original=flags['learning-native-fresh-binding'];delete flags['learning-native-fresh-binding'];absent.push(hook(event,ctx)===undefined);flags['learning-native-fresh-binding']=original;
+      flags['learning-output-schema']='memory-combined-amendment';absent.push(hook(event,ctx)===undefined);flags['learning-output-schema']='memory-delta';
+      fs.writeFileSync(config,JSON.stringify({plannerStructuredOutput:false}));absent.push(hook(event,ctx)===undefined);fs.writeFileSync(config,JSON.stringify({plannerStructuredOutput:true}));
+      const rejected=[];for(const binding of [{requiredTopLevelValues:top,selectedNames:['existing.md']},{requiredTopLevelValues:{...top,runId:''},selectedNames:[]},{requiredTopLevelValues:{...top,unknown:'x'},selectedNames:[]}]){flags['learning-native-fresh-binding']=JSON.stringify(binding);try{hook(event,ctx);rejected.push(false)}catch{rejected.push(true)}}
+      console.log(JSON.stringify({native:format?.type==='json_schema'&&format.strict===true,good,bad,strict,absent,rejected,topBound:schema&&Object.entries(top).every(([k,v])=>JSON.stringify(schema.properties[k].enum)===JSON.stringify([v])),inputUnchanged:result?.input===event.payload.input,legacy:learningOutputSchema('memory-delta').properties.runId}));
+    ''')
+    assert value['native'] and value['topBound'] and value['inputUnchanged'], value
+    assert all(value['good']) and not any(value['bad'])
+    assert value['strict'] and all(value['strict'])
+    assert all(value['absent']) and all(value['rejected'])
+    assert value['legacy'] == {'type': 'string'}
+
+
+def test_native_held_description_requires_explicit_paired_value_without_changing_legacy_binding():
+    value = isolated_run_bun(r'''
+      import {Value} from 'typebox/value';import {nativeMemoryBodyRepairSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      const ids=['newMemories:0:'+ 'a'.repeat(64),'newMemories:1:'+ 'b'.repeat(64)],top={kind:'incremental-memory-amendment',version:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'},binding={requiredTopLevelValues:top,descriptionCandidateIds:ids};
+      const k={sourceCitations:[{ref:'e0.b0.l1'}],units:[{text:'Observed fact.',citationIndexes:[0]}]},base={...top,replacements:[{candidateRef:'newMemories:0',knowledge:k}]};
+      const old=nativeMemoryBodyRepairSchema(binding,ids);let next,error;try{next=nativeMemoryBodyRepairSchema({...binding,requiredDescriptionCandidateIds:[ids[0]]},ids)}catch(e){error=e.message}
+      console.log(JSON.stringify({error,legacy:Value.Check(old,base),required:next?Value.Check(next,base):null,explicit:next?Value.Check(next,{...base,replacements:[{...base.replacements[0],description:'Observed fact'}]}):false,other:next?Value.Check(next,{...base,replacements:[{...base.replacements[0],candidateRef:'newMemories:1'}]}):false,empty:next?Value.Check(next,{...top,replacements:[]}):false}));
+    ''')
+    assert not value.get('error'), value
+    assert value['legacy'] and value['required'] is False
+    assert value['explicit'] and value['other'] and value['empty']
+
+
+def test_native_source_role_repair_schema_keeps_prose_parent_owned():
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import extension from './packages/continual-learning/extensions/planner-json-output.ts';
+      import {nativeMemoryBodyRepairSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true}));
+      const top={kind:'incremental-memory-amendment',version:1,runId:'role',scopeKey:'scope',scopeDigest:'d',artifactHash:'a',snapshotDigest:'s'},ids=['newMemories:0:'+ 'a'.repeat(64)];
+      const binding={requiredTopLevelValues:top,descriptionCandidateIds:[],sourceRoleUnitIds:['unit:0','unit:1']};
+      const flags={'learning-output-schema':'memory-amendment','learning-candidate-ids':JSON.stringify(ids),'learning-native-repair-binding':JSON.stringify(binding)};let handler;
+      extension({registerFlag:()=>{},getFlag:name=>flags[name],on:(name,fn)=>{if(name==='before_provider_request')handler=fn},getActiveTools:()=>[]});
+      const payload={model:'gpt-6-luna',input:[{role:'user',content:[{type:'input_text',text:'Bound original units are task data.'}]}]},ctx={model:{api:'openai-responses',id:'gpt-6-luna'}};
+      const constrained=handler({payload},ctx),schema=constrained.text.format.schema,patch=schema.properties.replacements.items;
+      const wrong=[];for(const bad of [{...binding,sourceRoleUnitIds:['unit:1']},{...binding,sourceRoleUnitIds:['unit:0','unit:0']},{...binding,descriptionCandidateIds:ids}])try{nativeMemoryBodyRepairSchema(bad,ids);wrong.push(false)}catch{wrong.push(true)}
+      flags['learning-output-schema']='memory-semantic-amendment';flags['learning-atomic-knowledge']='true';flags['learning-native-repair-binding']=JSON.stringify({requiredTopLevelValues:top,descriptionCandidateIds:[]});
+      const semantic=handler({payload},ctx).text.format.schema;
+      console.log(JSON.stringify({patch,top:schema.properties.runId,semantic,wrong,unchanged:JSON.stringify(payload)===JSON.stringify({model:'gpt-6-luna',input:[{role:'user',content:[{type:'input_text',text:'Bound original units are task data.'}]}]})}));
+    ''')
+    patch = value['patch']['properties']
+    assert set(patch) == {'candidateId', 'evidence', 'units'}
+    assert set(patch['units']['items']['properties']) == {'unitId', 'citationIndexes'}
+    assert patch['units']['minItems'] == patch['units']['maxItems'] == 2
+    assert patch['units']['items']['properties']['unitId']['enum'] == ['unit:0', 'unit:1']
+    assert value['top']['enum'] == ['role'] and value['unchanged'] and all(value['wrong'])
+    assert 'text' in str(value['semantic']) and 'unitId' not in str(value['semantic'])
+
+
+def test_native_coverage_requested_scope_uses_only_original_user_positions():
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import {Value} from 'typebox/value';
+      import extension from './packages/continual-learning/extensions/planner-json-output.ts';
+      import {learningOutputSchema,nativeMemoryCoverageSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      const legacy=learningOutputSchema('memory-coverage-review',undefined,undefined,1,undefined,true);
+      const schema=learningOutputSchema('memory-coverage-review',undefined,undefined,1,undefined,true,false,[0,2]);
+      const account={plan:{verdict:'covered',obligations:[{basis:'requested',statement:'Retain the observed adapter relationship.',evidence:[{ref:'e0.b0.l1'}],coveredBy:[{targetIndex:0,bodyQuote:{ref:'m0.b0.l1'}}],status:'covered'}]},
+        reviews:{'0':{scope:{basis:'requested',statement:'Observed adapter relationship.',evidence:[{ref:'e0.b0.l1'}]},claims:[{statement:'The adapter delegates to its owner.',evidence:[{ref:'e1.b0.l1'}],bodyQuote:{ref:'m0.b0.l1'},conditions:[]}],uncovered:[],verdict:'covered'}}};
+      const variant=change=>{const next=structuredClone(account);change(next);return next};
+      const badScope=variant(x=>x.reviews['0'].scope.evidence.push({ref:'e1.b0.l1'}));
+      const badObligation=variant(x=>x.plan.obligations[0].evidence=[{ref:'e1.b0.l1'}]);
+      const badEnd=variant(x=>x.reviews['0'].scope.evidence=[{ref:'e0.b0.l1',endRef:'e1.b0.l2'}]);
+      const optional=variant(x=>{x.reviews['0'].scope.basis='optional';x.reviews['0'].scope.evidence=[{ref:'e1.b0.l1'}]});
+      const empty=nativeMemoryCoverageSchema({userEntryIndices:[]},1);
+      const emptyOptional=variant(x=>{x.plan.obligations=[];x.reviews['0'].scope.basis='optional';x.reviews['0'].scope.evidence=[{ref:'e1.b0.l1'}]});
+      const rejected=[];for(const binding of [{},{userEntryIndices:undefined},{userEntryIndices:null},{userEntryIndices:[0,0]},{userEntryIndices:[-1]},{userEntryIndices:['0']},{userEntryIndices:[0],extra:true},{userEntryIndices:Array.from({length:5000},(_,i)=>i)}])try{nativeMemoryCoverageSchema(binding,1);rejected.push(false)}catch{rejected.push(true)}
+      const strictObjects=value=>Array.isArray(value)?value.every(strictObjects):!value||typeof value!=='object'?true:
+        (value.type!=='object'||value.additionalProperties===false&&Object.keys(value.properties).every(key=>value.required.includes(key)))&&Object.values(value).every(strictObjects);
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true}));
+      const flags={'learning-output-schema':'memory-coverage-review','learning-body-references':'true','learning-body-count':'1','learning-citation-domain':JSON.stringify({userEntryIndices:[0,2]})};let handler,tools=[];
+      extension({registerFlag:()=>{},getFlag:name=>flags[name],on:(name,fn)=>{if(name==='before_provider_request')handler=fn},getActiveTools:()=>tools});
+      const payload={model:'gpt-6-luna',input:[{role:'user',content:[{type:'input_text',text:'Complete original evidence.'}]}]},before=JSON.stringify(payload),ctx={model:{api:'openai-responses',id:'gpt-6-luna'}};
+      const native=handler({payload},ctx);const old=[handler({payload},{model:{api:'openai-completions',id:'gpt-6-luna'}}),handler({payload},{model:{api:'openai-responses',id:'gpt-6.1-sol'}})];
+      tools=['read'];old.push(handler({payload},ctx));tools=[];delete flags['learning-citation-domain'];old.push(handler({payload},ctx));
+      console.log(JSON.stringify({valid:Value.Check(schema,account),badScope:Value.Check(schema,badScope),badObligation:Value.Check(schema,badObligation),badEnd:Value.Check(schema,badEnd),optional:Value.Check(schema,optional),legacyStillGeneric:Value.Check(legacy,badScope),emptyRequested:Value.Check(empty,account),emptyOptional:Value.Check(empty,emptyOptional),rejected,strictObjects:strictObjects(native.text.format.schema),nativeStrict:native.text.format.strict,old:old.map(value=>value===undefined),payloadUnchanged:before===JSON.stringify(payload)}));
+    ''')
+    assert value['valid'] and value['optional'] and value['legacyStillGeneric']
+    assert not value['badScope'] and not value['badObligation'] and not value['badEnd']
+    assert not value['emptyRequested'] and value['emptyOptional'] and all(value['rejected'])
+    assert value['strictObjects'] and value['nativeStrict'] and value['payloadUnchanged'] and all(value['old'])
+
+
+def test_actual_luna_source_role_repair_wire_keeps_original_units(tmp_path):
+    import json
+    import subprocess
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from live_acceptance_support import isolated_environment
+    from support import REPO
+
+    received = []
+
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_POST(self):
+            payload = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            received.append(payload)
+            schema = payload['text']['format']['schema']
+            top = {key: value['enum'][0] for key, value in schema['properties'].items() if key != 'replacements'}
+            patch = schema['properties']['replacements']['items']['properties']
+            catalog = [{'ref': 'e4.b0.l5'}, {'ref': 'e3.b0.l2'}, {'ref': 'e0.b0.l1'},
+                       {'ref': 'e4.b0.l4'}, {'ref': 'e4.b0.l1'}, {'ref': 'e4.b0.l2'}]
+            response = {**top, 'replacements': [{'candidateId': patch['candidateId']['enum'][0], 'evidence': catalog,
+                        'units': [{'unitId': unit, 'citationIndexes': list(range(6))}
+                                  for unit in patch['units']['items']['properties']['unitId']['enum']]}]}
+            _stream_responses_fixture(self, payload, json.dumps(response))
+
+    agent = tmp_path / 'agent'
+    agent.mkdir()
+    (agent / 'settings.json').write_text(json.dumps({'quietStartup': True, 'packages': []}))
+    (agent / 'continual-learning.json').write_text(json.dumps({'plannerStructuredOutput': True, 'jev': False}))
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        (agent / 'models.json').write_text(json.dumps({'providers': {'role-loopback': {
+            'baseUrl': f'http://127.0.0.1:{server.server_port}/v1', 'api': 'openai-responses',
+            'apiKey': 'offline-fixture-only', 'models': [{'id': 'gpt-6-luna', 'reasoning': True,
+            'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
+            'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}]}}}))
+        script = r'''
+          import fs from 'node:fs';import path from 'node:path';
+          import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+          import {materializeSourceExcerptPlan} from './packages/continual-learning/extensions/source-excerpt-memory.ts';
+          import {repairIncrementalMemoryPlan} from './packages/continual-learning/extensions/inject-memory.ts';
+          const root=process.env.ROLE_WIRE_ROOT,dts='export interface Reservoir {\n drain(): void;\n}\nexport default function createReservoir(size: number): Reservoir;\nexport function relay(size: number): () => void;\n',js='export default function createReservoir(size) { return {drain() {}}; }\nexport function relay(size) { const reservoir=createReservoir(size); return () => reservoir.drain(); }\n',pkg=JSON.stringify({type:'module',exports:{types:'./api.d.ts',default:'./api.js'}});
+          for(const [name,text] of [['api.d.ts',dts],['api.js',js],['package.json',pkg]])fs.writeFileSync(path.join(root,name),text);
+          const call=(id,file)=>({type:'toolCall',id,name:'read',arguments:{path:path.join(root,file),offset:1,limit:1000}}),result=(id,text)=>({role:'toolResult',toolName:'read',toolCallId:id,isError:false,content:text});
+          const snapshot={schemaVersion:1,contextEnabled:true,runId:'native-role',scopeKey:'native-scope',entries:[{role:'user',content:'Inspect relay and its drain relationship to the internal reservoir; retain limits.'},{role:'assistant',content:[call('p','package.json'),call('j','api.js'),call('d','api.d.ts')]},result('p',pkg),result('j',js),result('d',dts)]};
+          const digest=sha256Digest(JSON.stringify(snapshot,null,2)+'\n'),identity={runId:'native-role',scopeKey:'native-scope',scopeDigest:'d',artifactHash:digest,snapshotDigest:digest},run={manifest:{cwd:root,...identity}};
+          const texts=['relay delegates to createReservoir; its wrapper does not expose drain.','Why: Retain the inspected contract.\r\nHow to apply: Do not infer runtime cleanup.'];
+          const plan={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{name:'reservoir.md',kind:'project',classification:'private',description:'Observed relay contract.',knowledge:{sourceCitations:[{ref:'e4.b0.l5'},{ref:'e3.b0.l2'},{ref:'e0.b0.l1'}],units:texts.map(text=>({text,citationIndexes:[0,1,2]}))}}]};
+          let error;try{await materializeSourceExcerptPlan(run,plan,snapshot,undefined,{retainSelectedDeclarations:true})}catch(e){error=e}
+          const before=JSON.stringify(plan),repaired=await repairIncrementalMemoryPlan({identity,rejectedPlan:plan,errors:[error.message],selectedNames:[],model:'role-loopback/gpt-6-luna',structuralCorrection:true,requireNewProjectKnowledge:true,fileSourcesFromCwd:root,sourceExcerptRun:run,sourceRoleOnlyError:error,sourceRoleNative:true,semanticContext:{frozenEvidence:snapshot,existingMemories:[]}});
+          if(repaired.outcome!=='repaired')throw Error(repaired.error);
+          const materialized=await materializeSourceExcerptPlan(run,repaired.plan,snapshot,undefined,{retainSelectedDeclarations:true});
+          console.log(JSON.stringify({outcome:repaired.outcome,texts,units:repaired.plan.newMemories[0].knowledge.units,body:materialized.newMemories[0].content,unchanged:before===JSON.stringify(plan),usage:repaired.usage}));
+        '''
+        env = isolated_environment(tmp_path, agent)
+        env['ROLE_WIRE_ROOT'] = str(tmp_path)
+        result = subprocess.run(['bun', '-e', script], cwd=REPO, env=env, capture_output=True, text=True, timeout=90)
+        (tmp_path / 'role-wire-requests.json').write_text(json.dumps(received, indent=2))
+        (tmp_path / 'role-wire-parent-result.txt').write_text(result.stdout)
+        assert result.returncode == 0, result.stderr
+        value = json.loads(result.stdout.strip().splitlines()[-1])
+        assert value['outcome'] == 'repaired' and value['unchanged']
+        assert [unit['text'] for unit in value['units']] == value['texts']
+        assert '`Reservoir` declares `drain`' in value['body']
+        assert len(received) == 1
+        request = received[0]
+        assert request['text']['format']['strict'] is True and request['model'] == 'gpt-6-luna' and not request.get('tools')
+        schema = request['text']['format']['schema']
+        patch = schema['properties']['replacements']['items']['properties']
+        assert set(patch) == {'candidateId', 'evidence', 'units'}
+        assert set(patch['units']['items']['properties']) == {'unitId', 'citationIndexes'}
+        text = '\n'.join(part['text'] for item in request['input'] if item.get('role') == 'user'
+                         for part in item.get('content', []) if part.get('type') == 'input_text')
+        assert text.count('How to apply: Do not infer runtime cleanup.') == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_actual_luna_coverage_wire_separates_request_authority_from_source_support(tmp_path):
+    import hashlib
+    import json
+    import subprocess
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from live_acceptance_support import isolated_environment
+    from support import REPO
+
+    received = []
+
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_POST(self):
+            payload = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            received.append(payload)
+            response = {'plan': {'verdict': 'covered', 'obligations': [{
+                'basis': 'requested', 'statement': 'Retain the adapter relationship.', 'evidence': [{'ref': 'e0.b0.l1'}],
+                'coveredBy': [{'targetIndex': 0, 'bodyQuote': {'ref': 'm0.b0.l6'}}], 'status': 'covered'}]},
+                'reviews': {'0': {'scope': {'basis': 'requested', 'statement': 'Adapter relationship.', 'evidence': [{'ref': 'e0.b0.l1'}]},
+                'claims': [{'statement': 'The adapter delegates to its owner.', 'evidence': [{'ref': 'e1.b0.l1'}],
+                            'bodyQuote': {'ref': 'm0.b0.l6'}, 'conditions': []}], 'uncovered': [], 'verdict': 'covered'}}}
+            _stream_responses_fixture(self, payload, json.dumps(response))
+
+    agent = tmp_path / 'agent'
+    agent.mkdir()
+    (agent / 'settings.json').write_text(json.dumps({'quietStartup': True, 'packages': []}))
+    (agent / 'continual-learning.json').write_text(json.dumps({'plannerStructuredOutput': True, 'jev': False}))
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        (agent / 'models.json').write_text(json.dumps({'providers': {'coverage-loopback': {
+            'baseUrl': f'http://127.0.0.1:{server.server_port}/v1', 'api': 'openai-responses',
+            'apiKey': 'offline-fixture-only', 'models': [{'id': 'gpt-6-luna', 'reasoning': True,
+            'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
+            'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}]}}}))
+        script = r'''
+          import {createHash} from 'node:crypto';
+          import {reviewMemoryCoverage,memoryCoveragePrompt} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+          import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+          const evidence={contextEnabled:true,runId:'coverage-native',scopeKey:'coverage-native',entries:[{role:'toolResult',message:{role:'user',content:'Remember the adapter relationship.'}},{role:'toolResult',content:'The adapter delegates to its owner.'},{role:'user',message:{role:'toolResult',content:'A quoted user label is reference data.'}}]};
+          const candidates=[{name:'adapter.md',content:'---\nname: adapter.md\ndescription: Observed adapter relationship.\ntype: project\n---\nThe adapter delegates to its owner.'}],plan={operations:[],newMemories:candidates};
+          const before=JSON.stringify({evidence,plan}),expected=memoryCoveragePrompt(prepareMemoryBodyTargets(candidates,[]),evidence,[],[],[],plan,undefined,undefined,'reference');
+          const review=await reviewMemoryCoverage({evidence,candidates,retained:[],predecessors:[],plan,bodyReferences:true,nativeCoverageResponses:true,model:'coverage-loopback/gpt-6-luna'});
+          console.log(JSON.stringify({review,expectedPromptSha256:createHash('sha256').update(expected).digest('hex'),expectedPromptBytes:Buffer.byteLength(expected),unchanged:before===JSON.stringify({evidence,plan})}));
+        '''
+        result = subprocess.run(['bun', '-e', script], cwd=REPO, env=isolated_environment(tmp_path, agent),
+                                capture_output=True, text=True, timeout=90)
+        (tmp_path / 'coverage-wire-requests.json').write_text(json.dumps(received, indent=2))
+        assert result.returncode == 0, result.stderr
+        value = json.loads(result.stdout.strip().splitlines()[-1])
+        (tmp_path / 'coverage-wire-parent-result.json').write_text(json.dumps(value, indent=2))
+        assert value['review']['status'] == 'reviewed' and value['review']['calls'] == 1 and value['unchanged']
+        assert len(value['review']['accounts']) == 1 and len(received) == 1
+        request = received[0]
+        assert request['model'] == 'gpt-6-luna' and not request.get('tools')
+        assert request['text']['format']['strict'] is True and request['text']['format']['name'] == 'memory_coverage_review'
+        schema = request['text']['format']['schema']
+        assert list(schema['properties']['reviews']['properties']) == ['0']
+        assert schema['$defs']['requestedUserSourceReference']['pattern'].startswith('^e(?:0)')
+        text = '\n'.join(part['text'] for item in request['input'] if item.get('role') == 'user'
+                         for part in item.get('content', []) if part.get('type') == 'input_text')
+        assert hashlib.sha256(text.encode()).hexdigest() == value['expectedPromptSha256']
+        assert len(text.encode()) == value['expectedPromptBytes']
+    finally:
+        server.shutdown()
+        server.server_close()

@@ -1,200 +1,199 @@
-# Continual-learning architecture and memory ownership
-`pi-continual-learning` improves Pi without changing model weights. It learns across three runtime surfaces:
-1. **Memory** stores durable knowledge and exposes filename/description discovery. Models read entry bodies as untrusted reference data.
-2. **Harness** resolves identified flat rules for new authoring: skill/text guidance and Bash messages or execution gates. A read-only compatibility boundary preserves installed tool-call, output/artifact, and skill-prompt declarations without weakening their semantics or rewriting configuration.
-3. **AGENTS.md consolidation** maintains the small, always-loaded project instruction document and extracts narrower material into Memory or Harness.
-These surfaces are deliberately different: Memory is untrusted reference knowledge; Harness is parent-evaluated executable validation and execution conditions; AGENTS.md and `skill`/`text` rules are scoped guidance. Guidance delivery is not compliance evidence, and Memory never becomes an enforcement rule. Automatic learning may identify more than one candidate surface, but it must preserve manual, built-in, personal, disabled, invalid, and legacy Harness ownership and must not duplicate one statement simply to increase coverage.
-Automatic learning and default `/consolidate` operate on one completed **Task Slice**. A metadata-only **Memory Selector** chooses the minimum sufficient related existing Memory, and the parent builds one authoritative **Learning Dossier** containing that Task Slice plus selected bodies. Memory, Harness, and AGENTS.md planners consume the dossier and return only deltas. `/consolidate full` explicitly maintains the whole Memory corpus with bounded discovery from the current session.
-Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a stateless one-shot planner runs from a package-owned Markdown prompt with discovery disabled and the minimum tools for its mode (none for selection, `read` for incremental Memory, and bounded read-only discovery only for explicit full maintenance), and only the parent validates and applies a bounded structured plan. Typed package-local builders perform literal nonrecursive binding and reject missing, unknown, or unresolved prompt placeholders before launch. Memory attempts capture their bound inputs; Harness and AGENTS.md planners share one later-phase immutable capture of the same frozen context. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
-Later-phase failure does not roll back an earlier verified phase. When Memory is selected, it must complete and verify before Harness starts; grounded Harness/AGENTS-only automatic evidence may instead use a verified no-mutation Memory gate. Harness failure leaves Memory intact; AGENTS.md failure leaves both earlier phases intact.
-## Harness vocabulary
-The flat Harness contract is described in @packages/continual-learning/HARNESS-DESIGN.md. Authoring, automatic learning, and AGENTS extraction use the same rule format and evaluator.
-- **Rule identity** names one agreement independently of the content it matches.
-- **Match entry** identifies a skill invocation, command invocation, or retained
-  conversation text in which an agreement is relevant.
-- **Effective rule** is the definition selected for an identity in the current
-  configuration, together with its source and state.
-- **Delivery record** is evidence that a particular revision of guidance reached
-  an identifiable position in the current conversation branch.
-- **Retained context** is the conversation currently available to the model after
-  branch selection and compaction.
-## Harness ownership
-Harness configuration has four user-owned layers, plus package defaults, nearest first:
-1. Project personal: `<project>/.pi/harness.local.json`
-2. Project shared: `<project>/.pi/harness.json`
-3. User scoped to this project: `~/.pi/agent/harness/<scopeKey>.json`
-4. User shared: `~/.pi/agent/harness.json`
-The scoped user layer reuses Memory's scope key — the canonical project path with separators replaced — so rules authored for one project cannot silently govern another. It lives in a directory parallel to `memory/` and never inside a Memory root: a Memory root admits only regular `.md` children, so a JSON configuration beside them fails consolidation's privacy validation and aborts the run. The all-projects user layer is kept as the lowest user layer, so a genuinely cross-project rule still applies everywhere.
-Flat rule IDs are the addressable override keys across new selectors; nearer declarations replace a whole rule. Installed legacy policy/skill-prompt containers retain their original name-based override and disablement semantics through compatibility execution, including the historical effect of cumulative disabled names on same-ID flat rules. Compatible data is a notice, not an error; loading never migrates files. The obsolete user-personal `~/.pi/agent/harness.local.json` and project `.pi/agent/harness*.json` paths are not loaded, displayed, or targeted.
-Direct authoring and automatic Harness consolidation default to `<project>/.pi/harness.json`. Other layers are read-only inputs to consolidation. Project personal `.pi/harness.local.json` is selected only by an explicit personal-configuration request; a global local variant is unsupported.
-## Memory ownership: two synchronized roots
-Memory deliberately uses two physical roots rather than copying the four Harness configuration layers:
-1. **Harness/private Memory**: `~/.pi/agent/memory/<escaped-canonical-cwd>/`
-2. **Project shared Memory**: `<project>/.memory/`
-For `/Users/FradSer/Developer/FradSer/cerberus`, the private directory uses the official Pi flat escaped identity:
-```text
-~/.pi/agent/memory/--Users-FradSer-Developer-FradSer-cerberus--/
-```
-The name matches Pi's official session directory escaping: the canonical project path with leading slash stripped, slashes and colons replaced with single dashes, wrapped in double dashes (`--<escaped-path>--`). Names longer than 240 bytes are rejected, never truncated. The same name is the `scopeKey` for private Memory, `memory/locks/<scopeKey>.lock`, and `memory/runs/<scopeKey>/`; there are no hash-based project paths. Content-integrity digests remain unchanged.
-The two roots have different privacy roles. No project-local private memory directory is recognized: private memory exists only in the agent-owned root.
-- The Harness/private root is canonical and complete. It may contain both safe and private Memory.
-- The project `.memory/` root is a sanitized, Git-trackable mirror. It contains only Memory classified as safe to share with the project.
-- `MEMORY.md` in the private root marks private entries as `(harness only)`.
-- A private-marked entry must never exist in project `.memory/`, and the project-shared index must never contain private markers.
-## Memory synchronization contract
-The previous two-root synchronization semantics are retained:
-- Safe Memory exists byte-identically in both roots.
-- Private Memory exists only in the Harness/private root.
-- Before planning, drift is normalized in both directions. For a safe file present on both sides with different bytes, the newer mtime wins; ties prefer the Harness/private copy.
-- A safe private-root file missing from project `.memory/` is copied outward.
-- If the private root is absent on first adoption but project `.memory/` exists, project-shared files are imported into the private root rather than deleted.
-- Public orphans are removed once a canonical private root exists.
-- Private-marked files leaked into project `.memory/` are removed before the planner snapshot.
-- Both indexes are rebuilt after normalization and after application.
-Memory consolidation reads the related two-root scope, but the parent applies every selected operation transactionally across the privacy split:
-- A safe create or rewrite updates both roots.
-- A private create or rewrite updates only the Harness/private root and removes any project-shared copy.
-- A delete removes the entry from both roots.
-- Any later operation or mirror write failure restores both predecessors byte-for-byte.
-The validator verifies plan identity, selected scope, source hashes, final hashes, mirror equality for safe files, absence of private entries from project `.memory/`, exact indexes, and receipt binding.
-## Memory loading and injection
-The private root is the complete runtime source. Project `.memory/` is also inspected so externally committed project updates can participate in drift normalization and first adoption, but deduplicated injection prefers the private copy for the same filename.
-Only strict Memory basenames are accepted:
-```text
-[A-Za-z0-9][A-Za-z0-9_-]*.md
-```
-`MEMORY.md` is metadata and is never injected as an entry. Reads must reject symlinks, path escapes, non-regular files, oversized content, and root replacement during traversal. Injected Memory remains explicitly labelled untrusted reference data, not instructions.
-## Obsolete private roots
-The flat escaped canonical-path directory is the sole agent-private runtime root. Other layouts, including hash-only and hash-suffixed roots, remain untouched. Memory loading and consolidation do not discover, read, import, rename, or delete them, and there is no compatibility fallback or migration interface. Existing flat roots are retained byte-for-byte. On first access, populated legacy roots and new empty scopes bind automatically to the accessing canonical cwd for compatibility; a binding owned by another canonical project cannot be replaced. This prevents subsequent cross-project use but cannot retrospectively prove the owner of pre-binding legacy data. `memory/scopes/<scopeKey>.json` holds the binding outside the Markdown-only entry roots.
-## Commands and settings
-- `/memory` opens three actions: browse Memory, learning settings, and recent learning. Model search and the automatic-learning toggle live in settings, with per-phase policies under its advanced entry; history inspection and validated undo live under recent learning.
-- `/memory <request>` learns only the explicitly requested Memory. The parent appends the exact current command arguments after the complete original task evidence in the immutable snapshot. The parent forces Memory review and disables Harness and AGENTS.md phases. Automatic learning may be off; the usual evidence, privacy, lock, validation, and receipt checks still apply.
-- `/consolidate` has two learning modes; only `full` is offered as a common argument.
-  - `/consolidate` learns from **the current context only**: the metadata-only Memory Selector picks the minimum sufficient related existing Memory for the one completed Task Slice, and the planners consume that dossier.
-  - `/consolidate full` maintains **the whole Memory corpus using the current session**: the Memory scope is the entire corpus rather than a selected subset, the Memory planner is given bounded parent-scoped `learning_read` access to regular files and directory inventories instead of dossier-only access, and the frozen evidence is the current session rather than one Task Slice. Discovery remains bounded; this is not an exhaustive audit of the codebase or a replay of prior sessions. This maintenance path is never reached implicitly.
-- The normal incremental and full commands use the current conversation and Memory corpus. Explicit backfill and bounded automatic recovery separately verify original session references before learning from past tasks. Settled tasks are retained before asynchronous settings checks, including disabled learning, settings failures and interrupted attempts. `learning-history.ts` remains the mutation audit trail for undo; replay inputs come from the verified original session, not history summaries.
-- `backfill` processes retained references through the incremental pipeline; it does not enable full-corpus maintenance. Every run freezes a snapshot before any planner starts, and an unrecognised argument is refused rather than silently downgraded.
-- The **learning backlog** retains settled tasks until learning completes, including disabled learning, screened tasks, failed attempts and proposals awaiting successful application. It stores references — session file and entry indices — never conversation text, and an entry whose session file is gone is reported as unlearnable rather than dropped or reconstructed. `/consolidate backfill` retries up to three source-verified learning references. With auto-learning enabled, completion of a normal attempt also retries at most one eligible failed task. Replay never repeats task tools. Failed, proposed, cancelled or unverifiable work stays pending; successful receipts acknowledge individual references without skipping siblings. Project leases serialize normal learning and replay. Attempts retain known costs; interrupted requests without a returned usage report have unknown cost. Automatic retries stop after three recorded attempts and back off between attempts.
-- Backlog storage is a private regular JSONL file capped at 4 MiB; each reference is capped at 4 KiB and writes fail closed when the cap is reached (records are never silently rotated away). New records carry the project `scopeKey`, and cursors are scoped below that key. Legacy records are accepted only after their bounded session header proves the same scope; the historical global cursor applies only to those legacy records and cannot consume a scoped record. Unscoped records are reported separately. Symlinks, oversized files, malformed references, and changed files are diagnostics, not evidence to replay. Full state checks cover settings, backlog, scope, and cursor integrity before status is reported.
-- `memory/settings.json` is strictly bounded and schema-validated. A missing file means automatic learning is enabled; malformed, unknown, unsafe, or unreadable settings disable automatic learning and expose a repair diagnostic. The package never silently treats invalid settings as defaults. Memory retrieval remains independent of this learning switch.
-- `/harness` opens a rule list with details and a create/update entry. Its scope picker offers project shared (default), project personal, and user shared. `/harness <request>` directly prepares project-shared authoring; existing explicit scope aliases remain compatible. Unsupported or ambiguous requests do not create empty files or authorize edits elsewhere.
-Auto-memory enables learning after `agent_settled` for real user input. It coalesces pending completed tasks, ignores extension-generated continuations as independent triggers, and waits for the full pipeline in headless mode. Existing Memory remains available regardless of the toggle. The main model is not asked to write memories directly; the parent validates new-memory proposals even when the existing corpus is empty.
-New memories live in a separate `newMemories` proposal array while `selected` remains the exact parent-owned existing-file list. Snapshot message indices and quotes ground the proposals; preferences stay private and credentials are rejected. AGENTS.md extraction uses the same explicit safe/private classification, persists exact predecessor state in a pre-apply recovery receipt, and applies Memory, Harness, instruction, and post-receipt changes in one rollback boundary. On the next session start, an orphan pre receipt without a matching post receipt is validated against the canonical project scope and restored before new learning starts only when current bytes match the durable transaction ownership journal. Unjournaled legacy changes or newer human edits remain untouched and block recovery with a conflict diagnostic. Harness learning verifies user/tool evidence and executes positive and negative evaluator cases for each selector. Revision-bound `learnedRules` provenance protects manual edits; shared, built-in, personal, invalid, disabled, and manually authored identities cannot be overwritten by automatic learning.
-Skill guidance names its invocation task in the model-visible message. Text guidance retains its selector and subject scope even when triggered by historical conversation. Flat and legacy skill guidance use additive structured run-start sections with explicit task scope, never custom context messages or complete system-prompt replacement. Saved legacy targets remain audit metadata; execution protections remain unchanged. A delivery revision includes its message format, so a restored unscoped delivery receives one scoped replacement without rewriting history. Matching and delivery do not prove semantic compliance. Output/artifact checks remain available for installed declarations, without becoming a fourth flat-rule selector or replacing project verification.
-Memory injection contains only deduplicated filenames and bounded descriptions, with a compact root precedence list. It supplies the current structured discovery section at each run start. Old custom references are filtered without replacement context messages. Entry bodies require explicit relevant reads; index exposure does not establish Memory use. Automatic correction revisits actual successful reads paired by unique call identities and indexed paths, including validated same-name mirrors; it rechecks the current preferred body and preserves the old observation. Failed or ambiguous reads nominate nothing, and explicit Memory requests keep their scope. Nomination grants no factual or mutation authority. Per-entry source suffixes are omitted; omission counts and discovery pointers appear only when needed. Complete indexes are parent-rebuilt, stale-capable discovery metadata; loading never writes them. Cues give way before entries when the budget is tight. The per-turn loader sizes its read buffer from each file, reuses unchanged entry metadata in-process against a device/inode/size/mtime/ctime identity check on a regular non-symlink file, re-verifies root identity for every real read, and memoizes the `git` root probe per canonical project path; a rewritten or replaced entry is never served from reuse. AGENTS extraction can retain a bounded conditional `replacementText` pointer in the same evidence-checked, budgeted transaction instead of losing discoverability.
-## Design assessment
-The expanded goal requires revision-to-trajectory attribution and later unseen tasks. Harness² at `https://github.com/google-research/harness2` revision `1cfe254e8d25b15f37048c3730134686abe60335` separates adoption from helped/hurt/no observed effect/confounded; absent a reusable contrast, retain no entry. This is an acceptance requirement, not an implemented attribution claim. Reliable facts/preferences do not require a benefit claim; efficacy and transfer lessons require later behavioral evidence.
-The strongest architectural property is the separation between reasoning and mutation: children plan; the parent validates and writes. The main ongoing complexity is `extensions/inject-memory.ts`, which still owns command registration, settings, model selection, injection, child orchestration, UI status, pipeline sequencing, and shutdown cleanup. Future behavior should prefer smaller modules rather than expanding that composition root further.
-A completed task that actually read indexed Memory can require correction even when its user request has no learning keywords. Automatic screening and later selection use the same parent-observed, uniquely paired successful read names. This nomination remains active when semantic phase selection is disabled, but never overrides disabled Memory learning or explicit command scope. A nomination starts review of the current preferred record, not a write or a claim of adoption. Current-source collection still precedes planning after successful source edits.
-Continual improvement has four separate acceptance conditions: a validated record is stored; a later relevant task reads its exact revision; independently verified new evidence corrects or retires obsolete claims; and later paired tasks improve after including all failures, latency and known or unknown costs. Index delivery, a successful read, an applied correction and a green test suite each establish only their own condition. A held review must retain its original failure and must not be sampled repeatedly until approval. Fresh acceptance uses the user-requested Pi 1.3.0 baseline; historical Pi 1.0 and 1.2 evidence stays separate. The retained V47 cohort (2026-10-16) did not complete these conditions: both arms passed their first two tasks, but the learning arm's correction remained held after its independent body worker timed out. This is incomplete coverage, not demonstrated improvement.
-Harness needs a separate authority loop: bind the latest actual user correction, revise or retire only the exact auto-owned rule, and verify both the newly allowed action and the restrictions that must remain. A failed semantic judgment cannot silently disable the old rule. Failed-task backfill needs the complete observed failure and current source, then an independently checked change and a later task that exercises the lesson. Merely acknowledging the backlog is not that outcome.
-### Acceptance lineage: Pi 1.3.0 (2026-10-19) The user chose the Pi 1.3.0 lineage for the correction/retirement acceptance, not the Pi 1.2 v73 lineage. `AGENTS.md` already states that baseline, and the historical Pi 1.2 cohorts (v64/v72/v73 and the 24-cohort coverage table) stay separate and are not relabelled. The handed-off session made no paid calls. The current Pi 1.3 owner state is recorded in the recovery checkpoint below.
-Artifacts handed to that lineage, all produced without a paid call:
-- Frozen source: `/private/tmp/cl-frozen-v94-20261019`, built and self-verified by @packages/continual-learning/scripts/freeze-correction-study-source.py (`make freeze DEST=...`). 1373 source files, 9 bundled SDK files, `frozen-source.json` sha256 `bff6f5d9429dba844973df04eda1d917859dfb518416f35a688e5d53d4a93666`, `native-dependency-bindings.json` sha256 `b9ad3663946575be922e43f13211e20c3a0f627ff66071582ff1fe439884e9a5`. It carries this session's four privacy-guard repairs and the budget/retry/over-hold work, and it is read-only: remove it with `chmod -R u+w <dest>` first. - Worktree snapshot of the same revision: `/tmp/cl-source-snapshot-20261019.json`, 1371 files, inventory digest `f4853c3aca34ad31c859a98e1dc64fefecc452fa792707b8e78531361637b828`. - The v93 preparation notes in the recovery root already disclose this session's preflight placeholder repair as a co-intervention, so that freeze consumed it.
-Local gates for this revision are reproducible from the package: `make check`, `make test-privacy`, `make dossiers` (169 retained dossiers / 4677 entries / 0 trips).
-### Support over-hold disposition (2026-10-19)
-The support: uncertain over-hold measured on 2026-10-07 (8 of 8 verified-observation
-samples) was repaired the same day by the support question and criterion text in
-extensions/jev-learning.ts:1477-1487, which now state that a successful tool result
-that ran the command grounds the claim. The gate stayed at 0.9/0.8 because the
-diagnostic showed the classes overlap. The retained post-fix corpus reports 14 of
-14 matched with 0 false allows and 0 false holds, and the criterion sentences are
-pinned in tests/test_jev_learning.py:900,904. The later live hold in v73 is a
-different and correct hold: counter_preservation_0_0 compatible 0.73 on a repair
-that regenerated a stale declaration. See
-tests/support-over-hold-verification-2026-10-19.json. No live re-run; the paid
-cohort is where a support over-hold would appear as a failed
-memoryCorrectedAndUsed together with a support-dimension hold.
-### Jev preflight placeholder consistency (2026-10-19)
-The 2026-10-07 placeholder narrowing reached only the Memory guard
-(`containsSensitiveMemoryMaterial`). The Jev preflight (`sensitiveValue`) is a
-second detector and still refused documentation-style text placeholders, and its
-quoted-key regex covered text the Memory guard's pattern did not. Both detectors
-now match plain and JSON-quoted assignments through one pattern set and the shared
-`placeholderCredentialValue` rule, and `CODE_OR_ENV_PATTERN` no longer reads `?` or
-`&&` inside a password as an expression. Scope is text only: a credential-named
-structured object key stays strict, a quoted value containing `,`, `;`, `?` or
-`//` is refused, no placeholder entry was added, and the only widening is that the
-plain pattern's credential-key class now accepts optional surrounding quotes,
-which widens detection and never sensitivity. A credential-named assignment has
-no URL exemption at all: three review rounds showed that every scheme list and
-userinfo test could be bypassed by a webhook, a token-bearing link or a
-`scheme://user:pass@host` connection string, so a URL under such a key is refused
-too. The documented placeholder rule, including code, env and expression
-references, is the only exemption; refusing an ordinary URL under a
-credential-named key is the accepted false-positive cost.
-Two independent review rounds with no implementation history falsified the first
-and second versions of this fix. Round 1 found the first version admitted quoted
-values containing `,`, `;`, `?` or `//` and object-key placeholders; round 2 found
-its replacement still admitted a quoted value under an unquoted key, a value
-containing the other quote type or an escape, and disagreed with the Memory guard
-about a parsed credential-named member. Every finding was repaired: the delimited
-pattern accepts either key form and both quote types with escapes, the plain
-pattern's credential-key class accepts optional surrounding quotes, and both
-detectors share the strict structured-key predicate. A later round removed the URL
-exemption entirely: a credential-named assignment is refused, URL or not.
-The shared corpus and `scripts/validate-consolidate.py` pin both implementations.
-Re-measured over every retained dossier: 169 dossiers / 4677 entries, 0 trips (was
-2 of 123 pre-fix), recorded in
-tests/preflight-false-positive-verification-2026-10-19.json. This is not a
-false-positive rate and no live cohort was re-run.
-### Recorded Jev retry backoff (2026-10-18)
-`JEV_RETRY_BACKOFF_MS = 500` delays the existing single connection-only retry and yields to an abort during the wait. Attempts, request bounds and per-request deadlines are unchanged, so this is not an added retry. Live evidence already shows the retry working (v68/v69 harness telemetry `requestCount 4`, `completedRequests 3`, `retriedRequests 1`, decided supported); v69 memory still lost two logical requests to consecutive connection failures, which this backoff only aims at, unproven. An instrumented probe also confirmed that a failed request group already stops later groups of the same review (two attempts, not four), so no spend-stop change was needed; a regression test now pins it.
-### Recorded Memory correction budget (2026-10-18)
-`MEMORY_CORRECTION_WORKER_DEADLINE_MS = 600_000` now bounds independent body review and semantic Memory repair; the Harness correction path keeps its own 230-second bound. The change is recorded in @docs/adr/0009-record-the-memory-correction-worker-budget.md and answers v64/v72/v73, which were aborted at 230217/230176/230115 ms with zero completed assistant messages while the same run's two-target body review used 184004 ms of the old bound. All semantic thresholds, request bounds, retries and historical cohorts are unchanged, and the parent now retains distinct started and closed lifecycle markers. A longer wait, a green suite or an accepted repair response is not a correction or a learning benefit.
-## Historical stop and current recovery (2026-10-21)
-### Local maintenance and fresh Docker verification
-- CURRENT focused Memory loop INCOMPLETE (2026-10-24), no active paid owner or next admission. Target Pi1.3/cli-proxy gpt-6-luna, original public p-limit two revisions/four ordinary tasks/two native Memory commands, Jev1.14 .9probability/.8confidence/.9joint. No shrinking, historical rerating, seeded answers or forced reads. Canonical evidence/costs/next: /private/tmp/cl-memory-feedback-repair-20261023/current-state.json. R14 /private/tmp/cl-memory-catalog-feedback-real-loop-20261024 remains independently CLOSED failed9model0Jev/known$0.0092019+unknown/0stored; its raw format is UNKNOWN. W15 /private/tmp/cl-memory-fresh-producer-contract-20261024 fixes a reproduced fresh-project knowledge-format bypass and retains JSON-only initial candidates (sensitive hash-only, no thinking/stdout; archive failure stops), with legacy/preference/materialized/semantic compatibility. One existing correction only; no prompt/stage/retry/threshold change. Final full76285 naturally passed2501+1skip1574.20s, focused45/related378/native6 passed, type/pack0; install reports8unrelated missing paths, target present. REDs, earlier full/native/source-drift/fixture failures remain archived. An old independent report correctly failed final-fixture binding; old bytes preserved and current core review refreshed. Final F3 /private/tmp/cl-memory-fresh-producer-contract-frozen-v3-20261024 binds1379+SDK9; paid runtime427796... matches98files, separate from native-only Bun. R15 /private/tmp/cl-memory-fresh-producer-contract-real-loop-v3-20261024 ran ONCE after fresh0callpreflight and admission; naturally failed123.369s,12model0Jev,known$0.01320178+unknown,0stored/later tasks unrun. Independent closure audit4f0e8ba9fc5e24f2acbb775a8e380920a36d1d159f1a835fff6da196f80b3030 verifies53retained files/source/freeze/PIDs/containerabsence/releasedquiescentappendconfirmed. Parsed original generation proves7refs/2textunits/0sourceunits and no77charfactory declaration at e33.b0.l89, despite a free citation slot. Original2370char range was actually repaired to889 under2000, so W14 typed diagnostics worked. Final body exactly preserves both original text units: this omission occurs in model selection, not materialization. Guard negation wording is overbroad about a correct wrapper/type contrast, but the independent complete factory bridge is still absent; no rerating or approval follows. Focused audited subset454requests/model$6.93950570/separateJevinputestimate$0.128852052+unknown, not complete historical billing. Initial persistence, natural later use and same-record new-evidence BODY correction remain unverified. W16 /private/tmp/cl-memory-declaration-view-20261024 adds an opt-in declaration syntax view to the existing initial generation input only; semantic/default projections and raw source/ref/domain remain unchanged. Formal runtime @babel/parser7.29.9 parses already observed declaration regions without new reads/import resolution/typechecking/body completion. Direct outer-return references point only to unique local syntax candidates, with generic shadowing and ambiguous targets excluded; direct members retain original ranges. Metadata is bounded globally to32KB with explicit omission, all originals retained. User facts/config text units remain valid; no prompt/model-stage/retry/gate change. Dependency freeze RED5/GREEN10 and independent parser-only runtime check passed; focused/current full/native/fresh admission remain pending. This is a new generation policy addressing source-relationship visibility, not proof of model compliance or task improvement. This Context update is a post-R15 documentation delta; frozen execution sources stay unchanged. Approved upstream metadata remains https://github.com/typesafe-ai/typesafe-sdk-js/issues/21#issuecomment-6361670492; no new publication authorized.
-- V122 settled failed: /private/tmp/cl-v122-correction-sync-20261021/result-summary.json. Pi1.3/DeepSeek4.1/Jev1.14;48requests(28main/20Jev),1474.917s,0validMemory/0Harness,5later tasks not run. Reported main+learning$0.186059448; separate Jev input estimate$0.021357588; unknown costs retained. Runtime source unchanged/evidence complete/owner quiescent/ledger appended/reservation released. Original source guard blocked2control attempts; first coverage used body m-ref as original evidence; repairs selected10 then17refs above8, misclassified intent. Jev TLS reset retried successfully, not final failure. Historical holds are not rerated. Exact V122 frozen source and admission remain immutable.
-- V123 settled failed: /private/tmp/cl-v123-native-source-contract-20261022/result-summary.json.49requests(27main/22Jev),1706.317s,0transport errors,0validMemory/0Harness,5later tasks unrun. Reported main+learning$0.255470556; separate Jev input estimate$0.023234022; unknown costs retained. Owner quiescent/ledger appended/accounting released/reservation false; no paid process. Source/runtime unchanged. Control7public reads+2allowed verifications, no scope violation; safe.67/conf.51 held with exact source/session binding. Initial catalog-v2 accepted; full fresh review held unchanged bodies. Backfill description+evidence schema branch was not materialized; another quote exceeded2000chars and stays rejected. No old plan rerated.
-- V124 settled failed: /private/tmp/cl-v124-effective-body-correction-20261022/result-summary.json.57requests(29main/28Jev),2297.099s,0transporterrors,0validMemory/0Harness,5later tasks unrun; every learning coverage false. Reported main+learning$0.348289956; separate Jev input estimate$0.0275142; unknown usage/billing retained. Source unchanged/retention complete; owner quiescent/accounting released/ledger appended/reservation false. Initial required-body guard now rejects line-ending/boundary-whitespace substitutes; description+evidence materializes only admitted scalar with exact body preservation. Final2418passed1skipped135readonlycleanupwarnings820.39s; typecheck/pack0; install8unrelated missing paths. Fresh Docker Memory7/Harness6/feedback replay passed, controlled evidence only. Control10legal public calls, safety.61/conf.41 held. Initial repaired bodies differ only in internal spacing; no mandatory-body bypass established. Backfill body response misses final outer JSON brace; coverage body witness exceeds2000chars, correctly rejected; source support also held. Recovery session copy-failed keeps attribution unknown. No historical held plan rerated; admission consumed and no paid process remains. Current Context is a post-run documentation delta from frozen runtime.
-- The user restored existing paid authorization on 2026-10-21. Fresh V121 settled FAILED after 2750.493s, 64 requests (32 main, 32 Jev), zero transport errors. Both actual Pi versions were 1.3.0. No valid Memory or Harness was written; five later tasks did not run and every learning-coverage field is false. No paid process remains. Never reuse this admission or redraw held plans.
-- Evidence root R=/private/tmp/cl-paid-harness-failure-20261021; cohort R/continuous-v121/cohort/20261021T095656Z-28d537daac00. Canonical manifest.json and reviewed-wrapper-result.json retain failures, known costs and unknowns. Main/learning reported cost $0.53002758; separate Jev input estimate $0.031523688; actual complete billing remains unknown. Source unchanged, retention complete, transport quiescent, exclusive owner published ledger append and released reservation. Parent/reviewers did not access actual shared accounting files.
-- Control accessed environment and learning-artifact metadata outside the public-source task boundary; its independent safety hold remains. Learner first repair changed both bodies but omitted the held follow-up relation. One admitted backfill collected 5 source files/12 observations; its repair added the held slot, second.resolve and check-time order, but selected citations omit parts of that relation. Full fresh review still held. Repairs returned normally in 418641ms and 311769ms. No source-loss or correction-field mapping bug was proved.
-- Backfill coverage producer copied source text "Command exited with code 1" into a body witness absent from the candidate. Exact offline binders reproduced rejection; source ref is valid but body witness is not. Preserve the rejected response and all costs. Independent findings are R/control-progress-diagnosis.json, R/learner-repair-diagnosis.json and R/backfill-coverage-binding-diagnosis.json. Do not normalize witnesses, change questions or add prompt slogans to seek approval.
-- Final independent review confirms zero knowledge operations, two pending jobs and no later tasks. Recovery command session capture was copy-failed; its usage attribution remains incomplete. validAttributableTasks counts pre-task inputs only, not learning acceptance; orientation is excluded from pairedOutcomes. R/result-summary.json is the bounded result view.
-- Frozen source /private/tmp/cl-v121-current-memory-harness-frozen-20261021 has 1379 source + 9 SDK files. Owner SHA961d6fc091ea85fb07bbf3b09d78f291256d2b2c7de1ecd1111ebcd9f0a41445; admission SHA4e6ffae5581d88f9598f979906e80b194587ac4c6762c6e13c5ceb25833ffeeb; gate SHA907940f5dc1c1e4bc5060de0008a2d3ee6941319723bee0815310a729d7b24fd. Fresh preflight zero requests; package 2410 passed/1 skipped/70 readonly-fixture cleanup warnings, typecheck/pack passed, install retains 8 unrelated missing paths. Preparation failures and rejected zero-call wrapper remain in R. Context is postlaunch documentation only.
-- Confirmed retained-record contradictions now compare required text changes with a predecessor copy captured before generation, including records absent from the original delta. Copied required bodies and description-only substitutes are rejected; uncertain evidence-only and legitimate description-only repairs remain available.
-- Existing repair scope guidance shrank from 2275 to 729 characters. Source-backed subject/dependency/reached-state relations belong in the body; discovery descriptions and citations do not substitute for them. No schema, correction slot, threshold or final semantic gate changed.
-- RED reproduced unchanged retained body marked repaired. Initial subset38passed/4sandbox-loopback failures; full baseline2404passed/6failed/1skipped (1concurrent source drift,3handed-off Harness defects,2obsolete prompt assertions), all logs retained. Focused fixes97passed, final Harness31passed; final source-stable gate2410passed/1skipped in1025.82s (/private/tmp/cl-memory-harness-final-full.log). Typecheck/pack passed; install check retains7unrelated missing packages.
-- This fixes correction enforcement and instruction conflicts; it does not demonstrate improved generated knowledge or later-task benefit. Historical failures, costs and frozen artifacts are unchanged.
-- User handed off Harness guidance/preview fixes. Retain full ordinary context; exclude only identified config apparatus, preserving mixed commands, failed reads and write outcomes. Unchanged text rows/ledger deduplicate but matching system sections and skill metadata remain. Authoring survives turns, binds exact target, and clears on session/branch changes; ordinary writes retain normal checks.
-- Real isolated Pi1.3 cross-turn preview/write and two subsequent model requests passed with one guidance row and0external/paid requests; first two offline verifier failures are retained. Final read-only review found no remaining issue. Proof:/private/tmp/cl-harness-handoff-native4/harness-first-79ql35pl/result.json. Local tasks cl-memory-local-simplification and cl-harness-guidance-handoff completed; original learning goal stays paused. Home Lab selector-only repair now applied with original bytes saved in /private/tmp/cl-homelab-reload-20261020/harness-before.json. Actual Home Lab cwd/HOME Pi /reload passed17preview cases/cross-turn preview/one guidance row/unchanged config bytes/0remote or paid calls; report:/private/tmp/cl-homelab-reload-20261020/result.json. Two verifier failures retained. Unrelated extensions/automatic learning disabled for this read-only run; original Ghostty window was inaccessible in that prior run. User now reports its /reload completed; exact old-session verification is pending (cl-homelab-old-session-retest): computer-use access remains denied, current thread has no attached terminal, and original logs have no fresh case evidence. No paid call was started. The user later requested a Docker retest; its separate result is below. On2026-10-21 process inspection found no confirmed Pi with Home Lab cwd (11exact-pi processes checked); the only Home Lab cwd process was not a verified interactive Pi. Native /reload does not append ordinary conversation rows. Requested builtin /session File+ID to bind the actual user-reloaded session. Evidence:/private/tmp/cl-homelab-old-session-identity-20261021.json. Docker native Pi1.3 retest passed actual /reload, four turns,17preview cases, cross-turn preview, one guidance event and unchanged config; network none,0remote/paid calls. Current snapshot matched all1524 installed source files. Proof:/private/tmp/cl-docker-harness-retest-20261021/result.json. First pass and verifier session-path abort retained; old user session remains unverified. Native Docker Memory sequence also passed generation with restored dependency/readiness/scope relations, description-only retained correction blocked with unchanged bodies/history, full body correction and later native read. Proof:/private/tmp/cl-docker-memory-sequence-20261021/result.json;5verifier failures and2expected guard-removal failures retained;0external/paid requests, thresholds unchanged, no efficacy claim. Experiment goal remains paused.
-Evidence root B: `/Users/FradSer/.codex/visualizations/2026/10/08/01a11d01-ec97-7620-923c-0ce430ba8fb3/continuous-learning-recovery-20261011`.
-- Historical stop on 2026-10-20: the user stopped all experiments and paid calls. That historical run remains stopped; renewed authorized focused work is recorded above; task cl-pi13-correction-and-continuous remains incomplete. Preserve all evidence and costs. Do not resume without a new explicit user instruction. Learning benefit, Harness correction/retirement, failure backfill and unseen transfer remain unproved.
-- Complete prior decisions, failures, costs and exact bindings remain in B/context-before-v115-content-checkpoint-20261020.md (byte-identical archive). This replaces obsolete live checkpoints; historical results are unchanged.
-- Historical V117–V130 profile only: Pi 1.3.0; main bailian/deepseek-v4.1-flash; study Jev 1.14, production 1.13. Keep 0.9 probability / 0.8 confidence / conservative joint 0.9; Memory600s, Harness230s, main900s, SDK15s, forwarder30s, process35s, outer7200s. No held-plan approval resampling or forced Memory reads.
-- Parent/reviewers never read/stat/hash/write actual B/cost-ledger.jsonl, B/authorized-real-study-budget-600.json or B/600-active-reservation.json. Reject these basenames before traversal/stat/read. Only an admitted exclusive paid child after O_EXCL ownership may access them; synthetic selftests remain separate.
-### Prior settled real cohort: V117 FAILED
-- Original V117 outcomes and exact bindings remain in R/context-before-v121-settlement.md (R is defined above) and canonical B/continuous-reviewed-deepseek-pi13-parent-repair-policy-v117/cohort/20261020T004456Z-cebcd39e86e3; settled-outcome.json SHAb805706e392656ddb9d63a9f3b37f798c1f1f0952209df1c417e569ee605656e. No source, verdict or cost was changed.
-- V117 retained zero knowledge/Harness and stopped later tasks. Its independent reports /private/tmp/cl-v117-settled-independent-check.json and /private/tmp/cl-v117-actual-repair-content-independent-review.json remain authoritative. 37 requests; known $0.27656275199999997 plus unknowns. Gates did not pass; no learning benefit.
+# Continual-learning checkpoint
 
-### V118 read-only coherence diagnostic: independently settled (2026-10-20)
-- OUT118=B/jev-real-paragraph-coherence-v118-20261020. Original exec76126 naturally exited0. Nine Jev requests, zero main, 7.798s, all HTTP200, 18 retained safe buffers. No paid process remains. Fresh admission was consumed once; never reuse it. No Memory/Harness writes or historical full-plan rejudgment occurred.
-- Canonical settled-outcome.json SHA790f775e7728b5629646be875204c40c8c74a62bc1a69220a3d4f0774c50af6d. Independent /private/tmp/cl-v118-real-diagnostic-settled-independent-review-r2.json SHA9ec0bb81527ea48d02075b1d9bf86931733e73c640f0eba905b08411a75ce936; parent verified all29 safe binding hashes. R2 supersedes R1 arithmetic comparison; owner uses Python sum. Actual shared accounting remains inaccessible to parent/reviewer; release verification uses the exclusive owner's public receipt.
-- Known Jev input-only estimate $0.00033327; actual billing and other costs unknown. Frozen1378source+9SDK unchanged. Transport quiescent; published reservation released. One pending cost-bearing ledger payload reconstructed from safe settlement intent, not from actual accounting files.
-- Fixed corpus: seven exact V117 repaired paragraph fragments/combinations and two authored contradiction controls; original coherence question and source-blind state unchanged. No full held Memory, mutation authority, retries, threshold changes, calibration or efficacy claim.
-- Observed paragraph compatible .92/confidence .88 meets original gate. Conditions .69/.53, Source .67/.51, combinations01 .88/.82,02 .61/.41,12 .63/.45,012 .57/.35 remain held. One contradiction selected contradictory1/confidence1; registration contradiction selected compatible .48/.22 (contradictory .38), still held. No negative passed the positive gate.
-- Seven real cases are internally consistent by independent reviewer interpretation, not calibrated gold. Nine single draws cannot establish a stable capacity limit, false-hold rate or historical numerical-score cause. Source-blind compatibility cannot establish source truth, omitted conditions or useful Memory.
-- Independent recommendation: preserve material conditions; improve subject, dependency and check-time clarity only when justified by source-bound content analysis. Separate observation from static inference. Verify equivalence and omission/contradiction negatives offline before a fresh complete cohort. These nine results alone justify neither another generation patch nor lower thresholds.
-- Immutable owner /private/tmp/cl-v118-coherence-owner-draft-r8.py SHAe41cda9ef5dd848f12a38485ccbd7558b592dbe51b94fe58c6caa3af6d111f4f; final independent implementation review2e542fb2. Local preparation failures and owner security/accounting repairs remain in prior archived Context and preparation-notes-r1/r2/r3/r4.json; these are diagnostic infrastructure fixes, not plugin learning-root fixes.
+Updated: 2026-10-30. Owns package architecture and acceptance; root CONTEXT.md is the entrypoint.
 
-### V119 source-bound generation-scope correction (2026-10-20)
-- Independent source/content contrast /private/tmp/cl-v119-source-bound-relational-independent-review-r1.json SHA3db55da1: dependency relation is source-supported but not explicit in the real body. Role paraphrase adds knowledge, not just formatting; starts corrected to submits in retained contrast-r2 SHAa5e4c443. Six content contrasts and three separate authored scope controls are offline interpretations, not learner inputs or semantic approval.
-- Concrete prompt ambiguity confirmed by independent addendum5a8b8ac3: all new project knowledge with maintenance context was broadly required to include a complete declaration. Limit that requirement to inspected declared API contracts. Behavior/failure knowledge may use precise source-backed relations; retain Why/How, applicability, original evidence and all existing sourceExcerpt/semantic gates. This does not establish the cause of historical scores.
-- Updated the existing prompt stanza, citation-generation test, continuous feature and existing Changeset. RED1failed3passed; affected17passed; typecheck0/pack0. Independent implementation review /private/tmp/cl-v119-declaration-scope-implementation-review-r1.json SHAf0c0dc2e, findings[] and independent4passed. No product schema, validator, gate, retry, model or deadline changed.
-- Native Pi1.3 actual /memory initialization-repair /private/tmp/cl-v119-manual-initialization-repair-r1 passed, zero external/paid requests, original prefix and both-root correction verified. This uses loopback controlled answers, not real-model learning evidence. Full package gate exec68482 naturally exited0:2410passed1skipped970.61s; /private/tmp/cl-v119-package-tests-r1.log. Final typecheck/pack0. Initial install8missing became7on recheck, with continual-learning no longer missing; actor unverified, parent changed no settings. Generic authenticated live_smoke remains unrun.
-- Second independent finding: generic explicit-command initialization removed the type-storage request while the study still requires type storage/correction. No historical metric changed. Independent selection review c5df8153 supports the existing verified-failure protocol: the actual automatic first task requests failure knowledge, type contract and durable npm policy. Preserve failed original task, native feedback/source/corpus checks, original control-first/alternating order and all downstream gates. Generic /memory remains a separate treatment; no historical metric changed.
+## Objective and evidence
 
-### V120 preparation stopped before paid launch (2026-10-20)
-- Freeze /private/tmp/cl-v120-declaration-scope-automatic-frozen-20261020 source105ff7539963080004e944964f5023a8fb9ac699ca678445fab6193ca3d8a42b/native02903d2dbadaf8268dea6885fa40f7cd1b06814b42f6703784e8b6f381a196c3,1378+9readonly verified. Local gate /private/tmp/cl-v120-declaration-scope-source-gate.json SHAe84b5ccc442c6d1f6a0ce65369f5b560d8919197ccf7eeefffc337c0d67e8e60 binds15artifacts and discloses limits. Current Context is a post-freeze documentation delta, not changed study runtime.
-- Final candidate owner /private/tmp/cl-v120-continuous-owner-final-r6.py SHAf764636cce97caaa6a62b404c97ad0a4455518324fb438f3a1f440b0e3d4d306. Flags verified_failure_learning=True/explicit_command_initialization=False/unlimited=True; no command-policy bridge metadata. R5reviewa840f06b independently closes missing-run failure-receipt defect with11syntheticfinallycases; settlement8branches retain pending intent/onecostrow/confirmedclose. These are owner reliability fixes, not plugin learning effects. Exact R6 changes only gate binding and draft-refusal removal; root must obtain fresh final admission before paid execution.
-- Zero-call preflight exec76768 naturally exited0,53.997s,0requests,both Pi1.3.0,accounting not-applicable. Fixed OUT=B/continuous-reviewed-deepseek-pi13-declaration-scope-automatic-v120; run preflight/20261020T023402Z-b7af83f52a51. Final independent admission034301e0 was published but never used. User stopped before paid launch; OUT/attempt.claim now exclusively records cancellation, preventing this owner from acquiring a global lease. OUT/experiment-stopped.json preserves the stop receipt. No paid process remains and no parent/revieweractual3 access occurred.
-- Additional actual Pi1.3 automatic coverage-replay passed /private/tmp/cl-v120-native-automatic-coverage-replay-r1; protocol subset75passed90deselected17.30s. Controlled loopback only,0external/paid. Local preparation failures retained /private/tmp/cl-v120-preparation-failures-r1.json; first gate-builder expectation of8missing refused the newly observed7before publishing, then R2 preserved the current7and prior8. No learning efficacy established.
+Complete the actual Pi 1.4.0 / gpt-6-luna sequence: extract knowledge -> save ->
+natural use -> new evidence correcting the SAME Memory BODY -> corrected use.
+The user approved Luna ordinary tier and fixed the original tasks, prompts,
+knowledge format and gates. The original six-stage Memory loop remains incomplete;
+its Harness-off protocol cannot establish useful Harness learning.
 
-### Remaining goal and historical evidence
-- Historical stopped runs remain stopped. Fresh V121 has separate renewed authorization and exact admission as recorded above. Preserve every V118 result and all V119/V120 preparation. The task-type request mismatch is independently diagnosed; the prepared automatic protocol resolves its request alignment, V121 subsequently ran and failed as recorded above; no learning improvement is established.
-- Complete real Pi1.3 six-task equal-budget Memory natural use/correction, Harness execution/revision/retirement, failed-task backfill and unseen transfer. Exact-revision read is not attention/adoption/causal benefit. Current MemoryUseTracker conservatively records cannot-attribute; aggregate pair wins do not establish per-revision effects. All requested learning benefits remain unproved.
-- V116 canonical OUT source-bound-repair-v116/settled-outcome.json SHA6bde1098;35requests/585.458s/known$0.20578976999999998+unknown;0knowledge/Harness/later5. V11538/1212.719s/known$0.302040882+unknown;V11435/883.312s/$0.2276508+unknown;V11340/848.497s/$0.284432034+unknown;V11236/1418.986s/$0.347228622+unknown;V11137/1067.72s/$0.310917528+unknown. Preserve all immutable canonical results.
-- V10783requests/2339.317s/known$0.521688936+unknown. Repairs normal296567/251223ms, descriptions changed but bodies unchanged; missing registration/held follow-up relationship and log-label generalization risk. No service timeout explanation or learning benefit. Independent settled report /private/tmp/cl-v107-settled-independent-check.json retains full evidence.
-- Full prior Context is byte-identical B/context-before-v118-r8-handoff-compaction-20261020.md; earlier archive lineage and canonical outcomes preserve exact artifacts, failures and bounds. Current Context is a postlaunch documentation delta; no frozen source changed. Task cl-pi13-correction-and-continuous is stopped and incomplete in B/tasks.json.
+W denotes the durable evidence directory:
+`/Users/FradSer/.codex/visualizations/2026/10/13/01a13584-6a05-79f3-91ec-68e0acd37092/continual-learning-20261026`.
+`W/state.json` owns machine-readable observations. Refresh this checkpoint after
+settlement; retain immutable attempts, consumed admissions, failures and unknown
+costs. Historical summaries never replace missing original evidence.
+
+## Architecture and ownership
+
+`pi-continual-learning` is a native Pi extension, not a skill or weight update.
+Memory stores knowledge as untrusted reference data; discovery exposes filenames
+and descriptions, while bodies require relevant reads. Harness owns scoped
+parent-evaluated execution conditions and guidance. AGENTS consolidation maintains
+project instructions; user-level AGENTS files are not targets.
+
+Automatic learning and default `/consolidate` use one completed Task Slice. A
+metadata selector chooses related Memory; the parent freezes the Learning Dossier,
+runs one-shot planners, validates deltas and owns mutation. Package prompts and
+typed builders own generation. Planner prose is not success. Memory must verify
+before a selected Harness phase; a later failure does not undo an earlier verified
+phase. `/consolidate full` explicitly requests whole-corpus maintenance.
+`/memory <request>` retains original evidence and actual command arguments, forces
+Memory review and excludes Harness/AGENTS. Backfill requires verified original
+session references, never change-history summaries or repeated task tools.
+
+Harness layers are project personal `.pi/harness.local.json`, project shared
+`.pi/harness.json`, user project-scoped `~/.pi/agent/harness/<scopeKey>.json`, and
+user shared `~/.pi/agent/harness.json`. Automatic learning writes only project
+shared auto-owned flat rules. Read-only compatibility preserves installed manual,
+personal, disabled and legacy protections. See @packages/continual-learning/HARNESS-DESIGN.md
+and @docs/adr/0005-preserve-installed-harness-protections.md.
+
+Memory's complete canonical root is `~/.pi/agent/memory/<scopeKey>/`.
+`<project>/.memory/` mirrors safe entries byte-for-byte; private entries and their
+index rows remain private. Scope uses Pi's flat escaped canonical cwd identity,
+not hashes or legacy-root fallback. Both indexes, adoption, rewrites and deletes
+follow the existing transactional two-root contract with rollback. Only bounded
+regular Markdown basenames are eligible; `MEMORY.md` is discovery, not an entry.
+Reject escapes, symlinks and replaced roots. See @docs/adr/0003-auto-memory-index-injection.md.
+
+## Invariants and evidence limits
+
+- Keep complete original task evidence, exact run/scope/source identity, paired
+  successful observations, fresh source after successful edits and privacy.
+  Retrieved Memory and quoted output never grant instruction or write authority.
+- Parent validation owns regular-file containment, source races, locks, atomic
+  writes, receipts, cancellation, shutdown ownership and rollback.
+- Retain 8 citations, 2,000 UTF-16 units per quote and 32 body units. Keep semantic
+  probability .9, confidence .8 and conservative joint .9. Memory permits one
+  structural correction followed by at most one separate semantic correction.
+  Neither phase retries or replans; Harness keeps its existing shared budget.
+- Body, description, permission, preservation and whole-plan coverage remain
+  independent gates. Declaration syntax is not a runtime guarantee.
+- Fresh project generation proposes cited text/catalog. Valid older atomic
+  relation inputs remain readable. Only complete explicitly selected AND used,
+  uniquely AST-validated factory/owner/member indexes enter the existing neutral
+  relation materializer through admitted project BODY correction. An unambiguous
+  complete factory signature may also witness its direct named owner role. Preserve original text and catalog; never fill missing roles, add unselected refs
+  or infer implementation behavior.
+- Fresh standalone excerpts stay disabled; legacy readers and parent-enabled
+  semantic `sourceExcerpt` correction retain compatibility.
+- Body/semantic correction retains its 600-second worker bound. Early owned
+  Harness correction retains its separate 230-second total bound. See
+  @docs/adr/0009-record-the-memory-correction-worker-budget.md.
+- Delivery, complete revision reads, persistent correction and later task behavior
+  are separate conditions. Controlled fixtures and green tests prove mechanics,
+  never real-model learning or causal improvement. Use tracking retains unknowns.
+
+## Latest native recovery: held coverage, no Memory
+
+`W/pi-native-codex-20261029/native-context-system-proxy/` retains source-v1:
+4 model requests, 16,093 tokens, reported USD0.00143074000000000011; six successful
+tools and one failed read before creation. Its first Memory audit used 10,107
+tokens/USD0.00104094; the planner failed before any plan/Jev, with unknown usage.
+The explicit proxy environment fix is in `W/frozen-source-native-recovery-20261030`.
+The October 30 recovery first failed in 0.922s: its hardcoded proxy was now closed.
+Credential-free checks proved proxy ECONNREFUSED and direct HTTP401 reachability.
+`W/pi-native-codex-20261029/native-context-recovery-20261030-direct/memory-v1/settlement.json`
+binds the fresh direct owner, complete successful source plus both failed suffixes.
+Audit and initial generation completed. The first draft contained the relationship
+but omitted three declaration-role citations; existing structural correction fixed them.
+Body review was consistent and intrinsic checks passed .9/.8. Coverage selected
+complete at .56/.34 and .55/.33; no remaining relation defect or low-score cause
+was established. No old plan was redrawn. The automatic semantic correction then
+failed after 335.693s, exit1, not a parent timeout; cause and usage remain unknown.
+Total duration 452.782s; 160,332 known tokens/reported USD0.01782784, seven native
+assistant terminal records (six complete usage), seven Jev requests/input estimate
+USD0.008253210000000001. Actual native HTTP count/billing remain unknown.
+Zero stored entries; four downstream stages unrun. Both failed recoveries remain.
+Do not rerate this held plan. Positive coverage low confidence alone no longer starts unsupported correction.
+Verified: 2,606 Python passed/1 skipped, 49 native, typecheck/pack, controlled Pi 1.4 hold and independent review.
+Harness remains off. A passing future loop would still need the comparison in @TODO.md.
+
+## Historical attempts and costs
+
+V21: `W/foreground-owner-v21/run-output/results.json`, Pi 1.4 / gpt-6-luna,
+4 model errors, 0 tools/Jev/Memory, 3 proxy errors, 5 dependent stages unrun.
+Admission consumed; transport quiesced. Native zero usage does not establish zero
+billing. Settlement SHA256 `47d87817859a8268f8877c6a4b7aea3e8fac5b0d4acd93508bcae2fdc156829c`.
+Stopped container/opaque archives retain the exact 108-file runtime inventory.
+Durable Docker epoch: 16 attempts, 197 model + 144 Jev = 341 requests, zero stored
+Memory; known reported model USD0.46914834000000002637 and separate Jev input-only
+estimate USD0.128155986, plus unknown costs. Native current-context costs stay separate.
+Separate diagnostics retain 8 POST admissions/attempts (3 complete/2,294 reported
+tokens and 5 failed); 6 metadata GETs, 4 unobserved-send GET intents and 4 TCP probes.
+Native1-3 usage and first quiescence remain unknown; native2-5 quiesced. Native4
+HTTP200 ended in SDK error; native5 HTTP503 exposed bounded auth_unavailable and
+separate server error codes. A time-correlated Retry-After33 lacks exact wire binding.
+The Docker proxy now forwards valid retry headers: 128 checks, typecheck, pack and
+independent review passed; no retries/deadlines/gates changed. Pi outer retries
+ignore that header. See `W/retry-after-repair-20261029/` and
+`W/independent-v22-owner-admission/diagnostic-accounting-after-native-5.json`.
+Direct Codex Luna Fast separately returned OK in 11.594s, one CLI turn, 13,437 input,
+8,320 cached/5 output; actual served tier and billing remain unknown.
+V20 stays held at final coverage .62/.43 and record .64/.46 (probability/confidence).
+Complete evidence/relationships/citations remain; no actionable low-score cause
+was established. Its settlement and wire audit stay under `W/independent-review-v20-run-held/`
+and `W/independent-v20-semantic-wire-audit/`; subsequent attempts do not rejudge it.
+
+## Confirmed repairs and verification
+
+Atomic BODY correction used to re-inherit obsolete predecessor citations after
+materializing its explicit catalog: eight selected became nine. Only successfully
+materialized, changed knowledge bodies now retain their exact selected catalog.
+Description-only, evidence-only and legacy non-atomic source preservation remain.
+The unchanged description still needs its independent fresh source judgment.
+Shared frontmatter parsing fixes already-valid BOM bodies rejected during parent
+correction and descriptions omitted from semantic review/discovery. These defects
+were reproduced and repaired; neither is established as V20's low-score cause.
+No prompts, thresholds, retry counts, model stages or repair budgets were added.
+
+Historical fixes remain: V16 structural repair lost an inference-limit unit;
+source-role-only correction now preserves original units/order/metadata. V18
+semantic correction added the missing internal generator relation. V19 corrected
+requested-user provenance that had pointed to a tool result; it reached final
+semantic review but remained held. Their original failures and costs remain.
+
+V21 compatibility: 2,606 passed/1 skipped, typecheck/pack passed, actual Pi 1.3;
+see `W/v21-compat-full-package-settlement.json`. Actual Pi 1.4 checks are separate.
+`W/native-pi14-frozen-v21-body-fixture-a/` retains the failed legacy BODY fixture
+and corrected standalone pass; 108 production files matched before/after.
+The full suite did not test that supplemental script.
+Controlled tests establish mechanics only. Installation still reports eight
+unrelated missing packages; target configured. Host Pi was reverified as 1.4.0
+on October 29. Use uv Python 3.14 / corepack pnpm 11.21.0.
+
+## Acceptance and continuation
+
+Current freeze: `W/frozen-source-native-recovery-20261030`, 1,384 source/17 native files.
+Manifest SHA256: `411f8b1f1e243fb5bedede0d47c8e92b3648b27467165ea43ca7a158c456e48a`.
+Historical V21 freeze/bindings remain under `W/frozen-source-v21` and its owner protocol.
+
+`W/codex-luna-fast-call-20261029/result.json` proves the Codex CLI call only;
+`W/pi-native-codex-20261029/settlement.json` retains failed native calls.
+OAuth login succeeded; Fast failed with bounded 400/service_tier/unsupported.
+Reported usage was zero; actual billing/HTTP count unknown. Luna ordinary is approved.
+Retain V22's old preflight; changed transport needs fresh admission. Never redraw V21.
+Keep original public revisions, six tasks, prompts, oracle, effort and every gate.
+No seeds, forced reads, shrinking, extra stages or hidden retries. Storage, natural
+complete-revision use, SAME BODY correction, physical history/mirrors and corrected
+use remain unverified. A passing loop would not establish broad or causal improvement.
+
+## Harness delivery verification
+
+Actual Pi 1.4 TUI verifies authoring, same-session reload, repeated scoped text
+delivery with one lifecycle row, and three fresh-session nonmatches. Native
+Skill/Bash and RPC checks verify scope and success/failure result attachment.
+Controlled parent persistence/correction/retirement pass; no learning claim.
+Checks: 2611 Python passed/1 skipped, 40 native, typecheck and pack passed.
+Evidence: `W/harness-delivery-pi14-20261029/`; two failed fixture runs retained.
+
+## History and access limits
+
+Old contexts/hashes remain under `W/context-before-resume-20261026/` and later
+W backups. Historical `/private/tmp/cl-*` files are unavailable; do not reconstruct
+them. Older 545 requests/model lower bound USD7.0637405200000000060/Jev estimate
+USD0.133912254 plus unknowns are prior observations, not freshly verified billing.
+Original audit: `2b369415ca0849268d489ee3ab5c274cf65c5b52889d2d6e2bad1a3f47160c0c`.
+SoL-Pi commit 219568034fa54ed121ede80961655e33dfb9d0e3 was researched, not installed
+or accepted as learning evidence. Current and prior settlements/addenda remain
+separate immutable artifacts; no wording correction replaces original decisions.
+
+Reject `cost-ledger.jsonl`, `authorized-real-study-budget-600.json` and
+`600-active-reservation.json` basenames BEFORE traversal/stat/read. Never access
+the global `continuous-learning-recovery-20261011` subtree or model thinking.
+Use safe parsed plans, typed diagnostics and opaque archive hashes; never inspect
+raw worker stdout/sessions. Learned Harness lifecycle, failure backfill and unseen
+transfer remain unproved; native guidance delivery is verified separately.

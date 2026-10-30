@@ -2,7 +2,7 @@
 
 ## Current delivery amendment
 
-This amendment replaces the custom-message delivery descriptions below.
+This is the current delivery contract; historical custom-message delivery is superseded.
 Skill and text guidance use additive structured sections at `before_agent_start`.
 Legacy skill declarations use the same surface; saved target values remain audit metadata.
 No guidance hook replaces the complete system prompt or returns a custom injection message.
@@ -12,11 +12,11 @@ Incomplete scans preserve complete scoped guidance from the branch ledger.
 Installed execution policies, matching, authorization and saved configuration remain unchanged.
 Guidance delivery is not compliance evidence.
 
-状态：新建、自动 consolidation 和 AGENTS 提取统一使用 `rules`。实际升级发现，拒绝旧配置会把仅约束 write/edit 的策略扩大为全局 Bash 锁死，因此旧格式立即退役的决定已由 @docs/adr/0005-preserve-installed-harness-protections.md 取代：存量 `policies`/`disabled`/`skillPrompts` 按原语义运行，不自动改写，也不降低原有保护。新规则与存量策略共存但不混淆所有权。新格式文本指导采用 `before_agent_start` 回合起始持久化投递，正文保留适用范围；存量 skill 的 system/user 目标继续按原语义处理。mid-run 即时投递与单模式正则抢占仍是已知限制。验证结果以本次实际测试及运行报告为准。
+状态：新建、自动 consolidation 和 AGENTS 提取统一使用 `rules`。实际升级发现，拒绝旧配置会把仅约束 write/edit 的策略扩大为全局 Bash 锁死，因此旧格式立即退役的决定已由 @docs/adr/0005-preserve-installed-harness-protections.md 取代：存量 `policies`/`disabled`/`skillPrompts` 按原语义运行，不自动改写，也不降低原有保护。新规则与存量策略共存但不混淆所有权。Skill and text guidance use additive structured sections at `before_agent_start`; their bodies retain explicit scope. Legacy skill target values remain saved audit metadata and use the same delivery surface. mid-run 即时投递与单模式正则抢占仍是已知限制。验证结果以本次实际测试及运行报告为准。
 
 > 一个扁平 `rules` 列表，三个明确的匹配入口，一套按身份覆盖的规则。
 > 匹配负责决定何时适用，消息负责提供指导，Bash 的可选 `action` 负责增加执行条件。
-> 上下文提示增量匹配、尾部追加、原位保留，按当前分支实际保留的消息去重。
+> Guidance uses scoped run-start sections. Branch-local non-context records deduplicate unchanged text delivery diagnostics.
 
 验收契约：@packages/continual-learning/features/harness-rules-redesign.feature。
 
@@ -60,7 +60,7 @@ Guidance delivery is not compliance evidence.
 | 保留上下文 | 当前分支经过压缩、裁剪后，准备提供给模型的对话 |
 | 指导消息 | Harness 根据有效规则提供的、模型可读的上下文消息 |
 | 规则修订 | 有效规则规范化内容的内部摘要，用于识别内容变化；用户只维护 `id` |
-| 投递记录 | 规则身份、修订、来源及其实际消息位置的关联，区分持久化与模型送达 |
+| 投递记录 | Rule identity, revision, source and complete scoped body in a non-context branch entry; persistence and actual model delivery remain distinct |
 
 ## 3. 配置格式
 
@@ -156,6 +156,7 @@ Guidance delivery is not compliance evidence.
 | --- | --- | --- |
 | 内置 | 包内默认规则 | 基础规则 |
 | 全局 | `~/.pi/agent/harness.json` | 当前用户的跨项目约定 |
+| Project-scoped personal | `~/.pi/agent/harness/<scopeKey>.json` | Personal rules for the canonical current project |
 | 项目共享 | `<project>/.pi/harness.json` | 项目默认创建与更新位置 |
 | 项目个人 | `<project>/.pi/harness.local.json` | 用户明确选择的个人覆盖 |
 
@@ -254,14 +255,18 @@ Guidance delivery is not compliance evidence.
 
 1. 识别 Pi 实际展开的技能调用与准确技能名。
 2. 收集所有匹配、启用且有效的规则。
-3. 在该调用开始生成前，将指导作为带来源的消息追加到对话末尾。
-4. 按调用身份去重，记录投递结果。
+3. Add scoped instructions to the `harness_guidance` structured section before that invocation starts generating.
+4. Include each effective matching rule once in that run's section and record the invocation scope.
 
-同一次调用经过多次生命周期处理，每条规则只投递一次；后续新的技能调用可以再次收到指导。消息正文明确适用于该次技能任务，历史中的技能名不会重新启动技能入口。
+Each matching run contains one section entry per effective skill rule. A later
+expanded invocation can receive it again. The body names that skill task's scope;
+a historical skill name does not restart the skill entry point. This does not
+claim duplicate-hook transcript idempotence for unsupported repeated emissions
+of the same `before_agent_start` event.
 
 读取 `SKILL.md` 只是文档读取。技能注册证明支持该选择条件，真实展开调用测试才证明触发。
 
-技能指导采用对话消息而非修改 system prompt。历史保留不提升其权限或扩大适用范围；模型是否遵循仍由任务结果验证。
+Skill guidance contributes an additive system-prompt section without replacing the complete prompt. It is absent from later unrelated runs. A retained skill name or a SKILL.md read does not invoke the skill; compliance still requires task evidence.
 
 ## 7. Text：对话内容触发项目知识与提示
 
@@ -307,74 +312,65 @@ Guidance delivery is not compliance evidence.
 
 全文匹配的自然结果是：早先讨论的项目仍可能触发提示，否定句、引用和代码示例也可能匹配。文本入口匹配文字，不执行语义相关性判断。用户／模型后来引用指导、摘要改写指导时，文字可能重新成为普通匹配来源；本设计不承诺消除所有间接反馈。
 
-## 8. 上下文追加、去重与缓存
+## 8. Structured delivery, deduplication and lifecycle
 
-### 8.1 基本不变量
+### 8.1 Run-start contract
 
-> 每个用户回合的 agent start 检查新增需求；已投递的指导作为持久化消息保留在原位，新指导只追加到末尾。
+At `before_agent_start`, Harness adds one `harness_guidance` section to
+`event.systemPromptOptions.sections`. Other sections, prompt guidelines,
+context files and a different owner's `customPrompt` remain intact. The hook
+neither replaces the complete system prompt nor returns a custom message.
+The `context` hook removes historical Harness injection messages; branch entries
+retain their provenance without duplicating old instructions in model context.
 
-设 `H` 是已有对话，`G` 是首次命中的指导，`A` 是助手响应，`T` 是完整工具结果批次：
+Every matching run receives the complete current scoped guidance. Structured
+sections are not retained conversation messages, so deduplication must not omit
+an applicable section from a later run. Changes can change the system-prompt
+prefix; no stable-prefix or provider-cache-hit guarantee follows from delivery.
 
-```text
-请求 1：H + G
-请求 2：H + G + A + T
-请求 3：H + G + A + T + 新消息 + 新指导
-```
+### 8.2 Branch-local evidence
 
-这样，在 system prompt、工具定义、provider 序列化与其他处理不变时，原有请求序列保持共同前缀。扫描本身不改变前缀。
+`harness-guidance-delivery` is a non-context branch record containing complete
+text entries, revisions, status and source; skill deliveries also record their
+skill and rule identities. `harness-guidance-event` provides the transcript row.
+Text entries are compared with the current branch's latest delivery per id.
+An unchanged delivery does not append another text lifecycle or ledger row.
+A session-global seen set cannot replace branch evidence after reload or resume.
 
-被替代的临时重建方案会将第二次请求变成 `H + A + T + G`，在旧 `G` 的位置发生分歧。本设计不把既有指导移到每次请求的末尾，也不以每轮 system prompt 修改承载动态指导。
+Historical delivery records are not ordinary matching text. Without an ordinary
+retained match or a current prompt match, they cannot re-inject an unchanged
+rule. A match retained from an earlier topic still delivers guidance with its
+explicit subject selector; it does not expand applicability to unrelated work.
+Skill sections apply only to the current expanded invocation. Bash guidance
+belongs to its actual tool invocation and result, independent of text records.
 
-这保证 Harness 自身的序列稳定性，不承诺缓存必然命中或消除上下文 token 成本。压缩、切换模型、其他扩展和 provider 缓存策略仍会影响缓存。
+### 8.3 Updates, retirement and incomplete matching
 
-### 8.2 去重粒度
+- A newly matching or changed effective text rule contributes its complete
+  current scoped body. Only a changed observable delivery appends a new row.
+- A removed, disabled, invalid or superseded prior definition contributes one
+  retirement notice. Repeated starts do not duplicate the notice. A matching
+  re-enabled definition contributes a fresh activation.
+- Compaction and branching use the actual retained conversation and current
+  branch ledger. Matching ordinary text can re-deliver a section; a historical
+  ledger alone cannot keep a trigger alive.
+- Incomplete matching or configuration preserves complete previously delivered
+  scoped bodies and reports incomplete evaluation. Older unscoped bodies are
+  not reintroduced. No removal is inferred from an incomplete scan.
+- Configuration changes are loaded before matching. A nearer disabled or
+  invalid declaration continues to shadow an outer same-id definition.
 
-| 入口 | 去重单位 |
-| --- | --- |
-| Skill | 技能调用身份 + 规则身份 + 规则修订 |
-| Bash | 工具调用身份 + 规则身份 + 规则修订 |
-| Text | 当前分支仍保留的最新投递／撤销状态 + 规则身份 + 规则修订 |
+Retirement changes subsequent delivery; it does not erase instructions a model
+has already seen. Saved configuration, parsed activation, delivery and compliance
+remain separate observations.
 
-Text 不使用“整个会话曾经触发”的集合。是否已送达，以当前分支实际保留的带来源消息为证据。
+### 8.4 Timing and limits
 
-同一轮新匹配的多条 text 规则可以组成一个追加消息，各条身份与修订仍可独立追踪。同一关键词出现多次只导致一次规则投递。
-
-### 8.3 更新、撤销与生命周期
-
-| 情况 | 行为 |
-| --- | --- |
-| 首次匹配，当前上下文无有效投递 | 尾部追加指导 |
-| 相同修订已有有效投递 | 保留原位，不追加副本 |
-| 内容更新且仍适用 | 尾部追加新版，明确替代该身份的旧指导 |
-| 停用、删除后无继承替代、或适用条件改变后确定不再适用 | 对当前仍存在的旧指导追加一次失效通知 |
-| 同名获选定义无效 | 追加一次失效通知，说明先前指导不再代表当前有效配置；显示该身份的校验诊断 |
-| 正则超时、取消或匹配尚未完成 | 保持现有投递状态，报告判断未完成；本轮未获证据的匹配／失效转换等待下次成功求值 |
-| 整层结构错误而使用上次解析快照 | 沿用该快照的定义、诊断与投递状态，并显示配置过期；没有快照时先前指导进入配置状态未知，追加一次状态通知而不冒称已验证有效 |
-| 删除覆盖后显露另一层定义 | 按显露的定义判断更新或失效 |
-| A 修订更新为 B，再恢复 A | 与最新状态 B 比较，追加 A；历史上曾有 A 不等于当前仍有效 |
-| 停用后重新启用相同修订 | 与最新失效状态比较，匹配时重新追加启用指导；旧投递记录不抑制这次恢复 |
-| 压缩移除了可识别投递，保留文字仍匹配 | 在新上下文末尾补入当前指导一次 |
-| 关键词和指导都已离开保留上下文 | 当前无需投递 |
-| 切换分支、fork、resume | 从当前分支重建状态，不借用其他分支的投递记录 |
-| 模型请求重试或扩展 reload | 根据已保留消息去重，不因进程内集合重置而重复 |
-
-配置错误导致的失效通知与成功匹配是两个独立事件；失败或取消的匹配不改写已确认的投递状态，整体请求已取消时也不为通知额外启动生成。
-
-失效通知是来源明确的上下文说明，不表示能让模型“遗忘”已见内容。原始历史保持可追踪；确需移除旧文本时，通过明确的上下文重置／压缩处理，并接受相应前缀变化。
-
-摘要中恰好出现相似句子，不构成某修订已投递的证据。摘要属于可匹配的当前文字，但不替代精确投递记录。每次准备只处理一次有限增量，不因新增指导或通知递归发起下一轮匹配。
-
-### 8.4 消息位置与调度（已实现机制）
-
-投递使用 `before_agent_start` 返回的**持久化自定义消息**，而不是临时的 `context` 钩子返回。原因：Pi 的 `context` 返回值只用于构造当次请求（`emitContext` 克隆后交给本次 LLM 调用），不写回对话状态；用它投递会导致每次请求重复追加、无法去重、且前缀在旧指导位置分叉。`before_agent_start` 返回的消息经 `appendCustomMessageEntry` 持久化到分支，因而天然满足保留、去重与前缀稳定。
-
-- 求值时机：每个用户回合开始（agent loop 启动）一次。扫描面是 `buildSessionContext()` 的保留对话（含历史用户／助手文字、已完成工具结果、压缩／分支摘要、工具调用字符串参数）加上当前 `event.prompt`。
-- 投递位置：作为该回合的持久化消息追加在用户消息之后、模型生成之前；一经写入即保留在原位，后续回合只在末尾追加新增／更新／失效部分。
-- 去重依据：扫描保留对话中本模块此前投递的 `harness-guidance` 消息的 `details.entries`（按 id 记录 revision/status），据此判断 active/update/retired；不依赖进程内集合，因而 resume、fork、reload 后仍准确。
-- 保持 tool call 与 tool result 的协议顺序；指导是独立消息，不插入未完成的调用批次。
-- 规则命中本身不启动额外模型轮次。
-
-**已知限制（诚实标注）：** `before_agent_start` 不在每次工具后的生成前触发，因此**同一轮内**由工具结果首次引入的关键词，要到下一个用户回合的 agent start 才被投递。设计早期设想的"工具批次之后、同轮下一次生成之前"的 mid-run 即时投递，需要 Pi 在请求准备 seam 提供可验证的持久化即时投递能力；在公开扩展接口确认支持之前，本实现采用回合起始投递，并把 mid-run 即时性标为待验证的后续项，而非声称已实现。
+The retained snapshot comes from `buildSessionContext()` plus `event.prompt`.
+Matching runs once at agent start and does not schedule an additional response.
+A keyword first introduced by a tool result during a run is eligible at the next
+agent start. Mid-run immediate text delivery remains unimplemented. Tool call
+and result ordering stays unchanged; Bash notes use the actual tool-result seam.
 
 ## 9. 信任、语义与产品职责
 
@@ -409,7 +405,7 @@ Text 不使用“整个会话曾经触发”的集合。是否已送达，以当
 11. 作为用户，我希望消息随真实工具结果进入模型上下文，以便区分建议与执行证据。
 12. 作为用户，我希望历史和工具结果出现项目名时得到项目状态，以便回应使用相关信息。
 13. 作为用户，我希望用正则表达多个别名，以便覆盖同一对象的常见称呼。
-14. 作为用户，我希望既有提示原位保留、新提示尾部追加，以便保持请求前缀稳定。
+14. As a user, I want current scoped guidance in every applicable run without replacing other prompt owners.
 15. 作为用户，我希望相同 text 指导不反复堆积，以便控制冗余。
 16. 作为用户，我希望分支、压缩与恢复后依然准确判断指导是否存在，以便不遗漏必要信息。
 17. 作为用户，我希望状态更新以明确的新版通知出现，以便识别过时信息。
@@ -465,38 +461,36 @@ project-a-status
 
 - 配置解析模块拥有读取、结构校验、按身份覆盖、正则编译、来源与诊断。
 - 规则求值模块根据同一有效配置处理技能、Bash 和文本快照，返回匹配及调用决定，不执行命令。
-- 上下文投递模块拥有消息身份、修订、分支状态、尾部追加与去重。
+- The delivery module owns structured guidance sections, revisions, branch records and diagnostic deduplication.
 - Pi 适配器负责生命周期、真实消息／工具结果交付与确认 UI。
 - 创建、状态与 consolidation 共同消费解析结果，不各自实现另一套合并逻辑。
 
 这些模块通过一个小的运行时 interface 提供配置说明、事件求值和投递计划。测试跨越与实际调用方相同的 seam；Pi 的已注册事件和最终模型请求是首选验收位置。纯解析内部可以独立测试，但不替代生产入口验证。
 
-### 12.2 Pi 接入的已知事实
+### 12.2 Current Pi integration
 
-本次设计研究核对了安装环境的 Pi 0.85.1：
+The current runtime requires Pi structured prompt sections (Pi 1.2 or later).
+Acceptance uses Pi 1.4.0; historical Pi 0.85.1 custom-message research does not
+establish current delivery behavior.
 
-- `before_agent_start` 支持返回持久化消息，适用于初始用户／技能调用；它不覆盖每次工具后的生成。
-- `context` 在代理循环的模型生成前提供上下文副本。返回新增消息只证明本次请求被转换，不自动持久化或保留原位。
-- `tool_call` 可以决定调用是否执行；`tool_result` 可以保留原生结果并附加消息。
-- session 自定义元数据不自动进入模型上下文；界面隐藏的自定义消息仍可以进入模型上下文。
-- 已完成工具后的 session 持久化，与运行中 agent loop 实际使用的消息数组，并非可以无条件视为同一更新。
-- steering 可以进入下一次生成，但可能影响继续执行的调度；仅有一次 `sendMessage` 调用不能证明满足本设计。
+- `before_agent_start` supplies additive sections for skill and text guidance.
+- `context` filters previous Harness injection messages without adding a new one.
+- `appendEntry` retains non-context branch evidence and transcript rows.
+- `tool_call` decides whether Bash executes; `tool_result` preserves native
+  output and appends the matched guidance as an identifiable note.
+- Text matching has segment and character budgets with explicit incomplete
+  results. A single pathological regex still lacks worker preemption.
+- Run-start text delivery cannot establish mid-run delivery after a tool result.
 
-### 12.3 接入能力的验证结果与剩余门槛
+### 12.3 Evidence requirements
 
-已验证并采用：`before_agent_start` 返回的持久化消息作为文本／技能指导的唯一投递 seam。它满足：
-
-1. 投递保留在当前分支（经 `appendCustomMessageEntry` 持久化），后续回合可在原位读到。
-2. 去重依据是保留对话中已投递的 `harness-guidance` 消息的 `details.entries`，resume／fork／reload 后仍准确（不依赖进程内集合）。
-3. 指导是独立消息，不破坏 tool call／tool result 协议顺序。
-4. 命中本身不启动额外模型轮次（不用 steering）。
-5. 隔离的真实 `pi --print` 加载扩展、运行 `before_agent_start` 无错退出。
-
-已明确放弃：临时的 `context` 钩子投递。它不持久化，会导致每次请求重复追加与前缀分叉，与保留／去重／缓存稳定目标相悖。
-
-**剩余门槛（未实现，诚实标注）：** 同一轮内工具结果首次引入关键词的 mid-run 即时投递。这需要 Pi 在请求准备 seam 提供可验证的持久化即时投递；在公开接口确认支持前，文本指导采用回合起始粒度。不得用临时尾部重建、私有模块路径依赖或隐式强制续轮代替。
-
-正则执行采用体量预算（段数／字符上限）+ 未完成报告：超预算时 `evaluateText` 返回 incomplete，规划器保留现有投递状态并报告未完成，绝不把未完成当作"无匹配"。**已知限制：** 单个灾难性回溯正则在同步执行下不可中断，真正的不挂死需要 worker 隔离执行；当前以体量预算与作者端的有界模式约定缓解，未实现单模式抢占。
+Native registered-hook tests verify parent-written rules, real session branch
+reconstruction, repeated starts, reload, revised and retired owned definitions,
+missing skills, personal overrides and absent ordinary matching evidence.
+Actual CLI wire verification must separately establish the installed runtime,
+model-visible sections, tool-result notes and absence of duplicate old injections.
+Controlled rule proposals and judgments prove mechanics only; they do not prove
+real-model generation, semantic correctness, compliance or learning benefit.
 
 ## 13. 验收与测试决策
 
@@ -512,15 +506,15 @@ project-a-status
 | 授权 | 多理由一次批准、拒绝／超时／取消／headless、参数变化重新求值 |
 | Skill | 真实展开、多规则、每次调用去重、读取与调用区分、未注册诊断 |
 | Text | 用户／历史／助手／工具／摘要／参数文字、完整可见文本、片段分隔 |
-| 投递 | 原位保留、增量追加、不自触发、更新／失效、分支／压缩恢复 |
-| 接入 | 工具后立即送达、持久化、无额外轮次、并行批次协议完整 |
+| Delivery | Complete additive sections, no self-trigger, diagnostic deduplication, update/retirement, branch/compaction recovery |
+| Integration | Run-start delivery, non-context branch evidence, no extra response, intact tool protocol; mid-run text delivery remains unsupported |
 | 安全 | 可取消正则、未完成诊断、所有权保护、原子保存与旧文件保留 |
 
 ### 13.2 测试 seam 与通过标准
 
 优先扩展已有注册事件集成测试，通过真实配置加载、技能展开、Bash 事件和 model request 捕获验证行为。工具执行替身替代真实副作用；断言调用是否发生、次数、参数以及模型实际收到的内容，而不是仅检查 prompt 字符串中有某句话。
 
-缓存测试比较连续请求的消息序列和前缀；禁止以“模型输出正常”代替前缀稳定性证据。真实 provider 的 cacheRead/cacheWrite 可作为补充观测，不作为跨 provider 的必然保证。
+Request tests inspect complete actual sections and message sequences. A normal model answer cannot establish delivery or a stable prefix. Provider cacheRead/cacheWrite is supplemental observation, not a delivery guarantee.
 
 文本预算测试包含病理正则、长工具结果、取消和配置热更新；指导预算耗尽时报告哪些规则尚未完整投递，不把截断说明称为全部生效。预算是实现常量与可观测结果，不扩展用户规则语言。
 
@@ -539,7 +533,7 @@ project-a-status
 迁移预览逐项说明：
 
 - 可表达为新 `skill`、`bash`、`text` 规则的内容及身份。
-- 若显式替换旧 skill 配置，说明从 system prompt 转为带来源对话消息的指导语义变化；未替换前不改变目标。
+- Legacy skill guidance now uses the same scoped structured section; saved target metadata remains unchanged. Do not claim distinct system/user routing from the saved target alone.
 - 适合留在项目指导、技能说明或独立验证流程的要求。
 - 旧 `observe` 仅记录，与新省略 action 后向模型提供消息的差异。
 - 保留旧 output／artifact、其他工具和参数路径检查；没有等价新表达时，不宣称较弱规则是完成迁移。
@@ -552,11 +546,11 @@ project-a-status
 
 消息传递与执行条件分开：Bash 可以正常执行并提供指导，`confirm` 和 `block` 只增加本次调用的执行条件。Skill 与 Text 专注上下文，不承诺执行隔离。
 
-可靠送达依靠可追踪的消息位置，而不是反复追加相同提示；缓存友好依靠保留已有前缀，而不是每次把提示重新移到尾部。追加式更新保留历史，代价是旧指导无法从模型已经看到的内容中撤回，这一限制应如实展示。
+Reliable delivery requires complete current sections plus branch-local provenance. Repeated applicable runs need the section again, while unchanged transcript rows need no duplicate. Old custom injections are filtered from request context; this cannot erase instructions a model has already seen or guarantee cache reuse.
 
 最终原则：
 
-> 扁平存储，按身份覆盖，按对象匹配；匹配即提供指导，Bash 动作可选；新上下文尾部追加，既有上下文原位保留。
+> Flat storage, whole-rule identity overrides and explicit selectors; scoped run-start guidance, optional Bash actions and branch-local delivery evidence.
 
 ## 16. 依据与当前实现参考
 

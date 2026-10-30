@@ -31,15 +31,16 @@ def current_guidance_delivered(records: list[dict], authored: dict, expected: li
                  for entry in row.get('data', {}).get('entries', [])]
     sections = [row.get('message', {}).get('sections', {}).get('harness_guidance', '')
                 for row in records if row.get('type') == 'message' and row.get('message', {}).get('role') == 'system']
-    return any(entry.get('id') == wanted['id'] and entry.get('revision') == wanted['revision']
+    return bool(expected) and all(any(entry.get('id') == wanted['id'] and entry.get('revision') == wanted['revision']
                and entry.get('status') in ('active', 'update')
                and any(rule.get('id') == wanted['id'] and isinstance(rule.get('instructions'), str)
                        and any(f"[harness:{wanted['id']}]" in section and rule['instructions'] in section for section in sections)
                        for rule in authored.get('rules', []))
-               for wanted in expected for entry in delivered)
+               for entry in delivered) for wanted in expected)
 
 
-def verify(output: Path, real: bool = False, cross_turn: bool = False) -> dict[str, object]:
+def verify(output: Path, real: bool = False, cross_turn: bool = False, *,
+           pi_cli: Path | None = None, pi_version: str = '1.3.0') -> dict[str, object]:
     if cross_turn and real:
         raise ValueError('Cross-turn fixture verification is offline only')
     output.mkdir(parents=True, exist_ok=True)
@@ -77,7 +78,7 @@ def verify(output: Path, real: bool = False, cross_turn: bool = False) -> dict[s
             env.update(HOME=str(home), PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE='1', TERM='xterm-256color',
                        PI_HARNESS_READY=str(ready), PI_HARNESS_ENDED=str(ended), PI_HARNESS_REAL='1' if real else '0', PI_HARNESS_CROSS_TURN='1' if cross_turn else '0')
             node = shutil.which('node')
-            pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'
+            pi = (pi_cli or REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js').resolve()
             sdk = pi.resolve().parents[2]
             schema_docs = [sdk / 'README.md', *sorted((sdk / 'docs').rglob('*.md'))]
             assert all(p.resolve().is_relative_to(sdk) for p in schema_docs)
@@ -86,8 +87,10 @@ def verify(output: Path, real: bool = False, cross_turn: bool = False) -> dict[s
             env['PI_HARNESS_SCHEMA_DOCS'] = json.dumps([str(p.resolve()) for p in documentation_paths])
             report['publicSchemaDocs'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in schema_docs}
             version = subprocess.check_output([node, str(pi), '--version'], env=env, text=True).strip()
-            assert version == '1.3.0', 'Pi baseline changed'
+            assert version == pi_version, 'Pi baseline changed'
             report['piVersion'] = version
+            report['piCli'] = str(pi)
+            report['piCliSha256'] = hashlib.sha256(pi.read_bytes()).hexdigest()
             session = run / 'session.jsonl'
             command = [node, str(pi), '--offline', '--no-extensions', '--no-skills', '--no-prompt-templates',
                        '--no-context-files', '--no-themes', '--no-approve', '--extension',
@@ -127,16 +130,25 @@ def verify(output: Path, real: bool = False, cross_turn: bool = False) -> dict[s
             assert all(not probe['matches'] for probe in probes[2:]), 'Resource-specific guidance matched another resource or unrelated local work'
             report['plainSelectorPositiveNegativeVerified'] = True
             if cross_turn:
-                for _ in range(2):
+                for turn in range(2):
+                    if turn == 1:
+                        ready.unlink()
+                        tui.send('/reload')
+                        tui.wait_until(ready.exists, 30, 'Same-session Pi reload did not finish')
                     ended.unlink()
                     tui.send('继续维护 D0，只说明适用指引，不执行服务请求。')
                     tui.wait_until(ended.exists, 60, 'Repeated guidance turn did not finish')
+                for prompt in ('维护 D1 流量。', '维护 D0x 流量。', '为本地 UI 调整颜色，不访问网络。'):
+                    ended.unlink()
+                    tui.send(prompt)
+                    tui.wait_until(ended.exists, 60, 'Unrelated turn did not finish')
                 repeated = [json.loads(line) for line in session.read_text().splitlines() if line.strip()]
                 rows = [r for r in repeated if r.get('customType') == 'harness-guidance-event' and r.get('data', {}).get('kind') == 'text-rule']
                 contexts = [r['data'] for r in repeated if r.get('customType') == 'harness-first-model-context']
                 assert len(rows) == 1, 'Unchanged rule printed duplicate lifecycle rows'
-                assert contexts == [{'step': 7, 'scopedGuidance': True}, {'step': 8, 'scopedGuidance': True}], 'Both actual model requests must carry scoped system guidance'
-                report.update(unchangedGuidanceRows=len(rows), repeatedRunStartSections=True)
+                assert contexts == [{'step': step, 'scopedGuidance': True} for step in range(7, 12)], 'Retained conversation matches must preserve explicit subject scope on every request'
+                report.update(unchangedGuidanceRows=len(rows), repeatedRunStartSections=True,
+                              sameSessionReload=True, retainedMatchesRemainScoped=3)
             tui.close()
             data = bytes(tui.transcript)
             (run / 'authoring-terminal.ansi').write_bytes(redact_transport_bytes(data, proxy) if proxy else data)
@@ -191,6 +203,28 @@ def verify(output: Path, real: bool = False, cross_turn: bool = False) -> dict[s
             assert not any(r.get('customType') == 'harness-first-boundary' for r in followup_records)
             assert current_guidance_delivered(followup_records, authored, expected), 'Current authored revision and instructions not delivered in next run-start context'
             assert not (agent / 'harness.json').exists() and not (cwd / '.pi/harness.local.json').exists()
+            if not real:
+                tui.close()
+                (run / 'followup-terminal.ansi').write_bytes(bytes(tui.transcript))
+                tui = None
+                for index, prompt in enumerate(('维护 D1 流量。', '维护 D0x 流量。', '为本地 UI 调整颜色，不访问网络。')):
+                    negative_session = run / f'negative-{index}.jsonl'
+                    negative_command = [str(negative_session) if value == str(followup_session) else value for value in followup_command]
+                    ready.unlink(); ended.unlink()
+                    env['PI_HARNESS_NEGATIVE'] = '1'
+                    tui = NativeTui(negative_command, cwd, env)
+                    tui.wait_until(ready.exists, 30, 'Fresh negative Pi did not start')
+                    tui.send(prompt)
+                    tui.wait_until(ended.exists, 60, 'Fresh negative turn did not finish')
+                    negative_records = [json.loads(line) for line in negative_session.read_text().splitlines() if line.strip()]
+                    negative_contexts = [row['data'] for row in negative_records if row.get('customType') == 'harness-first-model-context']
+                    assert negative_contexts == [{'step': 7, 'scopedGuidance': False}]
+                    assert not any(row.get('message', {}).get('stopReason') in ('error', 'aborted') for row in negative_records)
+                    assert target.read_bytes() == authored_bytes
+                    tui.close()
+                    (run / f'negative-{index}-terminal.ansi').write_bytes(bytes(tui.transcript))
+                    tui = None
+                report['freshSessionNegativesExcluded'] = 3
             report.update(status='passed', absentTargetRead=True, completeWrites=1, readBack=True,
                           nextTaskGuidanceDelivered=True, freshSession=True, followupReadOnly=True, rules=authored['rules'], otherLayersUnchanged=True)
     except Exception as error:
@@ -207,13 +241,14 @@ def verify(output: Path, real: bool = False, cross_turn: bool = False) -> dict[s
         else:
             report.update(requests=0, transportErrors=0, jevRequests=0)
         usage = []
-        for session_name in ('session.jsonl', 'followup-session.jsonl'):
+        for session_name in ('session.jsonl', 'followup-session.jsonl', *(f'negative-{index}.jsonl' for index in range(3))):
             session = run / session_name
             if not session.exists(): continue
             if proxy: session.write_bytes(redact_transport_bytes(session.read_bytes(), proxy))
             usage.extend(r['message'].get('usage') for line in session.read_text().splitlines() if line.strip()
                          for r in [json.loads(line)] if isinstance(r.get('message'), dict) and r['message'].get('role') == 'assistant')
         report['knownTokens'] = sum(u.get('totalTokens', 0) for u in usage if isinstance(u, dict))
+        report['nativeAssistantMessages'] = len(usage)
         report['reportedCostUsd'] = sum(u.get('cost', {}).get('total', 0) for u in usage if isinstance(u, dict))
         report['unaccountedRequests'] = max(0, (proxy.requests if proxy else len(usage)) - len([u for u in usage if isinstance(u, dict)]))
         report['usageMissing'] = any(u is None for u in usage) or report['unaccountedRequests'] > 0 or bool(proxy and proxy.errors)
@@ -230,7 +265,9 @@ if __name__ == '__main__':
     parser.add_argument('output', type=Path)
     parser.add_argument('--real-model', action='store_true')
     parser.add_argument('--cross-turn', action='store_true')
+    parser.add_argument('--pi-cli', type=Path)
+    parser.add_argument('--pi-version', default='1.3.0')
     args = parser.parse_args()
-    result = verify(args.output, args.real_model, args.cross_turn)
+    result = verify(args.output, args.real_model, args.cross_turn, pi_cli=args.pi_cli, pi_version=args.pi_version)
     print(json.dumps(result, ensure_ascii=False))
     raise SystemExit(0 if result['status'] == 'passed' else 1)

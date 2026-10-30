@@ -1,0 +1,108 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "filesScanned": 7
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "duration": 27,
+    "samples": [
+      1.5,
+      4.5,
+      7.5,
+      10.5,
+      13.5,
+      16.5,
+      19.5,
+      22.5,
+      25.5
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 0,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      1.5,
+      7.5,
+      13.5,
+      19.5,
+      25.5
+    ],
+    "checked": 22,
+    "passed": 22
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "step": 0.125,
+    "samples": 216
+  },
+  "audio": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  },
+  "saved": {
+    "id": "1b283bdc-5d02-426a-bfd1-295bc8af9da2",
+    "revision": null,
+    "report": "/Users/FradSer/Developer/FradSer/pi-packages/packages/magpie/promo-x/.hyperframes/artifacts/checks/1b283bdc-5d02-426a-bfd1-295bc8af9da2.json",
+    "attribution": "inputs-changed"
+  },
+  "_meta": {
+    "version": "0.8.214",
+    "latestVersion": "0.8.217",
+    "updateAvailable": true
+  }
+}

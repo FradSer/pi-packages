@@ -1,8 +1,10 @@
 import {createHash} from "node:crypto";
-import {containsSensitiveMemoryMaterial, normalizeSnapshotEvidence, readCurrentMemoryCommandPhase, MEMORY_COMMAND_PHASE_CONTEXT, type NewMemoryEvidence} from "./consolidation-run";
+import {containsSensitiveMemoryMaterial, normalizeSnapshotEvidence, readCurrentMemoryCommandPhase, snapshotEntryRole, MEMORY_COMMAND_PHASE_CONTEXT, type NewMemoryEvidence} from "./consolidation-run";
 import {locatedMemoryEvidence, memoryCitationDomain, resolveMemoryPlanCitations} from "./memory-citation-locations";
 import {prepareMemoryBodyTargets, runMemoryReviewBatch, MEMORY_CORRECTION_WORKER_DEADLINE_MS, type MemoryBodyReview, type MemoryBodyTarget} from "./memory-body-review";
-import type {PiWorkerUsage} from "@fradser/pi-kit";
+import {parseModelRef, type PiWorkerUsage} from "@fradser/pi-kit";
+import {plannerStructuredOutputEnabled} from "./config";
+import {nativeMemoryCoverageSchema, type NativeMemoryCoverageBinding} from "./planner-output-schema";
 
 /** A coverage account is reviewer output, never original evidence or approval.
  * Exact refs and body witnesses expose a proposed condition/record mismatch.
@@ -283,6 +285,8 @@ export async function reviewMemoryCoverage(input: {
   model?: string; signal?: AbortSignal; outputDir?: string; maxRequestBytes?: number;
   /** Prospective parent-owned wire contract; archived calls keep quotes. */
   bodyReferences?: true;
+  /** Issued by the parent only for its actual registered Responses model. */
+  nativeCoverageResponses?: true;
 }): Promise<MemoryCoverageReview> {
   const started = Date.now(), targets = prepareMemoryBodyTargets(input.candidates, input.retained);
   const base: MemoryCoverageReview = {status: "reviewed", targets, accounts: [], calls: 0, durationMs: 0, usageComplete: true};
@@ -337,12 +341,19 @@ export async function reviewMemoryCoverage(input: {
     plan: input.plan, targets, priorAccounts: input.priorAccounts ?? [], priorTargets: input.priorTargets ?? [],
     priorPlan: input.priorPlan, priorEffectivePlan: input.priorEffectivePlan}))) return {...base, status: "invalid-response"};
   if (input.signal?.aborted) return {...base, status: "cancelled"};
+  let nativeCoverageBinding: NativeMemoryCoverageBinding | undefined;
+  if (input.nativeCoverageResponses && input.bodyReferences && !Number.isFinite(maxRequestBytes) && plannerStructuredOutputEnabled()
+    && parseModelRef(input.model)?.model === "gpt-6-luna") {
+    nativeCoverageBinding = {userEntryIndices: input.evidence.entries.flatMap((entry, index) => snapshotEntryRole(entry) === "user" ? [index] : [])};
+    try {nativeMemoryCoverageSchema(nativeCoverageBinding, targets.length);}
+    catch {return {...base, status: "bounds"};}
+  }
   const controller = new AbortController(), abort = () => controller.abort();
   input.signal?.addEventListener("abort", abort, {once: true});
   const timer = setTimeout(abort, MEMORY_CORRECTION_WORKER_DEADLINE_MS);
   try {
     const batch = await runMemoryReviewBatch({prompt, model: input.model, signal: controller.signal,
-      outputDir: input.outputDir, kind: "memory-coverage-review", count: targets.length, bodyReferences: witnessMode === "reference"});
+      outputDir: input.outputDir, kind: "memory-coverage-review", count: targets.length, bodyReferences: witnessMode === "reference", nativeCoverageBinding});
     const {text, retainedResponse, ...usage} = batch;
     const result = {...base, ...usage, durationMs: Date.now() - started};
     if (batch.status !== "reviewed") return result;
@@ -501,10 +512,65 @@ export interface PreparedMemoryCoverage {
   retainedKeys: string[];
 }
 
+/** Read-only transport view of already bound Memory positions, never source
+ * evidence. Keep original UTF-16 offsets; do not search repeated text again. */
+function coverageWitnessTextView(review: MemoryCoverageReview,
+  predecessors: readonly {name: string; content: string}[]) {
+  const text = (content: string, value: unknown) => {
+    const span = object(value, ["start", "end"]), {start, end} = span;
+    if (typeof start !== "number" || typeof end !== "number" || !Number.isSafeInteger(start)
+      || !Number.isSafeInteger(end) || start < 0 || end <= start || end > content.length) invalid();
+    return {start, end, exactText: boundedText(content.slice(start, end))};
+  };
+  const target = (id: string, name: string, bodySha256: string) => {
+    const matches = review.targets.filter(item => item.id === id && item.name === name && item.bodySha256 === bodySha256);
+    if (matches.length !== 1 || createHash("sha256").update(matches[0].content).digest("hex") !== bodySha256) invalid();
+    return matches[0];
+  };
+  const predecessor = (value: NonNullable<MemoryCoverageAccount["predecessor"]>) => {
+    const matches = predecessors.filter(item => item.name === value.name);
+    if (matches.length !== 1 || createHash("sha256").update(matches[0].content).digest("hex") !== value.bodySha256) invalid();
+    return {...value, witness: text(matches[0].content, value.witness)};
+  };
+  const location = (value: MemoryCoverageLocation) => {
+    if (value.kind !== "record") invalid();
+    return {...value, witness: text(target(value.targetId, value.name, value.bodySha256).content, value.witness)};
+  };
+  const condition = (content: string, value: MemoryCoverageCondition) => ({...value,
+    bodyWitness: value.bodyWitness === null ? null : text(content, value.bodyWitness)});
+  const accounts = review.accounts.map(account => {
+    const content = target(account.id, account.name, account.bodySha256).content;
+    return {...account, ...(account.predecessor ? {predecessor: predecessor(account.predecessor)} : {}),
+      claims: account.claims.map(claim => ({...condition(content, claim),
+        conditions: claim.conditions.map(item => condition(content, item))}))};
+  });
+  const plan = {...review.plan!, obligations: review.plan!.obligations.map(item => ({...item,
+    ...(item.predecessor ? {predecessor: predecessor(item.predecessor)} : {}), coveredBy: item.coveredBy.map(location)}))};
+  const issue = (binding: {item: MemoryCoverageFact; candidateIndex?: number; retainedIndex?: number}) => {
+    const item: Record<string, unknown> = {...binding.item};
+    if (item.predecessor !== undefined) item.predecessor = predecessor(item.predecessor as NonNullable<MemoryCoverageAccount["predecessor"]>);
+    if (item.coveredBy !== undefined) {
+      if (!Array.isArray(item.coveredBy)) invalid();
+      item.coveredBy = item.coveredBy.map(value => location(value as MemoryCoverageLocation));
+    }
+    if (item.bodyWitness !== undefined && item.bodyWitness !== null) {
+      const matches = review.targets.filter(value => binding.candidateIndex !== undefined
+        ? value.source === "candidate" && value.index === binding.candidateIndex
+        : binding.retainedIndex !== undefined && value.source === "retained" && value.index === binding.retainedIndex);
+      if (matches.length !== 1) invalid();
+      item.bodyWitness = text(matches[0].content, item.bodyWitness);
+    }
+    return item;
+  };
+  return {accounts, plan, issue};
+}
+
 /** A complete independent source/plan question must still find unnamed
  * omissions. Each named diagnosis is an additional question, never a fact. */
 export function prepareMemoryCoverageJudgment(evidence: unknown, candidates: readonly unknown[],
-  existing: readonly {name: string; content: string}[], context: MemoryCoverageContext): PreparedMemoryCoverage {
+  existing: readonly {name: string; content: string}[], context: MemoryCoverageContext,
+  wireView?: {maxRequestBytes: number}): PreparedMemoryCoverage {
+  if (wireView && !(wireView.maxRequestBytes > 0)) invalid();
   if (context.questionContractVersion !== undefined && context.questionContractVersion !== 2
     || context.prior?.questionContractVersion !== undefined && context.prior.questionContractVersion !== 2
     || context.protocol !== "memory-knowledge-coverage-v2" || context.review.status !== "reviewed"
@@ -566,13 +632,16 @@ export function prepareMemoryCoverageJudgment(evidence: unknown, candidates: rea
   });
   const namedIssueKeys = new Map<string, string>();
   const namedIssueBindings: {key: string; version: string; item: MemoryCoverageFact; candidateIndex?: number; retainedIndex?: number}[] = [];
-  const addIssue = (item: MemoryCoverageFact, location: {candidateIndex?: number; retainedIndex?: number}, version: string) => {
+  const namedIssueOrigins: Record<string, string | number>[] = [];
+  const addIssue = (item: MemoryCoverageFact, location: {candidateIndex?: number; retainedIndex?: number}, version: string,
+    origin: Record<string, string | number>) => {
     const fact = {statement: item.statement, evidence: item.evidence};
     const obligation = {basis: "basis" in item ? item.basis : undefined,
       predecessor: "predecessor" in item ? item.predecessor : undefined};
     const identity = createHash("sha256").update(JSON.stringify({fact, location, obligation})).digest("hex");
     const key = namedIssueKeys.get(identity) ?? `coverage_issue_${namedIssueKeys.size}`;
     namedIssueBindings.push({key, version, item, ...location});
+    namedIssueOrigins.push(origin);
     if (namedIssueKeys.has(identity)) return;
     namedIssueKeys.set(identity, key);
     questions.push({key,
@@ -580,26 +649,78 @@ export function prepareMemoryCoverageJudgment(evidence: unknown, candidates: rea
         dismissed: "The exact current records resolve every bound occurrence of this named condition/obligation for every affected claim, or original evidence shows it was not required. No material omission from any occurrence remains.",
         material_missing: "This named diagnosis identifies knowledge or a material condition still required and missing from the actual current plan.",
         unclear: "The named diagnosis cannot be resolved against actual current records and complete original evidence.",
-      }, question: `Independently check this ${version} diagnostic item against the complete original evidence and actual current records/actions: ${JSON.stringify(fact)}. This one question covers every exact duplicate in namedIssueBindings for this key, including every affected claim in current and prior accounts. Inspect all occurrences; dismissed requires all of them to be resolved against the actual current records. The diagnosis is not a fact or required answer. It may be false or may have been corrected in current bytes; evaluate that explicitly. Do not silently erase a genuine missing condition with a global complete answer, a longer source quote or a wording-only change. Source text is not stored Memory, and unchanged held text does not prove correction. Decide only whether this exact named omission remains in the current plan.`});
+      }, question: `Independently check this ${version} diagnostic item against the complete original evidence and actual current records/actions: ${JSON.stringify(fact)}. This one question covers every exact duplicate in namedIssueBindings ${context.questionContractVersion === 2 ? `matching selector ${JSON.stringify({key, ...location})}` : "for this key"}, including every affected claim in current and prior accounts. Inspect all occurrences; dismissed requires all of them to be resolved against the actual current records. The diagnosis is not a fact or required answer. It may be false or may have been corrected in current bytes; evaluate that explicitly. Do not silently erase a genuine missing condition with a global complete answer, a longer source quote or a wording-only change. Source text is not stored Memory, and unchanged held text does not prove correction. Decide only whether this exact named omission remains in the current plan.`});
   };
   for (const [version, review] of [["current", context.review], ...(context.prior ? [["prior rejected", context.prior.review] as const] : [])] as const) {
-    for (const obligation of review.plan!.obligations) if (obligation.status !== "covered") addIssue(obligation, {}, version);
-    for (const account of review.accounts) {
+    for (const [obligationIndex, obligation] of review.plan!.obligations.entries()) if (obligation.status !== "covered")
+      addIssue(obligation, {}, version, {kind: "plan", obligationIndex});
+    for (const [accountIndex, account] of review.accounts.entries()) {
       const candidateIndex = candidates.findIndex(item => record(item) && item.name === account.name);
       const retainedIndex = retained.findIndex(item => item.name === account.name);
       const location = candidateIndex >= 0 ? {candidateIndex} : retainedIndex >= 0 ? {retainedIndex} : {};
-      for (const item of account.uncovered) addIssue(item, location, version);
-      for (const claim of account.claims) {
-        if (!claim.bodyWitness) addIssue(claim, location, version);
-        for (const condition of claim.conditions) if (!condition.bodyWitness) addIssue(condition, location, version);
+      const origin = {targetId: account.id, name: account.name, source: account.source, index: account.index,
+        bodySha256: account.bodySha256, accountIndex};
+      for (const [uncoveredIndex, item] of account.uncovered.entries()) addIssue(item, location, version, {...origin, kind: "uncovered", uncoveredIndex});
+      for (const [claimIndex, claim] of account.claims.entries()) {
+        if (!claim.bodyWitness) addIssue(claim, location, version, {...origin, kind: "claim", claimIndex});
+        for (const [conditionIndex, condition] of claim.conditions.entries()) if (!condition.bodyWitness)
+          addIssue(condition, location, version, {...origin, kind: "condition", claimIndex, conditionIndex});
       }
     }
   }
   if (commandPhase) for (const question of questions) question.question += " " + MEMORY_COMMAND_PHASE_CONTEXT;
+  const currentView = wireView && !Number.isFinite(wireView.maxRequestBytes) && context.questionContractVersion === 2
+    ? coverageWitnessTextView(context.review, existing) : undefined;
+  const priorView = currentView && context.prior ? coverageWitnessTextView(context.prior.review, existing) : undefined;
+  const issueView = currentView ? namedIssueBindings.map((binding, index) => ({...binding, origin: namedIssueOrigins[index],
+    item: (binding.version === "current" ? currentView : priorView ?? invalid()).issue(binding)})) : namedIssueBindings;
+  if (currentView) {
+    // Keep the immutable review/digest above as the audit contract. Semantic
+    // judgment receives original evidence and complete canonical records once,
+    // rather than the producer's verdicts and repeated account narratives.
+    const plan = context.plan as {operations: unknown[]; newMemories?: unknown[]};
+    const candidateSelectors = (["operations", "newMemories"] as const).flatMap(field =>
+      (plan[field] ?? []).map((_value, index) => ({field, index})));
+    if (candidateSelectors.length !== candidates.length
+      || candidateSelectors.some(({field, index}, candidateIndex) =>
+        JSON.stringify(plan[field]![index]) !== JSON.stringify(candidates[candidateIndex]))) invalid();
+    const retainedSelectors = retained.map((value, retainedIndex) => {
+      const matches = existing.flatMap((item, existingIndex) => item.name === value.name ? [existingIndex] : []);
+      if (matches.length !== 1 || JSON.stringify(existing[matches[0]]) !== JSON.stringify(value)) invalid();
+      return {retainedIndex, existingIndex: matches[0]};
+    });
+    const targetSelectors = (review: MemoryCoverageReview, value: unknown,
+      recordSet: "completeCurrentPlan" | "priorRejectedPlan") => {
+      assertCoverageTargets(review.targets, value);
+      const boundPlan = value as {operations: unknown[]; newMemories?: unknown[]};
+      return review.targets.map(({content, ...target}) => {
+        if (target.source === "candidate") {
+          const field = target.index < boundPlan.operations.length ? "operations" : "newMemories";
+          const index = field === "operations" ? target.index : target.index - boundPlan.operations.length;
+          const body = boundPlan[field]?.[index];
+          if (!record(body) || body.content !== content) invalid();
+          return {...target, bodyLocation: {recordSet, field, index}};
+        }
+        const matches = existing.flatMap((item, index) => item.name === target.name ? [index] : []);
+        if (matches.length !== 1 || existing[matches[0]].content !== content) invalid();
+        return {...target, bodyLocation: {recordSet: "existingMemories", index: matches[0]}};
+      });
+    };
+    return {contextDigest, questions, candidateKeys, retainedKeys,
+      state: {...(commandPhase ? {currentMemoryCommandPhase: commandPhase} : {}), memoryKnowledgeCoverage: true,
+        semanticWireVersion: 3, originalEvidence: evidence, completeCurrentPlan: context.plan,
+        candidateSelectors: candidateSelectors.map((selector, candidateIndex) => ({candidateIndex, ...selector})),
+        existingMemories: existing, retainedSelectors, targetSelectors: targetSelectors(context.review, context.plan, "completeCurrentPlan"),
+        namedIssueBindings: issueView,
+        ...(context.prior ? {priorRejectedPlan: context.prior.plan,
+          priorTargetSelectors: targetSelectors(context.prior.review, context.prior.plan, "priorRejectedPlan")} : {})}};
+  }
   return {contextDigest, questions, candidateKeys, retainedKeys,
     state: {...(commandPhase ? {currentMemoryCommandPhase: commandPhase} : {}), memoryKnowledgeCoverage: true, originalEvidence: evidence, completeCurrentPlan: context.plan,
       originalCandidates: candidates, existingMemories: existing, retainedMemories: retained,
-      targets, namedIssueBindings, currentAccount: context.review.plan, currentRecordAccounts: context.review.accounts,
+      targets, namedIssueBindings: issueView, currentAccount: context.review.plan,
+      currentRecordAccounts: context.review.accounts,
       ...(context.prior ? {priorRejectedPlan: context.prior.plan, priorTargets: context.prior.review.targets,
-        priorPlanAccount: context.prior.review.plan, priorRecordAccounts: context.prior.review.accounts} : {})}};
+        priorPlanAccount: priorView?.plan ?? context.prior.review.plan,
+        priorRecordAccounts: priorView?.accounts ?? context.prior.review.accounts} : {})}};
 }

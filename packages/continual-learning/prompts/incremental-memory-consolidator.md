@@ -50,23 +50,14 @@ link the source factory or call site to its named return type and relevant membe
 Do not invent a purpose, currentness guarantee or runtime behavior.
 A bare quote with retrieval cues cannot carry this context. For a NEW project
 entry, use `description` plus `knowledge` instead of `content` and `evidence`:
-`{"name":"contract.md","kind":"project","classification":"private","description":"one supported discovery claim","knowledge":{"sourceCitations":[{"ref":"first original source ref","endRef":"last original source ref"},{"ref":"context evidence ref"}],"units":[{"sourceCitationIndex":0},{"text":"Why: supported purpose. How to apply: supported conditions.","citationIndexes":[0,1]}]}}`.
-Units are ordered: a source unit selects one zero-based catalog index for parent
-copying; a text unit supplies prose and its catalog indexes. Never mix both in
-one unit. Use text units for user-stated facts and explanatory context; use source
-units for inspected declarations. Include at most 32 units and 8 catalog items.
-Select the complete declarations needed for the knowledge, including related
-owners; exact copying does not make a partial selection complete. The parent
-derives the body and evidence together. Keep the original `safe` or `private`
-classification justified by the evidence; source copying grants no sharing permission.
-If the lesson is
-only the exact observed source text, the private source alternative remains
-available: `sourceExcerpt: {"ref":"first original source ref","endRef":"last original source ref"}`.
-Keep `name`, `kind: "project"`, `classification: "private"`
-and non-empty `evidence`; the excerpt range must be covered by that evidence.
-Select a complete, concise declaration with its conditions, not an inventory or
-an isolated misleading fragment. The parent copies the original bytes into the
-body and supplies a neutral source description; do not add paraphrased claims.
+`{"name":"contract.md","kind":"project","classification":"private","description":"one supported discovery claim","knowledge":{"sourceCitations":[{"ref":"complete declaration start","endRef":"declaration end"},{"ref":"context evidence ref"}],"units":[{"text":"Complete source-grounded declaration or relationship with brief attribution.","citationIndexes":[0]},{"text":"Why: supported purpose. How to apply: supported conditions.","citationIndexes":[0,1]}]}}`.
+Use text units and zero-based catalog indexes for every claim. Select complete
+supported declarations and the relevant owning-type/member spans in that same
+catalog; do not repeat separate factory/owner/member fields. The parent retains
+only explicitly selected original syntax, never missing evidence or runtime facts.
+Ordinary observations and explanatory context use the same cited text format.
+Keep at most 32 materialized units and 8 total citations. Keep the evidence-justified
+`safe` or `private` classification; source copying grants no sharing permission.
 Source copying requires a successful original project `read`, a parent-audited
 `learning_read`, or a contiguous range of added lines
 from a successful original `edit` patch. For edits

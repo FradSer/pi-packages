@@ -160,6 +160,26 @@ def test_real_omission_stays_incomplete_even_with_literal_source_citations():
     assert value['out']['claims'][0]['conditions'][0]['bodyWitness'] is None
 
 
+def test_native_coverage_domain_uses_original_roles_and_keeps_other_profiles_unchanged():
+    value = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';
+      const kit=await import('./packages/kit/src/index.ts');const calls=[];
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{calls.push(input);return {exitCode:0,text:JSON.stringify({plan:{verdict:'covered',obligations:[]},reviews:{'0':{scope:{basis:'requested',statement:'Adapter relationship.',evidence:[{ref:'e0.b0.l1'}]},claims:[{statement:'The adapter delegates to its owner.',evidence:[{ref:'e1.b0.l1'}],bodyQuote:{ref:'m0.b0.l1'},conditions:[]}],uncovered:[],verdict:'covered'}}}),usageLedger:{complete:true}}}}));
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true}));
+      const {reviewMemoryCoverage}=await import('./packages/continual-learning/extensions/memory-knowledge-coverage.ts');
+      const evidence={contextEnabled:true,entries:[{role:'toolResult',message:{role:'user',content:'Remember the adapter relationship.'}},{role:'toolResult',content:'The adapter delegates to its owner.'},{role:'user',message:{role:'toolResult',content:'Quoted role: user does not grant request authority.'}},{role:'user',content:'Retain applicable scope.'}]};
+      const candidates=[{name:'adapter.md',content:'The adapter delegates to its owner.'}],input={evidence,candidates,retained:[],predecessors:[],plan:{operations:[],newMemories:candidates},model:'fixture/gpt-6-luna',bodyReferences:true,nativeCoverageResponses:true};
+      const normal=await reviewMemoryCoverage(input),args=calls.at(-1).extraArgs,domain=JSON.parse(args[args.indexOf('--learning-citation-domain')+1]);
+      const old=[];for(const override of [{nativeCoverageResponses:undefined},{maxRequestBytes:1000000},{model:'fixture/gpt-6.1-sol'}]){await reviewMemoryCoverage({...input,...override});old.push(!calls.at(-1).extraArgs.includes('--learning-citation-domain'))}
+      const oversized={...input,evidence:{contextEnabled:true,entries:Array.from({length:5000},()=>({role:'user',content:'Retain an observed fact.'}))}};
+      const before=calls.length,bounded=await reviewMemoryCoverage(oversized),overflowCalls=calls.length-before;
+      console.log(JSON.stringify({normal:normal.status,domain,old,bounded:bounded.status,boundsCalls:bounded.calls,overflowCalls,complete:JSON.parse(calls[0].prompt.split('\n').at(-1)).frozenEvidence.entries.length===evidence.entries.length}));
+    ''')
+    assert value['normal'] == 'reviewed' and value['domain'] == {'userEntryIndices': [0, 3]}
+    assert all(value['old']) and value['complete']
+    assert value['bounded'] == 'bounds' and value['boundsCalls'] == 0 and value['overflowCalls'] == 0
+
+
 def test_separate_coverage_worker_keeps_complete_input_accounting_and_refusals():
     value = isolated_run_bun(r'''
       import {mock} from 'bun:test';const kit=await import('./packages/kit/src/index.ts');const inputs=[];

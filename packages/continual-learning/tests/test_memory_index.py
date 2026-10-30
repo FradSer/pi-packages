@@ -308,9 +308,10 @@ def test_bounded_metadata_read_reports_incomplete_description_without_body_leak(
     assert "Body must stay out" not in result["block"]
 
 
-def test_crlf_frontmatter_keeps_description_and_never_parses_body_description(tmp_path: Path) -> None:
+@pytest.mark.parametrize('bom', ['', '\ufeff', '\ufeff\ufeff'])
+def test_crlf_frontmatter_keeps_description_and_never_parses_body_description(tmp_path: Path, bom: str) -> None:
     repo, memory, agent = memory_repo(tmp_path)
-    (memory / "a.md").write_bytes(b'---\r\ndescription: "CRLF route cue"\r\n---\r\nbody\r\ndescription: body not metadata\r\n')
+    (memory / "a.md").write_bytes(bom.encode('utf-8') + b'---\r\ndescription: "CRLF route cue"\r\n---\r\nbody\r\ndescription: body not metadata\r\n')
     result = load_and_format(repo, agent)
     assert result["loaded"]["entries"][0]["description"] == "CRLF route cue"
     assert "body not metadata" not in result["block"]

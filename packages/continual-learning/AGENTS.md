@@ -169,10 +169,10 @@ fresh review, costs and all semantic thresholds. Missing, changed, ambiguous,
 unsafe or oversized new artifacts stop replay; legacy absent fields stay absent.
 Controlled native delivery and writes do not establish real learning benefit.
 
-Current acceptance and fresh continuous studies use Pi 1.3.0. Pin the actual CLI
+Current user acceptance uses Pi 1.4.0. Historical continuous studies retain their recorded Pi 1.3.0 baseline. Pin the actual CLI
 and TUI, including inherited workspace overrides, and verify CLI startup before
-model transport. Keep historical Pi 1.0 and 1.2 cohorts, failures and costs separate; do
-not relabel them as Pi 1.3 evidence. Admission failures before transport must keep
+model transport. Keep historical Pi 1.0, 1.2 and 1.3 cohorts, failures and costs separate; do
+not relabel them as Pi 1.4 evidence. Admission failures before transport must keep
 owned containers and complete manifest source bindings when archives are absent.
 For loopback model diagnostics, preserve provider-level and model-level compatibility
 settings. A new base URL can change automatic message-role and token-field detection.
@@ -1002,7 +1002,12 @@ records, exact current and predecessor bindings, and independent judgments for
 each named omission or null witness. Parent-selected question contract 2 scopes
 candidate and retained checks to their own knowledge; the whole-plan question
 and all gates stay unchanged. An absent contract selects the exact historical
-questions. When complete initial intrinsic checks and their original joint bounds
+questions. Normal unbounded semantic wire version 3 keeps complete original evidence,
+canonical plans and predecessor bodies inline, with exact current/prior target selectors
+and every named omission occurrence. Full accounts remain in the parent's bound audit;
+their self-verdicts and duplicate bodies are not global semantic context. Finite and
+legacy inputs stay exact. Exercise the canonical wire cases in `tests/test_jev_learning.py`.
+When complete initial intrinsic checks and their original joint bounds
 pass, citation-only changes to the same whole effective knowledge plan cannot
 redraw a held coverage judgment. A coverage question that independently fails its
 original probability/confidence gate also blocks that draw when another intrinsic

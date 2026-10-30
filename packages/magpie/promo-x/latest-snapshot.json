@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "outputDir": "/Users/FradSer/Developer/FradSer/pi-packages/packages/magpie/promo-x/.hyperframes/artifacts/snapshots/ab7adea5-a056-450f-914e-a4ae53f1dcfb",
+  "frames": [
+    {
+      "path": "/Users/FradSer/Developer/FradSer/pi-packages/packages/magpie/promo-x/.hyperframes/artifacts/snapshots/ab7adea5-a056-450f-914e-a4ae53f1dcfb/frame-00-at-14.5s.png",
+      "time": 14.5
+    },
+    {
+      "path": "/Users/FradSer/Developer/FradSer/pi-packages/packages/magpie/promo-x/.hyperframes/artifacts/snapshots/ab7adea5-a056-450f-914e-a4ae53f1dcfb/frame-01-at-26.75s.png",
+      "time": 26.75
+    }
+  ],
+  "contactSheets": [
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/magpie/promo-x/.hyperframes/artifacts/snapshots/ab7adea5-a056-450f-914e-a4ae53f1dcfb/contact-sheet.jpg"
+  ],
+  "_meta": {
+    "version": "0.8.214",
+    "latestVersion": "0.8.217",
+    "updateAvailable": true
+  }
+}

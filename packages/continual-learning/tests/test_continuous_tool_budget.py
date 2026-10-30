@@ -397,6 +397,191 @@ def test_initial_source_boundary_blocks_environment_and_artifact_discovery() -> 
     assert '/home/node/agent/settings.json' not in schemas['read']['properties']['path']['enum']
 
 
+def test_source_examples_boundary_allows_only_declared_public_files_and_native_examples(tmp_path) -> None:
+    """Given a v2 source task, Then exact examples are writable without granting general shell access."""
+    import json
+    value = run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import {installSourceTaskBoundary} from './packages/continual-learning/tests/continuous-bash-environment.ts';
+      const root=process.env.TEST_SOURCE_ROOT;fs.mkdirSync(path.join(root,'examples'));
+      fs.writeFileSync(path.join(root,'index.js'),'public');
+      const handlers={},entries=[];
+      const config={version:2,readPaths:['index.js'],writePaths:['examples/native-wrapper-v1.js'],commands:['node examples/native-wrapper-v1.js']};
+      const parameters=installSourceTaskBoundary({on:(n,f)=>handlers[n]=f,appendEntry:(n,d)=>entries.push({n,d})},config,root);
+      const call=(toolName,input)=>handlers.tool_call({toolName,input,toolCallId:'call'});
+      const allowed=[];allowed.push(await call('write',{path:'examples/native-wrapper-v1.js',content:'before'}));
+      fs.writeFileSync(path.join(root,'examples/native-wrapper-v1.js'),'before');
+      allowed.push(await call('edit',{path:path.join(root,'examples/native-wrapper-v1.js'),edits:[{oldText:'before',newText:'after'}]}));
+      allowed.push(await call('read',{path:'examples/native-wrapper-v1.js'}));
+      allowed.push(await call('read',{path:'index.js',offset:1,limit:2}));
+      allowed.push(await call('bash',{command:'node examples/native-wrapper-v1.js'}));
+      const denied=[];
+      for(const [name,input] of [['write',{path:'index.js',content:'no'}],['write',{path:'examples/other.js',content:'no'}],['write',{path:'examples/native-wrapper-v2.js',content:'no'}],['read',{path:'/etc/passwd'}],['read',{path:'.pi/config.json'}],['read',{path:'../index.js'}],['read',{path:'./index.js'}],['bash',{command:'node examples/native-wrapper-v1.js; env'}],['bash',{command:'env'}],['bash',{command:'node examples/native-wrapper-v2.js'}],['read',{path:'index.js',limit:0}],['write',{path:'examples/native-wrapper-v1.js',content:'no',extra:true}]])denied.push(await call(name,input));
+      fs.unlinkSync(path.join(root,'examples/native-wrapper-v1.js'));fs.symlinkSync(path.join(root,'index.js'),path.join(root,'examples/native-wrapper-v1.js'));
+      denied.push(await call('write',{path:'examples/native-wrapper-v1.js',content:'no'}));
+      denied.push(await call('read',{path:'examples/native-wrapper-v1.js'}));
+      denied.push(await call('bash',{command:'node examples/native-wrapper-v1.js'}));
+      fs.unlinkSync(path.join(root,'examples/native-wrapper-v1.js'));fs.rmdirSync(path.join(root,'examples'));fs.symlinkSync(root,path.join(root,'examples'));
+      denied.push(await call('write',{path:'examples/native-wrapper-v1.js',content:'no'}));
+      const wire=[];for(const api of ['openai-completions','openai-responses']){
+        const tools=Object.keys(parameters).map(name=>api==='openai-responses'?{type:'function',name,parameters:{}}:{type:'function',function:{name,parameters:{}}});
+        wire.push(handlers.before_provider_request({payload:{tools,messages:[],input:[]}},{model:{api}}));
+      }
+      console.log(JSON.stringify({allowed:allowed.map(x=>x??null),denied,entries,parameters,wire}));
+    ''', {'TEST_SOURCE_ROOT': str(tmp_path)})
+    assert value['allowed'] == [None]*5
+    assert all(result['block'] for result in value['denied'])
+    assert all(row['d']['version'] == 2 for row in value['entries'])
+    assert value['parameters']['bash']['properties']['command']['enum'] == ['node examples/native-wrapper-v1.js']
+    for wire in value['wire']:
+        for tool in wire['tools']:
+            tool = tool.get('function', tool)
+            assert tool['parameters'] == value['parameters'][tool['name']]
+    assert value['parameters']['write']['properties']['path']['enum'] == ['examples/native-wrapper-v1.js', str(tmp_path/'examples/native-wrapper-v1.js')]
+    assert value['parameters']['edit']['properties']['path'] == value['parameters']['write']['properties']['path']
+    assert set(value['parameters']['read']['properties']['path']['enum']) == {'index.js',str(tmp_path/'index.js'),'examples/native-wrapper-v1.js',str(tmp_path/'examples/native-wrapper-v1.js')}
+
+
+@pytest.mark.parametrize('override', [
+    {'version':1}, {'root':'/foreign'}, {'writePaths':['index.js']},
+    {'writePaths':['examples/../native-wrapper-v1.js']}, {'readPaths':['.pi/settings.json']},
+    {'readPaths':['/foreign/index.js']}, {'commands':['env']},
+    {'commands':['node examples/native-wrapper-v2.js']}, {'readPaths':['index.js','index.js']},
+])
+def test_source_examples_boundary_rejects_invalid_configuration(tmp_path, override) -> None:
+    import json
+    value = run_bun(r'''
+      import {installSourceTaskBoundary} from './packages/continual-learning/tests/continuous-bash-environment.ts';
+      let rejected=false;try{installSourceTaskBoundary({on:()=>{},appendEntry:()=>{}},JSON.parse(process.env.TEST_SOURCE_CONFIG),process.env.TEST_SOURCE_ROOT)}catch{rejected=true}
+      console.log(JSON.stringify({rejected}));
+    ''', {'TEST_SOURCE_ROOT':str(tmp_path), 'TEST_SOURCE_CONFIG':json.dumps({
+        'version':2,'readPaths':['index.js'],'writePaths':['examples/native-wrapper-v1.js'],
+        'commands':['node examples/native-wrapper-v1.js'],**override})})
+    assert value['rejected']
+
+
+def test_source_examples_launcher_uses_explicit_stage_and_keeps_ordinary_tools(monkeypatch, tmp_path) -> None:
+    import json,subprocess
+    from pathlib import Path
+    from types import SimpleNamespace
+    import live_continuous_project_learning as study
+    proxy=SimpleNamespace(key='fixture',jev_key=None,token='fixture',selection={'provider':'fixture','model':'fixture'},jev_environment=lambda:{})
+    commands=[]
+    def process(args, **_kwargs):
+        if args[1]=='exec':commands.append(args)
+        if args[1]=='cp':Path(args[-1]).write_bytes(b'')
+        return subprocess.CompletedProcess(args,0,b'',b'')
+    monkeypatch.setattr(study.base,'process',process)
+    monkeypatch.setattr(study.base,'shell',lambda *_a,**_k:b'')
+    config={'version':2,'readPaths':['index.js'],'writePaths':['examples/native-wrapper-v1.js'],'commands':['node examples/native-wrapper-v1.js']}
+    for label in ('source-v1','source-v2'):
+        stage_config=json.loads(json.dumps(config).replace('wrapper-v1','wrapper-'+label.removeprefix('source-')))
+        study.run_session('owned','inspect',proxy,tmp_path/label,label,source_task_boundary=stage_config,expected_pi_version='1.4.0')
+    study.run_session('owned','implement',proxy,tmp_path/'use','use-v1')
+    for stage,command in enumerate(commands[:2],1):
+        assert command[command.index('--tools')+1]=='read,bash,edit,write'
+        assert 'PI_STUDY_SOURCE_TASK_BOUNDARY='+json.dumps(config,separators=(',',':')).replace('wrapper-v1','wrapper-v'+str(stage)) in command
+        assert not any(x.startswith('PI_STUDY_INITIAL_SOURCE_FILES=') for x in command)
+    assert commands[2][commands[2].index('--tools')+1]=='read,bash,edit,write'
+    assert not any(x.startswith('PI_STUDY_SOURCE_TASK_BOUNDARY=') for x in commands[2])
+    for label,options in [('stage-0',{}),('source-v2',{}),('source-v1',{'command':True}),('source-v2',{'feedback_observation':{}}),('source-v1',{'initial_source_paths':['index.js']})]:
+        with pytest.raises(ValueError,match='[Ss]ource'):
+            study.run_session('owned','inspect',proxy,tmp_path/'invalid',label,source_task_boundary=config,**options)
+
+
+@pytest.mark.parametrize('responses_api',[False,True])
+def test_actual_pi_source_examples_create_edit_read_run_and_reject_symlinks(tmp_path,responses_api) -> None:
+    """Given native Pi and a loopback provider, Then registered schemas and actual execution share the v2 boundary."""
+    import json,subprocess,threading
+    from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+    from pathlib import Path
+    from live_acceptance_support import isolated_environment,workspace_pi
+    from support import REPO
+    from test_planner_json_output import _stream_responses_fixture
+    project,agent=tmp_path/'project',tmp_path/'agent'
+    project.mkdir();agent.mkdir()
+    (project/'index.js').write_text('export const value=1;\n')
+    private=tmp_path/'private.txt';private.write_text('PRIVATE_SOURCE_SENTINEL')
+    example=project/'examples/native-wrapper-v1.js'
+    config={'version':2,'readPaths':['index.js'],'writePaths':['examples/native-wrapper-v1.js'],
+            'commands':['node examples/native-wrapper-v1.js','pnpm test']}
+    requests=[]
+    actions=[('write',{'path':'examples/native-wrapper-v1.js','content':'console.log("before");\n'}),
+             ('edit',{'path':'examples/native-wrapper-v1.js','edits':[{'oldText':'before','newText':'after'}]}),
+             ('read',{'path':'examples/native-wrapper-v1.js'}),
+             ('bash',{'command':'node examples/native-wrapper-v1.js'}),
+             ('write',{'path':'examples/native-wrapper-v1.js','content':'forbidden'}),
+             ('read',{'path':'examples/native-wrapper-v1.js'}),
+             ('bash',{'command':'node examples/native-wrapper-v1.js'}),
+             ('write',{'path':'examples/foreign.js','content':'forbidden'}),
+             ('read',{'path':str(private)}),
+             ('bash',{'command':'env'})]
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self,*_args):pass
+        def do_POST(self):
+            body=json.loads(self.rfile.read(int(self.headers['Content-Length'])));requests.append(body)
+            call=len(requests)
+            if call==5:
+                example.unlink();example.symlink_to(private)
+            if call>len(actions):
+                if responses_api:
+                    _stream_responses_fixture(self,body,'Completed controlled source boundary check.');return
+                delta={'content':'Completed controlled source boundary check.'};finish='stop'
+            else:
+                name,arguments=actions[call-1]
+                delta={'tool_calls':[{'index':0,'id':f'call-{call}','type':'function',
+                       'function':{'name':name,'arguments':json.dumps(arguments)}}]};finish='tool_calls'
+            if responses_api:
+                item={'id':f'fc_{call}','type':'function_call','call_id':f'call-{call}','name':name,'arguments':'','status':'in_progress'}
+                complete={**item,'arguments':json.dumps(arguments),'status':'completed'}
+                response={'id':f'resp_{call}','object':'response','created_at':1,'model':'fixed','status':'in_progress','output':[]}
+                events=[{'type':'response.created','response':response},
+                        {'type':'response.output_item.added','output_index':0,'item':item},
+                        {'type':'response.function_call_arguments.delta','item_id':item['id'],'output_index':0,'delta':complete['arguments']},
+                        {'type':'response.function_call_arguments.done','item_id':item['id'],'output_index':0,'arguments':complete['arguments']},
+                        {'type':'response.output_item.done','output_index':0,'item':complete},
+                        {'type':'response.completed','response':{**response,'status':'completed','output':[complete],
+                         'usage':{'input_tokens':1,'output_tokens':1,'total_tokens':2,'input_tokens_details':{'cached_tokens':0},'output_tokens_details':{'reasoning_tokens':0}}}}]
+                wire=''.join('event: '+event['type']+'\ndata: '+json.dumps({**event,'sequence_number':i})+'\n\n' for i,event in enumerate(events))
+            else:
+                frames=[dict(id='fixture',object='chat.completion.chunk',model='fixed',choices=[{'index':0,'delta':delta,'finish_reason':None}]),
+                        dict(id='fixture',object='chat.completion.chunk',model='fixed',choices=[{'index':0,'delta':{},'finish_reason':finish}],usage={'prompt_tokens':1,'completion_tokens':1,'total_tokens':2})]
+                wire=''.join('data: '+json.dumps(frame)+'\n\n' for frame in frames)+'data: [DONE]\n\n'
+            self.send_response(200);self.send_header('Content-Type','text/event-stream');self.send_header('Content-Length',str(len(wire.encode())));self.end_headers();self.wfile.write(wire.encode())
+    server=ThreadingHTTPServer(('127.0.0.1',0),Provider);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    (agent/'settings.json').write_text('{"packages":[],"retry":{"enabled":false}}')
+    (agent/'models.json').write_text(json.dumps({'providers':{'fixture':{'baseUrl':f'http://127.0.0.1:{server.server_port}/v1',
+        'api':'openai-responses' if responses_api else 'openai-completions','apiKey':'public-loopback-only',
+        'models':[{'id':'fixed','reasoning':False,'input':['text'],'contextWindow':100000,'maxTokens':4096,
+                   'cost':{'input':0,'output':0,'cacheRead':0,'cacheWrite':0}}]}}}))
+    session=tmp_path/'session.jsonl'
+    args=[workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates',
+          '--no-themes','--no-approve','--thinking','off','--tools','read,bash,edit,write',
+          '-e',str(Path(__file__).with_name('continuous-bash-environment.ts')),'--model','fixture/fixed',
+          '--session',str(session),'--print','--mode','json','Run the controlled source task.']
+    env=isolated_environment(tmp_path,agent);env['PI_STUDY_SOURCE_TASK_BOUNDARY']=json.dumps(config)
+    try:process=subprocess.run(args,cwd=project,env=env,capture_output=True,timeout=25)
+    finally:server.shutdown();server.server_close();thread.join(timeout=2)
+    assert process.returncode==0,process.stderr.decode()
+    assert len(requests)==len(actions)+1
+    rows=[json.loads(line) for line in session.read_text().splitlines()]
+    definitions={tool['name']:tool for row in rows for tool in row.get('message',{}).get('toolsAdded',[])}
+    for body in requests:
+        wire={tool['name']:tool for tool in (row if responses_api else row['function'] for row in body['tools'])}
+        assert set(wire)=={'read','bash','edit','write'}
+        assert all(definitions[name]['description']==wire[name]['description'] and definitions[name]['parameters']==wire[name]['parameters'] for name in wire)
+        assert wire['bash']['parameters']['properties']['command']['enum']==config['commands']
+        assert wire['write']['parameters']['properties']['path']['enum']==['examples/native-wrapper-v1.js',str(example)]
+    results=[row['message'] for row in rows if row.get('message',{}).get('role')=='toolResult']
+    assert [result['isError'] for result in results]==[False]*4+[True]*6
+    assert 'after' in json.dumps(results[2:4])
+    assert private.read_text()=='PRIVATE_SOURCE_SENTINEL'
+    assert not (project/'examples/foreign.js').exists()
+    assert all('PRIVATE_SOURCE_SENTINEL' not in json.dumps(body) for body in requests)
+    blocked=[row['data'] for row in rows if row.get('customType')=='continuous-study-source-boundary']
+    assert len(blocked)==3 and all(row['version']==2 for row in blocked)
+
+
 @pytest.mark.parametrize('public_only',[False,True])
 def test_real_pi_blocks_initial_source_boundary_before_native_tools(tmp_path,public_only) -> None:
     import json

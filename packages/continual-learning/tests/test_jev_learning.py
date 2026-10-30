@@ -1672,27 +1672,51 @@ def test_local_coverage_criteria_do_not_assign_other_records_goals_and_keep_glob
 
 
 
-def test_identical_named_omissions_share_one_decision_without_losing_occurrences():
+@pytest.mark.parametrize('candidate_count,retained_count', [(1, 0), (2, 0), (1, 1)])
+def test_identical_named_omissions_share_one_decision_without_losing_occurrences(candidate_count,retained_count):
     # Given one absent condition is also listed in uncovered, When preparing
     # independent checks, Then judge that exact event once and bind both rows.
     value = isolated_run_bun(r'''
       import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
       import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest,prepareMemoryCoverageJudgment} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
       const evidence={contextEnabled:true,entries:[{role:'user',content:'Remember the known condition.'}]};
-      const candidates=[{name:'fact.md',content:'The fact.'}],plan={operations:[],newMemories:candidates},targets=prepareMemoryBodyTargets(candidates,[]);
+      const candidates=Array.from({length:CANDIDATE_COUNT},(_,i)=>({name:`fact-${i}.md`,content:'The fact.'}));
+      const existing=Array.from({length:RETAINED_COUNT},(_,i)=>({name:`retained-${i}.md`,content:'The fact.'}));
+      const plan={operations:[],newMemories:candidates},targets=prepareMemoryBodyTargets(candidates,existing);
       const fact={statement:'The known condition',evidence:[{ref:'e0.b0.l1'}]};
-      const raw={plan:{verdict:'covered',obligations:[]},reviews:{'0':{scope:{basis:'requested',statement:'The scoped fact',evidence:fact.evidence},
+      const raw={plan:{verdict:'covered',obligations:[]},reviews:Object.fromEntries(targets.map((_t,i)=>[i,{scope:{basis:'requested',statement:'The scoped fact',evidence:fact.evidence},
         claims:[{statement:'The fact',evidence:fact.evidence,bodyQuote:'The fact.',conditions:[{...fact,bodyQuote:null}]}],
-        uncovered:[fact],verdict:'incomplete'}}};
-      const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,[],{reviews:raw.reviews}),
-        plan:bindMemoryPlanCoverage(targets,evidence,[],plan,raw),calls:1,durationMs:1,usageComplete:true};
-      const prepared=prepareMemoryCoverageJudgment(evidence,candidates,[],{protocol:'memory-knowledge-coverage-v2',plan,review,
+        uncovered:[fact],verdict:'incomplete'}]))};
+      const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,existing,{reviews:raw.reviews}),
+        plan:bindMemoryPlanCoverage(targets,evidence,existing,plan,raw),calls:1,durationMs:1,usageComplete:true};
+      const prepared=prepareMemoryCoverageJudgment(evidence,candidates,existing,{protocol:'memory-knowledge-coverage-v2',plan,review,
+        questionContractVersion:2,expectedReviewDigest:memoryCoverageReviewDigest(review)});
+      const legacy=prepareMemoryCoverageJudgment(evidence,candidates,existing,{protocol:'memory-knowledge-coverage-v2',plan,review,
         expectedReviewDigest:memoryCoverageReviewDigest(review)});
-      console.log(JSON.stringify({questions:prepared.questions.filter(q=>q.key.startsWith('coverage_issue_')),state:prepared.state}));
-    ''')
-    assert len(value['questions']) == 1
-    assert len(value['state']['namedIssueBindings']) == 2
-    assert len({item['key'] for item in value['state']['namedIssueBindings']}) == 1
+      console.log(JSON.stringify({questions:prepared.questions.filter(q=>q.key.startsWith('coverage_issue_')),state:prepared.state,
+        legacy:legacy.questions.filter(q=>q.key.startsWith('coverage_issue_'))}));
+    '''.replace('CANDIDATE_COUNT',str(candidate_count)).replace('RETAINED_COUNT',str(retained_count)))
+    record_count = candidate_count + retained_count
+    assert len(value['questions']) == record_count
+    assert len(value['state']['namedIssueBindings']) == record_count * 2
+    assert len({item['key'] for item in value['state']['namedIssueBindings']}) == record_count
+    import json
+    import re
+    # Question IDs are not model input. The remaining instruction must identify
+    # one exact group even when the same fact/evidence occurs in both records.
+    instructions = [q['question'] for q in value['questions']]
+    assert len(set(instructions)) == record_count
+    for question, legacy in zip(value['questions'],value['legacy'],strict=True):
+        instruction = question['question']
+        match = re.search(r'matching selector (\{[^}]+\})',instruction)
+        assert match, instruction
+        selector = json.loads(match.group(1))
+        group = [item for item in value['state']['namedIssueBindings']
+                 if all(item.get(key) == val for key, val in selector.items())]
+        assert len(group) == 2
+        location = 'candidateIndex' if 'candidateIndex' in selector else 'retainedIndex'
+        assert {item[location] for item in group} == {selector[location]}
+        assert legacy == {**question,'question':instruction.replace(match.group(0),'for this key')}
 
 
 def test_identical_words_for_distinct_predecessors_keep_separate_dismissals():
@@ -1713,6 +1737,211 @@ def test_identical_words_for_distinct_predecessors_keep_separate_dismissals():
     ''')
     assert len(value['keys']) == 2 and len(set(value['keys'])) == 2
 
+
+@pytest.mark.parametrize('newline', ['\n', '\r\n'])
+def test_unbounded_coverage_wire_keeps_canonical_bodies_and_exact_named_witnesses(newline):
+    # Given parent-bound current/prior accounts and a non-BMP body prefix,
+    # When normal coverage reaches the actual SDK, Then canonical bodies and
+    # every named witness stay inline while finite/stored contracts stay exact.
+    import json
+    value = isolated_run_bun(r'''
+      import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+      import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest,prepareMemoryCoverageJudgment} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      import {createHash} from 'node:crypto';
+      const doc=body=>`---\nname: alpha\ndescription: scoped fact\ntype: project\n---\nPrefix 😀\n${body}\n${'padding '.repeat(270)}\n`.replaceAll('\n',NEWLINE);
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Current 😀 fact. Prior 😀 fact. Retained 😀 fact. Missing condition.'}]};
+      const existing=[{name:'alpha.md',content:doc('Stored 😀 condition.')},{name:'beta.md',content:doc('Retained 😀 fact.')}];
+      const refs=[{ref:'e0.b0.l1'}],missing={statement:'Missing condition.',evidence:refs};
+      const make=text=>{
+        const candidates=[{kind:'rewrite',name:'alpha.md',content:doc(text),evidence:[{index:0,quote:text}]}];
+        const plan={operations:candidates,newMemories:[]},targets=prepareMemoryBodyTargets(candidates,[existing[1]]);
+        const raw={plan:{verdict:'incomplete',obligations:[{basis:'predecessor',statement:'Preserve stored condition',evidence:[],
+          predecessorName:'alpha.md',predecessorQuote:'Stored 😀 condition.',coveredBy:[{targetIndex:0,bodyQuote:text}],status:'missing'}]},
+          reviews:Object.fromEntries(targets.map((t,i)=>[i,{scope:{basis:'predecessor',statement:'Preserve scoped knowledge',evidence:[],
+            predecessorQuote:i===0?'Stored 😀 condition.':'Retained 😀 fact.'},claims:[{statement:i===0?text:'Retained 😀 fact.',evidence:refs,
+              bodyQuote:i===0?text:'Retained 😀 fact.',conditions:i===0?[{...missing,bodyQuote:null}]:[]}],
+            uncovered:i===0?[missing]:[],verdict:i===0?'incomplete':'covered'}]))};
+        const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,existing,{reviews:raw.reviews}),
+          plan:bindMemoryPlanCoverage(targets,evidence,existing,plan,raw),calls:1,durationMs:1,usageComplete:true};
+        return {candidates,context:{protocol:'memory-knowledge-coverage-v2',questionContractVersion:2,plan,review,
+          expectedReviewDigest:memoryCoverageReviewDigest(review)}};
+      };
+      const current=make('Current 😀 fact.'),prior=make('Prior 😀 fact.');
+      current.context.prior=prior.context;
+      const before=JSON.stringify(current.context);
+      const legacy=prepareMemoryCoverageJudgment(evidence,current.candidates,existing,current.context);
+      const finite=prepareMemoryCoverageJudgment(evidence,current.candidates,existing,current.context,{maxRequestBytes:1024});
+      const normal=prepareMemoryCoverageJudgment(evidence,current.candidates,existing,current.context,{maxRequestBytes:Infinity});
+      const historical={...current.context,questionContractVersion:undefined};
+      const historicalOld=prepareMemoryCoverageJudgment(evidence,current.candidates,existing,historical);
+      const historicalUnbounded=prepareMemoryCoverageJudgment(evidence,current.candidates,existing,historical,{maxRequestBytes:Infinity});
+      const wires=[];
+      const create=bound=>createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],defaultModel:'jev-1.14.0',
+        ...(bound===undefined?{}:{maxRequestBytes:bound}),fetch:async(_url,init)=>{
+          const wire=JSON.parse(init.body);wires.push(wire);
+          const answers=Object.fromEntries(Object.entries(wire.questions).map(([key,q])=>{
+            if(q.type==='noul')return [key,{type:'noul',noul:1}];
+            const choice=key==='coverage_plan'?'missing':key.startsWith('coverage_issue_')?'dismissed':
+              ['complete','compatible','grounded','selfContained','independent','unrelated'].find(x=>Object.hasOwn(q.criteria,x))??Object.keys(q.criteria)[0];
+            return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,Number(x===choice)]))}];
+          }));return new Response(JSON.stringify({model:'jev-1.14.0',answers,usage:{input_tokens:1,output_tokens:1}}));}});
+      const judged=await create().validate('memory',evidence,current.candidates,existing,undefined,undefined,undefined,undefined,undefined,current.context);
+      const captured=wires.find(w=>Object.hasOwn(w.questions,'coverage_plan'));
+      const invalid=[];
+      const badCases=[
+        c=>{c.review.accounts[0].claims[0].bodyWitness.start=-1;},
+        c=>{c.review.accounts[0].claims[0].bodyWitness.start=.5;},
+        c=>{c.review.accounts[0].claims[0].bodyWitness.end=999999;},
+        c=>{c.review.accounts[0].claims[0].bodyWitness.end=c.review.accounts[0].claims[0].bodyWitness.start+2001;},
+        c=>{c.review.plan.obligations[0].coveredBy[0].targetId=c.prior.review.targets[0].id;},
+        c=>{c.prior.review.plan.obligations[0].coveredBy[0]={...c.review.plan.obligations[0].coveredBy[0]};},
+        c=>{c.review.accounts[0].predecessor.bodySha256='0'.repeat(64);},
+        c=>{c.review.accounts[0].claims[0].bodyWitness.exactText='invented';},
+      ];
+      for(const mutate of badCases){
+        const bad=JSON.parse(before);mutate(bad);bad.expectedReviewDigest=memoryCoverageReviewDigest(bad.review);
+        bad.prior.expectedReviewDigest=memoryCoverageReviewDigest(bad.prior.review);
+        const count=wires.length;const result=await create().validate('memory',evidence,current.candidates,existing,
+          undefined,undefined,undefined,undefined,undefined,bad);
+        invalid.push({decision:result.decision,reason:result.telemetry.reason,calls:wires.length-count});
+      }
+      const duplicated=JSON.parse(before),duplicatedExisting=[...existing,{...existing[0]}];
+      const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+      for(const item of [duplicated,duplicated.prior]){
+        const accountDigest=digest({evidence,targets:item.review.targets,predecessors:duplicatedExisting});
+        item.review.accounts.forEach(account=>{account.contextDigest=accountDigest;});
+        item.review.plan.contextDigest=digest({evidence,targets:item.review.targets,predecessors:duplicatedExisting,plan:item.plan});
+        item.expectedReviewDigest=memoryCoverageReviewDigest(item.review);
+      }
+      const duplicateStart=wires.length;
+      const duplicateResult=await create().validate('memory',evidence,current.candidates,duplicatedExisting,
+        undefined,undefined,undefined,undefined,undefined,duplicated);
+      invalid.push({decision:duplicateResult.decision,reason:duplicateResult.telemetry.reason,calls:wires.length-duplicateStart});
+      const count=wires.length;const bounded=await create(1024).validate('memory',evidence,current.candidates,existing,
+        undefined,undefined,undefined,undefined,undefined,current.context);
+      console.log(JSON.stringify({state:normal.state,captured:captured?.state,contextUnchanged:before===JSON.stringify(current.context),
+        legacyStateEqual:JSON.stringify(legacy.state)===JSON.stringify(finite.state),
+        historicalStateEqual:JSON.stringify(historicalOld.state)===JSON.stringify(historicalUnbounded.state),
+        sameQuestions:JSON.stringify(normal.questions)===JSON.stringify(legacy.questions),sameDigest:normal.contextDigest===legacy.contextDigest,
+        judged,invalid,bounded:{reason:bounded.telemetry.reason,calls:wires.length-count}}));
+    '''.replace('NEWLINE',json.dumps(newline)))
+    state = value['state']
+    assert state['semanticWireVersion'] == 3
+    assert not set(state) & {'originalCandidates', 'retainedMemories', 'targets',
+                             'currentAccount', 'currentRecordAccounts',
+                             'priorTargets', 'priorPlanAccount', 'priorRecordAccounts'}
+    assert state['candidateSelectors'] == [{'candidateIndex': 0, 'field': 'operations', 'index': 0}]
+    assert state['retainedSelectors'] == [{'retainedIndex': 0, 'existingIndex': 1}]
+    assert 'Current 😀 fact.' in state['completeCurrentPlan']['operations'][0]['content']
+    assert 'Prior 😀 fact.' in state['priorRejectedPlan']['operations'][0]['content']
+    assert 'Stored 😀 condition.' in state['existingMemories'][0]['content']
+    assert 'Retained 😀 fact.' in state['existingMemories'][1]['content']
+    assert state['originalEvidence'] == {'contextEnabled': True, 'entries': [
+        {'role': 'user', 'content': 'Current 😀 fact. Prior 😀 fact. Retained 😀 fact. Missing condition.'}]}
+    for bindings_key, record_set in [('targetSelectors', 'completeCurrentPlan'),
+                                      ('priorTargetSelectors', 'priorRejectedPlan')]:
+        bindings = state[bindings_key]
+        assert all('content' not in target for target in bindings)
+        assert bindings[0]['bodyLocation'] == {'recordSet': record_set, 'field': 'operations', 'index': 0}
+        assert bindings[1]['bodyLocation'] == {'recordSet': 'existingMemories', 'index': 1}
+        ids = {target['id'] for target in bindings}
+        version = 'current' if record_set == 'completeCurrentPlan' else 'prior rejected'
+        for issue in state['namedIssueBindings']:
+            if issue['version'] == version:
+                assert all(location['targetId'] in ids for location in issue['item'].get('coveredBy', []))
+    obligation_items = [b['item'] for b in state['namedIssueBindings'] if 'coveredBy' in b['item']]
+    assert {item['coveredBy'][0]['witness']['exactText'] for item in obligation_items} == {'Current 😀 fact.','Prior 😀 fact.'}
+    assert 'captured' in value, value['judged']
+    assert value['captured'] == state
+    assert all(value[key] for key in ['contextUnchanged','legacyStateEqual','historicalStateEqual','sameQuestions','sameDigest'])
+    assert value['judged']['decision'] == 'propose'
+    assert value['judged']['coverageReview']['planPassed'] is False
+    assert all(row == {'decision':'propose','reason':'invalid-response','calls':0} for row in value['invalid'])
+    assert value['bounded'] == {'reason':'bounds','calls':0}
+
+
+
+def test_compact_coverage_maps_create_delete_and_retain_without_losing_metadata():
+    # Given a complete mixed plan, When semantic state uses canonical inline
+    # records, Then positional selectors preserve every action and exact value.
+    value = isolated_run_bun(r'''
+      import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+      import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest,prepareMemoryCoverageJudgment} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Keep applicable facts.'},{role:'toolResult',content:'Complete observed fact.'}]};
+      const existing=[{name:'deleted.md',content:'Deleted predecessor body.'},{name:'retained.md',content:'Retained body.'}];
+      const deletion={op:'delete',name:'deleted.md',preservedIn:['new.md'],reason:'Bound transition',evidence:[{index:0,quote:'Keep applicable facts.'}]};
+      const created={name:'new.md',kind:'project',classification:'safe',content:'Complete observed fact.',evidence:[{index:1,quote:'Complete observed fact.'}]};
+      const candidates=[deletion,created],plan={operations:[deletion],newMemories:[created]},targets=prepareMemoryBodyTargets(candidates,[existing[1]]);
+      const missing={statement:'Check this named condition.',evidence:[{ref:'e0.b0.l1'}]};
+      const raw={plan:{verdict:'covered',obligations:[]},reviews:Object.fromEntries(targets.map((t,i)=>[i,{
+        scope:{basis:'optional',statement:'Observed knowledge',evidence:[{ref:'e0.b0.l1'}]},
+        claims:[{statement:t.content,evidence:[{ref:'e0.b0.l1'}],bodyQuote:t.content,conditions:[{...missing,bodyQuote:null},{...missing,bodyQuote:null}]}],
+        uncovered:[missing],verdict:'incomplete'}]))};
+      const review={status:'reviewed',targets,accounts:bindMemoryCoverageSelections(targets,evidence,existing,{reviews:raw.reviews}),
+        plan:bindMemoryPlanCoverage(targets,evidence,existing,plan,raw),calls:1,durationMs:1,usageComplete:true};
+      const context={protocol:'memory-knowledge-coverage-v2',questionContractVersion:2,plan,review,expectedReviewDigest:memoryCoverageReviewDigest(review)};
+      const before=JSON.stringify({evidence,candidates,existing,context});
+      const prepared=prepareMemoryCoverageJudgment(evidence,candidates,existing,context,{maxRequestBytes:Infinity});
+      const invalid=[];
+      for(const changed of [[{...deletion,preservedIn:[]},created],[deletion,{...created,classification:'private'}],[created,deletion],[created]]){
+        try{prepareMemoryCoverageJudgment(evidence,changed,existing,context,{maxRequestBytes:Infinity});invalid.push(false)}catch{invalid.push(true)}
+      }
+      console.log(JSON.stringify({state:prepared.state,invalid,unchanged:before===JSON.stringify({evidence,candidates,existing,context}),
+        originalEvidence:JSON.stringify(prepared.state.originalEvidence)===JSON.stringify(evidence),
+        exactPlan:JSON.stringify(prepared.state.completeCurrentPlan)===JSON.stringify(plan),
+        bytes:{legacy:JSON.stringify(prepareMemoryCoverageJudgment(evidence,candidates,existing,context).state).length,compact:JSON.stringify(prepared.state).length}}));
+    ''')
+    state = value['state']
+    assert state['candidateSelectors'] == [
+        {'candidateIndex': 0, 'field': 'operations', 'index': 0},
+        {'candidateIndex': 1, 'field': 'newMemories', 'index': 0}]
+    assert state['retainedSelectors'] == [{'retainedIndex': 0, 'existingIndex': 1}]
+    assert state['completeCurrentPlan']['operations'][0]['preservedIn'] == ['new.md']
+    assert len(state['namedIssueBindings']) == 6
+    assert {row.get('candidateIndex') for row in state['namedIssueBindings']} == {1, None}
+    assert sum(row['item'].get('bodyWitness', 'absent') is None for row in state['namedIssueBindings']) == 4
+    assert all(value['invalid']) and value['unchanged'] and value['originalEvidence'] and value['exactPlan']
+    assert value['bytes']['compact'] < value['bytes']['legacy']
+
+
+def test_compact_coverage_keeps_prior_only_duplicate_issue_origins():
+    # Given two withdrawn prior records with the same diagnostic words, When
+    # current targets are empty, Then every issue retains its own prior owner.
+    value = isolated_run_bun(r'''
+      import {prepareMemoryBodyTargets} from './packages/continual-learning/extensions/memory-body-review.ts';
+      import {bindMemoryCoverageSelections,bindMemoryPlanCoverage,memoryCoverageReviewDigest,prepareMemoryCoverageJudgment} from './packages/continual-learning/extensions/memory-knowledge-coverage.ts';
+      const evidence={contextEnabled:true,entries:[{role:'user',content:'Observed condition.'}]},existing=[];
+      const missing={statement:'Same missing condition.',evidence:[{ref:'e0.b0.l1'}]};
+      const make=candidates=>{
+        const plan={operations:[],newMemories:candidates},targets=prepareMemoryBodyTargets(candidates,[]);
+        const raw={plan:{verdict:'covered',obligations:[]},reviews:Object.fromEntries(targets.map((t,i)=>[i,{
+          scope:{basis:'optional',statement:'Optional scope',evidence:[{ref:'e0.b0.l1'}]},
+          claims:[{statement:t.content,evidence:[{ref:'e0.b0.l1'}],bodyQuote:t.content,conditions:[{...missing,bodyQuote:null}]}],uncovered:[missing],verdict:'incomplete'}]))};
+        const review={status:'reviewed',targets,accounts:targets.length?bindMemoryCoverageSelections(targets,evidence,existing,{reviews:raw.reviews}):[],
+          plan:bindMemoryPlanCoverage(targets,evidence,existing,plan,raw),calls:1,durationMs:1,usageComplete:true};
+        return {protocol:'memory-knowledge-coverage-v2',questionContractVersion:2,plan,review,expectedReviewDigest:memoryCoverageReviewDigest(review)};
+      };
+      const context=make([]);context.prior=make([{name:'old-a.md',content:'Prior A body.'},{name:'old-b.md',content:'Prior B body.'}]);
+      const legacy=prepareMemoryCoverageJudgment(evidence,[],existing,context);
+      const normal=prepareMemoryCoverageJudgment(evidence,[],existing,context,{maxRequestBytes:Infinity});
+      console.log(JSON.stringify({state:normal.state,sameQuestions:JSON.stringify(normal.questions)===JSON.stringify(legacy.questions),
+        sameDigest:normal.contextDigest===legacy.contextDigest}));
+    ''')
+    state = value['state']
+    assert state['completeCurrentPlan'] == {'operations': [], 'newMemories': []}
+    assert state['targetSelectors'] == [] and len(state['priorTargetSelectors']) == 2
+    assert len(state['namedIssueBindings']) == 4
+    assert {b['origin']['name'] for b in state['namedIssueBindings']} == {'old-a.md', 'old-b.md'}
+    assert all(b['version'] == 'prior rejected' and 'candidateIndex' not in b and 'retainedIndex' not in b
+               for b in state['namedIssueBindings'])
+    for binding in state['namedIssueBindings']:
+        target = next(t for t in state['priorTargetSelectors'] if t['id'] == binding['origin']['targetId'])
+        assert target['name'] == binding['origin']['name']
+        assert target['bodyLocation']['recordSet'] == 'priorRejectedPlan'
+        assert target['bodyLocation']['field'] == 'newMemories'
+        assert 'content' not in target
+    assert value['sameQuestions'] and value['sameDigest']
 
 def test_retention_cost_survives_semantic_proof_write_failure():
     from pathlib import Path
@@ -1816,9 +2045,8 @@ def test_rejected_coverage_diagnostic_io_failure_keeps_every_returned_source_cos
 
 
 @pytest.mark.parametrize('repair,coverage_passes', [
-    ('citations', False), ('source', True), ('source', False),
+    ('source', True), ('source', False),
     ('counter', False), ('counter', True), ('joint', False), ('joint', True),
-    ('body', False), ('description', False),
 ])
 def test_valid_coverage_hold_requires_a_change_to_held_knowledge_before_rejudgment(repair, coverage_passes):
     # Given valid coverage accounts but independently held coverage, When only
@@ -1902,33 +2130,3 @@ def test_unchanged_knowledge_guard_rejects_an_invalid_complete_coverage_proof(ta
     assert value['registryReceipt']['operations'] == 0 and not value['memoryMirrored']
     assert len(value['coverageRepairResponses']) == 1
     assert value['coverageRepairResponses'][0]['response']
-
-
-@pytest.mark.parametrize('scope', ['retained-only', 'mixed-retained'])
-def test_coverage_only_hold_does_not_resample_an_exact_retained_noop_rewrite(scope):
-    # Given retained knowledge held only by coverage, When the correction adds
-    # an exact frozen rewrite with fresh citations, Then expansion/report rows
-    # do not turn it into changed knowledge or grant another coverage draw.
-    from pathlib import Path
-    from support import run_bun_script
-    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-shared',
-                           env={'CL_JEV_FIXTURE': 'coverage-real-repair-' + scope})
-    assert value['coverageRepairTransports'], value
-    assert value['semanticRepairs'] == 1, value
-    initial_count = 1  # One whole-plan coverage request includes retained targets.
-    assert len(value['coverageRepairTransports']) == initial_count, {
-        'coverageCalls': len(value['coverageRepairTransports']),
-        'operations': value['registryReceipt']['operations'],
-        'repairs': value['semanticRepairs'], 'notices': value['notices'],
-    }
-    assert any('semantic-repair-unchanged-coverage.json' in run['files'] for run in value['runs']), value['registryReceipt']
-    assert value['registryReceipt']['operations'] == 0
-    assert value['correctedKnownMemory'].endswith('Existing knowledge.\n')
-    # The single initial public-to-private synchronization predates review.
-    # No correction transaction may add another history entry.
-    assert len([record for record in value['history'] if record['status'] == 'applied']) == 1
-    assert all(record['status'] == 'applied' or record['changes'] == [] for record in value['history'])
-    assert len(value['coverageRepairResponses']) == 1
-    for review in value['coverageRepairReviews']:
-        assert all(check['positiveProbabilityLowerBound'] >= .9
-                   for check in review['checks'].values())

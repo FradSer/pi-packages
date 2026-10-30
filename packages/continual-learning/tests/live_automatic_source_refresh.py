@@ -25,14 +25,38 @@ from support import REPO, rule
 from recovery_integrity import collect_surface_metadata, verify_command_recovery_delta
 
 
-def run(output: Path, case: str = 'applied') -> dict:
+def _install_fixture_pnpm(repo: Path, output: Path, env: dict[str, str]) -> str:
+    cli=workspace_pnpm(repo)
+    node=shutil.which('node')
+    assert node, 'Workspace Node runtime is unavailable'
+    fixture_bin=output/'bin';fixture_bin.mkdir()
+    launcher=fixture_bin/'pnpm'
+    launcher.write_text('#!/bin/sh\nCOREPACK_ENABLE_NETWORK=0 NODE_DISABLE_COMPILE_CACHE=1 exec '+shlex.quote(node)+' '+shlex.quote(cli)+' "$@"\n')
+    launcher.chmod(0o700)
+    env['PATH']=str(fixture_bin)+os.pathsep+env.get('PATH','')
+    # Docker's disposable /tmp can be noexec. Bash can still read this fixed
+    # function and run the installed Node/CLI without executing the wrapper.
+    bash_env=fixture_bin/'bash-env'
+    bash_env.write_text('pnpm() {\n  COREPACK_ENABLE_NETWORK=0 NODE_DISABLE_COMPILE_CACHE=1 '+shlex.quote(node)+' '+shlex.quote(cli)+' "$@"\n}\n')
+    bash_env.chmod(0o600)
+    env['BASH_ENV']=str(bash_env)
+    return cli
+
+
+def run(output: Path, case: str = 'applied', *, pi_version: str = '1.3.0') -> dict:
+    assert pi_version in ('1.3.0','1.4.0'), 'Unsupported explicit Pi version'
     is_mixed=case.startswith('mixed-noop')
     is_manual_replay=case=='manual-coverage-replay'
     is_coverage_correction=case in ('coverage-correction','manual-initialization-repair')
-    is_knowledge=case in ('manual-initialization-knowledge','manual-initialization-knowledge-repair','manual-initialization-knowledge-contract-repair','manual-initialization-knowledge-materialized-repair','manual-initialization-knowledge-citation-repair','manual-initialization-knowledge-held')
+    is_terminal_source=case=='manual-initialization-terminal-source-repair'
+    is_relation_closure=case=='manual-initialization-api-closure-repair'
+    is_relation_source=is_relation_closure or is_terminal_source
+    is_knowledge=is_relation_source or case in ('manual-initialization-knowledge','manual-initialization-knowledge-repair','manual-initialization-knowledge-contract-repair','manual-initialization-knowledge-materialized-repair','manual-initialization-knowledge-citation-repair','manual-initialization-knowledge-held')
     is_knowledge_contract=case=='manual-initialization-knowledge-contract-repair'
     is_materialized_repair=case=='manual-initialization-knowledge-materialized-repair'
     is_knowledge_citation=case=='manual-initialization-knowledge-citation-repair'
+    is_declaration_retention=case=='manual-initialization-knowledge'
+    declaration='export declare function createQueue(concurrency: number | QueueOptions): Queue;'
     is_excerpt=is_knowledge or case in ('manual-initialization-excerpt','manual-initialization-excerpt-repair')
     is_initialization=is_excerpt or case in ('manual-initialization','manual-initialization-held','manual-initialization-repair')
     is_manual=is_initialization or case in ('manual-maintenance','manual-maintenance-held','manual-coverage-replay','manual-phase','manual-phase-held')
@@ -49,11 +73,27 @@ def run(output: Path, case: str = 'applied') -> dict:
         harness.parent.mkdir()
         harness_before=json.dumps({'rules':[rule('manual-fixture')]}).encode()
         harness.write_bytes(harness_before)
-    source = project/('packages/a/src/nested/runtime.ts' if case=='deep' else 'runtime.ts')
+    source = project/('runtime.d.ts' if is_declaration_retention or is_knowledge_citation else 'runtime.js' if is_relation_source else 'packages/a/src/nested/runtime.ts' if case=='deep' else 'runtime.ts')
     source.parent.mkdir(parents=True,exist_ok=True)
     source.write_text('export const mode = "old";\n')
+    if is_declaration_retention:
+        source.write_text(source.read_text()+declaration+'\nexport interface QueueOptions { concurrency: number }\nexport interface Queue { pending: number }\n')
+    relation_factory='export default function allocatePool(options: PoolOptions): Pool;'
+    relation_owner='export type Pool = {'
+    relation_member='\tflush: () => void;'
+    relation_wrapper='export function batchWorker(options: PoolOptions): () => void;'
+    relation_body='`batchWorker` wraps an internal `allocatePool` result and returns a separate callable. The internal pool’s `flush` method is declared on `Pool`, while the wrapper return annotation is `() => void`. Runtime behavior remains unverified.\n\nWhy: Retain the inspected API relationship.\n\nHow to apply: Use these observed declarations to distinguish the wrapper from its internal pool’s declared flush API.'
+    terminal_text='The isolated command printed NATIVE_TERMINAL_OBSERVATION; runtime behavior remains unverified.'
+    relation_sources=[source]
+    if is_relation_source:
+        source.write_text('export const mode = "old";\nexport default function allocatePool(options) {\n\treturn {flush() {}};\n}\nexport function batchWorker(options) {\n\tconst pool = allocatePool(options);\n\treturn () => pool.flush();\n}\n')
+        declarations=project/'runtime.d.ts'
+        declarations.write_text(relation_owner+'\n'+relation_member+'\n};\nexport interface PoolOptions { concurrency: number; }\n'+relation_factory+'\n'+relation_wrapper+'\n')
+        package=project/'package.json'
+        package.write_text(json.dumps({'name':'native-pool-fixture','type':'module','exports':{'types':'./runtime.d.ts','default':'./runtime.js'}})+'\n')
+        relation_sources.extend([declarations,package])
     if is_knowledge_citation:
-        source.write_text(source.read_text()+'// '+1200*'x'+'\n// '+1200*'y'+'\n')
+        source.write_text(source.read_text()+'export type Queue = {\n// '+1200*'x'+'\n// '+1200*'y'+'\n  pending: number;\n};\nexport declare function createQueue(): Queue;\n')
     expected_edited_source=source.read_text().replace('export const mode = "old";', 'export const mode = "new";')
     tracked = [REPO/'packages/continual-learning/extensions'/name for name in ('incremental-learning.ts','memory-maintenance-audit.ts','inject-memory.ts','learning-history.ts','jev-learning.ts','memory-review-consent.ts','consolidation-run.ts','independent-memory-partition.ts','jev-memory-predecessors.ts','jev-memory-relations.ts','jev-memory-readiness.ts','planner-prompts.ts','memory-body-review.ts','memory-knowledge-coverage.ts','learning-replay-feedback.ts','learning-replay.ts','learning-backlog.ts','learning-input.ts','learning-efficiency.ts','planner-json-output.ts','planner-output-schema.ts','source-excerpt-memory.ts')] + [Path(__file__),Path(__file__).with_name('memory-origin-harness.ts'),Path(__file__).with_name('live_learning_loop.py')]
     tracked.extend([Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('continuous_failure_retention.py')])
@@ -66,11 +106,69 @@ def run(output: Path, case: str = 'applied') -> dict:
             Path(__file__).with_name('support.py'),Path(__file__).with_name('live_acceptance_support.py')]))
     source_hashes = {str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
     report = {'status':'failed','case':case,'outputDir':str(output),'sourceHashes':source_hashes,
-        'externalRequests':0,'paidRequests':0,'semanticOrLearningBenefitEstablished':False}
+        'externalRequests':0,'paidRequests':0,'semanticOrLearningBenefitEstablished':False,'expectedPiVersion':pi_version}
     kinds: list[str] = []; requests: list[dict] = []; failures: list[str] = []
     limit='Scope: This mode convention applies to release checks only.'
     memory: Path
     runs: Path
+    def relation_ref(snapshot: dict, target: Path, first: int, last: int | None = None) -> dict:
+        matches=[]
+        for index,entry in enumerate(snapshot['entries']):
+            result=entry.get('message',{})
+            if result.get('role')!='toolResult' or result.get('toolName')!='learning_read' or result.get('isError') is not False or not result.get('details',{}).get('readOnlyMaintenanceAudit'):continue
+            calls=[call for original in snapshot['entries'][:index] if original.get('message',{}).get('role')=='assistant'
+                for call in original['message'].get('content',[]) if isinstance(call,dict) and call.get('type')=='toolCall'
+                and call.get('id')==result.get('toolCallId') and call.get('name')=='learning_read' and call.get('arguments',{}).get('path')==str(target)]
+            if len(calls)==1:matches.append(index)
+        assert len(matches)==1,(str(target),matches)
+        return {'ref':f'e{matches[0]}.b0.l{first}',**({'endRef':f'e{matches[0]}.b0.l{last}'} if last is not None else {})}
+    def terminal_ref(snapshot: dict) -> dict:
+        matches=[]
+        for index,entry in enumerate(snapshot['entries']):
+            result=entry.get('message',{})
+            if result.get('role')!='toolResult' or result.get('toolName')!='bash' or result.get('isError') is True:continue
+            for block,part in enumerate(result.get('content',[])):
+                if not isinstance(part,dict) or part.get('type')!='text':continue
+                for line,text in enumerate(part.get('text','').splitlines(),1):
+                    if text=='NATIVE_TERMINAL_OBSERVATION':matches.append({'ref':f'e{index}.b{block}.l{line}'})
+        assert len(matches)==1,matches
+        return matches[0]
+    def assert_wire_contract(payload: dict, evidence: dict, stage: str) -> None:
+        contract=payload.get('memoryOutputContract')
+        assert isinstance(contract,dict),f'Actual {stage} worker HTTP request omitted memoryOutputContract'
+        def restore(value):
+            if isinstance(value,list):return [restore(item) for item in value]
+            if not isinstance(value,dict):return value
+            if 'citationLines' in value:
+                text='\n'.join(line['text'] if 'text' in line else ''.join(chunk['text'] for chunk in line['chunks']) for line in value['citationLines']['lines'])
+                return {**{key:restore(item) for key,item in value.items() if key!='citationLines'},'text':text} if 'type' in value else text
+            return {key:restore(item) for key,item in value.items()}
+        observed=json.loads(json.dumps(evidence))
+        source=observed['taskSlice'] if observed.get('kind')=='incremental-learning-dossier' else observed
+        source['entries']=[restore(item['entry']) if isinstance(item,dict) and 'snapshotIndex' in item and 'entry' in item else restore(item) for item in source['entries']]
+        code="import fs from 'node:fs';import {memoryCitationDomain} from "+json.dumps(str(REPO/'packages/continual-learning/extensions/memory-citation-locations.ts'))+";const input=JSON.parse(fs.readFileSync(0,'utf8'));console.log(JSON.stringify(memoryCitationDomain(input.evidence,{fileSourcesFromCwd:input.cwd})));"
+        domain=json.loads(subprocess.check_output(['bun','-e',code],input=json.dumps({'evidence':observed,'cwd':str(project)}),cwd=REPO,env=env,text=True,timeout=30))
+        digest=lambda value:hashlib.sha256(json.dumps(value,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+        assert contract.get('kind')=='fresh-memory-file-source-contract' and contract.get('version')==1
+        assert domain.get('fileRefs'),'Actual HTTP evidence lost its file-reference domain'
+        assert contract.get('domainDigest')==digest(domain),'Actual HTTP contract changed the complete source domain'
+        assert contract.get('fileDomainDigest')==digest(domain['fileRefs']),'Actual HTTP contract changed the file-only domain'
+        schema=contract.get('schema',{})
+        assert schema.get('$defs',{}).get('memorySourceReference',{}).get('enum')==domain['refs']
+        phase['wireFileReferenceCount']=len(domain['fileRefs'])
+        def mandatory_source_shape(value):
+            if isinstance(value,dict):
+                if {'kind','factory','owner','member'}.issubset(value.get('required',[])) and value.get('properties',{}).get('kind',{}).get('const')=='declared-api-relation':return True
+                return any(mandatory_source_shape(item) for item in value.values())
+            return isinstance(value,list) and any(mandatory_source_shape(item) for item in value)
+        assert not mandatory_source_shape(schema),'Fresh HTTP contract still exposes redundant atomic role fields'
+        project_shape=next(item for item in schema['properties']['newMemories']['items']['anyOf'] if 'knowledge' in item['properties'])
+        assert set(project_shape['properties']['knowledge']['properties']['units']['items']['required'])=={'text','citationIndexes'}
+        if stage=='initial':
+            assert not phase.get('wireContract'),'Unexpected repeated initial contract request'
+            phase['wireContract']=contract
+        else:assert contract==phase.get('wireContract'),'Initial/repair actual HTTP contract or frozen domain changed'
+        phase[stage+'WireContracts']=phase.get(stage+'WireContracts',0)+1
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args: object) -> None: pass
         def do_POST(self) -> None:
@@ -80,6 +178,23 @@ def run(output: Path, case: str = 'applied') -> dict:
                 data = json.loads(raw)
                 requests.append({'path':self.path,'hash':hashlib.sha256(raw).hexdigest(),'body':data})
                 if self.path.startswith('/jev/'):
+                    if is_declaration_retention or is_relation_source:
+                        state=data.get('state',{})
+                        semantic_bodies=[item['content'] for key in ('proposedMemoryOperations','targets','originalCandidates')
+                            for item in state.get(key,[]) if isinstance(item,dict) and isinstance(item.get('content'),str)]
+                        semantic_bodies.extend(question['candidate']['content'] for question in data['questions'].values()
+                            if isinstance(question.get('candidate'),dict) and isinstance(question['candidate'].get('content'),str))
+                        current=state.get('completeCurrentPlan',{})
+                        semantic_bodies.extend(item['content'] for key in ('operations','newMemories')
+                            for item in current.get(key,[]) if isinstance(item,dict) and isinstance(item.get('content'),str))
+                        if semantic_bodies:
+                            if is_relation_source:
+                                assert phase.get('closureRepaired'), 'Semantic body review preceded structural relation repair'
+                                assert all(all(part in body for part in (relation_factory,relation_owner,relation_member.strip(),relation_wrapper)) for body in semantic_bodies)
+                                phase['closureSemanticBodies']=phase.get('closureSemanticBodies',0)+len(semantic_bodies)
+                            else:
+                                assert all(declaration in body for body in semantic_bodies), 'Full declaration missing from semantic body review'
+                                phase['declarationSemanticBodies']=phase.get('declarationSemanticBodies',0)+len(semantic_bodies)
                     answers = {}
                     for key, question in data['questions'].items():
                         if question['type']=='noul':answers[key]={'type':'noul','noul':0.99 if key.startswith('supported_') or key==('harness' if phase['policy'] else 'memory') else 0.01}
@@ -126,8 +241,13 @@ def run(output: Path, case: str = 'applied') -> dict:
                     else:
                         assert payload['memoryFiles']==[] and payload['memoryIndex']==[] and payload['untrustedMemoryClaims']==[]
                         assert payload['readScope']['roots']==[]
-                    assert payload['sourceIndex']['paths']==[str(source.relative_to(project))]
-                    if not any(m.get('role')=='tool' for m in data['messages']):
+                    expected_index=sorted(str(path.relative_to(project)) for path in relation_sources) if is_relation_source else [str(source.relative_to(project))]
+                    assert payload['sourceIndex']['paths']==expected_index,payload['sourceIndex']
+                    read_count=sum(m.get('role')=='tool' for m in data['messages'])
+                    if is_relation_source and read_count<len(relation_sources):
+                        kinds.append('source-read')
+                        stream_response(self,[{'id':f'source-{read_count}','name':'learning_read','arguments':{'path':str(relation_sources[read_count]),'offset':1,'limit':200}}])
+                    elif not any(m.get('role')=='tool' for m in data['messages']):
                         kinds.append('source-read')
                         path=str(memory/'runtime.md') if case=='collector-refused' else str(source)
                         stream_response(self,[{'id':'source','name':'learning_read','arguments':{'path':path,'offset':1,'limit':200}}])
@@ -151,6 +271,13 @@ def run(output: Path, case: str = 'applied') -> dict:
                 elif 'Review knowledge coverage, separately from internal consistency and source truth.' in text:
                     kinds.append('coverage')
                     payload=json.loads(text.split('\n')[-1]); answer=controlled_memory_coverage_response(text)
+                    if is_declaration_retention:
+                        assert payload['targets'] and all(declaration in target['content'] for target in payload['targets'])
+                        phase['declarationCoverageBody']=True
+                    if is_relation_source:
+                        assert phase.get('closureRepaired'), 'Coverage body review preceded structural relation repair'
+                        assert payload['targets'] and all(all(part in target['content'] for part in (relation_factory,relation_owner,relation_member.strip(),relation_wrapper)) for target in payload['targets'])
+                        phase['closureCoverageBody']=True
                     if case in ('coverage-correction','coverage-invalid-correction','coverage-replay','manual-coverage-replay','manual-initialization-repair'):
                         missing=any(limit not in target['content'] for target in payload['targets'])
                         condition={'statement':limit,'evidence':[{'ref':'e0.b0.l1'}],'bodyQuote':None if missing else limit}
@@ -163,24 +290,40 @@ def run(output: Path, case: str = 'applied') -> dict:
                         if missing:answer['plan']={'verdict':'incomplete','obligations':[{'basis':'requested','statement':limit,'evidence':[{'ref':'e0.b0.l1'}],'coveredBy':[],'status':'missing'}]}
                     stream_response(self,json.dumps(answer))
                 elif 'Task: correct source citations for a frozen Memory candidate plan.' in text:
-                    assert is_knowledge_citation
-                    payload=json.loads(text.split('\n')[-1])
-                    original=payload['repairCandidates'][0]['original']
-                    valid=phase['validExcerptPlan']['newMemories'][0]
-                    assert original['knowledge']['units']==valid['knowledge']['units']
-                    assert 'same-length ordered source catalog' in text
-                    assert any('knowledge.sourceCitations[2]' in error and 'maximumCharacters=2000' in error
-                        for error in payload['errors']), payload['errors']
-                    kinds.append('excerpt-structural-correction')
-                    stream_response(self,json.dumps({'kind':'incremental-memory-amendment','version':1,**payload['identity'],
-                        'replacements':[{'candidateId':payload['repairCandidates'][0]['candidateId'],
-                            'evidence':valid['knowledge']['sourceCitations']}]}))
+                    raise AssertionError('Fresh typed source units require the existing complete structural repair, not an evidence-only amendment')
                 elif 'Task: repair one rejected incremental Memory delta plan.' in text or '"atomicKnowledgeContract"' in text:
                     payload=json.loads(text.split('\n')[-1])
                     patches=[]
                     if is_excerpt:
+                        if not is_materialized_repair and 'repairCandidates' not in payload:
+                            assert_wire_contract(payload,payload['semanticContext']['frozenEvidence'],'repair')
+                        if is_relation_closure:
+                            prefix='Selected API relation source roles are incomplete: '
+                            errors=[error for error in payload['errors'] if error.startswith(prefix)]
+                            assert len(errors)==1,payload['errors']
+                            missing,_=json.JSONDecoder().raw_decode(errors[0][len(prefix):])
+                            assert len(missing)==1 and {key:missing[0][key] for key in ('wrapper','factory','owner','member')}=={'wrapper':'batchWorker','factory':'allocatePool','owner':'Pool','member':'flush'}
+                            selected={item['role']:{'ref':item['ref'],**({'endRef':item['endRef']} if item.get('endRef') not in (None,item['ref']) else {})} for item in missing[0]['missingRoles']}
+                            assert selected==phase['closureMissingRoles'],selected
+                            assert payload['rejectedPlan']['newMemories'][0]['knowledge']==phase['initialApiPlan']['newMemories'][0]['knowledge']
+                            assert not any(kind in kinds for kind in ('body','coverage')) and not phase.get('closureSemanticBodies')
+                            assert not phase.get('closureRepaired'), 'More than one structural relation repair'
+                            phase['closureRepaired']=True
+                            phase['closureDiagnostic']=missing
+                        elif is_terminal_source:
+                            errors=payload['errors']
+                            assert any(error=='Declared API relation requires exact factory, named owner identity and direct member from one observed declaration file' for error in errors),errors
+                            assert not any(error.startswith('Selected API relation source roles are incomplete: ') for error in errors),errors
+                            assert payload['rejectedPlan']['newMemories'][0]['knowledge']==phase['initialApiPlan']['newMemories'][0]['knowledge']
+                            assert not any(kind in kinds for kind in ('body','coverage')) and not phase.get('closureSemanticBodies')
+                            assert not phase.get('closureRepaired'), 'More than one structural capability repair'
+                            phase['closureRepaired']=True
+                            phase['terminalCapabilityErrors']=errors
+                        if is_knowledge_citation:
+                            assert any('knowledge.sourceCitations[2]' in error and 'maximumCharacters=2000' in error for error in payload['errors']),payload['errors']
+                            assert payload['rejectedPlan']==phase['initialCitationPlan']
                         if is_knowledge_contract:
-                            assert any('newMemories[0] requires knowledge or a private sourceExcerpt' in error
+                            assert any('newMemories[0] requires knowledge' in error
                                 for error in payload['errors']), payload['errors']
                         kinds.append('excerpt-structural-correction')
                         corrected=phase['validExcerptPlan']
@@ -194,8 +337,27 @@ def run(output: Path, case: str = 'applied') -> dict:
                         errors=payload['errors']
                         assert len(errors)<=16 and all(len(line)<=800 for line in errors)
                         joined='\n'.join(errors)
-                        assert 'observed-check=coherence_0; choice=compatible; probability=0.62; confidence=0.43' in joined
-                        assert 'observed-check=supported_0; choice=unsupported; probability=0.54; confidence=0.42' in joined
+                        review=payload['sourceReview']
+                        assert review['complete'] is True and review['purpose']=='diagnostic-only'
+                        assert list(review['checkQuestions'])==list(review['checkObservations'])
+                        original_questions={}
+                        for request in requests:
+                            if not request['path'].startswith('/jev/'):continue
+                            for key,question in request['body'].get('questions',{}).items():
+                                if key in review['checkQuestions']:
+                                    assert key not in original_questions or original_questions[key]==question
+                                    original_questions[key]=question
+                        assert list(review['checkQuestions'])==list(original_questions)
+                        assert review['checkQuestions']==original_questions
+                        assert review['counterWindows'] and all(review[key] for key in ('evidenceDigest','existingDigest','candidatesDigest'))
+                        assert all(row['candidateDigest'] for row in review['candidates'])
+                        coherence=review['checkObservations']['coherence_0']
+                        support=review['checkObservations']['supported_0']
+                        assert coherence=={'positiveProbabilityLowerBound':0,'choice':'compatible','confidence':.43,
+                            'probabilities':{'compatible':.62,'contradictory':0,'unclear':1-.62}}
+                        assert support=={'positiveProbabilityLowerBound':0,'choice':'unsupported','confidence':.42,
+                            'probabilities':{'grounded':0,'speculative':0,'transient':0,'unsupported':.54,'unclear':1-.54}}
+                        assert not any(line.startswith('Candidate failures:') for line in errors)
                         assert 'Check the original source before removing a draft condition that lacks a selected citation' in text
                         assert 'If that source establishes the condition, retain it and add the matching original source citation' in text
                         assert 'Correct or remove a condition when the original evidence establishes that it is false or obsolete' in text
@@ -245,6 +407,11 @@ def run(output: Path, case: str = 'applied') -> dict:
                     stream_response(self,json.dumps({'kind':'incremental-memory-amendment','version':1,**payload['identity'],'replacements':patches}))
                 elif 'incremental-memory-plan' in text:
                     kinds.append('plan')
+                    if is_initialization and not phase.get('backfill'):
+                        marker='Use every original indexed entry and selected predecessor body without repository exploration.\n\n'
+                        delivered=json.loads(text.split(marker,1)[1].split('\n\nEnd of complete Learning Dossier.',1)[0])
+                        assert_wire_contract(delivered,delivered,'initial')
+                    if is_relation_source:assert kinds.count('plan')==1, 'Unexpected additional generation plan'
                     snapshot=json.loads((runs/field(text,'runId')/'snapshot.json').read_text())
                     index=next(i for i,e in enumerate(snapshot['entries']) if e.get('message',{}).get('details',{}).get('readOnlyMaintenanceAudit'))
                     if case in ('source-changed','mixed-noop-source-race'):source.write_text('export const mode = "raced";\n')
@@ -276,29 +443,64 @@ def run(output: Path, case: str = 'applied') -> dict:
                             'knowledge':controlled_knowledge_units(operation['content'],operation['evidence'])}]
                         if is_excerpt:
                             plan['newMemories']=[{'name':'runtime.md','kind':'project','classification':'private',
-                                'sourceExcerpt':{'ref':f'e{index}.b0.l1'},'evidence':[{'ref':f'e{index}.b0.l1'}]}]
+                                'description':'runtime.ts declares the inspected mode',
+                                'knowledge':{'sourceCitations':[{'ref':f'e{index}.b0.l1'}],
+                                    'units':[{'text':'Observed source excerpt from '+json.dumps(source.name)+':\n\n'+source.read_text().splitlines()[0], 'citationIndexes':[0]}]}}]
                             if is_knowledge:
-                                assert 'sourceCitationIndex' in text
+                                assert 'sourceCitations' in text and 'citationIndexes' in text
                                 plan['newMemories']=[{'name':'runtime.md','kind':'project','classification':'safe',
                                     'description':'runtime.ts declares mode new','knowledge':{
                                         'sourceCitations':[{'ref':f'e{index}.b0.l1'}],
-                                        'units':[{'sourceCitationIndex':0},{'text':'Why: Retain the inspected runtime mode.\n\nHow to apply: Refer to this source observation when maintaining runtime.ts.',
+                                        'units':[{'text':'Observed source excerpt from '+json.dumps(source.name)+':\n\n'+source.read_text().splitlines()[0],'citationIndexes':[0]},{'text':'Why: Retain the inspected runtime mode.\n\nHow to apply: Refer to this source observation when maintaining runtime.ts.',
                                             'citationIndexes':[0]}]}}]
+                                if is_declaration_retention:
+                                    knowledge=plan['newMemories'][0]['knowledge']
+                                    plan['newMemories'][0]['description']='runtime.d.ts declares the observed mode and queue factory'
+                                    knowledge['units'][1]['text']=knowledge['units'][1]['text'].replace('runtime.ts','runtime.d.ts')
+                                    knowledge['sourceCitations'].append({'ref':f'e{index}.b0.l2'})
+                                    knowledge['units'].append({'text':'Use the inspected createQueue declaration for construction; runtime behavior remains unverified.',
+                                        'citationIndexes':[1]})
+                                    assert all('sourceCitationIndex' not in unit and 'fileSourceRef' not in unit for unit in knowledge['units'])
                             if is_knowledge_citation:
                                 knowledge=plan['newMemories'][0]['knowledge']
-                                knowledge['sourceCitations']=[dict(knowledge['sourceCitations'][0]) for _ in range(3)]
-                                knowledge['units'][0]['sourceCitationIndex']=2
-                                knowledge['units'][1]['citationIndexes']=[0,1,2]
+                                knowledge['sourceCitations'] += [{'ref':f'e{index}.b0.l7'},{'ref':f'e{index}.b0.l2'},{'ref':f'e{index}.b0.l5'}]
+                                knowledge['units'].insert(0,{'kind':'declared-api-relation',
+                                    'factory':dict(knowledge['sourceCitations'][1]),'owner':dict(knowledge['sourceCitations'][2]),'member':dict(knowledge['sourceCitations'][3])})
+                                knowledge['units'][-1]['citationIndexes']=[0,1,2,3]
                             phase['validExcerptPlan']=json.loads(json.dumps(plan))
-                            if case.endswith('-repair'):
+                            if is_relation_source:
+                                refs=[relation_ref(snapshot,source,5,8),relation_ref(snapshot,relation_sources[1],6),
+                                    relation_ref(snapshot,relation_sources[1],5),relation_ref(snapshot,relation_sources[1],1),relation_ref(snapshot,relation_sources[1],2)]
+                                plan['newMemories']=[{'name':'runtime.md','kind':'project','classification':'safe',
+                                    'description':'Observed batchWorker callable and internal Pool.flush declaration roles',
+                                    'knowledge':{'sourceCitations':refs,'units':[{'text':'\n'.join(source.read_text().splitlines()[4:8])+'\n\n'+relation_body,'citationIndexes':list(range(5))}]}}]
+                                if is_terminal_source:
+                                    # Explicit compatibility fixture: old correct atomic input remains readable.
+                                    plan['newMemories'][0]['knowledge']['units'].insert(0,{'kind':'declared-api-relation','factory':dict(refs[2]),'owner':dict(refs[3]),'member':dict(refs[4])})
+                                    terminal=terminal_ref(snapshot)
+                                    plan['newMemories'][0]['knowledge']['sourceCitations'].append(terminal)
+                                    plan['newMemories'][0]['knowledge']['units'].insert(1,{'text':terminal_text,'citationIndexes':[5]})
+                                    phase['validExcerptPlan']=json.loads(json.dumps(plan))
+                                    plan['newMemories'][0]['knowledge']['units'][1]={'kind':'declared-api-relation','factory':dict(terminal),'owner':dict(refs[3]),'member':dict(refs[4])}
+                                    phase['terminalRef']=terminal
+                                else:
+                                    phase['validExcerptPlan']=json.loads(json.dumps(plan))
+                                    phase['closureMissingRoles']={role:refs[i] for i,role in [(2,'factory'),(3,'owner'),(4,'member')]}
+                                    phase['closureMissingRoles']['owner']={'ref':refs[3]['ref']}
+                                    plan['newMemories'][0]['knowledge']={'sourceCitations':refs[:2],
+                                        'units':[{'text':'\n'.join(source.read_text().splitlines()[4:8])+'\n\n'+relation_body,'citationIndexes':[0,1]}]}
+                                phase['initialApiPlan']=json.loads(json.dumps(plan))
+                            elif case.endswith('-repair'):
                                 if is_materialized_repair:
                                     plan['unsupportedControlledField']=True
                                 elif is_knowledge_contract:
                                     plan['newMemories']=[{**operation,'kind':'project'}]
                                 elif is_knowledge_citation:
-                                    plan['newMemories'][0]['knowledge']['sourceCitations'][2]['endRef']=f'e{index}.b0.l3'
+                                    plan['newMemories'][0]['knowledge']['sourceCitations'][2]['endRef']=f'e{index}.b0.l6'
+                                    plan['newMemories'][0]['knowledge']['units'][0]['owner']=dict(plan['newMemories'][0]['knowledge']['sourceCitations'][2])
+                                    phase['initialCitationPlan']=json.loads(json.dumps(plan))
                                 elif is_knowledge:plan['newMemories'][0]['knowledge']['units'][0]['unknownField']='invalid controlled initial shape'
-                                else:plan['newMemories'][0]['sourceExcerpt']['unknownField']='invalid controlled initial shape'
+                                else:plan['newMemories'][0]['knowledge']['units'][0]['unknownField']='invalid controlled initial shape'
                     if is_mixed:
                         plan['operations'][0]['content']=before
                         plan['newMemories']=[{'name':'mode-value.md','kind':'project','classification':'safe',
@@ -307,6 +509,15 @@ def run(output: Path, case: str = 'applied') -> dict:
                     stream_response(self,json.dumps(plan))
                 elif 'Review each complete candidate Memory below' in text:
                     kinds.append('body')
+                    if is_declaration_retention:
+                        body_targets=json.loads(text.split('\n')[-1])['targets']
+                        assert body_targets and all(declaration in target['content'] for target in body_targets)
+                        phase['declarationIndependentBody']=True
+                    if is_relation_source:
+                        assert phase.get('closureRepaired'), 'Independent body review preceded structural relation repair'
+                        body_targets=json.loads(text.split('\n')[-1])['targets']
+                        assert body_targets and all(all(part in target['content'] for part in (relation_factory,relation_owner,relation_member.strip(),relation_wrapper)) for target in body_targets)
+                        phase['closureIndependentBody']=True
                     targets=json.loads(text.split('\n')[-1])['targets'] if is_mixed else [{'targetIndex':0}]
                     stream_response(self,json.dumps({'reviews':{str(t['targetIndex']):{'verdict':'consistent','conflictingQuotes':[],'reason':'Controlled framing only'} for t in targets}}))
                 else:
@@ -320,6 +531,8 @@ def run(output: Path, case: str = 'applied') -> dict:
                         kinds.append('main-memory-read'); stream_response(self,[{'id':'memory-read','name':'read','arguments':{'path':str(memory/'runtime.md')}}])
                     elif len(tools)==(1 if case=='read-review' else 0):kinds.append('main-old-read'); stream_response(self,[{'id':'old-read','name':'read','arguments':{'path':str(source)}}])
                     elif len(tools)==(2 if case=='read-review' else 1):kinds.append('main-edit'); stream_response(self,[{'id':'actual-edit','name':'edit','arguments':{'path':str(source),'oldText':'export const mode = "old";','newText':'export const mode = "new";'}}])
+                    elif is_terminal_source and len(tools)==2:
+                        kinds.append('main-terminal-observation');stream_response(self,[{'id':'terminal-observation','name':'bash','arguments':{'command':"printf 'NATIVE_TERMINAL_OBSERVATION\n'"}}])
                     elif case=='renamed' and len(tools)==2:
                         kinds.append('main-write-temporary');stream_response(self,[{'id':'temporary-write','name':'write','arguments':{'path':str(project/'temporary.ts'),'content':'export const temporary = true;\n'}}])
                     elif case=='renamed' and len(tools)==3:
@@ -331,14 +544,7 @@ def run(output: Path, case: str = 'applied') -> dict:
     thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     env=isolated_environment(output/'home',agent)
     if is_initialization:
-        cli=workspace_pnpm(REPO)
-        node=shutil.which('node')
-        assert node, 'Workspace Node runtime is unavailable'
-        fixture_bin=output/'bin';fixture_bin.mkdir()
-        launcher=fixture_bin/'pnpm'
-        launcher.write_text('#!/bin/sh\nCOREPACK_ENABLE_NETWORK=0 NODE_DISABLE_COMPILE_CACHE=1 exec '+shlex.quote(node)+' '+shlex.quote(cli)+' "$@"\n')
-        launcher.chmod(0o700)
-        env['PATH']=str(fixture_bin)+os.pathsep+env.get('PATH','')
+        cli=_install_fixture_pnpm(REPO,output,env)
     env.update(TYPESAFE_BASE_URL=f'http://127.0.0.1:{server.server_port}/jev',TYPESAFE_API_KEY='offline-fixture')
     (agent/'settings.json').write_text(json.dumps({'packages':[],'quietStartup':True,'defaultThinkingLevel':'off','retry':{'enabled':False}}))
     (agent/'memory').mkdir(); (agent/'memory/settings.json').write_text(json.dumps({'autoMemory':not is_manual,'automaticPhases':{'memory':'off' if is_manual else 'apply','harness':'apply' if case in ('legacy','held-later','mixed-noop') else 'off','agents':'off'}}))
@@ -373,13 +579,13 @@ def run(output: Path, case: str = 'applied') -> dict:
     (memory/'MEMORY.md').write_text('# Project memories\n'+('' if is_initialization else '\n- runtime.md — runtime.ts declares mode old\n'))
     session=agent/'sessions'/'fixture'/'session.jsonl' if is_manual or case=='coverage-replay' else output/'session.jsonl'
     session.parent.mkdir(parents=True,exist_ok=True)
-    command=[workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve','--thinking','off','--tools','read,edit,write,bash' if case=='renamed' else 'read,edit','-e',str(REPO/'packages/continual-learning/index.ts'),'--model','fixture/scripted','--session',str(session),'--print','--mode','json','Update runtime.ts mode from old to new.'+(' Do not edit Memory directly; automatic learning owns it. Never remember temporary tokens.' if case.startswith('manual-phase') else '')+(' Keep the learned mode convention scoped to release checks.' if case in ('coverage-correction','coverage-invalid-correction','coverage-replay','manual-coverage-replay','manual-initialization-repair') else '')+(' Add a regression test for onIdle.' if case=='legacy' else ' Never run the retired compiler in future tasks.' if case in ('held-later','mixed-noop') else '')]
+    command=[workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve','--thinking','off','--tools','read,edit,write,bash' if case=='renamed' else 'read,edit,bash' if is_terminal_source else 'read,edit','-e',str(REPO/'packages/continual-learning/index.ts'),'--model','fixture/scripted','--session',str(session),'--print','--mode','json','Update '+source.name+' mode from old to new.'+(' Inspect batchWorker and its flush API relationship to the internal allocatePool factory and Pool return type. Keep observed declaration roles distinct from runtime behavior.' if is_relation_source else '')+(' Do not edit Memory directly; automatic learning owns it. Never remember temporary tokens.' if case.startswith('manual-phase') else '')+(' Keep the learned mode convention scoped to release checks.' if case in ('coverage-correction','coverage-invalid-correction','coverage-replay','manual-coverage-replay','manual-initialization-repair') else '')+(' Add a regression test for onIdle.' if case=='legacy' else ' Never run the retired compiler in future tasks.' if case in ('held-later','mixed-noop') else '')]
     backlog_code='import {backlogStatus,readBacklog,backlogIdentity} from '+json.dumps(str(REPO/'packages/continual-learning/extensions/learning-backlog.ts'))+';const read=readBacklog(process.argv[1],process.argv[2]);console.log(JSON.stringify({...backlogStatus(process.argv[1],process.argv[2]),pendingEntries:read.pendingEntries.map(({entry})=>({...entry,id:backlogIdentity(process.argv[3],entry)}))}));'
     def backlog_status() -> dict:
         return json.loads(subprocess.check_output(['node','--import','tsx','--input-type=module','-e',backlog_code,str(project),str(agent),paths['scopeKey']],cwd=REPO,env=env,text=True))
     try:
         report['piVersion']=subprocess.check_output([workspace_pi(REPO),'--version'],cwd=project,env=env,text=True,timeout=10).strip()
-        assert report['piVersion']=='1.3.0',report['piVersion']
+        assert report['piVersion']==pi_version,(report['piVersion'],pi_version)
         result=subprocess.run(command,cwd=project,env=env,capture_output=True,timeout=90)
         (output/'stdout.jsonl').write_bytes(result.stdout); (output/'stderr.txt').write_bytes(result.stderr)
         assert result.returncode==0,result.stderr.decode()
@@ -406,8 +612,8 @@ def run(output: Path, case: str = 'applied') -> dict:
                     'cwd':str(project.resolve()),'agentDir':str(agent.resolve()),'sessionPath':str(session.resolve()),
                     'model':'fixture/scripted','piVersion':report['piVersion'],'arguments':'整理记忆',
                     'priorSessionDigest':original_digest,'startedAt':time.time_ns()//1_000_000,
-                    'sourceHashes':{str(source.relative_to(project)):hashlib.sha256(source.read_bytes()).hexdigest()},
-                    'sourceFiles':{str(source.relative_to(project)):{'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'mode':source.stat().st_mode&0o777,'size':source.stat().st_size}}}
+                    'sourceHashes':{str(path.relative_to(project)):hashlib.sha256(path.read_bytes()).hexdigest() for path in relation_sources},
+                    'sourceFiles':{str(path.relative_to(project)):{'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'mode':path.stat().st_mode&0o777,'size':path.stat().st_size} for path in relation_sources}}
                 owner_text=json.dumps(owner,ensure_ascii=False,separators=(',',':'))
                 (output/'memory-command-started.json').write_text(owner_text)
                 before_command=history_state()
@@ -420,8 +626,8 @@ def run(output: Path, case: str = 'applied') -> dict:
                     'cancelled':False,'timedOut':False,'settledAt':time.time_ns()//1_000_000,
                     'stdoutDigest':hashlib.sha256(second.stdout).hexdigest(),
                     'sessionDigest':hashlib.sha256(session.read_bytes()).hexdigest(),
-                    'sourceHashes':{str(source.relative_to(project)):hashlib.sha256(source.read_bytes()).hexdigest()},
-                    'sourceFiles':{str(source.relative_to(project)):{'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'mode':source.stat().st_mode&0o777,'size':source.stat().st_size}}}
+                    'sourceHashes':{str(path.relative_to(project)):hashlib.sha256(path.read_bytes()).hexdigest() for path in relation_sources},
+                    'sourceFiles':{str(path.relative_to(project)):{'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'mode':path.stat().st_mode&0o777,'size':path.stat().st_size} for path in relation_sources}}
                 (output/'memory-command-closed.json').write_text(json.dumps(completion,indent=2))
             assert second.returncode==0,second.stderr.decode()
             assert not failures,failures
@@ -503,7 +709,7 @@ def run(output: Path, case: str = 'applied') -> dict:
             audit_dir=audit_receipts[0].parent
             proof_input={'kind':'explicit-command-source-review','version':1,'owner':owner,'completion':completion,
                 'originalSession':original_session.decode(),'nativeSession':session.read_text(),'stdout':second.stdout.decode(),
-                'receipt':receipt,'sources':{str(source.relative_to(project)):source.read_text()}}
+                'receipt':receipt,'sources':{str(path.relative_to(project)):path.read_text() for path in relation_sources}}
             if generation:
                 assert len(generation)==1,generation
                 root=generation[0].parent
@@ -515,9 +721,9 @@ def run(output: Path, case: str = 'applied') -> dict:
                         'observations':[json.loads(line) for line in (audit_dir/'observations.jsonl').read_text().splitlines()]})
             proof_path=output/'command-source-input.json';proof_path.write_text(json.dumps(proof_input,ensure_ascii=False))
             code='import fs from "node:fs";import {createHash} from "node:crypto";import {commandMemorySourceProof as check} from '+json.dumps(str(REPO/'packages/continual-learning/tests/continuous-command-proof.ts'))+''';
-const input=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const negative={};
+const input=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const actualPiVersion=process.argv[2];const negative={};
 const digest=v=>createHash("sha256").update(JSON.stringify(v)).digest("hex");
-const mutate=(name,fn)=>{const changed=structuredClone(input);fn(changed);negative[name]=check(changed);};
+const mutate=(name,fn)=>{const changed=structuredClone(input);fn(changed);negative[name]=check(changed,actualPiVersion);};
 mutate("foreign-kind",x=>x.kind="completed-replay");
 mutate("missing-owner",x=>delete x.owner);
 mutate("changed-prefix",x=>x.originalSession=x.originalSession.replace("Update runtime.ts","Changed runtime.ts"));
@@ -543,8 +749,9 @@ if(input.plan){
  mutate("missing-native-receipt",x=>{x.nativeSession=x.originalSession;x.completion.sessionDigest=createHash("sha256").update(x.nativeSession).digest("hex");});
  mutate("rehashed-projection-drift",x=>{const s=JSON.parse(x.snapshotText);s.entries[0].message.content="Altered original task";x.snapshotText=JSON.stringify(s);const h=createHash("sha256").update(x.snapshotText).digest("hex");x.reviewManifest.snapshotDigest=h;x.plan.snapshotDigest=h;x.plan.artifactHash=h;});
 }
-console.log(JSON.stringify({proof:check(input),negative}));'''
-            checked=json.loads(subprocess.check_output(['node','--import','tsx','--input-type=module','-e',code,str(proof_path)],cwd=REPO,env=env,text=True,timeout=30))
+console.log(JSON.stringify({proof:check(input,actualPiVersion),negative}));'''
+            if is_declaration_retention or is_relation_source or is_knowledge_citation:code=code.replace('runtime.ts',source.name)
+            checked=json.loads(subprocess.check_output(['node','--import','tsx','--input-type=module','-e',code,str(proof_path),report['piVersion']],cwd=REPO,env=env,text=True,timeout=30))
             report['commandSourceReview']=checked['proof'];report['commandSourceReviewNegatives']=checked['negative']
             assert checked['proof']['ready'] is (not is_manual_held),checked
             assert all(not result['ready'] for result in checked['negative'].values()),checked
@@ -556,8 +763,8 @@ console.log(JSON.stringify({proof:check(input),negative}));'''
                 'revision':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(memory.glob('*.md')) if p.name!='MEMORY.md']}
             corpus_path=output/'command-corpus-state.json';corpus_path.write_text(json.dumps({'prior':before_command,'current':corpus_state}))
             code='import fs from "node:fs";import {commandMemoryCorpusProof as check} from '+json.dumps(str(REPO/'packages/continual-learning/tests/continuous-command-proof.ts'))+''';
-const input=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const state=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-const negative={};const mutate=(name,fn)=>{const i=structuredClone(input),s=structuredClone(state);fn(i,s);negative[name]=check(i,s.prior,s.current);};
+const input=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const state=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));const actualPiVersion=process.argv[3];
+const negative={};const mutate=(name,fn)=>{const i=structuredClone(input),s=structuredClone(state);fn(i,s);negative[name]=check(i,s.prior,s.current,actualPiVersion);};
 if(state.current.memoryEntries.length){
  mutate("missing-corpus",(i,s)=>s.current.memoryEntries=[]);
  mutate("body-drift",(i,s)=>s.current.memoryEntries[0].content+=" changed");
@@ -570,15 +777,15 @@ if(state.current.memoryEntries.length){
  mutate("physical-identity-drift",(i,s)=>s.current.surfaceSnapshots["private/runtime.md"].revision="1:2:3:4:5");
  mutate("unlisted-corpus",(i,s)=>s.current.memoryEntries.push({...s.current.memoryEntries[0],filename:"foreign.md"}));
 }
-console.log(JSON.stringify({proof:check(input,state.prior,state.current),negative}));'''
-            corpus_checked=json.loads(subprocess.check_output(['node','--import','tsx','--input-type=module','-e',code,str(proof_path),str(corpus_path)],cwd=REPO,env=env,text=True,timeout=30))
+console.log(JSON.stringify({proof:check(input,state.prior,state.current,actualPiVersion),negative}));'''
+            corpus_checked=json.loads(subprocess.check_output(['node','--import','tsx','--input-type=module','-e',code,str(proof_path),str(corpus_path),report['piVersion']],cwd=REPO,env=env,text=True,timeout=30))
             report['commandCorpusProof']=corpus_checked['proof'];report['commandCorpusProofNegatives']=corpus_checked['negative']
             assert corpus_checked['proof']['ready'] is (not is_manual_held),corpus_checked
             assert all(not result['ready'] for result in corpus_checked['negative'].values()),corpus_checked
             if is_excerpt and not is_manual_held:
                 entry=memory/'runtime.md'
                 assert receipt['operations']==1 and entry.is_file(),receipt
-                selected_source=source.read_text().splitlines()[0] if is_knowledge_citation else source.read_text().strip()
+                selected_source='\n'.join(source.read_text().splitlines()[4:8]) if is_relation_source else source.read_text().splitlines()[0] if is_knowledge_citation or is_declaration_retention else source.read_text().strip()
                 assert selected_source in entry.read_text()
                 if is_knowledge:
                     assert (project/'.memory/runtime.md').read_bytes()==entry.read_bytes()
@@ -588,12 +795,83 @@ console.log(JSON.stringify({proof:check(input,state.prior,state.current),negativ
                     assert proof_input['plan']['newMemories'][0]['classification']=='private'
                 assert 'source-read' in kinds and 'coverage' in kinds and 'body' in kinds
                 if is_knowledge:
-                    assert 'Why: Retain the inspected runtime mode.' in entry.read_text()
+                    assert ('Why: Retain the inspected API relationship.' if is_relation_source else 'Why: Retain the inspected runtime mode.') in entry.read_text()
                     assert 'How to apply:' in entry.read_text()
                     assert 'knowledge' not in proof_input['plan']['newMemories'][0]
+                if is_declaration_retention:
+                    content=entry.read_text()
+                    observed='Observed source excerpt from "runtime.d.ts":'
+                    assert content.count(observed)==2 and content.count(declaration)==1
+                    assert 'export interface QueueOptions' not in content and 'export interface Queue {' not in content
+                    assert 'Use the inspected createQueue declaration for construction; runtime behavior remains unverified.' in content
+                    original=json.loads(next(runs.glob('*/generation-original-plan.json')).read_text())
+                    raw_knowledge=original['originalPlan']['newMemories'][0]['knowledge']
+                    assert raw_knowledge==phase['validExcerptPlan']['newMemories'][0]['knowledge']
+                    assert all('sourceCitationIndex' not in unit and 'fileSourceRef' not in unit for unit in raw_knowledge['units'])
+                    assert all(declaration not in unit.get('text','') for unit in raw_knowledge['units'])
+                    assert len(proof_input['plan']['newMemories'][0]['evidence'])==2
+                    assert proof_input['plan']['newMemories'][0]['evidence'][1]['quote']==declaration
+                    assert phase.get('declarationSemanticBodies',0)>0
+                    assert phase.get('declarationCoverageBody') and phase.get('declarationIndependentBody')
+                    report['selectedDeclarationRetention']={'fullObservedDeclarationInBody':True,
+                        'originalTextAndCatalogPreserved':True,'unselectedTypeDeclarationsAbsent':True,
+                        'explicitDeclarationSourceUnitInRaw':False,'originalCatalogSize':2,
+                        'finalEvidenceSize':2,'source':source.name,'declarationSha256':hashlib.sha256(declaration.encode()).hexdigest(),
+                        'bodySha256':hashlib.sha256(content.encode()).hexdigest(),
+                        'completeBodyInCoverageAndSemanticReview':True,'independentBodyReviewIncludesDeclaration':True,
+                        'safeMirrorsEqual':True,'physicalHistoryVerified':report['commandHistoryIntegrity']['passed'],
+                        'controlledJudgmentsOnly':True,'learningBenefitEstablished':False}
                 if case.endswith('-repair'):
                     assert kinds.count('excerpt-structural-correction')==1
                     assert list(runs.glob('*/structural-rejection.json'))
+                if is_relation_source:
+                    content=entry.read_text()
+                    assert all(content.count(part)==1 for part in (relation_factory,relation_owner,relation_member.strip(),relation_wrapper))
+                    assert 'export interface PoolOptions' not in content
+                    assert relation_body in content
+                    original=json.loads(next(runs.glob('*/generation-original-plan.json')).read_text())
+                    rejection=json.loads(next(runs.glob('*/structural-rejection.json')).read_text())
+                    correction=json.loads(next(runs.glob('*/structural-repair-response.json')).read_text())
+                    corrected=json.loads(correction['output'])
+                    assert original['originalPlan']==phase['initialApiPlan']==rejection['originalPlan']
+                    assert corrected==phase['validExcerptPlan']
+                    initial_knowledge=original['originalPlan']['newMemories'][0]['knowledge']
+                    final_knowledge=corrected['newMemories'][0]['knowledge']
+                    assert len(initial_knowledge['sourceCitations'])==(6 if is_terminal_source else 2) and len(final_knowledge['sourceCitations'])==(6 if is_terminal_source else 5)
+                    assert len(proof_input['plan']['newMemories'][0]['evidence'])==(6 if is_terminal_source else 5)
+                    assert final_knowledge['sourceCitations'][:(6 if is_terminal_source else 2)]==initial_knowledge['sourceCitations']
+                    assert final_knowledge['units'][-1]['text']==initial_knowledge['units'][-1]['text']
+                    assert final_knowledge['units'][-1]['text'].endswith(relation_body)
+                    assert final_knowledge['units'][0]['kind']=='declared-api-relation' if is_terminal_source else all(set(unit)=={'text','citationIndexes'} for unit in final_knowledge['units'])
+                    assert len(final_knowledge['sourceCitations'])<=8 and len(final_knowledge['units'])<=32
+                    assert all(len(item['quote'])<=2000 for item in proof_input['plan']['newMemories'][0]['evidence'])
+                    assert kinds.count('plan')==kinds.count('excerpt-structural-correction')==1
+                    assert phase.get('closureSemanticBodies',0)>0 and phase.get('closureCoverageBody') and phase.get('closureIndependentBody')
+                    assert kinds.index('excerpt-structural-correction')<kinds.index('body') and kinds.index('excerpt-structural-correction')<kinds.index('coverage')
+                    if is_terminal_source:
+                        assert initial_knowledge['units'][0]==final_knowledge['units'][0]
+                        assert initial_knowledge['units'][1]=={**final_knowledge['units'][0],'factory':phase['terminalRef']}
+                        assert final_knowledge['units'][1]=={'text':terminal_text,'citationIndexes':[5]}
+                        assert terminal_text in content and 'main-terminal-observation' in kinds
+                        report['terminalSourceCapability']={'typedErrors':phase['terminalCapabilityErrors'],
+                            'initialCatalogSize':6,'correctedModelCatalogSize':6,'finalEvidenceSize':6,
+                            'allFileRolesCompleteInInitial':True,'parentAddedReferences':False,
+                            'originalRawPlanPreserved':True,'terminalSourceUnitRejected':True,'terminalRelationRoleRejected':True,
+                            'modelSelectedOrdinaryTextReplacement':True,'originalFileSourceUnitsPreserved':True,'originalAtomicRelationPreserved':True,
+                            'generationPlanCalls':1,'existingStructuralRepairCalls':1,'semanticStartedAfterRepair':True,
+                            'fullRoleBodyInFreshReviews':True,'sourceFiles':list(proof_input['sources']),
+                            'safeMirrorsEqual':True,'physicalHistoryVerified':report['commandHistoryIntegrity']['passed'],
+                            'catalogBound':8,'quoteCharacterBound':2000,'unitBound':32,
+                            'controlledJudgmentsOnly':True,'learningBenefitEstablished':False}
+                    else:
+                        report['apiRelationClosure']={'typedMissingRoles':phase['closureDiagnostic'],
+                            'initialCatalogSize':2,'correctedModelCatalogSize':5,'finalEvidenceSize':5,
+                            'parentAddedReferences':False,'originalRawPlanPreserved':True,'originalKnowledgeTextPreserved':True,
+                            'generationPlanCalls':1,'existingStructuralRepairCalls':1,'semanticStartedAfterRepair':True,
+                            'fullRoleBodyInFreshReviews':True,'sourceFiles':list(proof_input['sources']),
+                            'safeMirrorsEqual':True,'physicalHistoryVerified':report['commandHistoryIntegrity']['passed'],
+                            'catalogBound':8,'quoteCharacterBound':2000,'unitBound':32,
+                            'controlledJudgmentsOnly':True,'learningBenefitEstablished':False}
                 if is_knowledge_contract:
                     rejection=json.loads(next(runs.glob('*/structural-rejection.json')).read_text())
                     assert rejection['category']=='plan'
@@ -615,17 +893,30 @@ console.log(JSON.stringify({proof:check(input,state.prior,state.current),negativ
                 if is_knowledge_citation:
                     rejection=json.loads(next(runs.glob('*/structural-rejection.json')).read_text())
                     assert rejection['category']=='citation'
-                    assert rejection['originalPlan']['newMemories'][0]['knowledge']['units']==phase['validExcerptPlan']['newMemories'][0]['knowledge']['units']
+                    assert rejection['originalPlan']==phase['initialCitationPlan']
                     repair=json.loads(next(runs.glob('*/structural-repair-response.json')).read_text())
                     patch=json.loads(repair['output'])
-                    assert patch['kind']=='incremental-memory-amendment'
-                    assert all(set(p)=={'candidateId','evidence'} for p in patch['replacements'])
+                    assert patch==phase['validExcerptPlan']
+                    assert patch['newMemories'][0]['knowledge']['units'][0]['kind']=='declared-api-relation'
+                    assert patch['newMemories'][0]['knowledge']['units'][0]['owner']==patch['newMemories'][0]['knowledge']['sourceCitations'][2]
+                    assert kinds.count('excerpt-structural-correction')==1
                 assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==h for p,h in source_hashes.items()),'Source drift'
+                wire=phase['wireContract']
+                report['freshMemoryContractWire']={'actualWorkerHttpVerified':True,
+                    'initialRequests':phase.get('initialWireContracts',0),'freshRepairRequests':phase.get('repairWireContracts',0),
+                    'domainDigest':wire['domainDigest'],'fileDomainDigest':wire['fileDomainDigest'],
+                    'fileReferenceCount':phase['wireFileReferenceCount'],
+                    'sourceReferenceCount':len(wire['schema']['$defs']['memorySourceReference']['enum']),
+                    'completeSchemaDelivered':True,'freshTextCatalogOnly':True,'mandatoryAtomicRelationFieldsDelivered':False,
+                    'initialAndFreshRepairContractEqual':True,'derivedFromActualRequestEvidence':True,
+                    'legacyMaterializedRepairUnchanged':is_materialized_repair,
+                    'externalCalls':0,'learningBenefitEstablished':False}
                 report.update(status='passed',kinds=kinds,receipt=receipt,
                     initialAuditExcerpt={'parentCopiedOriginalBytes':True,'freshParentAuditSource':True,
                         'privateOnly':not is_knowledge,'safeMirrorsEqual':is_knowledge,
                         'structuralCorrection':case.endswith('-repair'),
-                        'citationOnlyStructuralCorrection':is_knowledge_citation,
+                        'citationOnlyStructuralCorrection':False,
+                        'typedFileSourceStructuralCorrection':is_knowledge_citation,
                         'mixedContextCopied':is_knowledge,
                         'sourceBacklogClosureExercised':False,'HarnessExercised':False,
                         'externalRequests':0,'learningBenefitEstablished':False})
@@ -716,6 +1007,22 @@ console.log(JSON.stringify({proof:check(input,state.prior,state.current),negativ
                     assert len(coverage_proofs)==(2 if is_coverage_correction else 1) and all(p['proofAvailable'] and p['expectedContextDigest']==p['reviewed']['coverageReview']['contextDigest'] for p in coverage_proofs)
                     for proof in coverage_proofs:
                         assert proof['coverageContext']['questionContractVersion']==2
+                        coverage_wires=[r['body'] for r in requests if r['path'].startswith('/jev/')
+                            and 'coverage_plan' in r['body'].get('questions',{})
+                            and r['body'].get('state',{}).get('completeCurrentPlan')==proof['coverageContext']['plan']]
+                        assert len(coverage_wires)==1,coverage_wires
+                        semantic_state=coverage_wires[0]['state']
+                        assert semantic_state['semanticWireVersion']==3
+                        assert not set(semantic_state)&{'targets','originalCandidates','retainedMemories',
+                            'currentAccount','currentRecordAccounts','priorTargets','priorPlanAccount','priorRecordAccounts'}
+                        evidence_hash=hashlib.sha256(json.dumps(semantic_state['originalEvidence'],ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+                        assert evidence_hash==proof['coverageContext']['review']['plan']['evidenceDigest']
+                        for target in proof['coverageContext']['review']['targets']:
+                            selectors=[s for s in semantic_state['targetSelectors'] if s['id']==target['id']]
+                            assert len(selectors)==1
+                            location=selectors[0]['bodyLocation']; records=semantic_state[location['recordSet']]
+                            if 'field' in location: records=records[location['field']]
+                            assert records[location['index']]['content']==target['content']
                         questions={q['key']:q for q in proof['coverageQuestions']}
                         assert questions['coverage_record_0']['criteria']!=questions['coverage_plan']['criteria']
                         wire=[r['body']['questions'] for r in requests if r['path'].startswith('/jev/')]
@@ -924,8 +1231,10 @@ console.log(JSON.stringify({proof:check(input,state.prior,state.current),negativ
             policy_proof_file=output/'automatic-policy-input.json'
             policy_proof_file.write_text(json.dumps({'input':policy_input,'prior':after_closure_state,'current':policy_after},ensure_ascii=False))
             code='import fs from "node:fs";import {createHash} from "node:crypto";import {automaticHarnessPolicyProof as check} from '+json.dumps(str(REPO/'packages/continual-learning/tests/continuous-command-proof.ts'))+''';
-const original=JSON.parse(fs.readFileSync(process.argv[1],"utf8")),negatives={};
-const mutate=(name,change)=>{const x=structuredClone(original);change(x);negatives[name]=check(x.input,x.prior,x.current);};
+const original=JSON.parse(fs.readFileSync(process.argv[1],"utf8")),actualPiVersion=process.argv[2],negatives={};
+const mutate=(name,change)=>{const x=structuredClone(original);change(x);negatives[name]=check(x.input,x.prior,x.current,actualPiVersion);};
+mutate("wrong-native-version",x=>{x.input.owner.piVersion=actualPiVersion==="1.4.0"?"1.3.0":"1.4.0";x.input.completion.ownerDigest=createHash("sha256").update(JSON.stringify(x.input.owner)).digest("hex");});
+negatives["unsupported-native-version"]=check(original.input,original.prior,original.current,"1.5.0");
 mutate("different-user",x=>{x.input.owner.prompt+=" changed";x.input.owner.argv[x.input.owner.argv.length-1]=x.input.owner.prompt;x.input.completion.ownerDigest=createHash("sha256").update(JSON.stringify(x.input.owner)).digest("hex");});
 mutate("ordinary-tools",x=>{x.input.owner.argv[x.input.owner.argv.indexOf("--no-tools")]="--tools";x.input.completion.ownerDigest=createHash("sha256").update(JSON.stringify(x.input.owner)).digest("hex");});
 mutate("changed-source-mode",x=>Object.values(x.input.completion.sourceFiles)[0].mode^=1);
@@ -955,8 +1264,8 @@ const receiptChange=(x,change)=>{
  x.input.completion.stdoutDigest=createHash("sha256").update(x.input.stdout).digest("hex");
 };
 mutate("missing-worker-identity",x=>{delete x.input.usageLedger.ledgerId;receiptChange(x,r=>{delete r.attempts.find(a=>a.phase==="harness"&&a.outcome==="applied").usageLedgerId;});});
-console.log(JSON.stringify({proof:check(original.input,original.prior,original.current),negatives}));'''
-            policy_proofs=json.loads(subprocess.check_output(['bun','-e',code,str(policy_proof_file)],cwd=REPO,env=env,text=True))
+console.log(JSON.stringify({proof:check(original.input,original.prior,original.current,actualPiVersion),negatives}));'''
+            policy_proofs=json.loads(subprocess.check_output(['bun','-e',code,str(policy_proof_file),report['piVersion']],cwd=REPO,env=env,text=True))
             assert policy_proofs['proof']['ready'],policy_proofs
             assert all(not value['ready'] for value in policy_proofs['negatives'].values()),policy_proofs
             policy_bridge=policy_initialization_bridge(after_closure_state,policy_after,policy_input,source_files=owner['sourceFiles'])
@@ -1007,5 +1316,6 @@ console.log(JSON.stringify({proof:check(original.input,original.prior,original.c
 
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(); parser.add_argument('output',type=Path); parser.add_argument('--case',choices=('manual-initialization-knowledge-materialized-repair','manual-initialization-knowledge-contract-repair','manual-initialization-knowledge-citation-repair','manual-initialization-knowledge-held','manual-phase','manual-phase-held','manual-initialization-knowledge','manual-initialization-knowledge-repair','manual-initialization-excerpt','manual-initialization-excerpt-repair','manual-initialization','manual-initialization-held','manual-initialization-repair','manual-maintenance','manual-maintenance-held','manual-coverage-replay','coverage-replay','coverage-invalid-correction','coverage-correction','coverage-citation-only','applied','legacy','deep','renamed','source-changed','collector-refused','read-review','held-later','origin','origin-repair','mixed-noop','mixed-noop-uncertain','mixed-noop-source-race'),default='applied')
-    args=parser.parse_args(); print(json.dumps(run(args.output.resolve(),args.case)))
+    parser=argparse.ArgumentParser(); parser.add_argument('output',type=Path); parser.add_argument('--case',choices=('manual-initialization-terminal-source-repair','manual-initialization-api-closure-repair','manual-initialization-knowledge-materialized-repair','manual-initialization-knowledge-contract-repair','manual-initialization-knowledge-citation-repair','manual-initialization-knowledge-held','manual-phase','manual-phase-held','manual-initialization-knowledge','manual-initialization-knowledge-repair','manual-initialization-excerpt','manual-initialization-excerpt-repair','manual-initialization','manual-initialization-held','manual-initialization-repair','manual-maintenance','manual-maintenance-held','manual-coverage-replay','coverage-replay','coverage-invalid-correction','coverage-correction','coverage-citation-only','applied','legacy','deep','renamed','source-changed','collector-refused','read-review','held-later','origin','origin-repair','mixed-noop','mixed-noop-uncertain','mixed-noop-source-race'),default='applied')
+    parser.add_argument('--pi-version',choices=('1.3.0','1.4.0'),default='1.3.0')
+    args=parser.parse_args(); print(json.dumps(run(args.output.resolve(),args.case,pi_version=args.pi_version)))

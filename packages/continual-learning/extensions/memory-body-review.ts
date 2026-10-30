@@ -5,6 +5,7 @@ import {fileURLToPath} from "node:url";
 import {runPiWorker, type PiWorkerUsage, type PiWorkerTerminal} from "@fradser/pi-kit";
 import {memoryDescriptionClaim} from "./jev-learning";
 import {containsSensitiveMemoryMaterial, writeFileAtomic} from "./consolidation-run";
+import type {NativeMemoryCoverageBinding} from "./planner-output-schema";
 
 const digest = (value: string): string => createHash("sha256").update(value).digest("hex");
 
@@ -210,6 +211,7 @@ export async function runMemoryReviewBatch(input: {
   prompt: string; model?: string; signal: AbortSignal; outputDir?: string;
   kind: "memory-body-review" | "memory-coverage-review"; count: number;
   bodyReferences?: boolean;
+  nativeCoverageBinding?: NativeMemoryCoverageBinding;
 }): Promise<Omit<MemoryBodyReview, "targets" | "judgments" | "batches"> & {text?: string; retainedResponse?: {sha256: string; retained: boolean}}> {
   const started = Date.now(), usageLedgerId = randomUUID();
   const base = {calls: 1, durationMs: 0, usageComplete: false, usageLedgerId};
@@ -218,7 +220,8 @@ export async function runMemoryReviewBatch(input: {
     result = await runPiWorker({prompt: input.prompt, model: input.model, cwd: os.tmpdir(), minimal: true,
       tools: [], extraArgs: ["--thinking", "xhigh", "-e", fileURLToPath(new URL("./planner-json-output.ts", import.meta.url)),
         "--learning-output-schema", input.kind, "--learning-body-count", String(input.count),
-        ...(input.bodyReferences ? ["--learning-body-references", "true"] : [])], signal: input.signal});
+        ...(input.bodyReferences ? ["--learning-body-references", "true"] : []),
+        ...(input.nativeCoverageBinding ? ["--learning-citation-domain", JSON.stringify(input.nativeCoverageBinding)] : [])], signal: input.signal});
   } catch {
     return {...base, status: input.signal.aborted ? "cancelled" : "unavailable", durationMs: Date.now() - started};
   }

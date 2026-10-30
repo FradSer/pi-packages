@@ -13,6 +13,7 @@ import { jevSdk, loadJevSdk, isApiError, isApiTimeoutError, isApiUserAbortError,
 import { containsSensitiveMemoryMaterial, credentialNamedKeyAssignsValue, normalizeNewMemoryProposals, normalizeSnapshotEvidence, snapshotEntryRole, readCurrentMaintenanceCommand, readCurrentMemoryCommandPhase, MEMORY_COMMAND_PHASE_CONTEXT } from "./consolidation-run";
 import { selfInjectedContextEntry } from "./memory-retrieval";
 import type { MemoryMetadata, SelectedMemory } from "./incremental-learning";
+import {splitMemoryFrontmatter} from "./memory-citation-locations";
 
 // Conservative starting policy, not a claim of calibrated model accuracy.
 // Unknowns preserve opportunities through the legacy selector or proposals.
@@ -308,6 +309,8 @@ export interface JevCandidateReview {
   model: string;
   /** Actual positive check scores, not a new semantic judgment or independence claim. */
   passedCheckProbabilities?: Record<string, number>;
+  /** Original controlled questions retained with the complete bound observations. */
+  checkQuestions?: Questions;
   /** Exact typed numeric observations for the new coverage protocol only. */
   checkObservations?: Record<string, {positiveProbabilityLowerBound: number; choice?: string; confidence?: number;
     probabilities?: Record<string, number>; noul?: number}>;
@@ -463,7 +466,7 @@ export function reviewedMemoryEvidence(evidence: unknown, candidates: readonly u
   return {...prepared, windows: windows.map(w => ({...(prepared.windows[0] as Record<string, unknown>), entries: w.map(i => byIndex.get(i)!)}))};
 }
 function citedMemoryReviewEvidence(evidence: unknown, candidates: readonly unknown[], maxRequestBytes = Infinity):
-  { support: unknown; windows: unknown[]; entries: number } | "invalid-response" | "bounds" | `bounds-windows:${number}` | `bounds-window-bytes:${number}` | undefined {
+  { support: unknown; windows: unknown[]; entries: number; originalTaskContext?: unknown } | "invalid-response" | "bounds" | `bounds-windows:${number}` | `bounds-window-bytes:${number}` | undefined {
   if (!record(evidence) || evidence.contextEnabled !== true || !Array.isArray(evidence.entries)
     || !candidates.every(candidate => record(candidate) && candidate.op === undefined && Array.isArray(candidate.evidence)
       && ["project", "preference", "rewrite", "delete", "retain"].includes(String(candidate.kind)))) return undefined;
@@ -647,7 +650,7 @@ export function memorySourceReadOrder(evidence: unknown, candidates: readonly un
 }
 
 function citedEvidenceWindows(evidence: Record<string, unknown>, cited: ReadonlySet<number>, maxRequestBytes: number):
-  { support: unknown; windows: unknown[]; entries: number } | "bounds" | `bounds-windows:${number}` | `bounds-window-bytes:${number}` {
+  { support: unknown; windows: unknown[]; entries: number; originalTaskContext?: unknown } | "bounds" | `bounds-windows:${number}` | `bounds-window-bytes:${number}` {
   // Both callers have verified the exact source roles and citation indexes.
   const entries = evidence.entries as unknown[];
   const { entries: _entries, ...metadata } = evidence;
@@ -684,7 +687,9 @@ function citedEvidenceWindows(evidence: Record<string, unknown>, cited: Readonly
     && Buffer.byteLength(JSON.stringify(indexed), "utf8") > MAX_EVIDENCE_WINDOWS * maxRequestBytes)
     return `bounds-windows:${windows.length}`;
   // Enforce the count after actual encoded-request packing below, before transport.
-  return { support: { ...metadata, totalEntries: reviewable, entries: indexed.filter(item => cited.has(item.index)), citationToolCalls: citationToolCalls(entries, cited) }, windows, entries: reviewable };
+  return { support: { ...metadata, totalEntries: reviewable, entries: indexed.filter(item => cited.has(item.index)), citationToolCalls: citationToolCalls(entries, cited) }, windows, entries: reviewable,
+    ...(!Number.isFinite(maxRequestBytes) ? {originalTaskContext: {...metadata, totalEntries: reviewable, entries: indexed,
+      citationToolCalls: citationToolCalls(entries, new Set(indexed.map(item => item.index)))}} : {}) };
 }
 
 /** Keep cited context whole, without transmitting the identical indexed entry
@@ -712,9 +717,9 @@ function counterReviewState(support: unknown, review: unknown, evidence: unknown
 // the proposed knowledge/constraint, rather than demanding evidence for labels.
 export function memoryDescriptionClaim(candidate: unknown): string | undefined {
   if (!record(candidate) || typeof candidate.content !== "string") return undefined;
-  const header = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(candidate.content);
+  const header = splitMemoryFrontmatter(candidate.content);
   if (!header) return undefined;
-  const description = /(?:^|\r?\n)description:[ \t]*([^\r\n]*)/.exec(header[1]);
+  const description = /(?:^|\r?\n)description:[ \t]*([^\r\n]*)/.exec(header[2]);
   return description?.[1].trim() || undefined;
 }
 // Descriptions enter the retrieval index as knowledge. Judge each independently
@@ -1458,7 +1463,7 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
         if (sensitiveValue({evidence, candidates, existing, coverageContext})) return denyCoverage("sensitive");
         try {
           const {prepareMemoryCoverageJudgment} = await import("./memory-knowledge-coverage");
-          coverage = prepareMemoryCoverageJudgment(evidence, candidates, existing, coverageContext);
+          coverage = prepareMemoryCoverageJudgment(evidence, candidates, existing, coverageContext, {maxRequestBytes});
         } catch {return denyCoverage("invalid-response");}
         if (!await loadJevSdk()) return denyCoverage("unavailable");
         coverageQuestions = Object.fromEntries(coverage.questions.map(item =>
@@ -1498,7 +1503,7 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
         if (!coverage || !coverageContext) return true;
         try {
           const {prepareMemoryCoverageJudgment} = await import("./memory-knowledge-coverage");
-          return coverage.contextDigest === prepareMemoryCoverageJudgment(evidence, originalCandidates, existing, coverageContext).contextDigest;
+          return coverage.contextDigest === prepareMemoryCoverageJudgment(evidence, originalCandidates, existing, coverageContext, {maxRequestBytes}).contextDigest;
         } catch {return false;}
       };
       // A no-op still retains claims. Review selected predecessor bytes against
@@ -1676,7 +1681,10 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
         const candidate = candidates[Number(match[1])];
         if (!record(candidate)) continue;
         question.instructions.originalCitationsReference = `originalCitationsByCandidate.${match[1]}`;
-        question.instructions.question += " originalCitationsReference names this candidate's parent-controlled originalCitationsByCandidate field in state, containing the complete parent-validated exact quotes, roles and original indexes in frozenEvidence. Read their complete source entries for context; exact quoting alone does not establish every claim or its durability. frozenEvidence.citationToolCalls supplies invocation provenance only; tool arguments and assistant assertions are not verified outcomes.";
+        const contextInstruction = Number.isFinite(maxRequestBytes)
+          ? "Read their complete source entries for context; exact quoting alone does not establish every claim or its durability."
+          : "Read their complete source entries; originalTaskContext only clarifies the cited observation's execution, version and subject. It cannot add a citation or independently ground an unselected new claim. Exact quoting alone does not establish every claim or its durability.";
+        question.instructions.question += " originalCitationsReference names this candidate's parent-controlled originalCitationsByCandidate field in state, containing the complete parent-validated exact quotes, roles and original indexes in frozenEvidence. " + contextInstruction + " frozenEvidence.citationToolCalls supplies invocation provenance only; tool arguments and assistant assertions are not verified outcomes.";
         if (Number.isFinite(maxRequestBytes)) question.instructions.question += citationReferenceInstruction;
       }
       if (stage === "harness" && prepared && Array.isArray(harnessCitations)) for (const [key, question] of Object.entries(questions)) {
@@ -1766,6 +1774,11 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
         // complete counterreview. Mutation questions carry complete predecessor
         // and replacement bodies for their preservation dependencies; every
         // operation still receives all original windows before atomic approval.
+        const isCreationCounterBatch = (batch: Questions): boolean => candidates.length > 0 && candidates.every(isMemoryCreation)
+          && Object.keys(batch).length > 0 && Object.keys(batch).every(key => {
+          const match = /^counter(?:_description)?_(\d+)_\d+$/.exec(key);
+          return !!match && isMemoryCreation(candidates[Number(match[1])]);
+        });
         const stateForQuestions = (state: unknown, batch: Questions): unknown => {
           if (!record(state)) return state;
           if (state.memoryKnowledgeCoverage === true) return state;
@@ -1856,6 +1869,11 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
           }
           const projected: Record<string, unknown> = { ...state, ...mutationState, ...sourceState, ...maintenanceContext, ...(Object.keys(originalCitationsByCandidate).length ? { originalCitationsByCandidate } : {}), ...(state.frozenEvidence ? { frozenEvidence: project(state.frozenEvidence) } : {}),
             ...(state.supportEvidence ? { supportEvidence: project(state.supportEvidence) } : {}) };
+          if (!Number.isFinite(maxRequestBytes) && prepared.originalTaskContext && (isCreationCounterBatch(batch) || keys.some(key =>
+            /^supported(?:_description)?_\d+$/.test(key) && record(batch[key].instructions)
+              && record(batch[key].instructions.candidate) && typeof batch[key].instructions.candidate.content === "string"))) {
+            projected.originalTaskContext = prepared.originalTaskContext;
+          }
           if (historical) {
             const names = new Set([...candidateIndexes].flatMap(index => {
               const item = candidates[index];
@@ -2004,6 +2022,17 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
             });
           }
           for (const [jobIndex, job] of jobs.entries()) if (jobIndex > 0) addDescriptionJudgments(stage, candidates, job.questions, "counter", `_${jobIndex - 1}`, !Number.isFinite(maxRequestBytes));
+          if (stage === "memory" && !Number.isFinite(maxRequestBytes) && prepared.originalTaskContext) for (const job of jobs) {
+            if (!isCreationCounterBatch(job.questions)) continue;
+            for (const question of Object.values(job.questions)) {
+              if (!record(question.instructions) || typeof question.instructions.question !== "string") continue;
+              const context = "originalTaskContext only explains the subject, execution and chronology of selected observations; it cannot add support or introduce counterevidence or permission outside this window, and cannot override a correction or revocation in reviewEvidence";
+              question.instructions.question = question.instructions.question
+                .replace("using supportEvidence as the original cited context for the candidate.", `using supportEvidence as the original cited context for the candidate; ${context}.`)
+                .replace("Use every original entry and complete cited support in original chronology;", `Use every original entry and complete cited support in original chronology; ${context};`);
+            }
+          }
+
           if (normalMutationReview) for (const job of jobs.slice(1)) for (const index of candidates.keys()) {
             if (!Object.hasOwn(job.questions, `counter_preservation_${index}_${job.windowIndex}`)) continue;
             const description = job.questions[`counter_description_${index}_${job.windowIndex}`];
@@ -2526,7 +2555,7 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
             passedCheckProbabilities: Object.fromEntries(checks.flatMap(item => item.passedChecks.map(key =>
               [key, positiveProbability(key, evaluated.result!.answers[key])]))),
             ...((coverage || stage === "memory" && !Number.isFinite(maxRequestBytes)
-              && config.independentMemoryApplication === true) ? {checkObservations: Object.fromEntries(keys.map(key => {
+              && config.independentMemoryApplication === true) ? {checkQuestions: structuredClone(expectedReviewQuestions), checkObservations: Object.fromEntries(keys.map(key => {
               const answer = evaluated.result!.answers[key];
               return [key, {positiveProbabilityLowerBound: positiveProbability(key, answer),
                 ...(answer.type === "choice" ? {choice: answer.choice, confidence: answer.confidence, probabilities: {...answer.probabilities}}

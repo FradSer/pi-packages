@@ -281,9 +281,11 @@ function charPrefix(value: string, chars: number): string {
 }
 
 function parseFrontmatterDescription(read: MemoryRead): Pick<MemoryEntry, "description" | "descriptionTruncated" | "metadataIncomplete"> {
-  if (!/^---\r?\n/.test(read.content)) return read.truncated ? { metadataIncomplete: true } : {};
-  const end = /\r?\n---(?:\r?\n|$)/.exec(read.content.slice(4));
-  const frontmatter = end ? read.content.slice(4, 4 + end.index) : read.content.slice(4);
+  const start = /^\uFEFF*---\r?\n/.exec(read.content);
+  if (!start) return read.truncated ? { metadataIncomplete: true } : {};
+  const afterStart = read.content.slice(start[0].length);
+  const end = /\r?\n---(?:\r?\n|$)/.exec(afterStart);
+  const frontmatter = end ? afterStart.slice(0, end.index) : afterStart;
   if (!end && !read.truncated) return {};
   const match = /(?:^|\r?\n)description:[ \t]*([^\r\n]*)/.exec(frontmatter);
   if (!match) return !end && read.truncated ? { metadataIncomplete: true } : {};

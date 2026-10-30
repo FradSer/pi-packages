@@ -197,13 +197,13 @@ def test_experiment_proxy_bounds_routing_and_never_copies_host_credentials(tmp_p
             assert status == 200 and b"real-upstream-response" in data and data.endswith(b"[DONE]\n\n")
             assert observed == [{"path": "/v1/chat/completions", "auth": "Bearer HOST_ONLY_SECRET",
                                  "body": {"model": "selected", "messages": []}}]
-            assert [{k: v for k, v in row.items() if k not in ('memoryDiscoveryOnWire', 'memoryProtocolOnWire', 'systemTextSha256', 'reasoningEffortOnWire')} for row in proxy.model_observations] == [{'request': 1, 'toolCount': 0,
+            assert [{k: v for k, v in row.items() if k not in ('memoryDiscoveryOnWire', 'memoryProtocolOnWire', 'systemTextSha256', 'reasoningEffortOnWire')} for row in proxy.model_observations] == [{'request': 1, 'route':'/v1/chat/completions', 'toolCount': 0,
                 'toolChoice': 'other-or-absent', 'messageCount': 0, 'retainedToolResults': 0,
                 'responseFormatType': 'other-or-absent', 'responseSchemaName': 'other-or-absent', 'responseSchemaStrict': False}]
             assert request('/v1/chat/completions', {'model': 'selected', 'tools': [], 'tool_choice': 'none',
                 'messages': [{'role': 'tool', 'content': 'PRIVATE_BODY_NOT_FOR_METADATA'}],
                 'response_format': {'type': 'json_schema', 'json_schema': {'name': 'memory_delta', 'strict': True, 'schema': {'private': 'PRIVATE_BODY_NOT_FOR_METADATA'}}}})[0] == 200
-            assert {k: v for k, v in proxy.model_observations[-1].items() if k not in ('memoryDiscoveryOnWire', 'memoryProtocolOnWire', 'systemTextSha256', 'reasoningEffortOnWire')} == {'request': 2, 'toolCount': 0,
+            assert {k: v for k, v in proxy.model_observations[-1].items() if k not in ('memoryDiscoveryOnWire', 'memoryProtocolOnWire', 'systemTextSha256', 'reasoningEffortOnWire')} == {'request': 2, 'route':'/v1/chat/completions', 'toolCount': 0,
                 'toolChoice': 'none', 'messageCount': 1, 'retainedToolResults': 1,
                 'responseFormatType': 'json_schema', 'responseSchemaName': 'memory_delta', 'responseSchemaStrict': True}
             assert 'PRIVATE_BODY_NOT_FOR_METADATA' not in json.dumps(proxy.model_observations)
@@ -978,3 +978,173 @@ def test_frozen_study_refuses_unbound_native_entries(tmp_path: Path, symlink: bo
         extra.chmod(0o444)
     with pytest.raises(SystemExit, match='native'):
         module.verify(destination, files, native)
+
+
+@pytest.mark.parametrize('expected_api', [None, 'openai-responses', 'openai-completions'])
+def test_expected_model_api_pins_route_before_admission_and_keeps_jev(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, expected_api: str | None) -> None:
+    # Given explicit model API metadata (overriding the provider), only its
+    # pinned model route may spend admission. Jev keeps its independent path.
+    observed: list[dict] = []
+    class Upstream(BaseHTTPRequestHandler):
+        def log_message(self, *_args: object) -> None:pass
+        def do_POST(self) -> None:
+            raw=self.rfile.read(int(self.headers['Content-Length']))
+            observed.append({'path':self.path,'raw':raw})
+            self.send_response(200);self.end_headers()
+            self.wfile.write(b'{"model":"jev-1.13.0","usage":{"input_tokens":1,"output_tokens":1},"answers":{}}')
+    upstream=ThreadingHTTPServer(('127.0.0.1',0),Upstream)
+    thread=threading.Thread(target=upstream.serve_forever,daemon=True);thread.start()
+    root=tmp_path/'config';root.mkdir()
+    (root/'memory.json').write_text(json.dumps({'provider':'fixture','model':'selected'}))
+    effective=expected_api or 'openai-completions'
+    provider_api='openai-responses' if effective=='openai-completions' else 'openai-completions'
+    (root/'models.json').write_text(json.dumps({'providers':{'fixture':{'apiKey':'LOCAL_FIXTURE_KEY',
+        'baseUrl':f'http://127.0.0.1:{upstream.server_address[1]}/v1','api':provider_api,
+        'models':[{'id':'selected','api':effective}]}}}))
+    monkeypatch.setattr(docker_experiment.http.client,'HTTPSConnection',
+        lambda *_args,**_kwargs:http.client.HTTPConnection('127.0.0.1',upstream.server_address[1],timeout=5))
+    try:
+        with InferenceProxy(root,jev_key='LOCAL_JEV_KEY',expected_api=expected_api) as proxy:
+            def request(route: str, payload: bytes) -> int:
+                connection=http.client.HTTPConnection('127.0.0.1',proxy.server.server_address[1],timeout=2)
+                try:
+                    connection.request('POST',route,payload,headers={'Authorization':f'Bearer {proxy.token}'})
+                    response=connection.getresponse();response.read();return response.status
+                finally:connection.close()
+            routes={'openai-responses':'/v1/responses','openai-completions':'/v1/chat/completions'}
+            body=b'{"model":"selected","input":"complete local wire"}'
+            if expected_api is not None:
+                wrong=routes[provider_api]
+                for _ in range(4):assert proxy.slots.acquire(blocking=False)
+                try:assert request(wrong,body)==403
+                finally:
+                    for _ in range(4):proxy.slots.release()
+                assert observed==[] and proxy.requests==proxy.active_requests==proxy.errors==0
+                assert proxy.model_route_refusals=={wrong:1}
+                admitted=[routes[expected_api]]
+            else:admitted=list(routes.values())
+            for route in admitted:assert request(route,body)==200
+            assert [row['path'] for row in observed]==admitted
+            assert all(row['raw']==body for row in observed)
+            assert [row['route'] for row in proxy.model_observations]==admitted
+            assert proxy.effective_api==effective
+            before=proxy.requests
+            assert request('/jev/v1/systemone',b'{"model":"jev-1.13.0"}')==200
+            assert proxy.requests==before+1 and proxy.jev_requests==1 and proxy.errors==0
+            assert observed[-1]['path']=='/v1/systemone'
+    finally:upstream.shutdown();upstream.server_close();thread.join(timeout=5)
+
+
+@pytest.mark.parametrize('provider_api,model_api,expected_api,accepted',[
+    ('openai-responses',None,'openai-responses',True),
+    ('openai-completions','openai-responses','openai-responses',True),
+    ('openai-responses','openai-completions','openai-responses',False),
+    ('openai-completions',None,'openai-responses',False),
+    (None,None,'openai-responses',False),
+    ('openai-responses',None,'unknown-api',False)])
+def test_expected_model_api_validates_effective_model_precedence_before_start(tmp_path: Path, provider_api: str | None, model_api: str | None, expected_api: str, accepted: bool) -> None:
+    (tmp_path/'memory.json').write_text('{"provider":"fixture","model":"selected"}')
+    provider={'apiKey':'LOCAL_FIXTURE_KEY','baseUrl':'http://127.0.0.1:1/v1',
+        'models':[{'id':'selected',**({'api':model_api} if model_api else {})}],**({'api':provider_api} if provider_api else {})}
+    (tmp_path/'models.json').write_text(json.dumps({'providers':{'fixture':provider}}))
+    if accepted:
+        with InferenceProxy(tmp_path,expected_api=expected_api) as proxy:
+            assert proxy.effective_api==expected_api and proxy.requests==0
+    else:
+        with pytest.raises(ValueError):InferenceProxy(tmp_path,expected_api=expected_api)
+
+
+@pytest.mark.parametrize('api,route', [
+    ('openai-responses', '/v1/responses'),
+    ('openai-completions', '/v1/chat/completions'),
+])
+@pytest.mark.parametrize('credential', ['HOST_ONLY_SECRET', '33'])
+def test_model_retry_after_reaches_http_client_without_proxy_retry(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, api: str, route: str, credential: str) -> None:
+    # Given gateway failures, When forwarding through the real HTTP proxy,
+    # Then only valid end-to-end retry advice reaches the unchanged client.
+    cases = [
+        (503, [('Retry-After', '33')], '33'),
+        (429, [('retry-after', '0')], '0'),
+        (503, [('Retry-After', 'Wed, 21 Oct 2037 07:28:00 GMT')], 'Wed, 21 Oct 2037 07:28:00 GMT'),
+        (503, [('Retry-After', 'Sunday, 06-Nov-94 08:49:37 GMT')], 'Sunday, 06-Nov-94 08:49:37 GMT'),
+        (503, [('Retry-After', 'Sun Nov  6 08:49:37 1994')], 'Sun Nov  6 08:49:37 1994'),
+        (503, [], None),
+        (503, [('Retry-After', '-1')], None),
+        (503, [('Retry-After', '1.5')], None),
+        (503, [('Retry-After', 'not a date')], None),
+        (503, [('Retry-After', 'Wed, 99 Oct 2037 07:28:00 GMT')], None),
+        (503, [('Retry-After', 'Wed, 21 Oct 2037 07:28:00 GMT extra')], None),
+        (503, [('Retry-After', '9' * 129)], None),
+        (503, [('Retry-After', '33\r\n X-Injected: secret')], None),
+        (503, [('Retry-After', 'HOST_ONLY_SECRET')], None),
+        (503, [('Retry-After', 'Wed, 21 Oct 2037 07:28:00 GMT (HOST_ONLY_SECRET)')], None),
+        (503, [('Retry-After', '33'), ('Retry-After', '44')], None),
+        (503, [('Retry-After', '33'), ('Connection', 'keep-alive, Retry-After')], None),
+    ]
+    observed: list[tuple[str, bytes]] = []
+    upstream_body = json.dumps({'error': {'code': 'internal_server_error', 'message': credential}}).encode()
+    expected_body = upstream_body.replace(credential.encode(), b'[redacted]')
+
+    class Upstream(BaseHTTPRequestHandler):
+        def log_message(self, *_args: object) -> None:
+            pass
+
+        def do_POST(self) -> None:
+            index = len(observed)
+            observed.append((self.path, self.rfile.read(int(self.headers['Content-Length']))))
+            status, headers, _expected = cases[index] if index < len(cases) else (503, [('Retry-After', '33')], None)
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('X-Private', 'HOST_ONLY_SECRET')
+            for name, value in headers:
+                self.send_header(name, value)
+            self.end_headers()
+            self.wfile.write(upstream_body)
+
+    upstream = ThreadingHTTPServer(('127.0.0.1', 0), Upstream)
+    thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    thread.start()
+    (tmp_path / 'memory.json').write_text('{"provider":"fixture","model":"selected"}')
+    (tmp_path / 'models.json').write_text(json.dumps({'providers': {'fixture': {
+        'apiKey': credential, 'baseUrl': f'http://127.0.0.1:{upstream.server_address[1]}/v1',
+        'api': api, 'models': [{'id': 'selected'}],
+    }}}))
+    monkeypatch.setattr(docker_experiment.http.client, 'HTTPSConnection',
+        lambda *_args, **_kwargs: http.client.HTTPConnection('127.0.0.1', upstream.server_address[1], timeout=5))
+    try:
+        with InferenceProxy(tmp_path, jev_key='LOCAL_JEV_KEY', expected_api=api,
+                            request_budget=len(cases) + 1) as proxy:
+            body = b'{"model":"selected","input":[]}' if api == 'openai-responses' else b'{"model":"selected","messages":[]}'
+
+            def request(path: str, payload: bytes) -> tuple[int, dict[str, str], bytes]:
+                connection = http.client.HTTPConnection('127.0.0.1', proxy.server.server_address[1], timeout=5)
+                try:
+                    connection.request('POST', path, payload, headers={'Authorization': f'Bearer {proxy.token}'})
+                    response = connection.getresponse()
+                    return response.status, dict(response.getheaders()), response.read()
+                finally:
+                    connection.close()
+
+            for index, (status, _headers, expected) in enumerate(cases):
+                actual_status, headers, data = request(route, body)
+                assert actual_status == status and data == expected_body
+                if expected is not None and credential in expected:
+                    expected = None
+                assert headers.get('Retry-After') == expected
+                assert headers.get('Connection') == 'close' and 'X-Private' not in headers
+                assert headers.get('Retry-After') != credential
+                assert observed == [(route, body)] * (index + 1)
+                assert proxy.requests == index + 1 and proxy.errors == index + 1
+
+            # Jev's existing one-attempt policy receives no new retry hint.
+            status, headers, data = request('/jev/v1/systemone', b'{"model":"jev-1.13.0"}')
+            assert status == 503 and data == expected_body and 'Retry-After' not in headers
+            assert proxy.jev_requests == 1 and proxy.requests == len(cases) + 1
+            assert request(route, body)[0] == 429
+            assert len(observed) == len(cases) + 1 and proxy.requests == len(cases) + 1
+            assert proxy.wait_for_quiescence(timeout=2)
+    finally:
+        upstream.shutdown()
+        upstream.server_close()
+        thread.join(timeout=5)

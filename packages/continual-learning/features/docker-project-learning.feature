@@ -13,3 +13,12 @@ Feature: Learning on real open-source projects in isolated Docker containers
     Then host authentication stays outside the image and project containers
     And the proxy permits only the selected model and inference endpoints
     And failures, retries and missing outputs remain visible in the experiment report
+
+  Scenario: Model retry headers reach the HTTP client without extra retries
+    Given the model service returns a valid Retry-After delay or HTTP date
+    When the bounded experiment proxy forwards that response
+    Then the HTTP client receives the original status and accepted retry delay
+    And existing error-body credential redaction remains unchanged
+    And the proxy adds no retry or wait and retains the existing request budget
+    And absent, malformed, duplicate, credential-bearing or hop-by-hop retry headers are not forwarded
+    And Jev keeps its existing independent retry policy

@@ -23,12 +23,15 @@ def test_real_generation_schema_expansion_retains_every_legacy_constraint_and_re
       import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
       const old=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-memory-generation-schema.json','utf8')).schema;
       const refs=old.properties.operations.items.anyOf[0].properties.evidence.items.properties.ref.enum;
-      const domain={indices:[...new Set(refs.map(ref=>Number(/^e(\d+)/.exec(ref)[1])))],refs};
+      const domain={indices:[...new Set(refs.map(ref=>Number(/^e(\d+)/.exec(ref)[1])))],refs,fileRefs:refs};
       const current=learningOutputSchema('memory-delta',domain);
-      // The original two producer branches stay byte-equivalent after reference
-      // expansion. The project source-unit branch is a distinct capability.
+      // When every synthetic catalog position is file-capable, the original two
+      // branches remain equivalent after expansion. Real fileRefs is a strict
+      // parent-derived subset; the new producer source unit is a distinct capability.
       const legacy=structuredClone(current);
-      const added=legacy.properties.newMemories.items.anyOf.splice(old.properties.newMemories.items.anyOf.length);
+      const added=legacy.properties.newMemories.items.anyOf.splice(1);
+      // Fresh project source excerpts moved to atomic knowledge; legacy remains unchanged.
+      legacy.properties.newMemories.items.anyOf.push(old.properties.newMemories.items.anyOf[1]);
       const projectProducerMoved=JSON.stringify(legacy.properties.newMemories.items.anyOf[0].properties.kind.enum)==='["preference"]';
       // Only the initial producer's project representation moves to knowledge.
       // Restore this declared difference for the exact legacy constraint check.
@@ -36,7 +39,7 @@ def test_real_generation_schema_expansion_retains_every_legacy_constraint_and_re
       const expand=value=>{
         if(Array.isArray(value))return value.map(expand);
         if(!value||typeof value!=='object')return value;
-        if(value.$ref){if(value.$ref!=='#/$defs/memorySourceReference')throw Error('Unexpected ref');return current.$defs.memorySourceReference;}
+        if(value.$ref){const key=value.$ref.slice('#/$defs/'.length);if(!['memorySourceReference','memoryFileSourceReference'].includes(key))throw Error('Unexpected ref');return current.$defs[key];}
         return Object.fromEntries(Object.entries(value).filter(([key])=>key!=='$defs').map(([key,item])=>[key,expand(item)]));
       };
       const sort=value=>Array.isArray(value)?value.map(sort):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,sort(value[key])])):value;

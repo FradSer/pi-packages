@@ -10,7 +10,14 @@ import registerGuidance from "../extensions/harness-guidance.ts";
 export default function(pi: ExtensionAPI): void {
   registerGuardrails(pi);
   registerGuidance(pi);
-  pi.on("session_start", () => fs.writeFileSync(process.env.PI_HARNESS_READY!, "ready"));
+  let calls = process.env.PI_HARNESS_FOLLOWUP === "1" ? 6 : 0;
+  pi.on("session_start", (event, ctx) => {
+    if (event.reason === "reload" && process.env.PI_HARNESS_REAL !== "1") {
+      calls = ctx.sessionManager.getBranch().filter(entry => entry.type === "message"
+        && entry.message.role === "assistant" && entry.message.api === "harness-first-fixture").length;
+    }
+    fs.writeFileSync(process.env.PI_HARNESS_READY!, "ready");
+  });
   pi.on("agent_end", () => fs.appendFileSync(process.env.PI_HARNESS_ENDED!, "ended\n"));
   const target = path.join(process.cwd(), ".pi/harness.json");
   const schemaDocs = new Set<string>(JSON.parse(process.env.PI_HARNESS_SCHEMA_DOCS ?? "[]"));
@@ -31,7 +38,6 @@ export default function(pi: ExtensionAPI): void {
     }
   });
   if (process.env.PI_HARNESS_REAL === "1") return;
-  let calls = process.env.PI_HARNESS_FOLLOWUP === "1" ? 6 : 0;
   const crossTurn = process.env.PI_HARNESS_CROSS_TURN === "1" && process.env.PI_HARNESS_FOLLOWUP !== "1";
   const candidate = {rules: [{id: "d0-traffic-safeguard", text: String.raw`\bD0\b`,
     instructions: "涉及 D0 流量的工作应先确认服务预算与现有保护，优先本地验证，避免无界并发、重复请求和未经确认的压测；遇到限流先停止并查明原因。未确认预算时先询问，不假定数值。"}]};
@@ -40,7 +46,7 @@ export default function(pi: ExtensionAPI): void {
     models: [{id: "deterministic", name: "First Harness authoring fixture", reasoning: false, input: ["text"],
       contextWindow: 200000, maxTokens: 256, cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}}],
     streamSimple(model, context) {
-      assert.ok(++calls <= (crossTurn ? 9 : 7), "Unexpected native authoring loop");
+      assert.ok(++calls <= (crossTurn ? 12 : 7), "Unexpected native authoring loop");
       const step = calls - (crossTurn ? 1 : 0);
       const results = context.messages.filter(message => message.role === "toolResult");
       const last = results.at(-1);
@@ -77,8 +83,13 @@ export default function(pi: ExtensionAPI): void {
         if (step === 6) assert.ok(last && last.role === "toolResult" && !last.isError);
         if (step >= 7) {
           const system = [context.systemPrompt ?? "", ...context.messages.filter(message => message.role === "system").map(message => JSON.stringify(message))].join("\n");
-          assert.ok(system.includes(candidate.rules[0].instructions) && system.includes("[harness:d0-traffic-safeguard]"), "Scoped guidance missing from actual model request");
-          pi.appendEntry("harness-first-model-context", {step, scopedGuidance:true});
+          const scopedGuidance = system.includes(candidate.rules[0].instructions) && system.includes("[harness:d0-traffic-safeguard]");
+          assert.equal(scopedGuidance, process.env.PI_HARNESS_NEGATIVE !== "1", "Actual model request has missing or out-of-scope guidance");
+          if (scopedGuidance) {
+            const header = `Only for subjects matching ${JSON.stringify(candidate.rules[0].text)}; a historical match does not extend this guidance to unrelated tasks.`;
+            assert.ok(system.includes(header) || system.includes(JSON.stringify(header).slice(1, -1)), "Exact subject selector missing from scoped guidance");
+          }
+          pi.appendEntry("harness-first-model-context", {step, scopedGuidance});
         }
         content = [{type: "text", text: step === 6 ? "已创建 D0 流量保护指引；这是上下文指引，不是强制限流器。" : "D0 后续任务已收到保存的保护指引。"}];
         stopReason = "stop";

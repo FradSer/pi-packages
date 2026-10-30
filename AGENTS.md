@@ -46,6 +46,12 @@ run both suites and tsc. Runtime changes require `pnpm check:install` and
 live `pi --print` verification; test TUI interactively. Package moves must
 update installed paths in `~/.pi/agent/settings.json`.
 
+### Test & Experiment Language Separation
+
+Keep TypeScript packages and Python experiment harnesses cleanly separated:
+- **TypeScript/Node packages**: Package extensions, tools, widgets, and schemas must have their unit/contract tests run natively in Node/Bun (`bun test` or `tsx --test`). Never write Python tests that act as trivial bridges by embedding JavaScript strings and invoking `subprocess.run(["node", ...])` or `run_bun`.
+- **Python for Experiments & Research**: Python is a first-class language in this repo for continual-learning studies, Docker harnesses, AI experiment loops, data analysis, and repository verification. Python test suites and study harnesses (`uv run pytest`) run independently and parallelized with `pytest-xdist`.
+
 ## Real Pi Terminal Verification
 
 For TUI changes, run the actual `pi` CLI in an interactive terminal or a PTY.

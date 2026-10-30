@@ -11,6 +11,27 @@ TESTS = Path(__file__).parent
 sys.path.insert(0, str(TESTS))
 
 from live_manual_harness import _inspect_native_authoring, _validate_authored_rules  # noqa: E402
+from live_harness_first_run import current_guidance_delivered  # noqa: E402
+
+
+def test_current_guidance_requires_every_authored_revision_and_body() -> None:
+    authored = {'rules': [{'id': name, 'instructions': f'{name} body'} for name in ('first', 'second')]}
+    expected = [{'id': name, 'revision': f'{name}-revision'} for name in ('first', 'second')]
+    records = [
+        {'type': 'custom', 'customType': 'harness-guidance-delivery',
+         'data': {'entries': [{**entry, 'status': 'active'} for entry in expected]}},
+        {'type': 'message', 'message': {'role': 'system', 'sections': {
+            'harness_guidance': '[harness:first] first body\n[harness:second] second body'}}},
+    ]
+    assert current_guidance_delivered(records, authored, expected)
+    assert not current_guidance_delivered(records, authored, [])
+    records[0]['data']['entries'].pop()
+    assert not current_guidance_delivered(records, authored, expected)
+    records[0]['data']['entries'].append({**expected[1], 'status': 'active'})
+    records[1]['message']['sections']['harness_guidance'] = '[harness:first] first body'
+    assert not current_guidance_delivered(records, authored, expected)
+    records[1]['message']['sections']['harness_guidance'] += '\n[harness:second] stale body'
+    assert not current_guidance_delivered(records, authored, expected)
 
 
 def _session(path: Path, messages: list[dict]) -> None:

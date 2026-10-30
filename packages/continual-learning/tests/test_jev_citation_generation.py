@@ -67,21 +67,31 @@ def test_generation_prompts_require_claim_specific_original_citations() -> None:
     assert 'does not authorize compressing an already correct record' in value['knowledge']
     # Given a maintenance fact or failure observation, When choosing its format,
     # Then keep its purpose without requiring an unrelated declaration dump.
-    # Exact declared-API records retain the original complete-declaration rule.
+    # Fresh generation uses one cited-text catalog representation, while
+    # validated old atomic inputs and maintenance retain their reader contracts.
     # This proves framing only, not model compliance or learning benefit.
     initial = value['prompts'][0]
     assert 'use `description` plus `knowledge` instead of `content` and `evidence`' in initial
-    assert '"sourceCitationIndex":0' in initial
-    assert 'classification justified by the evidence; source copying grants no sharing permission' in initial
+    import json
+    example_line = next(line for line in initial.splitlines() if line.startswith('`{"name":"contract.md"'))
+    example = json.loads(example_line[1:-2])
+    declaration, context = example['knowledge']['units']
+    assert set(declaration) == {'text', 'citationIndexes'}
+    assert declaration['text'] and declaration['citationIndexes'] == [0]
+    assert set(context) == {'text', 'citationIndexes'}
+    assert context['citationIndexes'] == [0, 1] and context['text']
+    assert '"sourceCitationIndex"' not in initial and '"fileSourceRef"' not in initial
+    assert '"kind":"declared-api-relation"' not in initial
+    assert 'do not repeat separate factory/owner/member fields' in initial
+    assert 'complete' in example['knowledge']['sourceCitations'][0]['ref']
+    assert 'source copying grants no sharing permission' in initial
     assert 'generate new project proposals with `knowledge`' in initial
-    assert 'exact copying does not make a partial selection complete' in initial
     assert '**Why** and **How to apply**' in initial
     assert 'Keep the complete exact declaration inline' in initial
     assert 'When the knowledge is an inspected declared API contract' in initial
     # Given the real record mixes runtime observations and a declared return
     # claim, a behavior-record exemption must not erase its type obligations.
     # Pure observations keep the existing conditional declaration requirement.
-    import json
     from pathlib import Path
     fixture = json.loads((Path(__file__).parent / 'fixtures/real-description-body-conflict.json').read_text())['hybridDeclarationCase']
     assert fixture['sourceVersion'] in fixture['content']

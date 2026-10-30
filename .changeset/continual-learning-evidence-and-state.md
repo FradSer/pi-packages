@@ -825,3 +825,39 @@ callbacks, imports, merged declarations and shadowed type parameters do not
 supply guessed bindings. Keep all original references and citation bounds. The
 view neither generates stored knowledge nor establishes complete extraction,
 semantic approval, runtime behavior or improved later tasks.
+
+Change the representation of new project knowledge to retain complete observed
+function declarations already selected and used by a text unit's citations.
+Preserve explicit units and references, avoid duplicate source blocks, and count
+the added observed-source blocks toward the existing limits before full review.
+This adds declaration context, including parameter types, to the proposed body;
+it is a prospective representation policy, not a claim that the previous
+materializer lost explicit units. Do not infer current truth or runtime behavior,
+change existing-entry correction contracts, or rejudge historical held plans.
+Keep the original privacy, source and semantic gates and all failures and costs.
+
+Constrain fresh source-unit generation with a parent-derived file-reference domain
+and an explicit reference paired with the model-selected citation index. Verify
+the pair before the unchanged current-file resolver. Keep terminal observations
+as ordinary text evidence, and retain the same frozen domain in the existing
+single structural correction. Do not infer file authority, convert terminal
+results, repair source indexes or change legacy and semantic-correction formats.
+Before source materialization, let the model update both paired references in
+that same correction; keep materialized citation-only correction unchanged.
+
+Validate source-derived role closure before reviewing newly generated project API
+knowledge. An observed export map and selected local wrapper/call context must
+prove one factory, named return owner and direct member. Send missing roles to
+the existing single structural correction and retain the parent obligation across
+that rejected draft's correction, until complete materialization. Require explicit model-selected citations before preserving
+neutral observed relationships in the body. Keep the original user's explicit
+same-sentence topic constraint, while allowing related statements across sentences
+within one used source-cited knowledge unit. Do not combine separate units or
+descriptions. Do not resolve imports, infer runtime
+truth, add unselected references, change semantic thresholds or rejudge old plans.
+Native and local checks do not establish extraction quality or later task benefit.
+
+Preserve explicit proxy transport in the initial Memory planner without
+inheriting unrelated credentials or arbitrary Node startup code. Verify Harness
+scoped delivery across native Pi reload, skill invocation and Bash results;
+require every authored revision in live acceptance and run native tests in CI.
