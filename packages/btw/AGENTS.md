@@ -10,8 +10,8 @@
 - `src/overlay.ts` owns input, conversation turns, scrolling, and cancellation.
 - `features/btw.feature` defines behavior. `tests/` verifies it through Python and TypeScript.
 
-Read @README.md for usage. Read @../../AGENTS.md for shared repository rules.
-For UI changes, read the installed Pi `docs/tui.md` and its applicable examples.
+Read @README.md for usage. For UI changes, read the installed Pi `docs/tui.md`
+and its applicable examples.
 
 ## Contracts
 

@@ -42,6 +42,17 @@ pi install npm:pi-continual-learning
 | `/harness` | Open the Harness rules panel and choose its write scope |
 | `/harness <request>` | Create or update a rule in project shared configuration by default |
 
+## Docker Isolation and Real Model Acceptance
+
+`pi-continual-learning` supports containerized Docker verification with **Pi 1.4** and real model gateways such as **`(magpie) group/smart-split`**. 
+
+End-to-end container acceptance establishes:
+1. **Real Model Task Execution**: The agent processes project source files and instructions under Pi 1.4 with `group/smart-split`.
+2. **Consolidation**: Executing `/consolidate full` prompts the model worker to extract durable project facts and safety rules, which are validated via `validate-consolidate.py`.
+3. **Memory & Harness Persistence**: Safe memories are written to `.memory/` and refreshed in `MEMORY.md`, while executable validation rules are committed to `.pi/harness.json`.
+4. **Subsequent Usability**: A fresh session in the same project automatically indexes and retrieves the learned memory and enforces the active harness rules.
+
+
 The `/memory` panel has three top-level entries: **Browse memories**, **Learning
 settings**, and **Recent learning**. Phase policies are under **Advanced** in
 Learning settings. Lists scroll with keyboard focus; history targets precede
