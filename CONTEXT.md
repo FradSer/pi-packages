@@ -9,9 +9,9 @@ The active objective is the resumed Pi 1.4.0 / gpt-6-luna continual-learning
 Memory loop and its use of actual Pi work context for Memory and scoped Harness.
 After native ChatGPT rejected Fast, the user approved the same Luna without Fast.
 Resources remain authorized; the learning objective is still incomplete.
-The fixed native recovery reached initial coverage review but stored no Memory.
-Do not redraw its held plan or start dependent tasks. The reviewed trigger fix
-stops positive coverage low confidence alone from starting unsupported correction.
+The native recovery reached coverage review but stored no Memory. Independent
+inspection found an omitted internal implementation relation; source-bound
+generation checks now preserve it. Do not redraw the held plan or bypass gates.
 @TODO.md records the small Memory/control comparison after a complete real loop.
 
 Read @packages/continual-learning/CONTEXT.md for the authoritative architecture,

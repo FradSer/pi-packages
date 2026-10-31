@@ -2,7 +2,7 @@ import {memoryWorkerEnvironment} from "./memory-worker-environment";
 import {assertFreshMemoryProjectOutput, hasTypedMemorySourceUnits, type NativeMemoryRepairBinding} from "./planner-output-schema";
 import {reviewMemoryCoverage, memoryCoverageReviewDigest, prepareMemoryCoverageJudgment, type MemoryCoverageContext, type MemoryCoverageReview} from "./memory-knowledge-coverage";
 import {MemoryUseTracker, type MemoryUseScope} from "./memory-retrieval";
-import {materializeSourceExcerptPlan, materializeSemanticProjectKnowledge, selectedProjectSourceObligations, retainProjectSourceObligations, assertSourceExcerptBindings, sourceRoleOnlyRepairAdmitted} from "./source-excerpt-memory";
+import {materializeSourceExcerptPlan, materializeSemanticProjectKnowledge, selectedProjectSourceObligations, retainProjectSourceObligations, assertSourceExcerptBindings, sourceRoleOnlyRepairAdmitted, assertSourceRoleUnitSupport, sourceRoleRangeChoices} from "./source-excerpt-memory";
 import {MemoryRelationClosureError} from "./memory-relation-closure";
 import {plannerStructuredOutputEnabled} from "./config";
 import {independentMemoryRoles, memoryRewriteTextComparisons} from "./jev-memory-predecessors";
@@ -1485,7 +1485,8 @@ export function bindSemanticMemoryAmendment(original: unknown, amendment: unknow
 
 /** Citation patches preserve claims except explicitly admitted delete-to-rewrite reconsideration. */
 export function bindMemoryCitationAmendment(original: unknown, amendment: unknown,
-  identity: IncrementalMemoryRepairInput["identity"], reconsiderClassifications?: Readonly<Record<string, "safe" | "private">>, sourceRoleUnitIds?: readonly string[]): unknown {
+  identity: IncrementalMemoryRepairInput["identity"], reconsiderClassifications?: Readonly<Record<string, "safe" | "private">>, sourceRoleUnitIds?: readonly string[],
+  sourceRoleContext?: {snapshot: unknown; cwd: string}): unknown {
   const response = asRecord(amendment), plan = asRecord(original);
   if (sourceRoleUnitIds && (!sourceRoleUnitIds.length || sourceRoleUnitIds.length > 32 || sourceRoleUnitIds.some((id, index) => id !== `unit:${index}`))) throw new Error("Invalid parent source-role ordinals");
   if (!response || !plan || Object.hasOwn(response, "withdrawals") || !Array.isArray(response.replacements) || !response.replacements.length
@@ -1537,6 +1538,10 @@ export function bindMemoryCitationAmendment(original: unknown, amendment: unknow
         units = units.map((value, index) => ({...asRecord(value), citationIndexes: mappings.get(sourceRoleUnitIds[index])}));
       }
       replacement = {...prior, knowledge: {...knowledge, sourceCitations: patch.evidence, units}};
+      if (sourceRoleUnitIds) {
+        if (!sourceRoleContext) throw new Error("Missing source-role support context");
+        assertSourceRoleUnitSupport(knowledge, replacement.knowledge, sourceRoleContext.snapshot, sourceRoleContext.cwd);
+      }
     }
     if (Object.hasOwn(patch, "content")) {
       if (candidate.field !== "operations" || prior.kind !== "delete" || typeof patch.content !== "string"
@@ -1851,7 +1856,7 @@ function projectRepairKnowledge(item: Record<string, unknown>): unknown | undefi
 }
 
 /** Same parent capture before structural or admitted atomic semantic correction. */
-function captureProjectRepairSources(input: IncrementalMemoryRepairInput) {
+async function captureProjectRepairSources(input: IncrementalMemoryRepairInput) {
   if (!input.sourceExcerptRun || !input.semanticContext || input.citationOnly
     || !input.structuralCorrection && !input.atomicBodyEvidence) return undefined;
   if (!boundSemanticSourceSnapshot(input.semanticContext.frozenEvidence, input.identity)
@@ -1871,6 +1876,17 @@ function captureProjectRepairSources(input: IncrementalMemoryRepairInput) {
     }
   }
   const obligations = selectedProjectSourceObligations(input.sourceExcerptRun);
+  if (input.sourceRoleNative && input.structuralCorrection && input.requireNewProjectKnowledge && input.sourceRoleOnlyError
+    && sourceRoleOnlyRepairAdmitted(input.sourceExcerptRun, input.rejectedPlan, input.semanticContext.frozenEvidence, input.sourceRoleOnlyError)) {
+    for (const item of Array.isArray(plan?.newMemories) ? plan.newMemories : []) {
+      const proposal = asRecord(item);
+      if (typeof proposal?.name !== "string" || !obligations[proposal.name.toLowerCase()]) continue;
+      const choices = await sourceRoleRangeChoices(input.sourceExcerptRun, proposal.name, proposal.knowledge, input.semanticContext.frozenEvidence);
+      if (!choices.length) continue;
+      const value = obligations[proposal.name.toLowerCase()];value.sourceRangeChoices = choices;
+      if (Buffer.byteLength(JSON.stringify(obligations)) > 32_000) delete value.sourceRangeChoices;
+    }
+  }
   return Object.keys(obligations).length ? obligations : undefined;
 }
 
@@ -1983,8 +1999,8 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   let sourceReview: Awaited<ReturnType<typeof boundRepairSourceReview>>;
   try {sourceReview = await boundRepairSourceReview(input);}
   catch (error) {return {outcome: "failed", durationMs: Date.now() - startedAt, failureKind: "intent", error: (error as Error).message};}
-  let selectedDeclarationObligations: ReturnType<typeof captureProjectRepairSources>;
-  try {selectedDeclarationObligations = captureProjectRepairSources(input);}
+  let selectedDeclarationObligations: Awaited<ReturnType<typeof captureProjectRepairSources>>;
+  try {selectedDeclarationObligations = await captureProjectRepairSources(input);}
   catch (error) {return {outcome: "failed", durationMs: Date.now() - startedAt, failureKind: "intent", error: (error as Error).message};}
   const sourceReviewDigest = sourceReview ? sha256Digest(JSON.stringify(input.sourceReview)) : undefined;
   const historicalDigest = input.memoryOrigins?.originsDigest;
@@ -2543,7 +2559,8 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   }
   if (sparseCitation) {
     try {
-      plan = bindMemoryCitationAmendment(input.rejectedPlan, plan, input.identity, reconsiderDeletion ? selectedClassifications : undefined, sourceRoleUnitIds);
+      plan = bindMemoryCitationAmendment(input.rejectedPlan, plan, input.identity, reconsiderDeletion ? selectedClassifications : undefined, sourceRoleUnitIds,
+        sourceRoleUnitIds ? {snapshot: input.semanticContext!.frozenEvidence, cwd: input.sourceExcerptRun!.manifest.cwd} : undefined);
       if (sourceRoleUnitIds) {
         const item = asRecord((asRecord(plan)!.newMemories as unknown[])[0])!;
         materializeMemoryKnowledge(`---\nname: ${JSON.stringify(item.name)}\ndescription: ${JSON.stringify(item.description)}\ntype: project\n---\n`, item.knowledge, input.semanticContext!.frozenEvidence);

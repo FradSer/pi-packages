@@ -49,6 +49,7 @@ const ALLOWED_EXACT: readonly string[] = [
   "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
   "http_proxy", "https_proxy", "no_proxy", "all_proxy",
   "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS",
+  "MAGPIE_BASE_URL", "CLIPROXYAPI_BASE_URL", "CLIPROXYAPI_HOST", "CLIPROXYAPI_HOST_PORT",
   // Node and language toolchain locations. These are paths, not credentials;
   // version managers put shell-specific entries on PATH that resolve through them.
   "NODE_OPTIONS", "NODE_PATH",

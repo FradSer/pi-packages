@@ -77,7 +77,7 @@ Reject escapes, symlinks and replaced roots. See @docs/adr/0003-auto-memory-inde
   are separate conditions. Controlled fixtures and green tests prove mechanics,
   never real-model learning or causal improvement. Use tracking retains unknowns.
 
-## Latest native recovery: held coverage, no Memory
+## Latest native recoveries: no Memory
 
 `W/pi-native-codex-20261029/native-context-system-proxy/` retains source-v1:
 4 model requests, 16,093 tokens, reported USD0.00143074000000000011; six successful
@@ -88,22 +88,35 @@ The October 30 recovery first failed in 0.922s: its hardcoded proxy was now clos
 Credential-free checks proved proxy ECONNREFUSED and direct HTTP401 reachability.
 `W/pi-native-codex-20261029/native-context-recovery-20261030-direct/memory-v1/settlement.json`
 binds the fresh direct owner, complete successful source plus both failed suffixes.
-Audit and initial generation completed. The first draft contained the relationship
-but omitted three declaration-role citations; existing structural correction fixed them.
-Body review was consistent and intrinsic checks passed .9/.8. Coverage selected
-complete at .56/.34 and .55/.33; no remaining relation defect or low-score cause
-was established. No old plan was redrawn. The automatic semantic correction then
+Audit and generation completed; structural correction fixed three missing declaration citations.
+The later independent source audit found a further body omission: the internal
+generator's `clearQueue` definition and return. See `W/runtime-relation-diagnosis-20261030/`.
+Body consistency and intrinsic .9/.8 passed; coverage selected complete at .56/.34
+and .55/.33. The judge supplied no witness; whether the omission caused these scores is unknown.
+No old plan was redrawn. The automatic semantic correction then
 failed after 335.693s, exit1, not a parent timeout; cause and usage remain unknown.
 Total duration 452.782s; 160,332 known tokens/reported USD0.01782784, seven native
 assistant terminal records (six complete usage), seven Jev requests/input estimate
 USD0.008253210000000001. Actual native HTTP count/billing remain unknown.
 Zero stored entries; four downstream stages unrun. Both failed recoveries remain.
 Do not rerate this held plan. Positive coverage low confidence alone no longer starts unsupported correction.
-Verified: 2,606 Python passed/1 skipped, 49 native, typecheck/pack, controlled Pi 1.4 hold and independent review.
-Harness remains off. A passing future loop would still need the comparison in @TODO.md.
+Source-role repair requires selected/used same-file implementation roles and neutral syntax.
+Fresh owner `W/pi-native-codex-20261029/runtime-relation-20261030-v2/` failed before
+Jev: the one structural repair exhausted eight citations, missed the declaration
+factory and dropped original per-unit support. Zero writes; later stages did not run.
+Settlement records 130,130 known tokens/reported USD0.0136474; aggregate usage,
+actual HTTP count and billing remain unknown. Do not replay its rejected plan.
+Structural repair now preserves each unit's explicit support and offers bounded,
+source-verified citation ranges without selecting or authorizing them. Independent
+review, 2,620 Python checks/1 skip, 121 native checks, typecheck and pack passed;
+four controlled Pi 1.4 paths passed. Fresh `runtime-citation-preservation-20261030-v1`
+then failed in source audit after 7.387s: no validated reads, writes or Jev. One
+assistant usage record is incomplete; actual requests and billing are unknown.
+Its receipt lacks a terminal category, so its exact cause is unknown. Later audit
+receipts retain safe terminal kind/exit code; existing source gates are unchanged.
+Harness remains off. A passing loop would still need the comparison in @TODO.md.
 
 ## Historical attempts and costs
-
 V21: `W/foreground-owner-v21/run-output/results.json`, Pi 1.4 / gpt-6-luna,
 4 model errors, 0 tools/Jev/Memory, 3 proxy errors, 5 dependent stages unrun.
 Admission consumed; transport quiesced. Native zero usage does not establish zero
@@ -117,9 +130,8 @@ tokens and 5 failed); 6 metadata GETs, 4 unobserved-send GET intents and 4 TCP p
 Native1-3 usage and first quiescence remain unknown; native2-5 quiesced. Native4
 HTTP200 ended in SDK error; native5 HTTP503 exposed bounded auth_unavailable and
 separate server error codes. A time-correlated Retry-After33 lacks exact wire binding.
-The Docker proxy now forwards valid retry headers: 128 checks, typecheck, pack and
-independent review passed; no retries/deadlines/gates changed. Pi outer retries
-ignore that header. See `W/retry-after-repair-20261029/` and
+The Docker proxy forwards retry headers; 128 checks and review passed without gate changes.
+Pi outer retries ignore that header. See `W/retry-after-repair-20261029/` and
 `W/independent-v22-owner-admission/diagnostic-accounting-after-native-5.json`.
 Direct Codex Luna Fast separately returned OK in 11.594s, one CLI turn, 13,437 input,
 8,320 cached/5 output; actual served tier and billing remain unknown.
@@ -146,33 +158,28 @@ semantic correction added the missing internal generator relation. V19 corrected
 requested-user provenance that had pointed to a tool result; it reached final
 semantic review but remained held. Their original failures and costs remain.
 
-V21 compatibility: 2,606 passed/1 skipped, typecheck/pack passed, actual Pi 1.3;
-see `W/v21-compat-full-package-settlement.json`. Actual Pi 1.4 checks are separate.
-`W/native-pi14-frozen-v21-body-fixture-a/` retains the failed legacy BODY fixture
-and corrected standalone pass; 108 production files matched before/after.
-The full suite did not test that supplemental script.
+V21 compatibility: 2,606 passed/1 skipped, typecheck/pack passed on Pi 1.3; `W/v21-compat-full-package-settlement.json`.
+`W/native-pi14-frozen-v21-body-fixture-a/` retains a failed legacy fixture and corrected Pi 1.4 standalone pass;
+108 production files matched. The full suite did not test that supplemental script.
 Controlled tests establish mechanics only. Installation still reports eight
 unrelated missing packages; target configured. Host Pi was reverified as 1.4.0
 on October 29. Use uv Python 3.14 / corepack pnpm 11.21.0.
 
 ## Acceptance and continuation
 
-Current freeze: `W/frozen-source-native-recovery-20261030`, 1,384 source/17 native files.
-Manifest SHA256: `411f8b1f1e243fb5bedede0d47c8e92b3648b27467165ea43ca7a158c456e48a`.
-Historical V21 freeze/bindings remain under `W/frozen-source-v21` and its owner protocol.
+Last consumed freeze: `W/frozen-source-citation-preservation-20261030`, 1,390 source/17 native files; manifest SHA256 `3d37fda2ae2994f7523479ccb294a133585d01794ddc7eef7ab54e77472c9f21`.
 
-`W/codex-luna-fast-call-20261029/result.json` proves the Codex CLI call only;
+`W/codex-luna-fast-call-20261029/result.json` proves only the Codex CLI call;
 `W/pi-native-codex-20261029/settlement.json` retains failed native calls.
 OAuth login succeeded; Fast failed with bounded 400/service_tier/unsupported.
 Reported usage was zero; actual billing/HTTP count unknown. Luna ordinary is approved.
 Retain V22's old preflight; changed transport needs fresh admission. Never redraw V21.
 Keep original public revisions, six tasks, prompts, oracle, effort and every gate.
 No seeds, forced reads, shrinking, extra stages or hidden retries. Storage, natural
-complete-revision use, SAME BODY correction, physical history/mirrors and corrected
-use remain unverified. A passing loop would not establish broad or causal improvement.
+use, SAME BODY correction, physical history/mirrors and corrected use remain unverified.
+A passing loop would not establish broad or causal improvement.
 
 ## Harness delivery verification
-
 Actual Pi 1.4 TUI verifies authoring, same-session reload, repeated scoped text
 delivery with one lifecycle row, and three fresh-session nonmatches. Native
 Skill/Bash and RPC checks verify scope and success/failure result attachment.
@@ -181,19 +188,12 @@ Checks: 2611 Python passed/1 skipped, 40 native, typecheck and pack passed.
 Evidence: `W/harness-delivery-pi14-20261029/`; two failed fixture runs retained.
 
 ## History and access limits
-
-Old contexts/hashes remain under `W/context-before-resume-20261026/` and later
-W backups. Historical `/private/tmp/cl-*` files are unavailable; do not reconstruct
-them. Older 545 requests/model lower bound USD7.0637405200000000060/Jev estimate
+Old contexts remain under `W/context-before-resume-20261026/`; do not reconstruct unavailable historical `/private/tmp/cl-*` files.
+Older 545 requests/model lower bound USD7.0637405200000000060/Jev estimate
 USD0.133912254 plus unknowns are prior observations, not freshly verified billing.
 Original audit: `2b369415ca0849268d489ee3ab5c274cf65c5b52889d2d6e2bad1a3f47160c0c`.
-SoL-Pi commit 219568034fa54ed121ede80961655e33dfb9d0e3 was researched, not installed
-or accepted as learning evidence. Current and prior settlements/addenda remain
-separate immutable artifacts; no wording correction replaces original decisions.
-
 Reject `cost-ledger.jsonl`, `authorized-real-study-budget-600.json` and
 `600-active-reservation.json` basenames BEFORE traversal/stat/read. Never access
 the global `continuous-learning-recovery-20261011` subtree or model thinking.
-Use safe parsed plans, typed diagnostics and opaque archive hashes; never inspect
-raw worker stdout/sessions. Learned Harness lifecycle, failure backfill and unseen
-transfer remain unproved; native guidance delivery is verified separately.
+Use safe parsed plans, typed diagnostics and opaque archive hashes; never inspect raw worker stdout/sessions.
+Learned Harness lifecycle, failure backfill and unseen transfer remain unproved.

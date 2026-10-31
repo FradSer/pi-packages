@@ -4,14 +4,25 @@ import {verifyMaintenanceCollectionProof} from "./maintenance-collection-stop";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { runPiWorker, type PiWorkerUsage, type PiWorkerResult } from "@fradser/pi-kit";
+import { runPiWorker, type PiWorkerUsage, type PiWorkerResult, type PiWorkerTerminal } from "@fradser/pi-kit";
 import { MAX_MEMORY_BYTES, readBoundedRegularFile, writeFileAtomic } from "./consolidation-run";
+import { memoryWorkerEnvironment } from "./memory-worker-environment";
 import { discoverPlannerSources, readPlannerFileSnapshot, type PlannerReadObservation, type PlannerReadScope } from "./planner-read-scope";
 import type {MemoryMetadata} from "./incremental-learning";
 
 const MAX_AUDIT_BYTES = 512_000;
 const MAX_AUDIT_READS = 18;
 const observationWrites = new Map<string, Promise<void>>();
+
+/** Retain only the worker's closed safe provenance, never error/output prose. */
+function safeWorkerTerminal(value: unknown): PiWorkerTerminal | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const terminal = value as Record<string, unknown>;
+  if (typeof terminal.kind !== "string" || !["model-error", "cancelled", "process-exit", "spawn-error",
+    "stdout-limit", "jsonl-line-limit", "stderr-limit", "prompt-delivery-error"].includes(terminal.kind)) return undefined;
+  return {kind: terminal.kind as PiWorkerTerminal["kind"],
+    nativeExitCode: Number.isSafeInteger(terminal.nativeExitCode) ? terminal.nativeExitCode as number : null};
+}
 
 /** Explicit maintenance needs current source observations, not remembered claims. */
 export function isMemoryMaintenanceRequest(request: string): boolean {
@@ -60,7 +71,7 @@ export async function auditMemoryMaintenanceSources(input: {
   model?: string; signal?: AbortSignal;
 }): Promise<{
   outcome: "observed" | "failed" | "cancelled"; entries: unknown[];
-  usage?: PiWorkerUsage; usageLedgerId?: string; usageComplete?: boolean; workerOutcome?: "completed" | "failed" | "cancelled"; controlledStopReason?: "complete-read-budget-prefix"; durationMs: number; directory: string;
+  usage?: PiWorkerUsage; usageLedgerId?: string; usageComplete?: boolean; workerOutcome?: "completed" | "failed" | "cancelled"; workerTerminal?: PiWorkerTerminal; controlledStopReason?: "complete-read-budget-prefix"; durationMs: number; directory: string;
   assertSourcesUnchanged: () => Promise<void>;
   assertClaimsUnchanged: () => Promise<void>;
 }> {
@@ -174,13 +185,14 @@ export async function auditMemoryMaintenanceSources(input: {
     JSON.stringify({request: input.request, cwd: input.cwd, memoryFiles: input.memoryFiles, memoryIndex, untrustedMemoryClaims, sourceIndex, readScope, observationsPath, replayPaths: input.replayPaths ?? []}),
   ].join("\n");
   const result: PiWorkerResult = await runPiWorker({prompt, cwd: input.cwd, tools: ["learning_read"], minimal: true,
-    model: input.model, signal: input.signal, extraArgs: ["-e", extension]})
+    model: input.model, signal: input.signal, env: memoryWorkerEnvironment(), extraArgs: ["-e", extension]})
     .catch(() => ({exitCode: 1, text: "", stderr: "", cancelled: input.signal?.aborted, usage: undefined}));
   const hashes = new Map<string, string>();
   const entries: unknown[] = [];
   let valid = result.exitCode === 0 && !result.cancelled && !input.signal?.aborted;
   let controlledStop = false;
   const workerOutcome = result.cancelled ? "cancelled" : result.exitCode === 0 ? "completed" : "failed";
+  const workerTerminal = safeWorkerTerminal(result.terminal);
   const usage = result.usage ?? result.usageLedger?.knownUsage;
   const usageComplete = result.usage !== undefined && result.usageLedger?.complete !== false;
   if (result.usageLedger) await writeFileAtomic(path.join(directory, "source-audit-usage.json"), JSON.stringify({...result.usageLedger, ledgerId: usageLedgerId}));
@@ -232,8 +244,8 @@ export async function auditMemoryMaintenanceSources(input: {
   const outcome = input.signal?.aborted || result.cancelled && !controlledStop ? "cancelled" : valid ? "observed" : "failed";
   await writeFileAtomic(path.join(directory, "receipt.json"), JSON.stringify({version: 1, outcome,
     sourceHashes: Object.fromEntries(hashes), ...(unavailableEditPaths.length ? {unavailableEditPaths} : {}), claimHashes: Object.fromEntries(untrustedMemoryClaims.map(claim => [claim.path, claim.sha256])), observedSourceEntries: entries.length, durationMs: Date.now() - started,
-    workerOutcome, ...(controlledStop ? {controlledStopReason: "complete-read-budget-prefix"} : {}),
+    workerOutcome, ...(workerTerminal ? {workerTerminal} : {}), ...(controlledStop ? {controlledStopReason: "complete-read-budget-prefix"} : {}),
     sourceEvidenceStatus: valid ? controlledStop ? "verified-prefix" : "verified-observations" : "hold",
     usage, usageLedgerId, usageAvailable: usageComplete, usageComplete, mutationAuthorized: false, remoteSourceCalls: 0}));
-  return {outcome, entries: valid ? entries : [], usage, usageLedgerId, usageComplete, workerOutcome, ...(controlledStop ? {controlledStopReason: "complete-read-budget-prefix" as const} : {}), durationMs: Date.now() - started, directory, assertSourcesUnchanged, assertClaimsUnchanged};
+  return {outcome, entries: valid ? entries : [], usage, usageLedgerId, usageComplete, workerOutcome, ...(workerTerminal ? {workerTerminal} : {}), ...(controlledStop ? {controlledStopReason: "complete-read-budget-prefix" as const} : {}), durationMs: Date.now() - started, directory, assertSourcesUnchanged, assertClaimsUnchanged};
 }

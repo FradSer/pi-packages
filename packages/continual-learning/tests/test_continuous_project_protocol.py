@@ -1147,7 +1147,7 @@ def test_initial_policy_caller_retains_both_arms_and_postlaunch_costs(monkeypatc
     assert total['with-learning']['unknownLeaderUsageAttempts']==1
 
 
-def _bound_command_artifacts(tmp_path, *, policy=False, pi_version='1.3.0'):
+def _bound_command_artifacts(tmp_path, *, policy=False, pi_version='1.3.0', command_evidence=None):
     # Synthetic complete files exercise loading, never real model semantics.
     import hashlib,io,json,tarfile
     import live_continuous_project_learning as study
@@ -1155,7 +1155,7 @@ def _bound_command_artifacts(tmp_path, *, policy=False, pi_version='1.3.0'):
     if policy:
         record,bridge,_=_command_policy_transition_fixture()
         command={**bridge['policyEvidence'],'sources':record['sources'],'originalSession':''}
-    else:command=_command_audit_fixture()['commandEvidence']
+    else:command=command_evidence if command_evidence is not None else _command_audit_fixture()['commandEvidence']
     owner={**command['owner'],'container':'owned','piVersion':pi_version}
     owner['sourceHashes']={name:hashlib.sha256(body.encode()).hexdigest()for name,body in command['sources'].items()}
     output=tmp_path/'command';output.mkdir()
@@ -1197,6 +1197,89 @@ def _bound_command_artifacts(tmp_path, *, policy=False, pi_version='1.3.0'):
         audit+'/source-audit-usage.json':json.dumps(command['sourceAudit']['usageLedger']),
         audit+'/observations.jsonl':'\n'.join(json.dumps(row) for row in command['sourceAudit']['observations'])+'\n'}
     return output,inference,artifacts,command
+
+
+def _double_repair_command_artifacts(tmp_path):
+    """Pure Python loader fixture; native TypeScript tests validate provenance."""
+    import hashlib,json
+    from pathlib import Path
+    command=json.loads((Path(__file__).parent/'fixtures/controlled-command-source-proof.json').read_text())
+    ledgers=[{'ledgerId':f'{n:08d}-1111-4111-8111-111111111111','complete':n!=1,
+              'knownUsage':{'input':n,'output':0,'cacheRead':0,'cacheWrite':0,'totalTokens':n,'cost':n/1000}}
+             for n in (1,2,3)]
+    initial,structural,final=ledgers
+    audit=command['receipt']['attempts'][0]
+    command['receipt']['attempts']=[audit,
+        {'phase':'memory','attempt':0,'outcome':'rejected','operations':0,'usageLedgerId':initial['ledgerId'],'usage':initial['knownUsage']},
+        {'phase':'memory','attempt':1,'outcome':'proposed','operations':0,'usageLedgerId':structural['ledgerId'],
+         'usage':structural['knownUsage'],'usageComplete':True,'diagnostic':'Memory structural repair'},
+        {'phase':'memory','attempt':1,'outcome':'noop','operations':0,'usageLedgerId':'body-only','usage':initial['knownUsage']},
+        {'phase':'memory','attempt':2,'outcome':'applied','operations':1,'usageLedgerId':final['ledgerId'],'usage':final['knownUsage'],'usageComplete':True}]
+    rows=[json.loads(line)for line in command['nativeSession'].splitlines()]
+    rows[-1]['details']=command['receipt']
+    command['nativeSession']=command['originalSession']+json.dumps(rows[-1])+'\n'
+    command['stdout']=json.dumps({'type':'message_end','message':{'customType':'continual-learning-result','details':command['receipt']}})+'\n'
+    command['completion']['sessionDigest']=hashlib.sha256(command['nativeSession'].encode()).hexdigest()
+    command['completion']['stdoutDigest']=hashlib.sha256(command['stdout'].encode()).hexdigest()
+    command['usageLedger']=initial
+    output,inference,artifacts,command=_bound_command_artifacts(tmp_path,command_evidence=command)
+    root='runs/--work-p-limit--/'+command['reviewManifest']['runId']
+    for ledger in (structural,final):
+        identity=ledger['ledgerId']
+        artifacts[root+f'/memory-repair-usage-{identity}.json']=json.dumps(ledger)
+        for suffix in ('started','closed'):
+            artifacts[root+f'/memory-repair-lifecycle-{identity}-{suffix}.json']='{}'
+        artifacts[root+f'/memory-repair-response-{identity}.json']='{}'
+    for name in ('generation-original-plan.json','structural-rejection.json','structural-repair-response.json',
+                 'semantic-rejected-plan.json','semantic-repair-plan.json',f"semantic-repair-provenance-{final['ledgerId']}.json"):
+        artifacts[root+'/'+name]='{}'
+    return output,inference,artifacts,command,ledgers
+
+
+def test_command_loader_keeps_all_three_generation_ledgers_without_javascript_bridge(tmp_path,monkeypatch):
+    import live_continuous_project_learning as study
+    monkeypatch.setattr(study.base,'checked',lambda args,**kwargs:b'1.3.0\n')
+    output,inference,artifacts,command,ledgers=_double_repair_command_artifacts(tmp_path)
+    loaded=study.command_review_input(output,inference,artifacts,container='owned')
+    assert loaded['initialUsageLedger']==ledgers[0]
+    assert loaded['structuralUsageLedger']==ledgers[1]
+    assert loaded['usageLedger']==ledgers[2]
+    assert loaded['repairArtifactRunDir']==command['reviewManifest']['runDir']
+    assert loaded['initialUsageLedger']['complete'] is False
+    assert 'usageComplete' not in loaded['receipt']['attempts'][1]
+    assert len(loaded['repairArtifacts'])==15
+
+
+@__import__('pytest').mark.parametrize('damage',[
+    'missing-initial','missing-structural','missing-semantic','foreign-structural','duplicate-structural',
+    'swapped-ledgers','changed-initial-complete','changed-structural-complete','changed-semantic-complete',
+    'reused-audit-id','changed-structural-usage','missing-provenance','missing-original-plan',
+])
+def test_command_loader_rejects_incomplete_or_conflicting_three_ledger_chain(tmp_path,monkeypatch,damage):
+    import json,pytest
+    import live_continuous_project_learning as study
+    monkeypatch.setattr(study.base,'checked',lambda args,**kwargs:b'1.3.0\n')
+    output,inference,artifacts,command,ledgers=_double_repair_command_artifacts(tmp_path)
+    root='runs/--work-p-limit--/'+command['reviewManifest']['runId']
+    names=[root+'/memory-task-usage.json',*[root+f"/memory-repair-usage-{ledger['ledgerId']}.json"for ledger in ledgers[1:]]]
+    if damage.startswith('missing-') and damage in ('missing-initial','missing-structural','missing-semantic'):
+        artifacts.pop(names[('missing-initial','missing-structural','missing-semantic').index(damage)])
+    elif damage in ('foreign-structural','duplicate-structural'):
+        target=names[1].replace(command['reviewManifest']['runId'],'run_foreign')
+        artifacts[target]=artifacts[names[1]]
+        if damage=='foreign-structural':artifacts.pop(names[1])
+    elif damage=='swapped-ledgers':artifacts[names[0]],artifacts[names[1]]=artifacts[names[1]],artifacts[names[0]]
+    elif damage.startswith('changed-') and damage.endswith('-complete'):
+        index=('changed-initial-complete','changed-structural-complete','changed-semantic-complete').index(damage)
+        value=json.loads(artifacts[names[index]]);value['complete']=None if index==0 else False
+        artifacts[names[index]]=json.dumps(value)
+    elif damage=='reused-audit-id':
+        value=json.loads(artifacts[names[0]]);value['ledgerId']=command['sourceAudit']['usageLedger']['ledgerId'];artifacts[names[0]]=json.dumps(value)
+    elif damage=='changed-structural-usage':
+        value=json.loads(artifacts[names[1]]);value['knownUsage']['cost']+=1;artifacts[names[1]]=json.dumps(value)
+    elif damage=='missing-provenance':artifacts.pop(root+f"/semantic-repair-provenance-{ledgers[-1]['ledgerId']}.json")
+    elif damage=='missing-original-plan':artifacts.pop(root+'/generation-original-plan.json')
+    with pytest.raises(ValueError):study.command_review_input(output,inference,artifacts,container='owned')
 
 
 @__import__('pytest').mark.parametrize('damage',['none','replaced','symlink','missing-binding','wrong-container','duplicate-ledger','missing-post','json-array','alias-path'])
@@ -1301,6 +1384,7 @@ def test_command_audit_runtime_installs_its_shared_adapter_without_tools_or_tran
     assert "import('./continuous-command-proof.mts')" in files['/home/node/continuous-memory-audit.mts']
     assert "from '/opt/experiment/packages/continual-learning/extensions/incremental-learning.ts'" in files['/home/node/continuous-command-proof.mts']
     assert "from '/opt/experiment/packages/continual-learning/extensions/learning-replay-feedback.ts'" in files['/home/node/continuous-command-proof.mts']
+    assert "from '/opt/experiment/packages/continual-learning/extensions/consolidation-run.ts'" in files['/home/node/continuous-command-proof.mts']
     assert '../extensions/' not in ''.join(files.values())
 
 

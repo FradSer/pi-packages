@@ -483,6 +483,13 @@ Feature: Select the minimum sufficient scope for incremental learning
     And the manual Harness rule stays unchanged in both cases
     And controlled judgments establish command wiring, not learning benefit
 
+  Scenario: A failed maintenance source worker retains safe terminal provenance
+    Given the source worker returns a known terminal category and native exit status
+    When the parent retains the failed source-audit receipt
+    Then the receipt and returned audit contain only the known category and an integer native status or null
+    And unknown categories, provider error prose and extra fields are omitted
+    And failed observations, unknown usage and every original mutation gate remain unchanged
+
   Scenario: Diagnostic labels do not establish unexecuted work
     Given a diagnostic prints an action label without executing that action
     And a separate failing reproducer executes additional work
@@ -673,6 +680,26 @@ Feature: Select the minimum sufficient scope for incremental learning
     And separate knowledge units and descriptions cannot combine identifiers to create a relationship
     And unrelated user topics, quoted-only intent, ambiguous modules and shadowed or dynamic calls grant no guessed relation
     And the existing manual-initialization-api-closure-repair native case exercises the single repair before complete body review
+
+  Scenario: A selected wrapper relation retains its internal implementation owner
+    Given the same observed factory declares one local callable, defines its named member and returns that callable directly
+    And the original user and a selected cited unit already name the wrapper and member relationship
+    When the proposal selects only the wrapper implementation and declaration roles
+    Then the existing single structural correction requires explicit used factory, local owner, member definition and return source roles
+    When the model selects every role within the existing catalog and quote bounds
+    Then the complete body retains a readable neutral implementation relationship and the original model text
+    And each implementation and declaration file keeps its own complete source hash and mutation checks
+    And ambiguous ownership, shadowing, reassignment, aliases and dynamic definitions add no implementation claim
+    And no source observation proves execution, cancellation, scheduler behavior or learning benefit
+
+  Scenario: Source-role correction preserves each frozen unit's original support
+    Given a sole source-role rejection keeps the original text units and their source citations
+    When the producer replaces the catalog and maps each original unit to explicit new indexes
+    Then every original support span remains covered by that same unit's selected source spans
+    And only complete uniquely paired same-path and same-hash observations can substitute source aliases
+    And bounded safe adjacent-source ranges may be supplied as coordinate data for explicit producer selection
+    And the parent adds no citation, merges no catalog and grants no source or mutation approval from that data
+    And missing support, changed source, sensitive or oversized range choices cannot bypass any original gate
 
   Scenario: Fresh declared API relations normalize complete explicit file-role selections
     Given complete parent-bound project-file observations and ordinary terminal evidence

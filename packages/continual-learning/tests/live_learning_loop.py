@@ -24,9 +24,14 @@ from live_acceptance_support import isolated_environment, workspace_pi
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
 SAFE_COMMAND = "printf CL_OFFLINE_SAFE"
+UPDATED_SAFE_COMMAND = "printf CL_OFFLINE_UPDATED"
 BLOCKED_COMMAND = "printf CL_OFFLINE_BLOCKED"
 MEMORY_QUOTE = "LOOPBACK_MEMORY_FACT"
 HARNESS_QUOTE = "LOOPBACK_HARNESS_RULE"
+UPDATE_PROMPT = (
+    "LOOPBACK_UPDATE_FACT: Correction for future tasks: this project defines the settled local verification command as "
+    "printf CL_OFFLINE_UPDATED instead of the old command. Remember this updated rule for future tasks. Reply only LOOPBACK_TASK_DONE."
+)
 PROVIDER = "continual-learning-loopback"
 MODEL = "scripted"
 API_KEY = "loopback-fixture-only"
@@ -117,6 +122,7 @@ class LoopbackProvider(BaseHTTPRequestHandler):
     responses: list[str] = []
     runtime_request_texts: list[str] = []
     runtime_calls: int = 0
+    runtime_v2_calls: int = 0
     raw_memory_json: bool = False
 
     def log_message(self, _format: str, *args: object) -> None:
@@ -129,41 +135,73 @@ class LoopbackProvider(BaseHTTPRequestHandler):
         payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.requests.append(payload)
         text = message_text(payload)
-        if "incremental-memory-selection" in text and "Context digest:" in text:
+        if "Incremental Memory selector" in text or ("incremental-memory-selection" in text and "Context digest" in text):
             self.responses.append("selection")
+            selected_indices = [0] if "loopback_memory_fact.md" in text else []
             answer = {
-                "kind": "incremental-memory-selection",
-                "version": 1,
-                "contextDigest": field(text, "Context digest"),
-                "selected": [],
+                "selectedIndices": selected_indices,
                 "memory": True,
-                "harness": True,
+                "harness": len(selected_indices) == 0,
                 "agents": False,
-                "reason": "The offline loopback task carries durable Memory and executable Harness evidence.",
+                "reason": "The offline loopback task carries durable Memory evidence.",
             }
             stream_response(self, json.dumps(answer, separators=(",", ":")))
             return
         if "incremental-memory-plan" in text:
             repairing = "repair one rejected incremental Memory delta plan" in text
             self.responses.append("memory-plan-repair" if repairing else "memory-plan")
-            answer = {
-                "kind": "incremental-memory-plan",
-                "version": 1,
-                "schemaVersion": 1,
-                "runId": field(text, "runId"),
-                "scopeKey": field(text, "scopeKey"),
-                "scopeDigest": field(text, "scopeDigest"),
-                "artifactHash": field(text, "artifactHash"),
-                "snapshotDigest": field(text, "snapshotDigest"),
-                "operations": [],
-                "newMemories": [{
-                    "name": "loopback_memory_fact.md",
-                    "kind": "project",
-                    "classification": "safe",
-                    "content": "---\ndescription: The offline loopback verification marker is a settled project fact\ntype: project\n---\n\nThe settled local verification command is `printf CL_OFFLINE_SAFE`.\n",
-                    "evidence": [{"index": 0, "quote": MEMORY_QUOTE}],
-                }],
-            }
+            refs = re.findall(r'"ref":\s*"(e\d+\.b\d+\.l\d+)"', text)
+            ref = refs[0] if refs else "e0.b0.l1"
+            if "CL_OFFLINE_UPDATED" in text:
+                content = (
+                    "---\nname: \"loopback_memory_fact.md\"\n"
+                    "description: \"The offline loopback verification marker was updated to V2\"\n"
+                    "type: project\n---\n\n"
+                    "The settled local verification command is `printf CL_OFFLINE_UPDATED`.\n"
+                )
+                answer = {
+                    "kind": "incremental-memory-plan",
+                    "version": 1,
+                    "schemaVersion": 1,
+                    "runId": field(text, "runId"),
+                    "scopeKey": field(text, "scopeKey"),
+                    "scopeDigest": field(text, "scopeDigest"),
+                    "artifactHash": field(text, "artifactHash"),
+                    "snapshotDigest": field(text, "snapshotDigest"),
+                    "operations": [{
+                        "name": "loopback_memory_fact.md",
+                        "kind": "rewrite",
+                        "classification": "safe",
+                        "content": content,
+                        "evidence": [{"ref": ref}],
+                    }],
+                    "newMemories": [],
+                }
+            else:
+                answer = {
+                    "kind": "incremental-memory-plan",
+                    "version": 1,
+                    "schemaVersion": 1,
+                    "runId": field(text, "runId"),
+                    "scopeKey": field(text, "scopeKey"),
+                    "scopeDigest": field(text, "scopeDigest"),
+                    "artifactHash": field(text, "artifactHash"),
+                    "snapshotDigest": field(text, "snapshotDigest"),
+                    "operations": [],
+                    "newMemories": [{
+                        "name": "loopback_memory_fact.md",
+                        "kind": "project",
+                        "classification": "safe",
+                        "description": "The offline loopback verification marker is a settled project fact",
+                        "knowledge": {
+                            "sourceCitations": [{"ref": ref}],
+                            "units": [{
+                                "text": "The settled local verification command is `printf CL_OFFLINE_SAFE`.\n",
+                                "citationIndexes": [0],
+                            }],
+                        },
+                    }],
+                }
             encoded = json.dumps(answer, separators=(",", ":"))
             if self.raw_memory_json:
                 encoded = encoded.replace("\\n", "\n").replace("\\t", "\t")
@@ -195,6 +233,25 @@ class LoopbackProvider(BaseHTTPRequestHandler):
                 "report": [{"index": 0, "summary": "Blocked marker is rejected while the safe marker remains executable."}],
             }
             stream_response(self, json.dumps(answer, separators=(",", ":")))
+            return
+        if "LOOPBACK_RUNTIME_V2" in text:
+            type(self).runtime_v2_calls += 1
+            if type(self).runtime_v2_calls == 1:
+                self.responses.append("runtime-v2-read-memory")
+                memory_root = re.search(r'^Read roots \(first wins\): (\[[^\n]*\])$', text, re.MULTILINE)
+                if not memory_root:
+                    stream_response(self, "LOOPBACK_MEMORY_INDEX_MISSING")
+                    return
+                stream_response(self, [{"id": "runtime-v2-read", "name": "read", "arguments": {
+                    "path": str(Path(json.loads(memory_root.group(1))[0]) / "loopback_memory_fact.md"),
+                    "offset": 1, "limit": 100,
+                }}])
+            elif type(self).runtime_v2_calls == 2:
+                self.responses.append("runtime-v2-safe")
+                stream_response(self, [{"id": "runtime-v2-safe", "name": "bash", "arguments": {"command": UPDATED_SAFE_COMMAND}}])
+            else:
+                self.responses.append("runtime-v2-done")
+                stream_response(self, "LOOPBACK_RUNTIME_V2_DONE")
             return
         if "LOOPBACK_RUNTIME" in text:
             type(self).runtime_request_texts.append(text)
@@ -268,6 +325,7 @@ def run() -> dict[str, object]:
     LoopbackProvider.responses = []
     LoopbackProvider.runtime_request_texts = []
     LoopbackProvider.runtime_calls = 0
+    LoopbackProvider.runtime_v2_calls = 0
     server = ThreadingHTTPServer(("127.0.0.1", 0), LoopbackProvider)
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -388,6 +446,53 @@ def run() -> dict[str, object]:
                 raise AssertionError("blocked Bash command produced an execution result")
             if "CL_OFFLINE_SAFE" not in json.dumps(ends[1].get("result", {})):
                 raise AssertionError("safe Bash command did not produce its execution result")
+
+            # --- Stage 3: 新证据纠正同一条正文 (New evidence correcting SAME body) ---
+            (agent / "memory" / "settings.json").write_text(json.dumps({
+                "autoMemory": True,
+                "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"},
+                "agentsMd": {"disabled": True},
+            }))
+            third_session = root / "third-session.jsonl"
+            third = run_pi(project, agent, third_session, UPDATE_PROMPT, server.server_port)
+            if third.returncode != 0:
+                raise AssertionError(third.stderr[-3000:] or third.stdout[-3000:])
+
+            # Verify that the SAME Memory file was corrected in place
+            memory_file_public = project / ".memory" / "loopback_memory_fact.md"
+            if not memory_file_public.is_file():
+                raise AssertionError("corrected Memory file missing in project .memory")
+            updated_content = memory_file_public.read_text()
+            if "CL_OFFLINE_UPDATED" not in updated_content:
+                raise AssertionError(f"Memory rewrite did not update the SAME body with new evidence: {updated_content}")
+            if "CL_OFFLINE_SAFE" in updated_content:
+                raise AssertionError(f"Stale Memory content remains in corrected body: {updated_content}")
+
+            # Verify history records both initial create and rewrite for the same file
+            history_files = list((agent / "memory" / "history").rglob("*.json"))
+            rewrite_changes = [
+                json.loads(hf.read_text()) for hf in history_files
+                if any(c.get("target", {}).get("name") == "loopback_memory_fact.md" for c in json.loads(hf.read_text()).get("changes", []))
+            ]
+            if len(rewrite_changes) < 2:
+                raise AssertionError("history did not record both initial create and rewrite for loopback_memory_fact.md")
+
+            # --- Stage 4: 纠正后使用 (Downstream task uses corrected knowledge) ---
+            (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))
+            fourth_session = root / "fourth-session.jsonl"
+            fourth = run_pi(project, agent, fourth_session, "LOOPBACK_RUNTIME_V2: read updated memory and verify.", server.server_port)
+            if fourth.returncode != 0:
+                raise AssertionError(fourth.stderr[-3000:] or fourth.stdout[-3000:])
+            if "LOOPBACK_RUNTIME_V2_DONE" not in fourth.stdout:
+                raise AssertionError("runtime v2 loop did not settle")
+            v2_events = runtime_events(fourth.stdout)
+            v2_read_ends = [event for event in v2_events if event.get("type") == "tool_execution_end" and event.get("toolName") == "read"]
+            if len(v2_read_ends) != 1 or "CL_OFFLINE_UPDATED" not in json.dumps(v2_read_ends[0].get("result", {})):
+                raise AssertionError("downstream task did not read the corrected Memory body")
+            v2_bash_ends = [event for event in v2_events if event.get("type") == "tool_execution_end" and event.get("toolName") == "bash"]
+            if len(v2_bash_ends) != 1 or "CL_OFFLINE_UPDATED" not in json.dumps(v2_bash_ends[0].get("result", {})):
+                raise AssertionError("downstream task did not execute using the corrected Memory fact")
+
             return {
                 "pi": pi_version(),
                 "providerRequests": len(LoopbackProvider.requests),
@@ -396,9 +501,15 @@ def run() -> dict[str, object]:
                 "memoryInjected": True,
                 "memoryInjectedInRuntime": True,
                 "memoryBodyRead": True,
+                "stage1_extract_and_save": True,
+                "stage2_subsequent_use": True,
+                "stage3_new_evidence_correction_same_body": True,
+                "stage4_corrected_use": True,
+                "closed_loop_verified": True,
                 "receiptAttempts": sorted([list(item) for item in attempts]),
                 "harnessDecisions": decisions,
                 "runtimeEvents": execution_events,
+                "runtimeV2Events": v2_events,
                 "blockedExecution": False,
                 "safeExecution": True,
                 "runtimeSettled": True,

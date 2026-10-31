@@ -3,9 +3,9 @@ import {constants} from "node:fs";
 import path from "node:path";
 import {isMemoryFilename} from "./memory-files";
 import {containsSensitiveMemoryMaterial, MAX_MEMORY_BYTES, MAX_SNAPSHOT_BYTES, normalizeSnapshotEvidence, sha256Digest, snapshotEditPatchText} from "./consolidation-run";
-import {materializeMemoryKnowledge, resolveMemoryPlanCitations, memoryCitationDomain, memoryCitationReferenceMatches, MemoryCitationLocationError} from "./memory-citation-locations";
+import {materializeMemoryKnowledge, resolveMemoryPlanCitations, memoryCitationDomain, memoryCitationReferenceMatches, memoryCitationReferenceCovers, MemoryCitationLocationError} from "./memory-citation-locations";
 import {isObservedFunctionDeclaration, isCompleteOuterFunctionDeclaration} from "./memory-declaration-view";
-import {MemoryRelationClosureError, declaredMemoryRelation, selectedMemoryRelationClosures, type MemoryRelationObligations} from "./memory-relation-closure";
+import {MemoryRelationClosureError, declaredMemoryRelation, selectedMemoryRelationClosures, observedMemorySourceAliases, type MemoryRelationObligations, type SourceRoleRangeChoice} from "./memory-relation-closure";
 
 type Row = Record<string, unknown>;
 type Run = {manifest: {cwd: string}};
@@ -261,6 +261,54 @@ export function sourceRoleOnlyRepairAdmitted(run: Run, raw: unknown, snapshot: u
   return true;
 }
 
+/** Frozen text keeps each original unit's supporting spans. Explicit larger
+ * producer selections may cover them; another unit or equal text cannot. */
+export function assertSourceRoleUnitSupport(original: unknown, corrected: unknown, snapshot: unknown, cwd: string): void {
+  const before = record(original), after = record(corrected), entries = record(snapshot)?.entries;
+  if (!before || !after || !Array.isArray(entries) || typeof cwd !== "string" || !cwd
+    || !Array.isArray(before.sourceCitations) || !Array.isArray(after.sourceCitations)
+    || !Array.isArray(before.units) || !Array.isArray(after.units) || before.units.length !== after.units.length) {
+    throw new Error("Invalid source-role support context");
+  }
+  const originalRefs = before.sourceCitations, nextRefs = after.sourceCitations;
+  for (const evidence of [originalRefs, nextRefs]) {
+    const resolved = record(resolveMemoryPlanCitations({newMemories: [{evidence}]}, snapshot))!;
+    normalizeSnapshotEvidence(record((resolved.newMemories as unknown[])[0])!.evidence, snapshot);
+  }
+  const indexes = (unit: unknown, length: number): number[] => {
+    const value = record(unit)?.citationIndexes;
+    if (!Array.isArray(value) || !value.length || value.length > 8
+      || value.some(index => !Number.isSafeInteger(index) || index < 0 || index >= length)) throw new Error("Invalid source-role unit support references");
+    return value as number[];
+  };
+  const observedIndices = [...new Set([...originalRefs, ...nextRefs].flatMap(value => {
+    const ref = record(value)?.ref, index = typeof ref === "string" ? /^e(\d+)\.b0\.l/.exec(ref) : null;
+    return index ? [Number(index[1])] : [];
+  }))];
+  let aliases: readonly (readonly number[])[] | undefined;
+  const checked = new Map<string, boolean>();
+  const covered = (outer: unknown, inner: unknown): boolean => {
+    const key = JSON.stringify([outer, inner]);
+    if (checked.has(key)) return checked.get(key)!;
+    if (memoryCitationReferenceCovers(outer, inner, snapshot)) {checked.set(key, true);return true;}
+    const selected = record(outer), prior = record(inner);
+    const a = typeof selected?.ref === "string" ? /^e(\d+)\.b0\.l/.exec(selected.ref) : null;
+    const b = typeof prior?.ref === "string" ? /^e(\d+)\.b0\.l/.exec(prior.ref) : null;
+    if (!a || !b) {checked.set(key, false);return false;}
+    aliases ??= observedMemorySourceAliases(snapshot, cwd, observedIndices);
+    if (!aliases.some(group => group.includes(Number(a[1])) && group.includes(Number(b[1])))) {checked.set(key, false);return false;}
+    const alias = {ref: String(prior!.ref).replace(/^e\d+/, `e${a[1]}`),
+      ...(prior!.endRef === undefined ? {} : {endRef: String(prior!.endRef).replace(/^e\d+/, `e${a[1]}`)})};
+    const result = memoryCitationReferenceCovers(selected, alias, snapshot);checked.set(key, result);return result;
+  };
+  for (const [index, unit] of before.units.entries()) {
+    const used = indexes(after.units[index], nextRefs.length);
+    if (!indexes(unit, originalRefs.length).every(prior => used.some(next => covered(nextRefs[next], originalRefs[prior])))) {
+      throw new Error(`Source-role repair lost original unit support: unit:${index}`);
+    }
+  }
+}
+
 /** Initial project proposals select existing evidence rather than
  * regenerate technical claims. This materializes data, never write authority. */
 export async function materializeSourceExcerptPlan(run: Run, raw: unknown, snapshot: unknown, audit?: AuditSources,
@@ -416,12 +464,16 @@ export async function materializeSourceExcerptPlan(run: Run, raw: unknown, snaps
       // atomic path without requiring a second producer spelling of the choice.
       const selectedRelations = [...atomicRelations];
       for (const relation of relations) {
-        if (!selectedRelations.some(selected => selected.sourcePath === relation.sourcePath && selected.factory === relation.factory && selected.owner === relation.owner && selected.member === relation.member)) {
-          selectedRelations.push(relation);
+        const selected = selectedRelations.find(selected => selected.sourcePath === relation.sourcePath && selected.factory === relation.factory && selected.owner === relation.owner && selected.member === relation.member);
+        if (!selected) selectedRelations.push(relation);
+        else if (relation.implementation) {
+          if (selected.sourceSha256 !== relation.sourceSha256
+            || selected.implementation && JSON.stringify(selected.implementation) !== JSON.stringify(relation.implementation)) invalid();
+          selected.implementation = relation.implementation;
         }
       }
       const derivedCopies = new Set<string>();
-      for (const relation of selectedRelations) {
+      const retainRelationSources = async (relation: Pick<SelectedAtomicRelation, "indexes" | "sourceSelections" | "sourcePath" | "sourceSha256">) => {
         // Verify the complete original selections before projecting any derived
         // block. Narrowing must not conceal an oversized, stale or sensitive quote.
         if (relation.sourceSelections) for (const index of new Set(relation.indexes)) {
@@ -447,9 +499,19 @@ export async function materializeSourceExcerptPlan(run: Run, raw: unknown, snaps
         }
         const roleBindings = pending.filter(binding => binding.file === relation.sourcePath);
         if (!roleBindings.length || roleBindings.some(binding => binding.digest !== relation.sourceSha256)) invalid();
+      };
+      for (const relation of selectedRelations) {
+        await retainRelationSources(relation);
         units.push({text: `Observed declaration syntax from ${JSON.stringify(relation.file)} (source observation only):\n\n` +
           `\`${relation.factory}\` has the named return type \`${relation.owner}\`.\n\n` +
           `\`${relation.owner}\` declares \`${relation.member}\`.`, citationIndexes: [...new Set(relation.indexes)]});
+        if (relation.implementation) {
+          const implementation = relation.implementation;
+          await retainRelationSources(implementation);
+          units.push({text: `Observed implementation syntax from ${JSON.stringify(implementation.file)} (source observation only):\n\n` +
+            `\`${relation.factory}\` declares callable \`${implementation.owner}\`, contains \`Object.defineProperties(${implementation.owner}, …)\` with \`${relation.member}\`, and returns \`${implementation.owner}\`. ` +
+            `This records source structure, not verified execution.`, citationIndexes: [...new Set(implementation.indexes)]});
+        }
       }
       const materialized = materializeMemoryKnowledge(header, {...knowledge, units}, snapshot);
       replacement = {name: item.name, kind: item.kind, classification: item.classification, ...materialized};
@@ -479,12 +541,88 @@ export function selectedProjectSourceObligations(run: Run): Record<string, Memor
   return Object.fromEntries([...(relationObligations.get(run) ?? [])].map(([name, value]) => {
     const publicValue = structuredClone(value);
     for (const requirement of publicValue.requirements) {
-      for (const reference of [...requirement.roles.flatMap(role => role.alternatives), ...(requirement.initiatingWrapperWitness?.alternatives ?? [])]) {
+      for (const reference of [...requirement.roles.flatMap(role => role.alternatives), ...(requirement.initiatingWrapperWitness?.alternatives ?? []),
+        ...(requirement.implementation?.roles.flatMap(role => role.alternatives) ?? [])]) {
         delete reference.sourceSpan;
       }
     }
     return [name, publicValue];
   }));
+}
+
+/** Optional compact source coordinates for the same admitted role correction.
+ * The producer still selects its own catalog; these ranges grant no evidence. */
+export async function sourceRoleRangeChoices(run: Run, name: string, knowledge: unknown, snapshot: unknown): Promise<SourceRoleRangeChoice[]> {
+  const obligation = relationObligations.get(run)?.get(name.toLowerCase()), value = record(knowledge);
+  if (!obligation || !value || !Array.isArray(value.sourceCitations) || !Array.isArray(value.units)) return [];
+  if (obligation.snapshotProjectionDigest !== sha256Digest(JSON.stringify(snapshot))) throw new Error("Source-role range snapshot changed");
+  type Seed = {start: number; end: number; id: string};
+  type Group = {sourcePath: string; sourceSha256: string; seeds: Seed[]};
+  const groups = new Map<number, Group>();
+  const add = (reference: unknown, id: string, source: Pick<Group, "sourcePath" | "sourceSha256">) => {
+    const ref = record(reference), a = typeof ref?.ref === "string" ? /^e(\d+)\.b0\.l([1-9]\d*)$/.exec(ref.ref) : null;
+    const b = typeof (ref?.endRef ?? ref?.ref) === "string" ? /^e(\d+)\.b0\.l([1-9]\d*)$/.exec(String(ref?.endRef ?? ref?.ref)) : null;
+    if (!a || !b || a[1] !== b[1]) return;
+    const index = Number(a[1]), start = Number(a[2]), end = Number(b[2]);
+    if (![index, start, end].every(Number.isSafeInteger) || start > end) return;
+    const group = groups.get(index);
+    if (group && (group.sourcePath !== source.sourcePath || group.sourceSha256 !== source.sourceSha256)) throw new Error("Conflicting source-role range identity");
+    const next = group ?? {...source, seeds: []};
+    if (!next.seeds.some(seed => seed.id === id && seed.start === start && seed.end === end)) next.seeds.push({start, end, id});
+    groups.set(index, next);
+  };
+  for (const [index, requirement] of obligation.requirements.entries()) {
+    for (const role of requirement.roles) for (const ref of role.alternatives) add(ref, `role:${index}:${role.role}`, requirement);
+    for (const ref of requirement.initiatingWrapperWitness?.alternatives ?? []) add(ref, `role:${index}:wrapper`, requirement);
+    for (const role of requirement.implementation?.roles ?? []) for (const ref of role.alternatives) add(ref, `role:${index}:${role.role}`, requirement.implementation!);
+  }
+  for (const [unitIndex, item] of value.units.entries()) {
+    const unit = record(item);
+    if (!Array.isArray(unit?.citationIndexes)) continue;
+    for (const index of unit.citationIndexes) {
+      const ref = record(value.sourceCitations[Number(index)]), match = typeof ref?.ref === "string" ? /^e(\d+)\./.exec(ref.ref) : null;
+      const group = match ? groups.get(Number(match[1])) : undefined;
+      if (group) add(ref, `unit:${unitIndex}:source:${index}`, group);
+    }
+  }
+  const candidates: (SourceRoleRangeChoice & {ids: string[]})[] = [], current = new Map<string, Awaited<ReturnType<typeof readSource>>>();
+  const root = await fs.realpath(run.manifest.cwd);
+  for (const [index, group] of groups) {
+    if (group.seeds.length > 32) continue;
+    const relative = path.relative(root, group.sourcePath);
+    if (!relative || path.isAbsolute(relative) || relative.split(path.sep).some(part => ["..", ".memory", ".pi", ".git"].includes(part.toLowerCase()))) invalid();
+    let source = current.get(group.sourcePath);
+    if (!source) {source = await readSource(group.sourcePath);current.set(group.sourcePath, source);}
+    if (source.binding.digest !== group.sourceSha256) throw new Error("Source-role range source changed");
+    const lines = source.text.split("\n"), seeds = group.seeds.sort((a, b) => a.start - b.start || a.end - b.end || a.id.localeCompare(b.id));
+    for (const left of seeds) {
+      let best: (typeof candidates)[number] | undefined;
+      for (const end of [...new Set(seeds.map(seed => seed.end))].sort((a, b) => a - b)) {
+        if (end < left.start || end > lines.length) continue;
+        const quote = lines.slice(left.start - 1, end).join("\n");
+        if (quote.length > 2000) break;
+        if (containsSensitiveMemoryMaterial(quote)) continue;
+        const ids = [...new Set(seeds.filter(seed => seed.start >= left.start && seed.end <= end).map(seed => seed.id))];
+        if (ids.length < 2 || seeds.some(seed => seed.start === left.start && seed.end === end)) continue;
+        const ref = {ref: `e${index}.b0.l${left.start}`, ...(end === left.start ? {} : {endRef: `e${index}.b0.l${end}`})};
+        const resolved = record(resolveMemoryPlanCitations({newMemories: [{evidence: [ref]}]}, snapshot))!;
+        const [selected] = normalizeSnapshotEvidence(record((resolved.newMemories as unknown[])[0])!.evidence, snapshot);
+        if (selected.quote !== quote) throw new Error("Source-role range does not match its complete observed source");
+        best = {...ref, utf16Length: quote.length, coversRoles: ids.filter(id => id.startsWith("role:")),
+          coversOriginalSupports: ids.filter(id => id.startsWith("unit:")), ids};
+      }
+      if (best && !candidates.some(candidate => candidate.ref === best!.ref && candidate.endRef === best!.endRef)) candidates.push(best);
+    }
+  }
+  const covered = new Set<string>(), choices: SourceRoleRangeChoice[] = [];
+  while (choices.length < 4) {
+    const ranked = candidates.map(value => ({value, added: value.ids.filter(id => !covered.has(id)).length}))
+      .filter(item => item.added >= 2).sort((a, b) => b.added - a.added || a.value.utf16Length - b.value.utf16Length
+        || a.value.ref.localeCompare(b.value.ref) || String(a.value.endRef).localeCompare(String(b.value.endRef)));
+    if (!ranked.length) break;
+    const {ids, ...choice} = ranked[0].value;ids.forEach(id => covered.add(id));choices.push(choice);
+  }
+  return choices;
 }
 
 /** Same source materializer, with the exact existing frontmatter rather than a new header. */

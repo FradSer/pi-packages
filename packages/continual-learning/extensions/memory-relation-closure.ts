@@ -5,12 +5,17 @@ import {createHash} from "node:crypto";
 type Node = Record<string, any>;
 type Source = {index: number; aliases: number[]; file: string; text: string; digest: string; ast: Node};
 type Span = {ref: string; endRef?: string; sourceSpan?: {start: number; end: number}};
-export type SelectedMemoryRelation = {factory: string; owner: string; member: string; file: string; sourcePath: string; sourceSha256: string; indexes: number[]; sourceSelections?: (Span & {index: number})[]};
-export type MemoryRelationRequirement = Omit<SelectedMemoryRelation, "indexes"> & {
+type ImplementationSource = {owner: string; file: string; sourcePath: string; sourceSha256: string};
+type ImplementationRequirement = ImplementationSource & {roles: {role: string; alternatives: Span[]}[]};
+export type SelectedMemoryRelation = {factory: string; owner: string; member: string; file: string; sourcePath: string; sourceSha256: string; indexes: number[]; sourceSelections?: (Span & {index: number})[];
+  implementation?: ImplementationSource & {indexes: number[]; sourceSelections: (Span & {index: number})[]}};
+export type MemoryRelationRequirement = Omit<SelectedMemoryRelation, "indexes" | "implementation"> & {
   wrapper?: string; roles: {role: string; alternatives: Span[]}[];
   initiatingWrapperWitness?: {alternatives: Span[]};
+  implementation?: ImplementationRequirement;
 };
-export type MemoryRelationObligations = {snapshotProjectionDigest: string; requirements: MemoryRelationRequirement[]};
+export type SourceRoleRangeChoice = {ref: string; endRef?: string; utf16Length: number; coversRoles: string[]; coversOriginalSupports: string[]};
+export type MemoryRelationObligations = {snapshotProjectionDigest: string; requirements: MemoryRelationRequirement[]; sourceRangeChoices?: SourceRoleRangeChoice[]};
 export class MemoryRelationClosureError extends Error {
   constructor(message: string, readonly snapshotProjectionDigest?: string, readonly obligations?: MemoryRelationObligations) {super(message);this.name = "MemoryRelationClosureError";}
 }
@@ -129,10 +134,93 @@ function sources(snapshot: unknown, cwd: string, selectedEntries: Set<number>): 
   return out;
 }
 
+/** Equal text alone cannot alias an original supporting observation. Reuse the
+ * complete, uniquely paired, root-scoped read grouping used by relation roles. */
+export function observedMemorySourceAliases(snapshot: unknown, cwd: string, indices: readonly number[]): readonly (readonly number[])[] {
+  if (indices.length > 16 || indices.some(index => !Number.isSafeInteger(index) || index < 0)) return [];
+  return sources(snapshot, cwd, new Set(indices)).map(source => source.aliases);
+}
+
 // Original human topic matching stays sentence-local: separate glossary/topic
 // mentions do not establish intent. A cited knowledge unit may span sentences.
 function related(text: string, subject: string, member: string): boolean {
   return visible(text).split(/[!?。！？\n]+|\.(?=\s|$)/).some(sentence => mentions(sentence, subject) && mentions(sentence, member));
+}
+
+/** A bounded syntax relationship, not a claim that any source was executed.
+ * Only a direct local callable, direct descriptor and unique direct return qualify. */
+function implementationRoles(source: Source, factory: Node, wholeFactory: Node, member: string, cwd: string,
+  alternatives: (value: Span) => Span[]): ImplementationRequirement | undefined {
+  const body = factory.body?.body;
+  if (!Array.isArray(body)) return;
+  const returned = body.at(-1), owner = returned?.type === "ReturnStatement" ? identifier(returned.argument) : undefined;
+  if (!owner || owner === "Object" || (factory.params ?? []).flatMap(names).some((name: string) => name === owner || name === "Object")) return;
+  const declarations = body.flatMap((statement: Node, index: number) => statement.type === "VariableDeclaration"
+    ? statement.declarations.filter((node: Node) => identifier(node.id) === owner).map((node: Node) => ({statement, node, index})) : []);
+  if (declarations.length !== 1 || declarations[0].statement.kind !== "const"
+    || !["ArrowFunctionExpression", "FunctionExpression"].includes(declarations[0].node.init?.type)) return;
+  let invalid = false, ownerBindings = 0, returns = 0, descriptorCalls = 0;
+  const root = (node: Node): string | undefined => node?.type === "MemberExpression"
+    ? identifier(node.object) === "globalThis" && (identifier(node.property) ?? node.property?.value) === "Object" ? "Object" : root(node.object)
+    : identifier(node);
+  try {
+    walk(source.ast, node => {
+      if (bindings(node).includes("Object")) invalid = true;
+      if (node.type === "AssignmentExpression" && root(node.left) === "Object"
+        || node.type === "UpdateExpression" && root(node.argument) === "Object"
+        || node.type === "UnaryExpression" && node.operator === "delete" && root(node.argument) === "Object"
+        || ["ForInStatement", "ForOfStatement"].includes(node.type) && (root(node.left) === "Object" || names(node.left).includes("Object"))
+        || node.type === "VariableDeclarator" && identifier(node.init) === "Object"
+        || ["CallExpression", "OptionalCallExpression", "NewExpression"].includes(node.type)
+          && node.arguments?.some((argument: Node) => identifier(argument) === "Object")) invalid = true;
+    });
+    walk(factory.body, node => {
+      if (bindings(node).includes(owner)) ownerBindings++;
+      if (node.type === "AssignmentExpression" && (root(node.left) === owner || names(node.left).includes(owner))
+        || node.type === "UpdateExpression" && root(node.argument) === owner
+        || node.type === "UnaryExpression" && node.operator === "delete" && root(node.argument) === owner
+        || node.type === "VariableDeclarator" && identifier(node.init) === owner
+        || ["ForInStatement", "ForOfStatement"].includes(node.type) && (root(node.left) === owner || names(node.left).includes(owner))) invalid = true;
+      if (["CallExpression", "OptionalCallExpression", "NewExpression"].includes(node.type)
+        && node.arguments?.some((argument: Node) => identifier(argument) === owner)) {
+        if (node.type === "CallExpression" && node.callee?.type === "MemberExpression" && !node.callee.computed
+          && identifier(node.callee.object) === "Object" && identifier(node.callee.property) === "defineProperties"
+          && identifier(node.arguments[0]) === owner) descriptorCalls++;
+        else invalid = true;
+      }
+      if (node.type === "CallExpression" && identifier(node.callee) === "eval") invalid = true;
+    });
+    walk(factory.body, node => {if (node.type === "ReturnStatement") returns++;}, true);
+  } catch {return;}
+  if (invalid || ownerBindings !== 1 || returns !== 1 || descriptorCalls !== 1) return;
+  const definitions = body.flatMap((statement: Node, index: number) => {
+    const call = statement.type === "ExpressionStatement" ? statement.expression : undefined;
+    return call?.type === "CallExpression" && call.callee?.type === "MemberExpression" && !call.callee.computed
+      && identifier(call.callee.object) === "Object" && identifier(call.callee.property) === "defineProperties"
+      && identifier(call.arguments?.[0]) === owner ? [{call, index}] : [];
+  });
+  if (definitions.length !== 1 || definitions[0].index <= declarations[0].index) return;
+  const {call} = definitions[0], descriptor = call.arguments?.[1];
+  if (call.arguments.length !== 2 || descriptor?.type !== "ObjectExpression"
+    || descriptor.properties.some((property: Node) => property.type !== "ObjectProperty" || property.computed)) return;
+  const members = descriptor.properties.filter((property: Node) => (identifier(property.key) ?? property.key?.value) === member);
+  if (members.length !== 1 || members[0].value?.type !== "ObjectExpression") return;
+  const values = members[0].value.properties;
+  if (values.some((property: Node) => !["ObjectProperty", "ObjectMethod"].includes(property.type) || property.computed
+    || !["value", "writable", "enumerable", "configurable"].includes(identifier(property.key) ?? property.key?.value))
+    || new Set(values.map((property: Node) => identifier(property.key) ?? property.key?.value)).size !== values.length
+    || values.filter((property: Node) => (identifier(property.key) ?? property.key?.value) === "value").length !== 1) return;
+  const value = values.find((property: Node) => (identifier(property.key) ?? property.key?.value) === "value");
+  if (value.type === "ObjectMethod" ? value.kind !== "method"
+    : !["ArrowFunctionExpression", "FunctionExpression"].includes(value.value?.type)) return;
+  const heading = {...call, end: descriptor.start + 1, loc: {...call.loc, end: descriptor.loc.start}};
+  const factoryHeading = {...wholeFactory, end: factory.body.start + 1, loc: {...wholeFactory.loc, end: factory.body.loc.start}};
+  return {owner, file: path.relative(cwd, source.file).split(path.sep).join("/"), sourcePath: source.file, sourceSha256: source.digest,
+    roles: [{role: "implementation-factory", alternatives: alternatives(span(source, factoryHeading))},
+      {role: "implementation-owner-declaration", alternatives: alternatives(span(source, declarations[0].statement))},
+      {role: "implementation-owner", alternatives: alternatives(span(source, heading))},
+      {role: "implementation-member-definition", alternatives: alternatives(span(source, members[0]))},
+      {role: "implementation-return", alternatives: alternatives(span(source, returned))}]};
 }
 function validateObligations(snapshot: unknown, knowledge: Node, obligations: MemoryRelationObligations): SelectedMemoryRelation[] {
   const digest = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
@@ -150,14 +238,20 @@ function validateObligations(snapshot: unknown, knowledge: Node, obligations: Me
     const witness = requirement.initiatingWrapperWitness;
     const selectedWitness = witness ? match(witness.alternatives) : undefined;
     const witnessIndex = selectedWitness?.index ?? -1;
-    if (indexes.some(index => index < 0) || witness && witnessIndex < 0) missing.push({wrapper: requirement.wrapper,
+    const implementationSelections = requirement.implementation?.roles.map(role => match(role.alternatives)) ?? [];
+    if (indexes.some(index => index < 0) || witness && witnessIndex < 0 || implementationSelections.some(value => !value)) missing.push({wrapper: requirement.wrapper,
       factory: requirement.factory, owner: requirement.owner, member: requirement.member,
       missingRoles: [...requirement.roles.flatMap((role, index) => indexes[index] < 0 ? [{role: role.role, ...publicSpan(role.alternatives[0])}] : []),
-        ...(witness && witnessIndex < 0 ? [{role: "initiating-wrapper-declaration", ...publicSpan(witness.alternatives[0])}] : [])]});
-    else {const {wrapper: _wrapper, roles: _roles, initiatingWrapperWitness: _witness, ...relation} = requirement;
+        ...(witness && witnessIndex < 0 ? [{role: "initiating-wrapper-declaration", ...publicSpan(witness.alternatives[0])}] : []),
+        ...(requirement.implementation?.roles.flatMap((role, index) => !implementationSelections[index]
+          ? [{role: role.role, ...publicSpan(role.alternatives[0])}] : []) ?? [])]});
+    else {const {wrapper: _wrapper, roles: _roles, initiatingWrapperWitness: _witness, implementation, ...relation} = requirement;
       complete.push({...relation, indexes: [...indexes, ...(witness ? [witnessIndex] : [])],
         sourceSelections: [...selectedRoles.filter((value): value is NonNullable<typeof value> => value !== undefined),
-          ...(selectedWitness ? [selectedWitness] : [])]});}
+          ...(selectedWitness ? [selectedWitness] : [])],
+        ...(implementation ? {implementation: {owner: implementation.owner, file: implementation.file,
+          sourcePath: implementation.sourcePath, sourceSha256: implementation.sourceSha256,
+          indexes: implementationSelections.map(value => value!.index), sourceSelections: implementationSelections.map(value => value!)}} : {})});}
   }
   if (missing.length) {
     const text = `Selected API relation source roles are incomplete: ${JSON.stringify(missing)}. Snapshot projection digest: ${digest}. Explicitly select and use each supported role in the existing catalog; the parent will not add references.`;
@@ -258,8 +352,10 @@ export function selectedMemoryRelationClosures(snapshot: unknown, knowledge: unk
             const heading = {...owner.whole, end: body.start + 1, loc: {...owner.whole.loc, end: body.loc.start}};
             const requirements = {factory: span(dts, f.whole), owner: span(dts, heading), member: span(dts, member)};
             if (requirementsFound.some(row => `${row.sourcePath}:${row.wrapper}:${row.factory}:${row.member}` === `${dts.file}:${wrapperName}:${factoryName}:${memberName}`)) continue;
+            const implementation = implementationRoles(js, factory[0].node, factory[0].whole, memberName, cwd, alternatives);
             requirementsFound.push({wrapper: wrapperName, factory: factoryName, owner: ownerName, member: memberName,
               file: path.relative(cwd, dts.file).split(path.sep).join("/"), sourcePath: dts.file, sourceSha256: dts.digest,
+              ...(implementation ? {implementation} : {}),
               initiatingWrapperWitness: {alternatives: alternatives(span(dts, declarations[0].whole))},
               roles: Object.entries(requirements).map(([role, reference]) => ({role, alternatives: [...alternatives(reference),
                 ...(role === "owner" && !f.node.typeParameters && !annotation.typeParameters && !owner.node.typeParameters && !owner.node.extends?.length && !member.typeParameters

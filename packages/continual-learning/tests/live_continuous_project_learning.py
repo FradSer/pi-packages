@@ -375,7 +375,7 @@ def install_memory_audit_runtime(c: str) -> None:
     """Install only the explicit read-only audit entrypoint and its shared adapter."""
     for name in ('continuous-memory-audit.ts','continuous-command-proof.ts'):
         source=Path(__file__).with_name(name).read_text()
-        for extension in ('jev-sdk','jev-learning','learning-replay-feedback','planner-read-scope','incremental-learning','learning-efficiency','learning-backlog','guardrail-engine'):
+        for extension in ('jev-sdk','jev-learning','learning-replay-feedback','planner-read-scope','incremental-learning','learning-efficiency','learning-backlog','guardrail-engine','consolidation-run'):
             source=source.replace("'../extensions/"+extension+"'", "'/opt/experiment/packages/continual-learning/extensions/"+extension+".ts'")
         for support in ('failure-observation-proof','continuous-command-proof'):
             source=source.replace("'./"+support+"'", "'./"+support+".mts'")
@@ -627,7 +627,7 @@ def command_review_input(output: Path, inference: dict, source_files: dict[str,s
     origin=load_command_origin(output,inference,container=container);receipt=origin['receipt']
     applied=[a for a in receipt.get('attempts',[]) if a.get('phase')=='memory' and a.get('outcome')=='applied' and a.get('operations',0)>0]
     if not applied:raise UnappliedMemoryCommand('Missing unique applied Memory command')
-    if len(applied)!=1 or applied[0].get('attempt')not in (0,1):raise ValueError('Missing unique applied Memory command')
+    if len(applied)!=1 or applied[0].get('attempt')not in (0,1,2):raise ValueError('Missing unique applied Memory command')
     values=_review_artifact_values(source_files)
     ledgers=[(name,value)for name,value in values.items() if isinstance(value,dict) and value.get('ledgerId')==applied[0].get('usageLedgerId')
              and (Path(name).name=='memory-task-usage.json' if applied[0]['attempt']==0
@@ -647,10 +647,51 @@ def command_review_input(output: Path, inference: dict, source_files: dict[str,s
             or not isinstance(values[required['memory-task-usage.json']],dict)
             or not isinstance(values[required['plan.json']],dict)):
         raise ValueError('Incomplete source collector evidence')
-    return {**origin,'plan':values[required['plan.json']],'snapshotText':source_files[required['snapshot.json']],
+    result={**origin,'plan':values[required['plan.json']],'snapshotText':source_files[required['snapshot.json']],
         'reviewManifest':manifest,'usageLedger':ledger,'initialUsageLedger':values[required['memory-task-usage.json']],
         'appliedUsageLedgerFile':Path(ledger_name).name,'sourceAudit':{'receipt':values[audit],
             'usageLedger':values[usage],'observations':[json.loads(line)for line in source_files[observations].splitlines()]}}
+    if applied[0]['attempt']==2:
+        structural_rows=[row for row in receipt['attempts'] if row.get('phase')=='memory' and row.get('attempt')==1
+                         and row.get('diagnostic')=='Memory structural repair']
+        if len(structural_rows)!=1:raise ValueError('Missing unique structural generation receipt')
+        structural_id=structural_rows[0].get('usageLedgerId')
+        initial=result['initialUsageLedger'];audit_id=result['sourceAudit']['usageLedger'].get('ledgerId')
+        structural_name=f'memory-repair-usage-{structural_id}.json'
+        matches=[(name,value) for name,value in values.items() if isinstance(value,dict)
+                 and value.get('ledgerId')==structural_id and Path(name).name==structural_name]
+        if len(matches)!=1 or matches[0][0]!=root+'/'+structural_name:
+            raise ValueError('Missing unique same-run structural generation ledger')
+        structural=matches[0][1]
+        ids=[initial.get('ledgerId'),structural_id,ledger.get('ledgerId'),audit_id]
+        if not all(isinstance(value,str) and value for value in ids) or len(set(ids))!=4:
+            raise ValueError('Generation and source ledgers must be distinct')
+        for item,attempt,filename in ((initial,0,'memory-task-usage.json'),(structural,1,structural_name),
+                                      (ledger,2,Path(ledger_name).name)):
+            identity=item.get('ledgerId')
+            files=[name for name,value in values.items() if isinstance(value,dict)
+                   and value.get('ledgerId')==identity and Path(name).name==filename]
+            rows=[row for row in receipt['attempts'] if row.get('phase')=='memory' and row.get('usageLedgerId')==identity]
+            if (files!=[root+'/'+filename] or len(rows)!=1 or rows[0].get('attempt')!=attempt
+                    or type(item.get('complete'))is not bool or not isinstance(item.get('knownUsage'),dict)
+                    or rows[0].get('usage')!=item['knownUsage']):
+                raise ValueError('Unbound generation ledger or receipt')
+            if ('usageComplete'in rows[0] or attempt!=0) and rows[0].get('usageComplete')is not item['complete']:
+                raise ValueError('Changed generation completeness')
+            if attempt<2 and (rows[0].get('operations')!=0 or rows[0].get('outcome')!=('rejected'if attempt==0 else'proposed')):
+                raise ValueError('Invalid prior generation outcome')
+        names=['memory-task-usage.json','generation-original-plan.json','structural-rejection.json',
+               'structural-repair-response.json','semantic-rejected-plan.json','semantic-repair-plan.json',
+               f"semantic-repair-provenance-{ledger['ledgerId']}.json"]
+        for identity in (structural_id,ledger['ledgerId']):
+            names.extend((f'memory-repair-usage-{identity}.json',f'memory-repair-response-{identity}.json',
+                          f'memory-repair-lifecycle-{identity}-started.json',f'memory-repair-lifecycle-{identity}-closed.json'))
+        if any(not isinstance(values.get(root+'/'+name),dict) for name in names):
+            raise ValueError('Missing same-run correction artifacts')
+        result.update(initialUsageLedgerFile='memory-task-usage.json',structuralUsageLedger=structural,
+                      structuralUsageLedgerFile=structural_name,repairArtifactRunDir=manifest['runDir'],
+                      repairArtifacts={name:source_files[root+'/'+name] for name in names})
+    return result
 
 
 

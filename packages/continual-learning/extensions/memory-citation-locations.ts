@@ -217,6 +217,23 @@ export function memoryCitationReferenceMatches(outer: unknown, inner: unknown, s
   } catch {return false;}
 }
 
+/** Preserve the same source positions, not merely equal text elsewhere. */
+export function memoryCitationReferenceCovers(outer: unknown, inner: unknown, snapshot: unknown): boolean {
+  try {
+    const entries = record(snapshot)?.entries;
+    if (!Array.isArray(entries) || !record(outer) || !record(inner)) return false;
+    const excluded = memoryReferenceResults(entries);
+    const a = expandReference(record(outer)!, entries, excluded), b = expandReference(record(inner)!, entries, excluded);
+    const x = a.lines as RecordValue, y = b.lines as RecordValue;
+    if (a.index !== b.index || x.block !== y.block || x.source !== y.source
+      || Number(x.start) > Number(y.start) || Number(x.end) < Number(y.end)) return false;
+    if (!x.characters) return true;
+    const first = record(x.characters), second = record(y.characters);
+    return !!first && !!second && x.start === y.start && x.end === y.end
+      && Number(first.start) <= Number(second.start) && Number(first.end) >= Number(second.end);
+  } catch {return false;}
+}
+
 function expandReference(ref: RecordValue, entries: unknown[], memoryReferences: ReadonlySet<number>): RecordValue {
   if (Object.keys(ref).some(key => !["ref", "endRef", "role"].includes(key))) {
     throw new MemoryCitationLocationError(["invalid-reference-fields"]);

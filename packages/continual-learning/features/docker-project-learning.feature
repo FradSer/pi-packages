@@ -22,3 +22,12 @@ Feature: Learning on real open-source projects in isolated Docker containers
     And the proxy adds no retry or wait and retains the existing request budget
     And absent, malformed, duplicate, credential-bearing or hop-by-hop retry headers are not forwarded
     And Jev keeps its existing independent retry policy
+
+  Scenario: Native Memory source proof binds both existing correction slots
+    Given one initial generation is followed by one structural and one semantic correction
+    When the semantic correction applies after every existing approval gate
+    Then the source proof binds all three distinct generation ledgers to the same actual run
+    And each ledger matches its receipt usage and explicit completeness without inventing missing values
+    And immutable correction artifacts bind the original rejection, source identity and final plan
+    And missing, conflicting, foreign or truncated artifacts keep the proof unavailable
+    And original failures and unknown costs remain retained without another model call

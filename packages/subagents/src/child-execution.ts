@@ -31,6 +31,9 @@
  */
 
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { discoverAgents, inlineDefinitionApplies, MODEL_INHERIT_ALIAS, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentScope } from "./agents.ts";
 import type { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { getAgent, listAgents, registerAgent, updateAgent, updateAgentProgress, type Agent } from "./roster.ts";
@@ -332,6 +335,57 @@ export interface ChildExecutionOptions {
   workspace?: typeof ensureAgentWorkspace;
   leaderModel?: () => string | undefined;
   thinking?: () => string | undefined;
+  extensions?: readonly string[];
+}
+
+/**
+ * If a child's model uses an extension-registered provider (such as `magpie`),
+ * the bare child needs that extension loaded via `--extension` so the provider
+ * is registered in the child process.
+ */
+export function resolveProviderExtension(provider?: string, cwd?: string): string | undefined {
+  if (!provider) return undefined;
+  const agentDir = path.resolve(getAgentDir());
+  const searchDirs = [agentDir, cwd ? path.resolve(cwd) : undefined].filter(Boolean) as string[];
+  for (const dir of searchDirs) {
+    const settingsPath = path.join(dir, "settings.json");
+    if (!fs.existsSync(settingsPath)) continue;
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as { packages?: unknown[]; extensions?: unknown[] };
+      const packages = Array.isArray(settings.packages) ? settings.packages : [];
+      for (const pkg of packages) {
+        if (typeof pkg !== "string" || pkg.startsWith("npm:")) continue;
+        const pkgDir = path.resolve(dir, pkg);
+        const pkgJsonPath = path.join(pkgDir, "package.json");
+        if (!fs.existsSync(pkgJsonPath)) continue;
+        const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8")) as {
+          name?: string;
+          keywords?: unknown;
+          pi?: { extensions?: string[] };
+        };
+        const name = pkgJson.name ?? "";
+        const keywords = Array.isArray(pkgJson.keywords) ? pkgJson.keywords.map(String) : [];
+        const matchesName = name === provider || name === `@fradser/pi-${provider}` || name === `pi-${provider}` || name.endsWith(`-${provider}`);
+        const matchesKeywords = keywords.includes(provider) && (keywords.includes("provider") || keywords.includes("model-catalog"));
+        if (matchesName || matchesKeywords) {
+          const ext = pkgJson.pi?.extensions?.[0] ?? "index.ts";
+          const extPath = path.resolve(pkgDir, ext);
+          if (fs.existsSync(extPath)) return extPath;
+        }
+      }
+      const extensions = Array.isArray(settings.extensions) ? settings.extensions : [];
+      for (const ext of extensions) {
+        if (typeof ext !== "string" || ext.startsWith("-")) continue;
+        const extPath = path.resolve(dir, ext);
+        if (extPath.includes(provider) && fs.existsSync(extPath)) return extPath;
+      }
+    } catch {}
+  }
+  const directPath = path.join(agentDir, "extensions", `${provider}.ts`);
+  if (fs.existsSync(directPath)) return directPath;
+  const directIndexPath = path.join(agentDir, "extensions", provider, "index.ts");
+  if (fs.existsSync(directIndexPath)) return directIndexPath;
+  return undefined;
 }
 
 /** The library entry validates as strictly as the native schema boundary. */
@@ -828,6 +882,8 @@ async function executeAgentOperation(
     // Delivering it a second time through `deliverPrompt` ran the same turn
     // twice — twice the child's tokens, and twice the Leader's turns once a
     // settled turn is delivered as a Session Result.
+    const provider = model ? model.split("/")[0] : undefined;
+    const providerExtension = resolveProviderExtension(provider, projectCwd);
     let spawned: ReturnType<typeof spawnResident>;
     try {
       dispatch(session);
@@ -839,8 +895,10 @@ async function executeAgentOperation(
         capabilityTools,
         extensions: [
           STREAM_RECOVERY_EXTENSION_PATH,
+          ...(providerExtension ? [providerExtension] : []),
           ...(memoryEnabled ? [SUBAGENT_EXTENSION_PATH] : []),
           ...(parentMessageEnabled ? [PARENT_MESSAGE_EXTENSION_PATH] : []),
+          ...(options.extensions ?? []),
         ],
         ...(parentMessageEnabled ? { onParentMessage: routeParentMessage } : {}),
         cwd,

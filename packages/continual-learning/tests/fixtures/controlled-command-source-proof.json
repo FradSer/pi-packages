@@ -1,0 +1,478 @@
+{
+  "receipt": {
+    "batchId": "initial-owner",
+    "input": {
+      "source": "current-session"
+    },
+    "attempts": [
+      {
+        "phase": "memory",
+        "attempt": 0,
+        "outcome": "noop",
+        "operations": 0,
+        "usageLedgerId": "source-audit",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        }
+      },
+      {
+        "phase": "memory",
+        "attempt": 0,
+        "outcome": "applied",
+        "operations": 1,
+        "usageLedgerId": "source-generation",
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        }
+      }
+    ],
+    "kind": "learning-pipeline-receipt",
+    "version": 1,
+    "mode": "manual",
+    "operations": 1
+  },
+  "receiptDigest": "4cae6e988ba6bd7c1712b32ab7bc9dad5d9cde1f7316a84f2465728095d78a25",
+  "plan": {
+    "kind": "memory-consolidation-plan",
+    "runId": "run_fixture_aaaaaaaaaaaaaaaa",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "snapshotDigest": "d300a9ad73aaf48391d266cc1ce9b7f0bd4a7f56169e1da110bd03d3fd3cf6b4",
+    "artifactHash": "d300a9ad73aaf48391d266cc1ce9b7f0bd4a7f56169e1da110bd03d3fd3cf6b4",
+    "version": 1,
+    "operations": [],
+    "newMemories": [
+      {
+        "name": "idle.md",
+        "classification": "private",
+        "content": "Observed unresolved idle failure; cause is unverified."
+      }
+    ]
+  },
+  "reviewManifest": {
+    "schemaVersion": 1,
+    "runId": "run_fixture_aaaaaaaaaaaaaaaa",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "snapshotDigest": "d300a9ad73aaf48391d266cc1ce9b7f0bd4a7f56169e1da110bd03d3fd3cf6b4",
+    "cwd": "/work/p-limit",
+    "runDir": "/home/node/agent/memory/runs/--work-p-limit--/run_fixture_aaaaaaaaaaaaaaaa",
+    "snapshotPath": "/home/node/agent/memory/runs/--work-p-limit--/run_fixture_aaaaaaaaaaaaaaaa/snapshot.json",
+    "contextEnabled": true
+  },
+  "snapshotText": "{\"schemaVersion\":1,\"runId\":\"run_fixture_aaaaaaaaaaaaaaaa\",\"scopeKey\":\"--work-p-limit--\",\"contextEnabled\":true,\"entries\":[{\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Inspect and maintain the actual unresolved idle failure; preserve its historical limits.\"}]},\"id\":\"row-1\",\"parentId\":\"row-0\"},{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"case\",\"name\":\"bash\",\"arguments\":{\"command\":\"node observed-idle-failure.mjs\"}}]},\"id\":\"row-2\",\"parentId\":\"row-1\"},{\"type\":\"message\",\"message\":{\"role\":\"toolResult\",\"toolCallId\":\"case\",\"toolName\":\"bash\",\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":\"actual observed case output\"}]},\"id\":\"row-3\",\"parentId\":\"row-2\"},{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"id\":\"upstream\",\"name\":\"bash\",\"arguments\":{\"command\":\"pnpm test\"}}]},\"id\":\"row-4\",\"parentId\":\"row-3\"},{\"type\":\"message\",\"message\":{\"role\":\"toolResult\",\"toolCallId\":\"upstream\",\"toolName\":\"bash\",\"isError\":false,\"content\":[{\"type\":\"text\",\"text\":\"existing tests passed\"}]},\"id\":\"row-5\",\"parentId\":\"row-4\"},{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Actual observed conditions and limits.\"}]},\"id\":\"row-6\",\"parentId\":\"row-5\"},{\"type\":\"custom\",\"customType\":\"continuous-study-task-deadline\",\"data\":{\"stage\":\"settled\",\"elapsedMs\":1,\"limitMs\":900000},\"id\":\"row-7\",\"parentId\":\"row-6\"},{\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":\"\u6574\u7406\u8bb0\u5fc6\"}},{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"stopReason\":\"toolUse\",\"content\":[{\"type\":\"toolCall\",\"id\":\"maintenance-source-0\",\"name\":\"learning_read\",\"arguments\":{\"path\":\"/work/p-limit/index.js\",\"offset\":1,\"limit\":2000}}]}},{\"type\":\"message\",\"message\":{\"role\":\"toolResult\",\"toolCallId\":\"maintenance-source-0\",\"toolName\":\"learning_read\",\"isError\":false,\"content\":[{\"type\":\"text\",\"text\":\"old implementation\\n[lines 1-1 of 1]\"}],\"details\":{\"readOnlyMaintenanceAudit\":true,\"sourcePath\":\"/work/p-limit/index.js\",\"sourceSha256\":\"e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8\"}}}]}",
+  "taskSlice": {
+    "kind": "learning-task-slice",
+    "version": 1,
+    "entries": [
+      {
+        "type": "message",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Inspect and maintain the actual unresolved idle failure; preserve its historical limits."
+            }
+          ]
+        },
+        "id": "row-1",
+        "parentId": "row-0"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "case",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && node observed-idle-failure.mjs"
+              }
+            }
+          ]
+        },
+        "id": "row-2",
+        "parentId": "row-1"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "case",
+          "toolName": "bash",
+          "isError": true,
+          "content": [
+            {
+              "type": "text",
+              "text": "actual observed case output"
+            }
+          ]
+        },
+        "id": "row-3",
+        "parentId": "row-2"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "upstream",
+              "name": "bash",
+              "arguments": {
+                "command": "pnpm test"
+              }
+            }
+          ]
+        },
+        "id": "row-4",
+        "parentId": "row-3"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "upstream",
+          "toolName": "bash",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "existing tests passed"
+            }
+          ]
+        },
+        "id": "row-5",
+        "parentId": "row-4"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Actual observed conditions and limits."
+            }
+          ]
+        },
+        "id": "row-6",
+        "parentId": "row-5"
+      },
+      {
+        "type": "custom",
+        "customType": "continuous-study-task-deadline",
+        "data": {
+          "stage": "settled",
+          "elapsedMs": 1,
+          "limitMs": 900000
+        },
+        "id": "row-7",
+        "parentId": "row-6"
+      },
+      {
+        "type": "custom",
+        "customType": "continuous-study-task-deadline",
+        "data": {
+          "stage": "started",
+          "elapsedMs": 0,
+          "limitMs": 900000
+        },
+        "id": "feedback-0",
+        "parentId": "row-7"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "continue"
+            }
+          ]
+        },
+        "id": "feedback-1",
+        "parentId": "feedback-0"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "feedback-read",
+              "name": "read",
+              "arguments": {
+                "path": "/home/node/project-verification.json"
+              }
+            }
+          ]
+        },
+        "id": "feedback-2",
+        "parentId": "feedback-1"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "feedback-read",
+          "toolName": "read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"kind\":\"actual-project-verification\",\"task\":\"idle\",\"verification\":{\"passed\":false,\"existingChecksPreserved\":true,\"publicReproducer\":{\"passed\":false,\"exitCode\":1},\"upstream\":{\"passed\":true,\"exitCode\":0},\"types\":{\"passed\":true,\"exitCode\":0},\"behavior\":{\"passed\":false,\"exitCode\":1}},\"logs\":{\"public-reproducer\":\"actual red observation\"},\"sourceHashes\":{\"index.js\":\"e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8\",\"index.d.ts\":\"ba800083cf229f16fed0998e8e8dad51c79a23147ca30a2bd2791ebab810e7fc\",\"observed-idle-failure.mjs\":\"1a9f8982d6f58dd66af60b8bb4314366a5a1105b81c6521df2aabf5d2aa022fb\",\"package.json\":\"9d4786d7eba873f433b23426b3b76416e5968ef82d901f5f95c7cf72744f4ad6\"},\"sessionDigest\":\"5528d9b287137969f50c3db483c4867c8c9a93ccabde731efb6f0a041d6f0119\",\"logsDigest\":\"bbad8826a01654b267a96950c40a14f37cc7dbaac8ea02735c78ed01e35b78a3\",\"taskOutcome\":{\"passed\":false,\"failures\":[\"verification-failed\"]}}"
+            }
+          ]
+        },
+        "id": "feedback-3",
+        "parentId": "feedback-2"
+      },
+      {
+        "type": "custom",
+        "customType": "continuous-study-tool-budget",
+        "data": {
+          "limit": 1,
+          "admitted": 1,
+          "outcome": "tools-removed"
+        },
+        "id": "feedback-4",
+        "parentId": "feedback-3"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "The original task failed; source failure remains unresolved."
+            }
+          ]
+        },
+        "id": "feedback-5",
+        "parentId": "feedback-4"
+      },
+      {
+        "type": "custom",
+        "customType": "continuous-study-task-deadline",
+        "data": {
+          "stage": "settled",
+          "elapsedMs": 2,
+          "limitMs": 900000
+        },
+        "id": "feedback-6",
+        "parentId": "feedback-5"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "stopReason": "toolUse",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "maintenance-source-0",
+              "name": "learning_read",
+              "arguments": {
+                "path": "/work/p-limit/index.js",
+                "offset": 1,
+                "limit": 2000
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "maintenance-source-0",
+          "toolName": "learning_read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "old implementation\n[lines 1-1 of 1]"
+            }
+          ],
+          "details": {
+            "readOnlyMaintenanceAudit": true,
+            "sourcePath": "/work/p-limit/index.js",
+            "sourceSha256": "e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8"
+          }
+        }
+      }
+    ]
+  },
+  "usageLedger": {
+    "ledgerId": "source-generation",
+    "complete": true,
+    "knownUsage": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "cost": 0
+    }
+  },
+  "sourceAudit": {
+    "usageLedger": {
+      "ledgerId": "source-audit",
+      "complete": true,
+      "knownUsage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": 0
+      }
+    },
+    "receipt": {
+      "version": 1,
+      "outcome": "observed",
+      "sourceEvidenceStatus": "verified-observations",
+      "mutationAuthorized": false,
+      "remoteSourceCalls": 0,
+      "observedSourceEntries": 2,
+      "sourceHashes": {
+        "/work/p-limit/index.js": "e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8"
+      },
+      "usageLedgerId": "source-audit",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": 0
+      }
+    },
+    "observations": [
+      {
+        "path": "/work/p-limit/index.js",
+        "offset": 1,
+        "limit": 2000,
+        "result": "old implementation\n[lines 1-1 of 1]",
+        "sha256": "e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8"
+      }
+    ]
+  },
+  "kind": "explicit-command-source-review",
+  "version": 1,
+  "owner": {
+    "kind": "native-memory-command",
+    "version": 1,
+    "argv": [
+      "pi",
+      "--model",
+      "fixture/scripted",
+      "--session",
+      "/home/node/agent/sessions/continuous/stage-0.jsonl",
+      "--print",
+      "--mode",
+      "json",
+      "/memory \u6574\u7406\u8bb0\u5fc6"
+    ],
+    "cwd": "/work/p-limit",
+    "agentDir": "/home/node/agent",
+    "sessionPath": "/home/node/agent/sessions/continuous/stage-0.jsonl",
+    "model": "fixture/scripted",
+    "piVersion": "1.3.0",
+    "arguments": "\u6574\u7406\u8bb0\u5fc6",
+    "startedAt": 1,
+    "priorSessionDigest": "87cc02ae369972d368c9e3e57e8518d70177d7cfaeed8b58b52580cce68371c5",
+    "sourceHashes": {
+      "index.js": "e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8",
+      "index.d.ts": "ba800083cf229f16fed0998e8e8dad51c79a23147ca30a2bd2791ebab810e7fc",
+      "observed-idle-failure.mjs": "1a9f8982d6f58dd66af60b8bb4314366a5a1105b81c6521df2aabf5d2aa022fb",
+      "package.json": "9d4786d7eba873f433b23426b3b76416e5968ef82d901f5f95c7cf72744f4ad6"
+    },
+    "sourceFiles": {
+      "index.js": {
+        "sha256": "e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8",
+        "mode": 420,
+        "size": 18
+      },
+      "index.d.ts": {
+        "sha256": "ba800083cf229f16fed0998e8e8dad51c79a23147ca30a2bd2791ebab810e7fc",
+        "mode": 420,
+        "size": 19
+      },
+      "observed-idle-failure.mjs": {
+        "sha256": "1a9f8982d6f58dd66af60b8bb4314366a5a1105b81c6521df2aabf5d2aa022fb",
+        "mode": 420,
+        "size": 21
+      },
+      "package.json": {
+        "sha256": "9d4786d7eba873f433b23426b3b76416e5968ef82d901f5f95c7cf72744f4ad6",
+        "mode": 420,
+        "size": 25
+      }
+    }
+  },
+  "completion": {
+    "ownerDigest": "a511dc7a91ec46cb4225cd832b0deb158411386c4a419bad165a30b219f516e1",
+    "exitCode": 0,
+    "cancelled": false,
+    "timedOut": false,
+    "settledAt": 2,
+    "stdoutDigest": "47e81e51fe99e9ba51e3a004ed4829454978b79d7f9b5dc3148d6d64e4fa64aa",
+    "sessionDigest": "4a378720f0e87c5fbca6bf5328a08faabd7e1976478a077c730dffdaffd066f4",
+    "sourceHashes": {
+      "index.js": "e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8",
+      "index.d.ts": "ba800083cf229f16fed0998e8e8dad51c79a23147ca30a2bd2791ebab810e7fc",
+      "observed-idle-failure.mjs": "1a9f8982d6f58dd66af60b8bb4314366a5a1105b81c6521df2aabf5d2aa022fb",
+      "package.json": "9d4786d7eba873f433b23426b3b76416e5968ef82d901f5f95c7cf72744f4ad6"
+    },
+    "sourceFiles": {
+      "index.js": {
+        "sha256": "e262ce3a06df2ec892292344f142a22eb399603b0023e94a1621241916321dd8",
+        "mode": 420,
+        "size": 18
+      },
+      "index.d.ts": {
+        "sha256": "ba800083cf229f16fed0998e8e8dad51c79a23147ca30a2bd2791ebab810e7fc",
+        "mode": 420,
+        "size": 19
+      },
+      "observed-idle-failure.mjs": {
+        "sha256": "1a9f8982d6f58dd66af60b8bb4314366a5a1105b81c6521df2aabf5d2aa022fb",
+        "mode": 420,
+        "size": 21
+      },
+      "package.json": {
+        "sha256": "9d4786d7eba873f433b23426b3b76416e5968ef82d901f5f95c7cf72744f4ad6",
+        "mode": 420,
+        "size": 25
+      }
+    }
+  },
+  "originalSession": "{\"type\": \"session\", \"id\": \"original\", \"cwd\": \"/work/p-limit\"}\n{\"type\": \"custom\", \"customType\": \"continuous-study-task-deadline\", \"data\": {\"stage\": \"started\", \"elapsedMs\": 0, \"limitMs\": 900000}, \"id\": \"row-0\", \"parentId\": null}\n{\"type\": \"message\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"Inspect and maintain the actual unresolved idle failure; preserve its historical limits.\"}]}, \"id\": \"row-1\", \"parentId\": \"row-0\"}\n{\"type\": \"message\", \"message\": {\"role\": \"assistant\", \"stopReason\": \"toolUse\", \"content\": [{\"type\": \"toolCall\", \"id\": \"case\", \"name\": \"bash\", \"arguments\": {\"command\": \"node observed-idle-failure.mjs\"}}]}, \"id\": \"row-2\", \"parentId\": \"row-1\"}\n{\"type\": \"message\", \"message\": {\"role\": \"toolResult\", \"toolCallId\": \"case\", \"toolName\": \"bash\", \"isError\": true, \"content\": [{\"type\": \"text\", \"text\": \"actual observed case output\"}]}, \"id\": \"row-3\", \"parentId\": \"row-2\"}\n{\"type\": \"message\", \"message\": {\"role\": \"assistant\", \"stopReason\": \"toolUse\", \"content\": [{\"type\": \"toolCall\", \"id\": \"upstream\", \"name\": \"bash\", \"arguments\": {\"command\": \"pnpm test\"}}]}, \"id\": \"row-4\", \"parentId\": \"row-3\"}\n{\"type\": \"message\", \"message\": {\"role\": \"toolResult\", \"toolCallId\": \"upstream\", \"toolName\": \"bash\", \"isError\": false, \"content\": [{\"type\": \"text\", \"text\": \"existing tests passed\"}]}, \"id\": \"row-5\", \"parentId\": \"row-4\"}\n{\"type\": \"message\", \"message\": {\"role\": \"assistant\", \"stopReason\": \"stop\", \"content\": [{\"type\": \"text\", \"text\": \"Actual observed conditions and limits.\"}]}, \"id\": \"row-6\", \"parentId\": \"row-5\"}\n{\"type\": \"custom\", \"customType\": \"continuous-study-task-deadline\", \"data\": {\"stage\": \"settled\", \"elapsedMs\": 1, \"limitMs\": 900000}, \"id\": \"row-7\", \"parentId\": \"row-6\"}\n",
+  "nativeSession": "{\"type\": \"session\", \"id\": \"original\", \"cwd\": \"/work/p-limit\"}\n{\"type\": \"custom\", \"customType\": \"continuous-study-task-deadline\", \"data\": {\"stage\": \"started\", \"elapsedMs\": 0, \"limitMs\": 900000}, \"id\": \"row-0\", \"parentId\": null}\n{\"type\": \"message\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"Inspect and maintain the actual unresolved idle failure; preserve its historical limits.\"}]}, \"id\": \"row-1\", \"parentId\": \"row-0\"}\n{\"type\": \"message\", \"message\": {\"role\": \"assistant\", \"stopReason\": \"toolUse\", \"content\": [{\"type\": \"toolCall\", \"id\": \"case\", \"name\": \"bash\", \"arguments\": {\"command\": \"node observed-idle-failure.mjs\"}}]}, \"id\": \"row-2\", \"parentId\": \"row-1\"}\n{\"type\": \"message\", \"message\": {\"role\": \"toolResult\", \"toolCallId\": \"case\", \"toolName\": \"bash\", \"isError\": true, \"content\": [{\"type\": \"text\", \"text\": \"actual observed case output\"}]}, \"id\": \"row-3\", \"parentId\": \"row-2\"}\n{\"type\": \"message\", \"message\": {\"role\": \"assistant\", \"stopReason\": \"toolUse\", \"content\": [{\"type\": \"toolCall\", \"id\": \"upstream\", \"name\": \"bash\", \"arguments\": {\"command\": \"pnpm test\"}}]}, \"id\": \"row-4\", \"parentId\": \"row-3\"}\n{\"type\": \"message\", \"message\": {\"role\": \"toolResult\", \"toolCallId\": \"upstream\", \"toolName\": \"bash\", \"isError\": false, \"content\": [{\"type\": \"text\", \"text\": \"existing tests passed\"}]}, \"id\": \"row-5\", \"parentId\": \"row-4\"}\n{\"type\": \"message\", \"message\": {\"role\": \"assistant\", \"stopReason\": \"stop\", \"content\": [{\"type\": \"text\", \"text\": \"Actual observed conditions and limits.\"}]}, \"id\": \"row-6\", \"parentId\": \"row-5\"}\n{\"type\": \"custom\", \"customType\": \"continuous-study-task-deadline\", \"data\": {\"stage\": \"settled\", \"elapsedMs\": 1, \"limitMs\": 900000}, \"id\": \"row-7\", \"parentId\": \"row-6\"}\n{\"type\":\"custom_message\",\"id\":\"memory-result\",\"parentId\":\"row-7\",\"customType\":\"continual-learning-result\",\"details\":{\"batchId\":\"initial-owner\",\"input\":{\"source\":\"current-session\"},\"attempts\":[{\"phase\":\"memory\",\"attempt\":0,\"outcome\":\"noop\",\"operations\":0,\"usageLedgerId\":\"source-audit\",\"usage\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"totalTokens\":0,\"cost\":0}},{\"phase\":\"memory\",\"attempt\":0,\"outcome\":\"applied\",\"operations\":1,\"usageLedgerId\":\"source-generation\",\"usage\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"totalTokens\":0,\"cost\":0}}],\"kind\":\"learning-pipeline-receipt\",\"version\":1,\"mode\":\"manual\",\"operations\":1}}\n",
+  "stdout": "{\"type\":\"message_end\",\"message\":{\"customType\":\"continual-learning-result\",\"details\":{\"batchId\":\"initial-owner\",\"input\":{\"source\":\"current-session\"},\"attempts\":[{\"phase\":\"memory\",\"attempt\":0,\"outcome\":\"noop\",\"operations\":0,\"usageLedgerId\":\"source-audit\",\"usage\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"totalTokens\":0,\"cost\":0}},{\"phase\":\"memory\",\"attempt\":0,\"outcome\":\"applied\",\"operations\":1,\"usageLedgerId\":\"source-generation\",\"usage\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0,\"totalTokens\":0,\"cost\":0}}],\"kind\":\"learning-pipeline-receipt\",\"version\":1,\"mode\":\"manual\",\"operations\":1}}}\n",
+  "sources": {
+    "index.js": "old implementation",
+    "index.d.ts": "current declaration",
+    "observed-idle-failure.mjs": "unchanged public case",
+    "package.json": "{\"name\":\"public-project\"}"
+  }
+}

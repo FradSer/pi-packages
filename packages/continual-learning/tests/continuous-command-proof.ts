@@ -9,12 +9,100 @@ import {formatPlannerFileRead} from '../extensions/planner-read-scope';
 import {isLearningPipelineReceipt} from '../extensions/learning-efficiency';
 import {backlogIdentity} from '../extensions/learning-backlog';
 import {ruleRevision} from '../extensions/guardrail-engine';
+import {digest} from '../extensions/consolidation-run';
 
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex');
 const exact=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
 const record=(value:unknown):value is Record<string,any>=>value!==null && typeof value==='object' && !Array.isArray(value);
 const sameUsage=(a:any,b:any)=>['input','output','cacheRead','cacheWrite','totalTokens','cost'].every(key=>
  typeof a?.[key]==='number' && Number.isFinite(a[key]) && a[key]>=0 && a[key]===b?.[key]);
+
+/** The second correction exists only after one parent-recorded structural
+ * correction. Bind its actual immutable artifacts, not another row sharing an
+ * attempt number (body and coverage jobs use those numbers too). */
+function assertDoubleRepairGeneration(input:any,applied:any):void {
+ const {reviewManifest:manifest,receipt,initialUsageLedger:initial,structuralUsageLedger:structural,
+   usageLedger:semantic,sourceAudit,repairArtifacts:files}=input;
+ const fail=()=>{throw Error('Unbound structural and semantic generation chain');};
+ const hashPattern=/^[a-f0-9]{64}$/;
+ const ledgerPattern=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+ if(!record(manifest) || input.repairArtifactRunDir!==manifest.runDir || !record(files) || ![initial,structural,semantic].every(ledger=>record(ledger)
+   && ledgerPattern.test(ledger.ledgerId) && typeof ledger.complete==='boolean')
+   || typeof sourceAudit?.usageLedger?.ledgerId!=='string' || !sourceAudit.usageLedger.ledgerId
+   || new Set([initial.ledgerId,structural.ledgerId,semantic.ledgerId,sourceAudit?.usageLedger?.ledgerId]).size!==4
+   || input.initialUsageLedgerFile!=='memory-task-usage.json'
+   || input.structuralUsageLedgerFile!==`memory-repair-usage-${structural.ledgerId}.json`
+   || input.appliedUsageLedgerFile!==`memory-repair-usage-${semantic.ledgerId}.json`)fail();
+ if(receipt.attempts.some((item:any)=>item.phase==='memory'
+   && (!Number.isInteger(item.attempt) || item.attempt<0 || item.attempt>2))
+   || receipt.attempts.filter((item:any)=>item.phase==='memory' && item.outcome==='applied' && item.operations>0).length!==1)fail();
+ const artifact=(name:string):any=>{
+   if(path.basename(name)!==name || typeof files[name]!=='string' || Buffer.byteLength(files[name])>32*1024*1024)fail();
+   let value:unknown;try{value=JSON.parse(files[name]);}catch{fail();}
+   if(!record(value))fail();return value;
+ };
+ const row=(ledger:any,attempt:number)=>{
+   const rows=receipt.attempts.filter((item:any)=>item.phase==='memory' && item.usageLedgerId===ledger.ledgerId);
+   if(rows.length!==1 || rows[0].attempt!==attempt || !sameUsage(rows[0].usage,ledger.knownUsage))fail();
+   return rows[0];
+ };
+ const originalRow=row(initial,0),structuralRow=row(structural,1),semanticRow=row(semantic,2);
+ if(!isDeepStrictEqual(artifact('memory-task-usage.json'),initial))fail();
+ // Older original-generation rows omit this field. Retain that unknown, while
+ // checking any explicit value against the independently retained ledger.
+ if(originalRow.outcome!=='rejected' || originalRow.operations!==0
+   || originalRow.usageComplete!==undefined && originalRow.usageComplete!==initial.complete
+   || structuralRow.outcome!=='proposed' || structuralRow.operations!==0
+   || structuralRow.diagnostic!=='Memory structural repair' || structuralRow.usageComplete!==structural.complete
+   || semanticRow!==applied || semanticRow.usageComplete!==semantic.complete)fail();
+ const identity={runId:manifest.runId,scopeKey:manifest.scopeKey,scopeDigest:manifest.scopeDigest,
+   artifactHash:manifest.snapshotDigest,snapshotDigest:manifest.snapshotDigest};
+ const original=artifact('generation-original-plan.json'),rejection=artifact('structural-rejection.json');
+ if(!Object.entries(identity).every(([key,value])=>original[key]===value)
+   || original.version!==1 || original.sensitive!==false || original.originalPlanRetained!==true
+   || !record(original.originalPlan) || original.originalPlanDigest!==hash(JSON.stringify(original.originalPlan))
+   || rejection.version!==1 || rejection.runId!==identity.runId || rejection.snapshotDigest!==identity.snapshotDigest
+   || rejection.sensitive!==false || rejection.originalPlanRetained!==true
+   || !isDeepStrictEqual(rejection.originalPlan,original.originalPlan) || rejection.originalPlanDigest!==original.originalPlanDigest)fail();
+ const rejected=artifact('semantic-rejected-plan.json');
+ for(const [ledger,predecessor] of [[structural,original.originalPlan],[semantic,rejected]]) {
+   const provenance=ledger.parentRepairProvenance;
+   if(!record(provenance) || provenance.ledgerId!==ledger.ledgerId || provenance.identitySha256!==digest(identity)
+     || !hashPattern.test(provenance.taskInputSha256) || !hashPattern.test(provenance.outputSha256)
+     || provenance.rejectedPlanCanonicalSha256!==hash(JSON.stringify(predecessor)))fail();
+   const stem=`memory-repair-lifecycle-${ledger.ledgerId}`;
+   const started=artifact(stem+'-started.json'),closed=artifact(stem+'-closed.json');
+   const {outputSha256,...request}=provenance;
+   if(started.version!==1 || started.ledgerId!==ledger.ledgerId || started.stage!=='started' || started.deadlineMs!==600000
+     || !isDeepStrictEqual(started.parentRepairProvenance,request)
+     || closed.version!==1 || closed.ledgerId!==ledger.ledgerId || closed.stage!=='closed'
+     || closed.exitCode!==0 || closed.cancelled!==false || closed.timedOut!==false
+     || !isDeepStrictEqual(closed.parentRepairProvenance,provenance)
+     || !isDeepStrictEqual(artifact(`memory-repair-usage-${ledger.ledgerId}.json`),ledger))fail();
+   const response=artifact(`memory-repair-response-${ledger.ledgerId}.json`);
+   if(response.version!==1 || response.runId!==identity.runId || response.snapshotDigest!==identity.snapshotDigest
+     || response.sensitive!==false || response.truncated!==false || typeof response.output!=='string'
+     || hash(response.output)!==outputSha256
+     || !isDeepStrictEqual(response.parentRepairProvenance,provenance))fail();
+   if(ledger===structural && !isDeepStrictEqual(artifact('structural-repair-response.json'),response))fail();
+ }
+ const proof=artifact(`semantic-repair-provenance-${semantic.ledgerId}.json`);
+ const responseName=`memory-repair-response-${semantic.ledgerId}.json`;
+ const artifactNames=[`memory-repair-usage-${semantic.ledgerId}.json`,
+   `memory-repair-lifecycle-${semantic.ledgerId}-started.json`,`memory-repair-lifecycle-${semantic.ledgerId}-closed.json`,responseName];
+ if(proof.kind!=='memory-repair-provenance' || proof.version!==1 || proof.status!=='validated-repair-proposal'
+   || !Object.entries({...identity,...semantic.parentRepairProvenance}).every(([key,value])=>proof[key]===value)
+   || proof.parentConstrainedDeltaValidated!==true || proof.planSchemaValidated!==true
+   || !hashPattern.test(proof.boundPlanCanonicalSha256)
+   || proof.semanticApproval!==false || proof.writeAuthorized!==false
+   || proof.rejectedPlanBytesSha256!==hash(files['semantic-rejected-plan.json'])
+   || proof.semanticPlanFile!=='semantic-repair-plan.json' || typeof files[proof.semanticPlanFile]!=='string'
+   || proof.semanticPlanBytesSha256!==hash(files[proof.semanticPlanFile])
+   || !isDeepStrictEqual(artifact(proof.semanticPlanFile),input.plan)
+   || proof.responseArtifactFile!==responseName || proof.responseArtifactSha256!==hash(files[responseName])
+   || !record(proof.artifactHashes) || !isDeepStrictEqual(Object.keys(proof.artifactHashes).sort(),artifactNames.sort())
+   || artifactNames.some(name=>proof.artifactHashes[name]!==hash(files[name])))fail();
+}
 
 function nativeRows(text:string):Record<string,any>[] {
  if(typeof text!=='string' || !text.endsWith('\n'))throw Error('Incomplete native JSONL');
@@ -209,7 +297,7 @@ export function commandMemorySourceProof(input:any,runtimeVersion:string="1.3.0"
     || task.memoryRequest.entryIndex!==task.entries.length-1)throw Error('Incomplete command projection');
   const snapshot=JSON.parse(input.snapshotText);
   const applied=receipt.attempts.filter((attempt:any)=>attempt.phase==='memory'
-    && [0,1].includes(attempt.attempt) && attempt.outcome==='applied' && attempt.operations>0
+    && [0,1,2].includes(attempt.attempt) && attempt.outcome==='applied' && attempt.operations>0
     && attempt.usageLedgerId===usageLedger?.ledgerId && sameUsage(usageLedger?.knownUsage,attempt.usage));
   const initialLedger=input.initialUsageLedger;
   if(applied.length===1 && applied[0].attempt===0 && initialLedger!==undefined && !exact(initialLedger,usageLedger))
@@ -235,6 +323,7 @@ export function commandMemorySourceProof(input:any,runtimeVersion:string="1.3.0"
     || receipt.attempts.filter((attempt:any)=>attempt.phase==='memory' && attempt.attempt===0
       && attempt.operations===0 && attempt.usageLedgerId===sourceAudit.usageLedger.ledgerId
       && sameUsage(sourceAudit.usageLedger.knownUsage,attempt.usage)).length!==1)throw Error('Unbound source run or usage');
+  if(applied[0].attempt===2)assertDoubleRepairGeneration(input,applied[0]);
   if(!record(input.sources) || !record(owner.sourceHashes) || !exact(owner.sourceHashes,completion.sourceHashes)
     || !exact(Object.keys(input.sources).sort(),Object.keys(owner.sourceHashes).sort())
     || !Object.entries(input.sources).every(([relative,body])=>typeof body==='string'
