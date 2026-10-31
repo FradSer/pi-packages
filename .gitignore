@@ -378,3 +378,6 @@ draft_*
 # Pi's own runtime state: goal ledger, harness overrides, worktrees.
 # Not source, and a checkout should never carry another session's goals.
 .pi/
+
+# Local Starship prompt override
+.starship.toml
