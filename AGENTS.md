@@ -11,19 +11,23 @@ contracts and checks.
 ## Build/Test/Development Commands
 
 ```bash
-pnpm install
-pnpm test
-pnpm typecheck
-pnpm pack:check
-pnpm check
+bun install
+bun test           # Run native package tests via bun test (~20s)
+bun run typecheck  # Typecheck extensions
+bun run pack:check # Validate packed manifests for all 21 packages
+bun run check      # Full workspace quality gate (~25s)
 ```
 
-`pnpm check` requires Python 3 with pytest and Bun 1.4.1 and runs
-package/root tests, the extension TypeScript project, and registry-free
-packed-manifest validation. CI installs both runtimes before this command.
-Focus: `uv run pytest packages/<name>/tests/ -q` (or `python3 -m pytest packages/<name>/tests/ -q`).
-Pack: `pnpm --dir packages/<name> pack --dry-run`.
-SDK example: `pnpm example:sdk`. Pi loads TypeScript without a build step.
+`bun test` runs package tests natively using Bun 1.4.1. `bun run check` runs
+package tests, the extension TypeScript project, and registry-free
+packed-manifest validation.
+**Continual-Learning Python Experiments**: Run directly inside `packages/continual-learning`:
+- `cd packages/continual-learning && make test` (full study suite)
+- `cd packages/continual-learning && make test-one FILE=packages/continual-learning/tests/test_x.py`
+- `cd packages/continual-learning && make test-privacy`
+Focus: `bun test packages/<name>/tests/`.
+Pack: `bun pm pack --destination /tmp --quiet --cwd packages/<name>`.
+SDK example: `bun examples/sdk-session.ts`. Pi loads TypeScript without a build step.
 
 ## Coding Style & Naming Conventions
 
@@ -42,7 +46,7 @@ If absent, record the gap; invent no replacement or unverified registry dependen
 
 Start behavior changes with a failing regression and the global Given/When/Then,
 RED, GREEN, refactor loop. Keep `test_*.py` and Node/tsx harnesses in `tests/`;
-run both suites and tsc. Runtime changes require `pnpm check:install` and
+run both suites and tsc. Runtime changes require `bun run check:install` and
 live `pi --print` verification; test TUI interactively. Package moves must
 update installed paths in `~/.pi/agent/settings.json`.
 
@@ -143,8 +147,8 @@ a task, so the leader records the outcome from the child's report.
   destructive operation, and its result, in the completion evidence. The global
   agent guidelines hold the general boundary rules.
 - **Completion gate**: Local work is complete when the target package's tests
-  pass (`python3 -m pytest packages/<name>/tests/ -q`), `pnpm typecheck` passes,
-  and `pnpm --dir packages/<name> pack --dry-run` confirms manifest packaging.
+  pass (`bun test packages/<name>/tests/`), `bun run typecheck` passes,
+  and `bun pm pack --destination /tmp --quiet --cwd packages/<name>` confirms manifest packaging.
 
 ## Commit & Pull Request Guidelines
 

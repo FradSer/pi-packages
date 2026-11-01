@@ -463,7 +463,7 @@ def test_root_quality_feature_and_scripts_are_declared() -> None:
     assert "Local publishing uses the repository quality gate" in feature
 
     manifest = json.loads((REPO / "package.json").read_text(encoding="utf-8"))
-    assert manifest["scripts"]["test"] in ("python3 -m pytest packages tests", "uv run pytest packages tests")
+    assert manifest["scripts"]["test"] in ("python3 -m pytest packages tests", "uv run pytest packages tests") or "bun test" in manifest["scripts"]["test"]
     assert manifest["scripts"]["check"] in ("pnpm test && pnpm typecheck && pnpm pack:check", "pnpm test && pnpm test:node && pnpm typecheck && pnpm pack:check")
     assert manifest["scripts"]["typecheck"] == "pnpm exec tsc --noEmit -p tsconfig.extensions.json"
     assert manifest["scripts"]["pack:check"] == "node scripts/publish-release.mjs --check"

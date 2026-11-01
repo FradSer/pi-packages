@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -10,11 +11,13 @@ import pytest
 
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
+TSX_BIN = str(REPO / "node_modules/.bin/tsx")
 
 
 def run_harness(agent_dir: Path, *args: str, timeout: int = 120) -> dict[str, object]:
+    cmd = ["bun"] if shutil.which("bun") else [TSX_BIN]
     completed = subprocess.run(
-        ["npx", "tsx", str(PACKAGE / "tests" / "router_harness.ts"), *args],
+        [*cmd, str(PACKAGE / "tests" / "router_harness.ts"), *args],
         cwd=REPO,
         env={**os.environ, "PI_CODING_AGENT_DIR": str(agent_dir)},
         capture_output=True,

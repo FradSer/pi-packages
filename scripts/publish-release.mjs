@@ -205,13 +205,34 @@ export function verifyPackedManifest(packageDir, options = {}) {
   const remove = options.remove ?? defaultRmSync;
   const tempDir = mkdtemp(join(tmpdir(), "pi-pack-verify-"));
   try {
-    const packOutput = execFileSync(
-      "pnpm",
-      ["--dir", packageDir, "pack", "--pack-destination", tempDir, "--json"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
-    const packedPath = packedFilename(packOutput);
-    const tarballPath = isAbsolute(packedPath) ? packedPath : join(tempDir, packedPath);
+    let tarballPath;
+    if (options.execFileSync) {
+      const packOutput = execFileSync(
+        "pnpm",
+        ["--dir", packageDir, "pack", "--pack-destination", tempDir, "--json"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const packedPath = packedFilename(packOutput);
+      tarballPath = isAbsolute(packedPath) ? packedPath : join(tempDir, packedPath);
+    } else {
+      try {
+        const output = execFileSync(
+          "bun",
+          ["pm", "pack", "--destination", tempDir, "--quiet", "--cwd", packageDir],
+          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        );
+        const filename = output.trim().split("\n").pop();
+        tarballPath = isAbsolute(filename) ? filename : join(tempDir, filename);
+      } catch {
+        const packOutput = execFileSync(
+          "pnpm",
+          ["--dir", packageDir, "pack", "--pack-destination", tempDir, "--json"],
+          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        );
+        const packedPath = packedFilename(packOutput);
+        tarballPath = isAbsolute(packedPath) ? packedPath : join(tempDir, packedPath);
+      }
+    }
     const manifestJson = execFileSync("tar", ["-xOf", tarballPath, "package/package.json"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],

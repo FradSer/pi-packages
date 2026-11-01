@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -61,15 +62,21 @@ def run_node(
 ) -> dict[str, object]:
     env = {key: value for key, value in os.environ.items() if not key.startswith("PI_TEAMMATE_")}
     env.update(env_overrides or {})
-    result = subprocess.run(
-        [
+    use_bun = not module_mocks and "node:test" not in script and shutil.which("bun") is not None
+    cmd = (
+        ["bun", "-e", textwrap.dedent(script), *args]
+        if use_bun
+        else [
             "node",
             *(  ["--experimental-test-module-mocks"] if module_mocks else []),
             "--input-type=module",
             "--eval",
             textwrap.dedent(script),
             *args,
-        ],
+        ]
+    )
+    result = subprocess.run(
+        cmd,
         cwd=PACKAGE,
         check=False,
         capture_output=True,

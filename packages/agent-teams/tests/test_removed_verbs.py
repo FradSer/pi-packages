@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import textwrap
 from pathlib import Path
@@ -56,8 +57,9 @@ def run_node(script: str) -> dict[str, object]:
     developer's shell cannot make a spawned child believe it is a worker.
     """
     env = {key: value for key, value in os.environ.items() if not key.startswith("PI_TEAMMATE_")}
+    runner = ["bun", "-e"] if shutil.which("bun") else ["node", "--input-type=module", "--eval"]
     result = subprocess.run(
-        ["node", "--input-type=module", "--eval", textwrap.dedent(script)],
+        [*runner, textwrap.dedent(script)],
         cwd=PACKAGE,
         check=False,
         capture_output=True,

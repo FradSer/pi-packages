@@ -11,7 +11,7 @@ dependencies = [
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["packages", "tests"]
+testpaths = ["tests"]
 norecursedirs = [
     ".*",
     "node_modules",

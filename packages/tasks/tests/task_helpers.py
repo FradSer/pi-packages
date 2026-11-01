@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -41,8 +42,9 @@ def run_node(
     with tempfile.TemporaryDirectory(prefix="tasks-test-agent-") as agent_dir:
         env["PI_CODING_AGENT_DIR"] = agent_dir
         env.update(env_overrides or {})
+        runner = ["bun", "-e"] if shutil.which("bun") else ["node", "--input-type=module", "--eval"]
         result = subprocess.run(
-            ["node", "--input-type=module", "--eval", textwrap.dedent(script), *args],
+            [*runner, textwrap.dedent(script), *args],
             cwd=PACKAGE,
             check=False,
             capture_output=True,

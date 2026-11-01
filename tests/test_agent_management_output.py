@@ -457,15 +457,16 @@ def test_native_types_accept_schema_and_discriminated_output_without_any() -> No
       const badState: AgentToolData = {{operation:"stop",ok:true,outcome:"stopped",state:"acknowledged",nextActor:"caller",name:"a",session:"session:a:id"}};
       void [tool, failures, narrow, badOutcome, badSuccess, badState];
     """
+    tsc = [str(REPO / "node_modules/.bin/tsc")] if (REPO / "node_modules/.bin/tsc").exists() else ["bun", "x", "tsc"] if shutil.which("bun") else ["pnpm", "exec", "tsc"]
     with tempfile.TemporaryDirectory(prefix="agent-output-types-", dir=REPO / "tests") as scratch:
-        fixture = Path(scratch) / "fixture.ts"
-        fixture.write_text(source, encoding="utf-8")
-        with tempfile.TemporaryDirectory(prefix="agent-output-type-home-") as home:
-            result = subprocess.run(
-                ["pnpm", "exec", "tsc", "--noEmit", "--strict", "--skipLibCheck", "--target", "ES2022",
-                 "--module", "ESNext", "--moduleResolution", "bundler", "--allowImportingTsExtensions", str(fixture)],
-                # The repository type surface under the current Pi cohort needs more than a
-                # minute on a loaded machine; the check is the verdict, not the stopwatch.
-                cwd=REPO, env=isolated_env(home), capture_output=True, text=True, timeout=180,
-            )
+            fixture = Path(scratch) / "fixture.ts"
+            fixture.write_text(source, encoding="utf-8")
+            with tempfile.TemporaryDirectory(prefix="agent-output-type-home-") as home:
+                result = subprocess.run(
+                    [*tsc, "--noEmit", "--strict", "--skipLibCheck", "--target", "ES2022",
+                     "--module", "ESNext", "--moduleResolution", "bundler", "--allowImportingTsExtensions", str(fixture)],
+                    # The repository type surface under the current Pi cohort needs more than a
+                    # minute on a loaded machine; the check is the verdict, not the stopwatch.
+                    cwd=REPO, env=isolated_env(home), capture_output=True, text=True, timeout=180,
+                )
     assert result.returncode == 0, result.stdout + result.stderr

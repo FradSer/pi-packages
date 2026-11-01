@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import textwrap
 
@@ -9,8 +10,9 @@ PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def run_node(script: str) -> subprocess.CompletedProcess[str]:
+    runner = ["bun", "-e"] if shutil.which("bun") else ["node", "--input-type=module", "--eval"]
     return subprocess.run(
-        ["node", "--input-type=module", "--eval", textwrap.dedent(script)],
+        [*runner, textwrap.dedent(script)],
         cwd=PACKAGE,
         capture_output=True,
         text=True,
