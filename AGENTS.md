@@ -42,6 +42,12 @@ Prefer internal `@fradser/pi-kit` for shared helpers/infrastructure:
 `"@fradser/pi-kit": "workspace:*"` under `dependencies`, never `peerDependencies`.
 If absent, record the gap; invent no replacement or unverified registry dependency.
 
+Pi loads local package sources in place and never installs them, so a checkout
+without `bun install` cannot resolve `@fradser/pi-kit` and every extension that
+imports it fails to load. `bun run check:install` reports that state as `BROKEN`
+with the dependency and the install command; npm and git installs are unaffected
+because Pi installs their dependencies.
+
 ## Testing Guidelines
 
 Start behavior changes with a failing regression and the global Given/When/Then,

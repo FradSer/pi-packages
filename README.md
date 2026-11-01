@@ -327,6 +327,13 @@ pnpm pack:check
 pnpm check
 ```
 
+Pi loads a local package source in place and never installs its dependencies. Run
+`pnpm install` once per checkout before pointing Pi at `packages/*`; otherwise
+every extension that imports the shared runtime fails at startup with
+`Cannot find module '@fradser/pi-kit'`. `pnpm check:install` reports that state as
+`BROKEN` with the dependency and the install command. Installs from npm or git
+need no extra step, because Pi installs their declared dependencies.
+
 Each package keeps behavior scenarios in `features/` and tests in `tests/`.
 
 `pnpm check` runs the package and root pytest suites, the extension TypeScript project, and a registry-free packed-manifest check for every workspace package. Use `pnpm check:install` separately to audit the packages in the live Pi settings file.
