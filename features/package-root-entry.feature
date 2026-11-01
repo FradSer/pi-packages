@@ -44,3 +44,10 @@ Feature: Package-root index entry points
     Then it extracts npm package names from versioned sources
     And it resolves local and file URL paths using the settings directory
     And it does not print unrelated settings values
+
+  Scenario: Installation audit detects a checkout that was never installed
+    Given Pi loads a configured local package in place without installing it
+    And that package declares a runtime dependency
+    When the workspace dependency is absent from node_modules
+    Then the audit reports the package as broken with the unresolved dependency
+    And it names the workspace install command as the fix
