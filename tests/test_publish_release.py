@@ -455,6 +455,64 @@ def test_installation_audit_diagnoses_entries_without_echoing_private_values(tmp
     assert str(tmp_path) not in result.stdout
 
 
+def test_installation_audit_reports_a_checkout_without_a_workspace_install(tmp_path: Path) -> None:
+    """Given a configured local package whose runtime dependency is not linked
+    When the installation audit resolves that package
+    Then it reports the dependency as broken and names the install command
+    And linking the dependency clears the finding.
+    """
+    workspace = tmp_path / "workspace"
+    demo = workspace / "packages" / "demo"
+    kit = workspace / "packages" / "kit"
+    demo.mkdir(parents=True)
+    kit.mkdir(parents=True)
+    (kit / "package.json").write_text(json.dumps({"name": "@fradser/pi-kit", "version": "0.0.0"}), encoding="utf-8")
+    (demo / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "@fradser/pi-demo",
+                "keywords": ["pi-package"],
+                "dependencies": {"@fradser/pi-kit": "workspace:*"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text(json.dumps({"packages": [str(demo)]}), encoding="utf-8")
+
+    def audit() -> dict[str, object]:
+        result = run_node(
+            f"""
+            const {{ checkInstallation }} = await import("./scripts/check-installation.mjs");
+            const lines = [];
+            const result = checkInstallation({{
+                settingsPath: {json.dumps(str(settings_path))},
+                packagesDir: {json.dumps(str(workspace / "packages"))},
+                logger: {{ log: (line) => lines.push(line) }},
+            }});
+            console.log(JSON.stringify({{ broken: result.broken, lines }}));
+            """,
+        )
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    uninstalled = audit()
+    assert [entry["dependencies"] for entry in uninstalled["broken"]] == [["@fradser/pi-kit"]]
+    assert uninstalled["lines"][0] == (
+        "BROKEN   packages/demo (@fradser/pi-demo) — @fradser/pi-kit does not resolve"
+    )
+    assert uninstalled["lines"][1].strip().startswith("fix: ")
+    assert uninstalled["lines"][1].strip().endswith("install")
+
+    linked = workspace / "node_modules" / "@fradser" / "pi-kit"
+    linked.mkdir(parents=True)
+    (linked / "package.json").write_text(json.dumps({"name": "@fradser/pi-kit", "version": "0.0.0"}), encoding="utf-8")
+
+    installed = audit()
+    assert installed["broken"] == []
+    assert installed["lines"][0].startswith("OK: ")
+
+
 def test_root_quality_feature_and_scripts_are_declared() -> None:
     feature = (REPO / "features" / "repository-quality.feature").read_text(encoding="utf-8")
     assert "The check command runs all local quality gates" in feature
