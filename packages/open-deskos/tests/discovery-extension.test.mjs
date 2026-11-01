@@ -13,7 +13,7 @@ async function waitFor(condition, ms = 8000) {
   }
 }
 
-test("extension discovers older sessions, periodically refreshes, preserves own events and cleans up", async (t) => {
+test("extension discovers older sessions, periodically refreshes, preserves own events and cleans up", { timeout: 15000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "desk-extension-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, "fixture"));

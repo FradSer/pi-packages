@@ -66,11 +66,13 @@ test("plain-string user content preserves pasted Markdown and user byte bounds",
 
 async function tcpFixture(t, options = {}) {
   let peer;
-  const server = net.createServer((socket) => { peer = socket; });
+  let onConnection;
+  const connected = new Promise((resolve) => { onConnection = resolve; });
+  const server = net.createServer((socket) => { peer = socket; onConnection?.(); });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const transport = createTcpTransport({ ...config, port: server.address().port }, options);
   t.after(() => { transport.close(); peer?.destroy(); server.close(); });
-  await new Promise((resolve) => transport.onOpen(resolve));
+  await Promise.all([new Promise((resolve) => transport.onOpen(resolve)), connected]);
   return { peer, transport };
 }
 
