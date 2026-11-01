@@ -82,7 +82,7 @@ def run_native(
     command: str,
     expected: list[str],
     extra_env: dict[str, str] | None = None,
-    quiet: float = 2.5,
+    quiet: float = 0.8,
     timeout: float = 60,
 ) -> tuple[list[dict], list[dict], bytes]:
     """Drive the real CLI over a pty and return (start rows, all rows, terminal bytes)."""
