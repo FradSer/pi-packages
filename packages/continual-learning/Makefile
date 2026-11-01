@@ -33,14 +33,14 @@ help:
 	@echo "make check         typecheck + pack + full suite"
 
 test:
-	cd $(REPO) && python3 -m pytest $(PKG)/tests/ -q
+	cd $(REPO) && uv run pytest $(PKG)/tests/ -q
 
 test-one:
 	@test -n "$(FILE)" || (echo "usage: make test-one FILE=packages/continual-learning/tests/test_x.py" && exit 2)
-	cd $(REPO) && python3 -m pytest $(FILE) -q
+	cd $(REPO) && uv run pytest $(FILE) -q
 
 test-privacy:
-	cd $(REPO) && python3 -m pytest $(PRIVACY_TESTS) -q
+	cd $(REPO) && uv run pytest $(PRIVACY_TESTS) -q
 
 typecheck:
 	cd $(REPO) && pnpm typecheck
