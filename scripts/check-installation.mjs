@@ -4,7 +4,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -43,15 +43,53 @@ function resolveLocalEntry(entry, settingsDir) {
   return isAbsolute(expanded) ? resolve(expanded) : resolve(settingsDir, expanded);
 }
 
-function loadWorkspacePackages(packagesDir) {
-  const workspacePackages = new Map();
+function loadWorkspaceManifests(packagesDir) {
+  const workspaceManifests = new Map();
   for (const directory of readdirSync(packagesDir)) {
     const manifestPath = join(packagesDir, directory, "package.json");
     if (!existsSync(manifestPath)) continue;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    if (isPiPackage(manifest)) workspacePackages.set(manifest.name, directory);
+    workspaceManifests.set(manifest.name, { directory, manifest });
+  }
+  return workspaceManifests;
+}
+
+function loadWorkspacePackages(packagesDir) {
+  const workspacePackages = new Map();
+  for (const [name, { directory, manifest }] of loadWorkspaceManifests(packagesDir)) {
+    if (isPiPackage(manifest)) workspacePackages.set(name, directory);
   }
   return workspacePackages;
+}
+
+/**
+ * Pi loads local package sources in place and never installs them, so a
+ * checkout without a workspace install cannot resolve its own runtime
+ * dependencies. Resolve each one the way Pi's loader does: a node_modules walk
+ * up from the package directory.
+ */
+function unresolvedDependencies(packageDir, manifest) {
+  const unresolved = [];
+  for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+    let current = resolve(packageDir);
+    let found = false;
+    for (;;) {
+      if (existsSync(join(current, "node_modules", dependency, "package.json"))) {
+        found = true;
+        break;
+      }
+      const parent = resolve(current, "..");
+      if (parent === current) break;
+      current = parent;
+    }
+    if (!found) unresolved.push(dependency);
+  }
+  return unresolved;
+}
+
+function workspaceInstallCommand() {
+  const usesBun = ["bun.lock", "bun.lockb"].some((lockfile) => existsSync(join(REPO_ROOT, lockfile)));
+  return usesBun ? "bun install" : "pnpm install";
 }
 
 /**
@@ -80,6 +118,7 @@ export function checkInstallation(options = {}) {
   const installedDirs = new Set();
   const npmNames = new Set();
   const dead = [];
+  const broken = [];
   for (const [entryPosition, entry] of entries.entries()) {
     const index = sourceIndexes[entryPosition];
     const npmName = parseNpmPackageName(entry);
@@ -89,8 +128,15 @@ export function checkInstallation(options = {}) {
     }
     if (isRemoteSource(entry)) continue;
     const directory = resolveLocalEntry(entry, settingsDir);
-    if (existsSync(join(directory, "package.json"))) installedDirs.add(directory);
-    else dead.push({ index, directory });
+    const manifestPath = join(directory, "package.json");
+    if (!existsSync(manifestPath)) {
+      dead.push({ index, directory });
+      continue;
+    }
+    installedDirs.add(directory);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const dependencies = unresolvedDependencies(directory, manifest);
+    if (dependencies.length > 0) broken.push({ index, directory, name: manifest.name, dependencies });
   }
 
   const missing = [];
@@ -102,6 +148,16 @@ export function checkInstallation(options = {}) {
   }
 
   const logger = options.logger ?? console;
+  const installCommand = workspaceInstallCommand();
+  for (const { directory, name, dependencies } of broken) {
+    const relativeDirectory = relative(packagesDir, directory);
+    const displayDirectory = relativeDirectory.startsWith("..") || isAbsolute(relativeDirectory)
+      ? directory
+      : `packages/${relativeDirectory}`;
+    const verb = dependencies.length === 1 ? "does" : "do";
+    logger.log(`BROKEN   ${displayDirectory} (${name}) — ${dependencies.join(", ")} ${verb} not resolve`);
+    logger.log(`         fix: ${installCommand}`);
+  }
   for (const { name, directory } of missing) {
     logger.log(`MISSING  packages/${directory} (${name}) — not in configured Pi package sources`);
     logger.log(`         fix: pi install ${join(packagesDir, directory)}`);
@@ -112,10 +168,10 @@ export function checkInstallation(options = {}) {
   for (const index of invalid) {
     logger.log(`INVALID  settings.packages[${index}] — expected a string or an object with a source string`);
   }
-  if (missing.length === 0 && dead.length === 0 && invalid.length === 0) {
+  if (missing.length === 0 && dead.length === 0 && invalid.length === 0 && broken.length === 0) {
     logger.log(`OK: ${workspacePackages.size} workspace pi packages installed, ${entries.length} settings entries checked.`);
   }
-  return { missing, dead, invalid, entries, workspacePackages };
+  return { missing, dead, invalid, broken, entries, workspacePackages };
 }
 
 export function isMainModule() {
@@ -125,7 +181,8 @@ export function isMainModule() {
 if (isMainModule()) {
   try {
     const result = checkInstallation({ settingsPath: process.argv[2] });
-    process.exitCode = result.missing.length + result.dead.length + result.invalid.length > 0 ? 1 : 0;
+    process.exitCode =
+      result.missing.length + result.dead.length + result.invalid.length + result.broken.length > 0 ? 1 : 0;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
