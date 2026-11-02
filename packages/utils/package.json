@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-utils",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Native Pi commands and utilities for continuation, session awareness and control, thinking levels, and git worktrees",
   "keywords": [
     "pi-package",
