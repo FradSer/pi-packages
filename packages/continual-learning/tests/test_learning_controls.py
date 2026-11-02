@@ -263,7 +263,7 @@ def test_management_requires_headless_approval_and_rechecks_tui_preview(tmp_path
       const target=path.join(cwd,'AGENTS.md');fs.writeFileSync(target,'before');
       await recordLearningMutation(cwd,'agents',[target],async()=>fs.writeFileSync(target,'after'));
       const [record]=await listLearningHistory(cwd),notices=[];
-      let settings={autoMemory:true,instructions:'preserved'};
+      let settings={autoSettledLearning:true,autoContinualLearning:false,instructions:'preserved'};
       const dependencies={readSettings:async()=>settings,writeSettings:async(next)=>{settings=next},busy:()=>false};
       const ctx={cwd,hasUI:false,ui:{notify:text=>notices.push(text),confirm:async()=>{fs.writeFileSync(target,'later edit');return true}}};
       await handleLearningManagement('undo '+record.id,ctx,dependencies);
@@ -275,7 +275,7 @@ def test_management_requires_headless_approval_and_rechecks_tui_preview(tmp_path
       await handleLearningManagement('policy harness propose',ctx,dependencies);
       console.log(JSON.stringify({headlessPreserved,laterPreserved,restored:fs.readFileSync(target,'utf8'),settings,errors:notices.filter(text=>text.includes('failed')).length}));
     """, tmp_path)
-    assert result == {"headlessPreserved": "after", "laterPreserved": "later edit", "restored": "before", "settings": {"autoMemory": True, "instructions": "preserved", "automaticPhases": {"harness": "propose"}}, "errors": 2}
+    assert result == {"headlessPreserved": "after", "laterPreserved": "later edit", "restored": "before", "settings": {"autoSettledLearning": True, "autoContinualLearning": False, "instructions": "preserved", "automaticPhases": {"harness": "propose"}}, "errors": 2}
 
 
 def test_policy_refuses_to_display_or_write_invalid_settings(tmp_path: Path) -> None:
@@ -283,7 +283,7 @@ def test_policy_refuses_to_display_or_write_invalid_settings(tmp_path: Path) -> 
       import {handleLearningManagement} from './packages/continual-learning/extensions/learning-management.ts';
       const notices=[];let writes=0;
       const ctx={cwd:process.env.CONTROL_TEST_ROOT,hasUI:false,ui:{notify:(text,level)=>notices.push({text,level})}};
-      const dependencies={readSettings:async()=>({autoMemory:false,invalid:'Repair settings first'}),writeSettings:async()=>{writes++},busy:()=>false};
+      const dependencies={readSettings:async()=>({autoSettledLearning:false,autoContinualLearning:false,invalid:'Repair settings first'}),writeSettings:async()=>{writes++},busy:()=>false};
       await handleLearningManagement('policy',ctx,dependencies);
       await handleLearningManagement('policy memory apply',ctx,dependencies);
       console.log(JSON.stringify({writes,notices}));
@@ -671,3 +671,72 @@ def test_code_expressions_and_env_references_do_not_trip_sensitive_detector(tmp_
       }));
     """, tmp_path)
     assert result == {"benignPassed": True, "secretsCaught": True}
+
+
+def test_agent_triggered_memory_learns_once_before_the_answer_and_deduplicates_settlement() -> None:
+    # Given the agent trigger is enabled with Memory apply, When the agent calls
+    # the learning tool before answering, Then exactly one Memory pipeline runs
+    # under the configured policy, a second call echoes the recorded outcome,
+    # and the settled run keeps Harness/AGENTS handling without a second Memory run.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-apply")
+    assert value["agentFirst"] == {
+        "text": "Memory learning finished: Learning 1 memory applied · usage unavailable · cost unavailable",
+        "status": "applied", "isError": False,
+    }, value["agentFirst"]
+    assert value["agentSecond"] == {
+        "text": value["agentFirst"]["text"], "status": "already-learned", "isError": False,
+    }, value["agentSecond"]
+    assert value["planners"] == ["memory"], value["planners"]
+    # The empty Memory index parent-routes explicit evidence without a selector
+    # worker for both the agent run and the settled run.
+    assert value["selectors"] == 0, value["selectors"]
+    assert "concise.md" in value["privateFiles"], value
+    assert value["harnessExists"] is False and value["agentsUnchanged"] is True, value
+    # The settled receipt skips Memory for the already-processed task.
+    assert value["registryReceipt"]["screen"]["memory"] is False, value["registryReceipt"]
+
+
+def test_agent_triggered_memory_propose_saves_a_reviewable_outcome() -> None:
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-propose")
+    assert value["agentFirst"]["status"] == "proposed" and value["agentFirst"]["isError"] is False, value["agentFirst"]
+    assert value["planners"] == ["memory"], value["planners"]
+    assert value["privateFiles"] == [] and value["publicFiles"] == [], value
+    assert [record["status"] for record in value["history"]] == ["proposed"], value["history"]
+
+
+def test_disabled_agent_trigger_never_starts_a_pipeline() -> None:
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-disabled")
+    assert value["agentFirst"] == {
+        "text": "Agent-triggered Memory learning is disabled by settings. Report this accurately and continue the task; do not retry.",
+        "status": "disabled", "isError": False,
+    }, value["agentFirst"]
+    assert value["selectors"] == 0 and value["planners"] == [], value
+    assert "registryReceipt" not in value or value["registryReceipt"] is None, value
+    assert "concise.md" not in value["privateFiles"], value
+
+
+def test_agent_trigger_never_runs_harness_or_agents_even_when_configured_to_apply() -> None:
+    # Given every automatic phase is configured to apply, When the agent requests
+    # current-task Memory learning, Then only the Memory phase may run: the tool
+    # never rewrites execution rules or always-loaded instructions.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-all-phases")
+    assert value["agentFirst"]["status"] == "applied", value["agentFirst"]
+    assert value["planners"] == ["memory"], value["planners"]
+    assert value["harnessExists"] is False, value
+    assert value["agentsUnchanged"] is True, value
+    receipt = value["registryReceipt"]
+    assert receipt["screen"]["harness"] is False and receipt["screen"]["agents"] is False, receipt
+
+
+def test_extension_only_learning_model_blocks_before_any_worker_spawns() -> None:
+    # A model registered by a session extension resolves in the parent but not in
+    # read-only planner children, which run without extensions. The parent must
+    # refuse up front with the actionable fix instead of failing the selector.
+    value = run_bun_script(POLICY_HARNESS, "manual-model-unavailable")
+    assert value["selectors"] == 0 and value["planners"] == [], value
+    assert any("Learning is blocked" in notice and "/memory model" in notice for notice in value["notices"]), value["notices"]
+    receipt = value["registryReceipt"]
+    assert [(attempt["phase"], attempt["outcome"]) for attempt in receipt["attempts"]] == [("selector", "failed")], receipt
+    assert "without extensions" in receipt["attempts"][0]["diagnostic"], receipt
+    assert value["lock"] is False, value
+    assert value["history"] == [], value

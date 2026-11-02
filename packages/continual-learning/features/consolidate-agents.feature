@@ -77,7 +77,7 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     And pre-existing private index classifications remain unchanged
     And an existing memory name is never overwritten, including case-insensitive matches
     And duplicate case-insensitive memory extraction names within the same plan are rejected before mutation
-    And a Memory frontmatter description is a single line of at most 120 characters with relevance front-loaded
+    And a Memory frontmatter description is a single line of at most 400 characters with relevance front-loaded
     And both rebuilt Memory indexes include that conditional description beside the discoverable filename
     And privacy-looking description text cannot invent a harness-only classification
     And a skillRule extraction supplies ruleId, skillName, and instructions for an exact registered skill

@@ -155,7 +155,7 @@ def _run(evidence: EvidenceRun, report: dict, *, real_model: bool, raw_memory_js
                 'models': [{'id': MODEL, 'reasoning': False, 'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
                             'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}]}}}))
             settings = agent / 'memory/settings.json'
-            settings.write_text(json.dumps({'autoMemory': True, 'automaticPhases': {'memory': 'apply', 'harness': 'apply', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))
+            settings.write_text(json.dumps({'autoSettledLearning': True, 'autoContinualLearning': False, 'automaticPhases': {'memory': 'apply', 'harness': 'apply', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))
             provider, model = PROVIDER, MODEL
             if real_model:
                 # Explicit opt-in: copy auth privately, never into retained evidence.
@@ -165,7 +165,7 @@ def _run(evidence: EvidenceRun, report: dict, *, real_model: bool, raw_memory_js
                 (agent / 'memory.json').write_text(json.dumps({'provider': provider, 'model': model}))
                 (agent / 'models.json').unlink()
                 secrets = private_provider_copy(source, agent, provider)
-                settings.write_text(json.dumps({'autoMemory': True, 'automaticPhases': {'memory': 'apply', 'harness': 'off', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))
+                settings.write_text(json.dumps({'autoSettledLearning': True, 'autoContinualLearning': False, 'automaticPhases': {'memory': 'apply', 'harness': 'off', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))
             subprocess.run(['git', 'init', '-q', str(project)], check=True)
             events = base / 'events.jsonl'
             probe = base / 'probe.ts'
@@ -275,7 +275,7 @@ def _run(evidence: EvidenceRun, report: dict, *, real_model: bool, raw_memory_js
                 (output / 'receipt.json').write_bytes(receipt_bytes)
                 (output / 'history-applied.json').write_text(json.dumps(original_history, indent=2))
                 # No additional learning should occur during verification and navigation.
-                settings.write_text(json.dumps({'autoMemory': False, 'agentsMd': {'disabled': True}}))
+                settings.write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False, 'agentsMd': {'disabled': True}}))
                 for index, record in enumerate(original_history):
                     send(b'/memory\r', 'Open Memory menu'); wait_text('Recent learning')
                     send(b'\x1b[A' * 5 + b'\x1b[B\x1b[B\r', 'Open Recent learning'); wait_text('Recent learning')

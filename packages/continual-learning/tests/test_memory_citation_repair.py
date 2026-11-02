@@ -389,13 +389,13 @@ def test_native_fresh_plan_repair_reaches_parent_source_materialization_and_priv
       try{
         const snapshot=JSON.parse(fs.readFileSync(run.paths.snapshotFile,'utf8')),m=run.manifest,identity={runId:m.runId,scopeKey:m.scopeKey,scopeDigest:m.scopeDigest,artifactHash:m.snapshotDigest,snapshotDigest:m.snapshotDigest};
         const proposal={name:'pool.md',kind:'project',classification:'private',description:'The observed declaration returns Pool.',knowledge:{sourceCitations:[{ref:'e1.b0.l1'},{ref:'e1.b0.l2'}],units:[{text:'Why: The declaration returns Pool. How to apply: Inspect the declared return before using flush; runtime behavior is unverified.',citationIndexes:[0,1]}]}};
-        const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{...proposal,description:'x'.repeat(123)}]};
+        const original={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{...proposal,description:'x'.repeat(401)}]};
         const input={identity,rejectedPlan:original,selectedNames:[],errors:['Controlled metadata bound'],structuralCorrection:true,requireNewProjectKnowledge:true,fileSourcesFromCwd:repo,semanticContext:{frozenEvidence:snapshot,existingMemories:[]}};
         const good={...original,newMemories:[proposal]},before=JSON.stringify(original);next=good;const repaired=await repairIncrementalMemoryPlan(input),actualBinding=binding;
         const materialized=await materializeSourceExcerptPlan(run,repaired.plan,snapshot,undefined,{retainSelectedDeclarations:true});
         const expanded=await expandCitedIncrementalMemoryPlan(run,[],materialized);await applyConsolidationPlan(run,expanded,()=>true,()=>assertSourceExcerptBindings(run));
         const stored=fs.readFileSync(path.join(m.harnessDir,'pool.md'),'utf8');const bad={};
-        for(const [label,change] of Object.entries({wrongId:p=>p.runId+='x',tooLong:p=>p.newMemories[0].description='x'.repeat(123),foreign:p=>p.newMemories[0].knowledge.sourceCitations[0]={ref:'e1.b0.l99'},privacy:p=>p.newMemories[0].classification='safe',zero:p=>p.newMemories=[],operation:p=>p.operations=[{}]})){
+        for(const [label,change] of Object.entries({wrongId:p=>p.runId+='x',tooLong:p=>p.newMemories[0].description='x'.repeat(401),foreign:p=>p.newMemories[0].knowledge.sourceCitations[0]={ref:'e1.b0.l99'},privacy:p=>p.newMemories[0].classification='safe',zero:p=>p.newMemories=[],operation:p=>p.operations=[{}]})){
           next=structuredClone(good);change(next);try{const r=await repairIncrementalMemoryPlan(input);if(r.outcome==='repaired'){const body=await materializeSourceExcerptPlan(run,r.plan,snapshot,undefined,{retainSelectedDeclarations:true});await expandCitedIncrementalMemoryPlan(run,[],body);}bad[label]=r.outcome==='failed'}catch{bad[label]=true}
         }
         next=good;await repairIncrementalMemoryPlan({...input,selectedNames:['existing.md']});const nonemptyBinding=binding;

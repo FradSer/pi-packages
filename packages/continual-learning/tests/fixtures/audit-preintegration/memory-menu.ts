@@ -8,7 +8,8 @@ import { parseMemoryIndexLine } from "./consolidation-run";
 /** Data shown in the compact /memory title. Keep this separate from settings
  * so the menu does not need to know where the runtime gets its model from. */
 export interface MemoryMenuStatus {
-  autoMemory: boolean;
+  autoSettledLearning: boolean;
+  autoContinualLearning: boolean;
   model: string;
   entries: number;
   invalid?: string;
@@ -40,7 +41,7 @@ function bounded(value: string, limit: number): string {
 }
 
 function statusTitle(status: MemoryMenuStatus): string {
-  const state = status.invalid ? "learning unavailable" : `auto ${status.autoMemory ? "on" : "off"}`;
+  const state = status.invalid ? "learning unavailable" : `settled ${status.autoSettledLearning ? "on" : "off"} · agent ${status.autoContinualLearning ? "on" : "off"}`;
   const count = `${status.entries} ${status.entries === 1 ? "entry" : "entries"}`;
   return `Memory · ${state} · ${safeDisplayText(status.model)} · ${count}`;
 }
@@ -147,7 +148,7 @@ async function editPolicies(ctx: ExtensionCommandContext, dependencies: MemoryMe
 
 async function learningSettings(ctx: ExtensionCommandContext, dependencies: MemoryMenuDependencies, cwd: string, status: MemoryMenuStatus): Promise<void> {
   const choice = await ctx.ui.select(
-    `Learning settings · auto ${status.autoMemory ? "on" : "off"} · ${safeDisplayText(status.model)}`,
+    `Learning settings · settled ${status.autoSettledLearning ? "on" : "off"} · agent ${status.autoContinualLearning ? "on" : "off"} · ${safeDisplayText(status.model)}`,
     ["Select learning model", "Toggle automatic learning", "Advanced phase policies"],
   );
   if (!choice) return;

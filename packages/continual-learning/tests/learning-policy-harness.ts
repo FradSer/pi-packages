@@ -20,6 +20,7 @@ const isHarness = scenario.startsWith("harness-");
 const isAgents = scenario.startsWith("agents-");
 const isManual = scenario.startsWith("manual-");
 const isRemember = scenario.startsWith("remember-");
+const isAgentMemory = scenario.startsWith("agent-memory");
 const isModelFreeze = scenario === "model-freeze" || scenario === "session-model-freeze";
 const manualReplayProbe = process.env.CL_MANUAL_REPLAY_PROBE;
 let manualReplayObservation: unknown;
@@ -47,14 +48,17 @@ if (process.env.CL_MEMORY_ORIGIN === "1") {
   await fixture("subset-origin",1,"safe",false,false,{cwd,name:"known.md",
     content:"---\nname: known\ndescription: Existing project knowledge\ntype: project\n---\nExisting knowledge.\n"});
 }
-const policies = { memory: isModelFreeze ? "propose" : scenario === "all-off" || isHarness || isAgents ? "off" : scenario === "memory-apply" ? "apply" : "propose", harness: isModelFreeze ? "propose" : isHarness ? scenario === "harness-rejected" ? "apply" : "propose" : "off", agents: isModelFreeze ? "propose" : isAgents ? scenario === "agents-propose" ? "propose" : "apply" : "off" };
+const policies = isAgentMemory
+  ? (scenario === "agent-memory-all-phases"
+    ? { memory: "apply", harness: "apply", agents: "apply" }
+    : { memory: scenario === "agent-memory-propose" ? "propose" : "apply", harness: "off", agents: "off" })
+  : { memory: isModelFreeze ? "propose" : scenario === "all-off" || isHarness || isAgents ? "off" : scenario === "memory-apply" ? "apply" : "propose", harness: isModelFreeze ? "propose" : isHarness ? scenario === "harness-rejected" ? "apply" : "propose" : "off", agents: isModelFreeze ? "propose" : isAgents ? scenario === "agents-propose" ? "propose" : "apply" : "off" };
 if (laterAfterMemory) { policies.harness = "propose"; policies.agents = "propose"; }
 if (process.env.CL_JEV_FIXTURE?.startsWith("subset-name-collision")) {
   fs.mkdirSync(path.join(cwd,".memory"),{recursive:true});
   fs.writeFileSync(path.join(cwd,".memory","cache.md"),"---\nname: cache\ndescription: Cache timeout cleared on retry\ntype: project\n---\nA timeout cleared on retry.\n");
 }
-fs.writeFileSync(path.join(agent, "memory", "settings.json"), JSON.stringify({ autoMemory: !isRemember, automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
-if (isModelFreeze) fs.writeFileSync(path.join(agent, "memory.json"), JSON.stringify(scenario === "model-freeze" ? { provider: "old", model: "one" } : {}));
+fs.writeFileSync(path.join(agent, "continual-learning.json"), JSON.stringify({ ...(scenario === "model-freeze" ? { model: "old/one" } : {}), autoSettledLearning: isAgentMemory ? scenario !== "agent-memory-disabled" : !isRemember, autoContinualLearning: isAgentMemory && scenario !== "agent-memory-disabled", automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
 const coverageRepairFixture = process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-repair-") === true;
 const quote = (process.env.CL_JEV_FIXTURE === "coverage-real-correction" || process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? `Remember that the project build convention is CL_MANUAL_SHARED.${(process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? "\n" : " "}Apply this convention only during releases.` : laterAfterMemory ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry. I prefer concise progress updates. Never run the retired compiler. The AGENTS.md workflow instruction is wrong; use pnpm test instead." : scenario === "remember-private-maintenance" ? "整理记忆" : scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
 const coverageLimit = "Apply this convention only during releases.";
@@ -710,22 +714,30 @@ if (process.env.CL_ORIGIN_AUDIT_FAIL) {
     return recordProposal(...args);
   }}));
 }
+const workerPreflightAvailable = scenario !== "manual-model-unavailable";
+mock.module("../extensions/worker-model-preflight.ts", () => ({
+  createWorkerModelPreflight: () => ({ check: async () => workerPreflightAvailable }),
+}));
 try {
   const { default: register, resolveMemoryPaths } = await import("../extensions/inject-memory.ts");
   if (scenario === "remember-private-maintenance" || scenario === "remember-private-request" || privateAccepted) {
     const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});
     if (scenario !== "remember-new-private-accepted") fs.writeFileSync(path.join(paths.harnessDir,"private.md"),"---\nname: private\ndescription: Local preference\ntype: feedback\n---\nLocal preference.\n");
-    fs.writeFileSync(path.join(agent,"continual-learning.json"),JSON.stringify({jev:{enabled:true,apiKey:"fixture-only",scopes:["memory"],allowPrivateMemory:false}}));
+    fs.writeFileSync(path.join(agent,"continual-learning.json"),JSON.stringify({jev:{enabled:true,apiKey:"fixture-only",scopes:["memory"],allowPrivateMemory:false},...(JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")))}));
   }
   const { listLearningHistory } = await import("../extensions/learning-history.ts");
   let manualReplayManager: import("@earendil-works/pi-coding-agent").SessionManager | undefined;
   const hooks = new Map();
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void> | void>();
+  const registeredTools = new Map<string, { execute: (id: string, params: unknown, signal: AbortSignal | undefined, update: unknown, ctx: unknown) => Promise<{ content?: Array<{ text?: string }>; details?: Record<string, unknown>; isError?: boolean }> }>();
+  let activeToolWrites: string[][] = [];
   const notices: string[] = [];
   register({ on: (name, fn) => hooks.set(name, [...(hooks.get(name) ?? []), fn]),
     registerCommand: (name, definition) => commands.set(name, definition.handler),
     sendMessage: (message) => {if(message.customType==="continual-learning-result")receiptDelivered?.();}, appendEntry: (kind,data) => {if(manualReplayProbe !== "unpersisted-marker")manualReplayManager?.appendCustomEntry(kind,data);}, getCommands: () => [],
     registerEntryRenderer: () => {},
+    registerTool: (tool: { name: string }) => registeredTools.set(tool.name, tool as never),
+    getActiveTools: () => activeToolWrites.at(-1) ?? [], setActiveTools: (names: string[]) => { activeToolWrites = [...activeToolWrites, names]; },
     exec: async () => ({ stdout: "", stderr: "", code: 0 }) } as unknown as Parameters<typeof register>[0]);
   const tool = (content: string, extra: Record<string, unknown> = {}) => ({ message: { role: "toolResult", toolName: "bash", content, ...extra } });
   // Repository text that merely mentions policies, harness files, or guardrail
@@ -825,7 +837,13 @@ try {
   } else if (isEmptyFull) await commands.get("consolidate")!("full", ctx);
   else if (isRemember) await commands.get("memory")!(scenario === "remember-existing-maintenance" ? "整理记忆" : quote, ctx);
   else if (isManual) await commands.get("consolidate")!(scenario === "manual-full" ? "  full  " : "", ctx);
-  else {
+  else if (isAgentMemory) {
+    const tool = registeredTools.get("learn_current_memory");
+    const call = async () => tool ? await tool.execute("agent-test", {}, undefined, undefined, ctx) : undefined;
+    globalThis.agentFirst = await call();
+    globalThis.agentSecond = await call();
+    await runHook("agent_settled", {});
+  } else {
     await runHook("agent_settled", {});
     if (isModelFreeze) {
       await runHook("input", { source: "interactive" });
@@ -864,7 +882,9 @@ try {
     return {file:name,responseSha256:fixtureDigest(response),response};
   })) : [];
   if (isRemember) requestCaptured = runs.some(run => run.dossier?.taskSlice?.entries[run.dossier?.memoryRequest?.entryIndex]?.message?.content === quote);
-  console.log(JSON.stringify({ coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:!privateAccepted || JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev.allowPrivateMemory===false,newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
+  const agentOutcome = (value: { content?: Array<{ text?: string }>; details?: Record<string, unknown>; isError?: boolean } | undefined) => value === undefined ? undefined
+    : { text: value.content?.[0]?.text, status: value.details?.status, isError: value.isError === true };
+  console.log(JSON.stringify({ agentFirst: agentOutcome((globalThis as { agentFirst?: never }).agentFirst), agentSecond: agentOutcome((globalThis as { agentSecond?: never }).agentSecond), agentActiveTools: activeToolWrites, coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:!privateAccepted || JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev.allowPrivateMemory===false,newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
     privateFiles: fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir) : [],
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
     numericUsageLedgers: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("memory-task-usage.json")).map(name=>{const file=path.join(paths.runsDir,String(name));return {mode:fs.statSync(file).mode & 0o777,...JSON.parse(fs.readFileSync(file,"utf8"))};}) : [],

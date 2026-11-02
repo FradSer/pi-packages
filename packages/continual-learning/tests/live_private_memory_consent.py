@@ -38,7 +38,7 @@ def main() -> None:
         body='---\nname: private\ndescription: Keep updates concise\ntype: feedback\n---\nKeep updates concise.\n'
         (memory/'private.md').write_text(body)
         (agent/'settings.json').write_text(json.dumps({'packages':[],'quietStartup':True}))
-        (agent/'memory/settings.json').write_text(json.dumps({'autoMemory':False}))
+        (agent/'memory/settings.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False}))
         config={'jev':{'enabled':True,'apiKey':'offline-fixture-only','allowPrivateMemory':False}}
         (agent/'continual-learning.json').write_text(json.dumps(config))
         events=root/'events.jsonl'

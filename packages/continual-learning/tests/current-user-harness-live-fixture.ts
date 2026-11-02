@@ -18,7 +18,7 @@ export default function(pi: ExtensionAPI) {
   };
   // This fixture disables ordinary post-task learning, after the early phase,
   // so its receipts cannot be mistaken for learning an unfinished task.
-  pi.on('agent_settled',async(_event,ctx)=>{await writeLearningSettings({autoMemory:false},ctx.cwd);});
+  pi.on('agent_settled',async(_event,ctx)=>{await writeLearningSettings({autoSettledLearning:false,autoContinualLearning:false},ctx.cwd);});
   register(pi);
   const writeProbe=process.env.CL_EARLY_FIXTURE_WRITE_PROBE;
   const probeWrite=writeProbe==='1'||writeProbe==='2';

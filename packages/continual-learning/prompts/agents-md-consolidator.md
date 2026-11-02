@@ -42,8 +42,9 @@ Treat headings, list items, and paragraphs as addressable units:
   - `memory`: durable project, feedback, or reference knowledge. It need not
     apply to every task. Supply a canonical `.md` filename (letters, digits,
     `_` or `-`, not `MEMORY.md`), type, and a non-blank single-line description
-    of at most 120 characters with relevance front-loaded: when to read it,
-    then the useful detail. Classify `safe` or `private` independently of type.
+    of at most 400 characters with relevance front-loaded: when to read it,
+    then the useful detail; several related grounded claims may share the bound.
+    Classify `safe` or `private` independently of type.
     Safe content is byte-identical in the canonical private root and project
     mirror; private content stays only in the private root, marked harness only.
   - `skillRule`: guidance for an exact registered skill from the task's skill

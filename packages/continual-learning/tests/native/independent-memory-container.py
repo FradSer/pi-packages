@@ -24,7 +24,7 @@ subprocess.run(['git', 'init', '-q', str(project)], check=True)
 (project / 'AGENTS.md').write_text('Keep existing instructions unchanged.\n')
 (agent / 'settings.json').write_text(json.dumps({'packages': []}))
 (agent / 'memory').mkdir()
-(agent / 'memory/settings.json').write_text(json.dumps({'autoMemory': False, 'automaticPhases': {'memory':'off','harness':'off','agents':'off'}}))
+(agent / 'memory/settings.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False, 'automaticPhases': {'memory':'off','harness':'off','agents':'off'}}))
 arm = os.environ['CL_NATIVE_ARM']
 (agent / 'continual-learning.json').write_text(json.dumps({'jev': False if arm == 'jev-off' else {'model':'jev-1.13.0','scopes':['memory']}}))
 state: dict[str, Any] = {'requests': []}

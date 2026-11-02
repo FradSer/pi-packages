@@ -26,7 +26,7 @@ def test_history_target_policy_help_and_nested_returns() -> None:
       import {openMemoryMenu} from './packages/continual-learning/extensions/memory-menu.ts';
       const menus=[];const choices=['Recent learning',undefined,'Learning settings','Advanced phase policies','Agents policy',undefined,undefined,undefined,'Close'];
       await openMemoryMenu({cwd:'/fixture',hasUI:true,ui:{notify(){},select:async(title,options)=>{menus.push({title,options});return choices.shift()}}},{
-        status:async()=>({autoMemory:false,model:'fixture/model',entries:0}),loadMemories:async()=>({entries:[]}),
+        status:async()=>({autoSettledLearning:false,autoContinualLearning:false,model:'fixture/model',entries:0}),loadMemories:async()=>({entries:[]}),
         listHistory:async()=>[{id:'opaque',createdAt:'2026-10-09T20:30:00Z',phase:'memory',status:'applied',changes:[{target:{name:'build-command.md'}}]}],
         manage:async()=>{throw Error('no writes')},selectModel:async()=>{},toggleAutoMemory:async()=>{},isBusy:()=>false,
         policies:async()=>({policies:{memory:'apply',harness:'propose',agents:'off'},agentsDisabled:true})});
@@ -84,7 +84,7 @@ def test_history_mirror_names_do_not_hide_status_at_48_columns() -> None:
       import {openMemoryMenu} from './packages/continual-learning/extensions/memory-menu.ts';
       const menus=[];const choices=['Recent learning',undefined,'Close'];
       await openMemoryMenu({cwd:'/fixture',hasUI:true,ui:{notify(){},select:async(title,options)=>{menus.push({title,options});return choices.shift()}}},{
-        status:async()=>({autoMemory:false,model:'fixture/model',entries:0}),loadMemories:async()=>({entries:[]}),
+        status:async()=>({autoSettledLearning:false,autoContinualLearning:false,model:'fixture/model',entries:0}),loadMemories:async()=>({entries:[]}),
         listHistory:async()=>['applied','undone'].map(status=>({id:status,createdAt:'2026-10-09T20:30:00Z',phase:'memory',status,changes:
           ['MEMORY.md','cl_real_isolated_fact.md','MEMORY.md','cl_real_isolated_fact.md'].map(name=>({target:{name}}))})),
         manage:async()=>{},selectModel:async()=>{},toggleAutoMemory:async()=>{},isBusy:()=>false});

@@ -29,11 +29,11 @@ SNIPPET = r"""
 
       // Two tasks queued while their session existed.
       B.enqueueBacklog({cwd, sessionFile:session, from:0, to:2, digest:'d1', reason:'screen-found-nothing', agentDir:agent});
-      B.enqueueBacklog({cwd, sessionFile:session, from:3, to:5, digest:'d2', reason:'auto-memory-off', agentDir:agent});
+      B.enqueueBacklog({cwd, sessionFile:session, from:3, to:5, digest:'d2', reason:'settled-learning-off', agentDir:agent});
       // One whose session file will not survive.
       const gone = path.join(root,'deleted.jsonl');
       fs.writeFileSync(gone, '{}\n');
-      B.enqueueBacklog({cwd, sessionFile:gone, from:0, to:1, digest:'d3', reason:'auto-memory-off', agentDir:agent});
+      B.enqueueBacklog({cwd, sessionFile:gone, from:0, to:1, digest:'d3', reason:'settled-learning-off', agentDir:agent});
       fs.unlinkSync(gone);
 
       const beforeCursor = B.backlogStatus(cwd, agent);

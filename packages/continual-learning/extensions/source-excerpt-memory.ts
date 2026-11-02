@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import {constants} from "node:fs";
 import path from "node:path";
 import {isMemoryFilename} from "./memory-files";
-import {containsSensitiveMemoryMaterial, MAX_MEMORY_BYTES, MAX_SNAPSHOT_BYTES, normalizeSnapshotEvidence, sha256Digest, snapshotEditPatchText} from "./consolidation-run";
+import {containsSensitiveMemoryMaterial, MAX_MEMORY_BYTES, MAX_MEMORY_DESCRIPTION_CHARS, MAX_SNAPSHOT_BYTES, normalizeSnapshotEvidence, sha256Digest, snapshotEditPatchText} from "./consolidation-run";
 import {materializeMemoryKnowledge, resolveMemoryPlanCitations, memoryCitationDomain, memoryCitationReferenceMatches, memoryCitationReferenceCovers, MemoryCitationLocationError} from "./memory-citation-locations";
 import {isObservedFunctionDeclaration, isCompleteOuterFunctionDeclaration} from "./memory-declaration-view";
 import {MemoryRelationClosureError, declaredMemoryRelation, selectedMemoryRelationClosures, observedMemorySourceAliases, type MemoryRelationObligations, type SourceRoleRangeChoice} from "./memory-relation-closure";
@@ -39,7 +39,9 @@ function excerptDescription(filename: string, quote: string): string {
   }
   const prefix = "Observed source excerpt from ";
   const suffix = identifiers.length ? `; text cues: ${identifiers.join(", ")}` : "";
-  const available = 120 - prefix.length - suffix.length;
+  // Neutral parent-generated cues stay short by design, but must never exceed
+  // the shared generated-description bound.
+  const available = Math.min(120, MAX_MEMORY_DESCRIPTION_CHARS) - prefix.length - suffix.length;
   const location = filename.length <= available ? filename : `…${filename.slice(-(available - 1))}`;
   return `${prefix}${location}${suffix}`;
 }
@@ -161,8 +163,8 @@ function projectMetadataProblems(item: Row, position: string): Error[] {
   const errors: Error[] = [];
   if (item.classification !== "safe" && item.classification !== "private") errors.push(new Error(`${position}.classification must be safe or private`));
   if (Object.keys(item).some(key => !["name", "kind", "classification", "description", "knowledge"].includes(key))) errors.push(new Error(`${position} has unsupported project knowledge fields`));
-  if (typeof item.description !== "string" || !item.description.trim() || item.description.length > 120 || /[\r\n]/.test(item.description)) {
-    errors.push(new Error(`${position}.description must be a non-empty single-line string of 1..120 UTF-16 code units (actual=${typeof item.description === "string" ? item.description.length : "non-string"})`));
+  if (typeof item.description !== "string" || !item.description.trim() || item.description.length > MAX_MEMORY_DESCRIPTION_CHARS || /[\r\n]/.test(item.description)) {
+    errors.push(new Error(`${position}.description must be a non-empty single-line string of 1..${MAX_MEMORY_DESCRIPTION_CHARS} UTF-16 code units (actual=${typeof item.description === "string" ? item.description.length : "non-string"})`));
   }
   return errors;
 }

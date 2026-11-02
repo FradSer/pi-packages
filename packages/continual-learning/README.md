@@ -324,7 +324,42 @@ for an installed file or artifact policy. See the upgrade decision in
 
 ## Learning pipeline
 
-With auto-memory enabled (the default), `agent_settled` runs a deterministic
+All user-level configuration lives in one file,
+`<agent-dir>/continual-learning.json`: the learning model, the two learning
+triggers, phase policies, AGENTS.md budget, Jev, and the capability flags.
+Both triggers are disabled by default: `autoSettledLearning` runs the
+settled-task learner after a user task settles, and `autoContinualLearning`
+exposes the parent `learn_current_memory` tool so the agent can request
+current-task Memory learning once before its final answer. The retired
+`autoMemory` field is ignored. Both triggers share the `automaticPhases`
+Memory policy: `apply` writes validated changes, `propose` saves them for
+review, and `off` refuses to run.
+
+```json
+{
+  "model": "cliproxyapi/gpt-6-luna",
+  "autoSettledLearning": true,
+  "autoContinualLearning": true,
+  "automaticPhases": { "memory": "apply", "harness": "apply", "agents": "apply" },
+  "agentsMd": { "budgetBytes": 16384 },
+  "jev": { "scopes": ["memory"] }
+}
+```
+
+`/memory model` and the `/memory` settings menu merge their fields into that
+file and preserve every other section. The legacy `<agent-dir>/memory.json`
+model pair and `<agent-dir>/memory/settings.json` learning fields remain
+readable only as fallbacks for existing installs; nothing writes them anymore.
+
+Planner children run without extensions, so the learning model must resolve from
+the static model catalog or the user's custom-provider config. Before any worker
+spawns, the parent resolves the configured or session model the same way a
+no-extensions child would; a model registered by a session extension (for example
+a proxy or routing extension) blocks learning immediately with the fix
+(`/memory model`), instead of failing the selector mid-pipeline. An unavailable
+preflight does not block: the selector's own diagnostic still reports it.
+
+With `autoSettledLearning` enabled, `agent_settled` runs a deterministic
 zero-token evidence screen after queued continuations and retries finish.
 The fallback selector chooses integer positions from a parent-frozen metadata
 index and explicit phase flags. The parent resolves exact filenames and binds the
@@ -397,7 +432,7 @@ entry. Correct older atomic relation inputs remain readable.
 Before current-file reads, snapshot-only validation collects metadata, catalog
 and unit counts, quote bounds and missing source roles into the existing single
 structural correction. The parent retains bound closure obligations across that
-correction. Description errors identify the exact 120 UTF-16 code-unit limit;
+correction. Description errors identify the exact 400 UTF-16 code-unit limit;
 JSON Schema's character bounds do not replace the parent check. Source, privacy,
 current-file binding and complete semantic validation remain mandatory.
 Already materialized, legacy and semantic-correction formats keep their contracts.
@@ -460,7 +495,7 @@ A later phase failure does not undo an earlier verified phase.
 
 Real user tasks are coalesced while learning runs; extension continuations do not
 train themselves. Print/JSON sessions await completion and receipts. Turning
-auto-memory off stops learning without disabling Memory retrieval. Receipts count
+settled learning off stops learning without disabling Memory retrieval. Receipts count
 every selector/planner attempt, applied operations, duration, input/output tokens,
 cache reads/writes, and provider cost availability.
 Selector failures also retain a parent-generated diagnostic in the attempt;
@@ -777,10 +812,12 @@ Each body root is declared once and every entry row names its filename, so the
 budget reaches relevance metadata instead of repeating an absolute read path per
 entry. New descriptions should front-load a concise evidence-backed fact or
 preference, naming its subject and applicable project/context, in one line of at
-most 120 characters. A bare relevance trigger is insufficient: preserve material
+most 400 characters. A bare relevance trigger is insufficient: preserve material
 conditions and exceptions in the summarized claim, with full detail in the body.
-Existing longer descriptions
-are retained when they fit, or shortened with a single-line marker rather than
+Several related grounded claims may share the bound so the index carries more
+than a bare pointer. An oversized description is refused before any write and
+regenerated; it is never silently truncated. Existing legacy descriptions are
+retained when they fit, or shortened with a single-line marker rather than
 silently losing a late trigger. Under budget pressure every listed entry stays
 reachable and cues give way before entries do.
 
@@ -828,12 +865,10 @@ A lack of use in one task is not evidence that an instruction is obsolete.
 Memory, Harness, AGENTS.md, and receipts participate in one extraction transaction.
 A pre-receipt records exact predecessors before mutation; startup recovers an
 interrupted transaction only after verifying the canonical scope. User-level
-instruction files are never automatic targets. Configure the agent-global phase
-in `<agent-dir>/memory/settings.json`:
-
-```json
-{ "autoMemory": true, "agentsMd": { "budgetBytes": 16384 } }
-```
+instruction files are never automatic targets. Learning settings share the single package configuration file
+`<agent-dir>/continual-learning.json`; see the learning-pipeline section for the
+complete schema. The legacy `<agent-dir>/memory.json` pair remains readable as a
+fallback for existing installs.
 
 `agentsMd.disabled: true` skips that phase. At or above budget, changes are
 zero-sum rather than mandatory expansion. Empty validated plans are successful no-ops.

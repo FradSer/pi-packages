@@ -87,7 +87,7 @@ def prepare(base: Path, auto_memory: bool, *, seed_memory: bool = False, agents_
         (agent / "continual-learning.json").write_text(json.dumps({"jev": jev_enabled}))
     (agent / "memory").mkdir()
     (agent / "memory" / "settings.json").write_text(json.dumps({
-        "autoMemory": auto_memory, "agentsMd": {"disabled": not agents_md},
+        "autoSettledLearning": auto_memory, "autoContinualLearning": False, "agentsMd": {"disabled": not agents_md},
     }))
     # This fixture deliberately owns its legacy-shaped seed. Bind before any
     # entries exist so the runtime need not guess the owner during upgrade.
@@ -452,7 +452,7 @@ def verify_learning() -> dict:
         )
         assert agents_receipt.get("applied"), agents_receipt
 
-        (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))
+        (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
         fresh = run_pi(
             project, agent, probe,
             "This is a fresh Pi session. Use the read tool to read both "

@@ -31,9 +31,8 @@ def digest(file: Path) -> str:
 
 
 def prepare_learning_settings(agent: Path) -> None:
-    file = agent / 'memory/settings.json'
-    file.parent.mkdir(parents=True, exist_ok=True)
-    file.write_text(json.dumps({'autoMemory': False}))
+    file = agent / 'continual-learning.json'
+    file.write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False}))
     file.chmod(0o600)
 
 
@@ -157,7 +156,7 @@ def run(output: Path, project: Path, *, preflight_only: bool, snapshot: Path | N
         prepare_learning_settings(agent)
         settings_code = 'import {readLearningSettings} from ' + json.dumps(str(TESTS.parent / 'extensions/learning-settings.ts')) + ';console.log(JSON.stringify(await readLearningSettings(process.argv[1])));'
         settings = json.loads(subprocess.check_output(['bun', '-e', settings_code, str(cwd)], env=env, cwd=REPO, text=True))
-        if settings != {'autoMemory': False}:
+        if settings != {'autoSettledLearning': False, 'autoContinualLearning': False}:
             raise AssertionError('Disposable learning settings failed product preflight')
         report.update(projectSource=str(project), originalMemoryHashes=old_hashes, originalProjectHashes=project_hashes,
                       omittedSourcePaths=omitted, sourceHashes=code_hashes, originalMemoryPreserved=True)

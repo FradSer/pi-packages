@@ -308,8 +308,7 @@ def test_real_pi_backfill_without_conversation_does_not_persist_a_fresh_session(
     from support import REPO
     project=tmp_path/'project';agent=tmp_path/'agent';project.mkdir();agent.mkdir()
     (agent/'settings.json').write_text('{"packages":[],"quietStartup":true}')
-    (agent/'continual-learning.json').write_text('{"jev":false}')
-    (agent/'memory').mkdir();(agent/'memory/settings.json').write_text('{"autoMemory":false}')
+    (agent/'continual-learning.json').write_text(json.dumps({'jev': False, 'autoSettledLearning': False, 'autoContinualLearning': False}))
     env=isolated_environment(tmp_path,agent)
     fixture=Path(__file__).with_name('continuous-tool-budget-fixture.ts')
     base=[workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills',
@@ -1132,9 +1131,9 @@ def test_initial_policy_caller_retains_both_arms_and_postlaunch_costs(monkeypatc
     learner={};result=study.run_initial_policy('owned',proxy,tmp_path/'learner',prior=prior,row=learner,enabled=True)
     assert learner['initialPolicyBridge']['nativePolicyProof']['ready']
     assert learner['learning']==result and learner['initializationCalls'][0]['allTransportRequests']==2
-    assert settings[-1]=={'autoMemory':True,'automaticPhases':{'memory':'off','harness':'apply','agents':'off'}}
+    assert settings[-1]=={'autoSettledLearning': True, 'autoContinualLearning': False,'automaticPhases':{'memory':'off','harness':'apply','agents':'off'}}
     control={};study.run_initial_policy('control',proxy,tmp_path/'control',prior=prior,row=control,enabled=False)
-    assert settings[-1]['autoMemory'] is False and 'initialPolicyBridge' not in control
+    assert settings[-1]['autoSettledLearning'] is False and settings[-1]['autoContinualLearning'] is False and 'initialPolicyBridge' not in control
     assert calls[0]==calls[1] and calls[0][0]==study.INITIAL_HARNESS_POLICY
     assert calls[0][2]=={'unlimited_budget':True,'capture_policy_origin':True}
     def fail(*args,**kwargs):proxy.requests+=1;raise OSError('postlaunch capture failed')

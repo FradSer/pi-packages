@@ -1246,7 +1246,7 @@ def test_automatic_truncated_pipeline_retains_valid_input_provenance(tmp_path) -
       const paths=resolveMemoryPaths(cwd); await fs.mkdir(paths.agentDir,{{recursive:true}});
       await fs.writeFile(paths.agentDir+'/continual-learning.json',JSON.stringify({{jev:false}}));
       await fs.mkdir(paths.harnessDir,{{recursive:true}});
-      await fs.writeFile(paths.settingsFile,JSON.stringify({{autoMemory:true,automaticPhases:{{memory:'off',harness:'off',agents:'off'}}}}));
+      await fs.writeFile(path.join(paths.agentDir,'continual-learning.json'),JSON.stringify({{autoSettledLearning:true,autoContinualLearning:false,automaticPhases:{{memory:'off',harness:'off',agents:'off'}}}}));
       const hooks=new Map();const notices=[];
       register({{on:(n,f)=>hooks.set(n,[...(hooks.get(n)??[]),f]),registerCommand:()=>{{}},sendMessage:()=>{{}},appendEntry:()=>{{}},getCommands:()=>[],exec:async()=>({{stdout:'',stderr:'',code:0}})}});
       const entries=[{{message:{{role:'user',content:'Audit the actual source'}}}},...Array.from({{length:300}},(_,n)=>({{message:{{role:'toolResult',content:'source '+n}}}}))];

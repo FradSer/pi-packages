@@ -5,10 +5,10 @@ import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls"
 import { listLearningHistory, previewLearningUndo, readLearningFile, readLearningHistory, undoLearningChange, type LearningHistory } from "./learning-history";
 import { evaluateLearningRules } from "./learning-evaluation";
 
-interface ManagedSettings { autoMemory: boolean; automaticPhases?: Partial<PhasePolicies>; agentsMd?: { disabled?: boolean }; invalid?: string }
+interface ManagedSettings { autoSettledLearning: boolean; autoContinualLearning: boolean; automaticPhases?: Partial<PhasePolicies>; agentsMd?: { disabled?: boolean }; invalid?: string }
 interface ManagementDependencies<T extends ManagedSettings> {
   readSettings: (cwd: string) => Promise<T>;
-  writeSettings: (settings: T, cwd: string) => Promise<void>;
+  writeSettings: (settings: T) => Promise<void>;
   busy: () => boolean;
 }
 
@@ -42,7 +42,7 @@ export async function handleLearningManagement<T extends ManagedSettings>(comman
         if (dependencies.busy()) throw new Error("Wait for the current learning pipeline before changing its policy");
         const next = { ...settings, automaticPhases: { ...settings.automaticPhases, [args[0]]: args[1] } };
         automaticPhasePolicies(next, "automatic");
-        await dependencies.writeSettings(next, cwd);
+        await dependencies.writeSettings(next);
         notifyPi(ctx.ui, `Automatic ${args[0]}: ${args[1]}`, "info");
       }
     } else if (verb === "history") {

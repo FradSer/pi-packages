@@ -47,7 +47,7 @@ def verify() -> dict:
     with tempfile.TemporaryDirectory(prefix="cl-full-learning-") as raw:
         base = Path(raw).resolve()
         project, agent, probe = prepare(base, False)
-        (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))
+        (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
         provider, model = _model(agent)
         home = base / "home"
         home.mkdir()

@@ -8,7 +8,7 @@ import { canonicalProjectCwd, resolveMemoryPaths } from "./memory-paths";
 
 export const MAX_BACKLOG_BYTES = 4 * 1024 * 1024;
 const MAX_BACKLOG_RECORD_BYTES = 4_096;
-export type BacklogReason = "auto-memory-off" | "screen-found-nothing" | "no-session-reference" | "learning-failed" | "learning-proposed" | "learning-pending";
+export type BacklogReason = "settled-learning-off" | "screen-found-nothing" | "no-session-reference" | "learning-failed" | "learning-proposed" | "learning-pending";
 export interface ManualMemoryReference {
   entryId: string;
   invocationId: string;
@@ -170,7 +170,7 @@ function validEntry(value: unknown): value is BacklogEntry {
   return entry.version === 1 && typeof entry.sessionFile === "string" && path.isAbsolute(entry.sessionFile)
     && Number.isSafeInteger(entry.from) && entry.from >= 0 && Number.isSafeInteger(entry.to) && entry.to >= entry.from
     && typeof entry.digest === "string" && entry.digest.length > 0 && entry.digest.length <= 128
-    && ["auto-memory-off", "screen-found-nothing", "no-session-reference", "learning-failed", "learning-proposed", "learning-pending"].includes(entry.reason)
+    && ["settled-learning-off", "screen-found-nothing", "no-session-reference", "learning-failed", "learning-proposed", "learning-pending"].includes(entry.reason)
     && typeof entry.queuedAt === "string" && Number.isFinite(Date.parse(entry.queuedAt))
     && (entry.scopeKey === undefined || (typeof entry.scopeKey === "string" && Buffer.byteLength(entry.scopeKey) <= 240))
     && (entry.manualRequest === undefined || validManualMemoryReference(entry.manualRequest))

@@ -145,7 +145,7 @@ def test_task_arms_are_isolated_and_missing_prices_are_not_zero(tmp_path: Path, 
         agent = Path(kwargs["env"]["PI_CODING_AGENT_DIR"])
         assert agent != source
         assert (agent / "auth.json").stat().st_mode & 0o777 == 0o600
-        assert json.loads((agent / "memory/settings.json").read_text()) == {"autoMemory": False}
+        assert json.loads((agent / "continual-learning.json").read_text()) == {"autoSettledLearning": False, "autoContinualLearning": False}
         copied_auth.append((agent / "auth.json").read_text())
         if len(copied_auth) == 1:
             (source / "auth.json").write_text('{"fixture":"changed-after-snapshot"}')

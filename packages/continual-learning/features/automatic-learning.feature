@@ -2,8 +2,47 @@ Feature: Learn from settled user tasks without a memory command
   Automatic learning is controlled by the persisted auto-memory setting.
   Children propose bounded changes and only the parent validates and applies them.
 
+  Scenario: Settled learning and agent-triggered learning are independently disabled by default
+    Given no learning settings have been stored
+    When a new session starts
+    Then automatic learning before the agent answers is unavailable
+    And settled-task learning does not start
+
+  Scenario: Both learning triggers can be independently enabled
+    Given the user enables autoSettledLearning and autoContinualLearning
+    When each learning trigger reaches its respective lifecycle
+    Then each trigger runs only at that lifecycle
+
+  Scenario: Retired autoMemory does not enable either learning trigger
+    Given settings contain only the retired autoMemory field
+    When learning settings are read
+    Then both current learning triggers remain disabled
+
+  Scenario: An agent can request current-task Memory learning before answering
+    Given autoContinualLearning is enabled and the current task contains source evidence
+    When the agent calls the parent Memory-learning tool
+    Then the tool runs only current-task Memory learning under the configured automatic Memory policy
+    And the tool returns its verified outcome before the agent writes its final answer
+    And Harness and AGENTS.md phases do not run from this request
+
+  Scenario: Agent-triggered Memory learning runs at most once per task
+    Given the agent has already requested Memory learning for the current task
+    When it requests learning again or the task settles
+    Then no second Memory pipeline runs for that task
+    And enabled settled learning can still process Harness and AGENTS.md without repeating Memory
+
+  Scenario: A disabled agent trigger cannot be revived by autoMemory
+    Given autoContinualLearning is disabled and settings contain retired autoMemory set to true
+    When the agent attempts to request Memory learning
+    Then the request is rejected without starting a pipeline
+
+  Scenario: Learning settings independently control both triggers
+    Given the user opens Learning settings
+    When the user toggles either trigger
+    Then only that trigger's persisted setting changes
+
   Scenario: A settled user task starts learning exactly once
-    Given auto-memory is enabled and a real user has submitted a task
+    Given autoSettledLearning is enabled and a real user has submitted a task
     When the task settles after its retries and queued continuations
     Then one learning pipeline runs against a frozen copy of that context
     And repeated settled events do not start another pipeline

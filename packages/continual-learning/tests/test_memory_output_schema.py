@@ -219,5 +219,5 @@ def test_description_schema_bounds_cover_fresh_and_atomic_repair_branches():
       const retained=learningOutputSchema('memory-retained-amendment',undefined,undefined,undefined,undefined,false,true);
       console.log(JSON.stringify([fresh.properties.newMemories.items.anyOf.find(x=>x.properties.knowledge).properties.description,semantic.properties.replacements.items.properties.description,retained.properties.operations.items.anyOf.find(x=>x.properties.knowledge).properties.description]));
     ''')
-    assert all(item['minLength'] == 1 and item['maxLength'] == 120 for item in value)
-    assert all('UTF-16' in item['description'] for item in value)
+    assert all(item['minLength'] == 1 and item['maxLength'] == 400 for item in value)
+    assert all('UTF-16' in item['description'] and '400' in item['description'] for item in value)

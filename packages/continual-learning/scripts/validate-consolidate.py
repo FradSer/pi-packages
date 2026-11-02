@@ -60,6 +60,7 @@ MAX_MEMORY_FILES = 4_096
 MAX_MEMORY_FILE_BYTES = 64_000
 MAX_MEMORY_TOTAL_BYTES = MAX_MEMORY_FILES * MAX_MEMORY_FILE_BYTES
 MAX_NEW_MEMORY_PROPOSALS = 16
+MAX_MEMORY_DESCRIPTION_CHARS = 400
 MAX_NEW_MEMORY_NAME_CHARS = 96
 MAX_NEW_MEMORY_EVIDENCE = 8
 MAX_NEW_MEMORY_QUOTE_CHARS = 2_000
@@ -396,6 +397,31 @@ def require_memory_body(content: str, label: str) -> None:
         raise ValidationError("schema", f"{label} requires a non-empty Memory body; discovery metadata is not a knowledge body")
 
 
+def require_memory_description(content: str, label: str) -> None:
+    """Freshly generated or explicitly rewritten descriptions stay bounded.
+    Existing records keep their stored metadata; only new writes use this gate."""
+    document = content.lstrip("\ufeff")
+    frontmatter = re.match(r"^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)", document)
+    if not frontmatter:
+        return
+    match = re.search(r"(?:^|\r?\n)description:[ \t]*([^\r\n]*)", frontmatter.group(1))
+    if not match:
+        return
+    description = match.group(1).strip()
+    if description[:1] in {"\"", "'"}:
+        quote = description[0]
+        inner = description[1:]
+        description = inner[:-1] if inner.endswith(quote) else inner
+    if not description.strip() or re.search(r"[\r\n]", description):
+        raise ValidationError("schema", f"{label}.description must be a non-empty single line")
+    if len(description) > MAX_MEMORY_DESCRIPTION_CHARS:
+        raise ValidationError(
+            "memory_bounds",
+            f"{label}.description must be at most {MAX_MEMORY_DESCRIPTION_CHARS} UTF-16 code units (actual={len(description)}); "
+            "rewrite the description within the bound and keep complete claims in the body",
+        )
+
+
 def normalize_new_memory_proposals(
     value: Any,
     selected: list[str],
@@ -461,6 +487,7 @@ def normalize_new_memory_proposals(
         if not isinstance(content, str) or not content:
             raise ValidationError("schema", f"{label}.content must be a non-empty string")
         require_memory_body(content, f"{label}.content")
+        require_memory_description(content, f"{label}.content")
         content_bytes = len(content.encode("utf-8"))
         if content_bytes > MAX_MEMORY_FILE_BYTES:
             raise ValidationError("memory_bounds", f"{label}.content exceeds {MAX_MEMORY_FILE_BYTES} bytes")
@@ -813,6 +840,7 @@ def validate_operations(
             if not isinstance(content, str):
                 raise ValidationError("schema", f"operations[{index}]: write operation requires content")
             require_memory_body(content, f"operations[{index}].content")
+            require_memory_description(content, f"operations[{index}].content")
             content_hash = operation.get("contentSha256")
             if content_hash is not None:
                 if not isinstance(content_hash, str) or not HASH_RE.fullmatch(content_hash):

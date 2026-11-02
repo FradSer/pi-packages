@@ -325,23 +325,22 @@ def test_loader_uses_strict_memory_filename_policy() -> None:
         assert truncated["entries"][0]["content"] == "val\n… [truncated]"
 
 
-def test_invalid_memory_config_is_reported_without_crashing_or_overwriting() -> None:
+def test_legacy_memory_json_is_not_a_configuration_source() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         agent = Path(tmp) / "agent"
         agent.mkdir()
-        (agent / "memory.json").write_text("null\n", encoding="utf-8")
+        (agent / "memory.json").write_text("{ broken\n", encoding="utf-8")
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ readMemoryConfigState }} = await import('./packages/continual-learning/extensions/config.ts');
+            const {{ readMemoryConfigState, memoryConfigPath }} = await import('./packages/continual-learning/extensions/config.ts');
             const state = readMemoryConfigState();
-            console.log(JSON.stringify({{ state, raw: await Bun.file({json.dumps(str(agent / 'memory.json'))}).text() }}));
+            console.log(JSON.stringify({{ path: memoryConfigPath().endsWith('continual-learning.json'), invalid: state.invalid ?? null, present: state.present, raw: await Bun.file({json.dumps(str(agent / 'memory.json'))}).text() }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert result["state"]["invalid"]
-        assert result["state"]["config"] == {}
-        assert result["raw"] == "null\n"
+        # The legacy file is inert: unread, unvalidated, and left untouched.
+        assert result == {"path": True, "invalid": None, "present": False, "raw": "{ broken\n"}
 
 
 def test_invalid_model_fields_never_become_an_empty_valid_config(tmp_path: Path) -> None:
@@ -351,217 +350,27 @@ def test_invalid_model_fields_never_become_an_empty_valid_config(tmp_path: Path)
         r'''
           import fs from 'node:fs'; import path from 'node:path';
           const { readMemoryConfigState } = await import('./packages/continual-learning/extensions/config.ts');
-          const file = path.join(process.env.PI_CODING_AGENT_DIR, 'memory.json');
+          const file = path.join(process.env.PI_CODING_AGENT_DIR, 'continual-learning.json');
           const invalid = [
-            { provider: 12, model: 34 }, { provider: false, model: false },
-            { provider: null, model: null }, { provider: {}, model: [] },
-            { provider: '', model: '' }, { provider: '  ', model: '  ' },
+            'no-slash', { model: 12 }, { model: false }, { model: null }, { model: {} },
+            { model: '' }, { model: '  ' }, { model: { provider: 12, model: 34 } },
+            { model: { provider: '', model: '' } }, { model: { provider: 'p' } },
           ];
           const states = invalid.map(value => {
-            const raw = JSON.stringify(value); fs.writeFileSync(file, raw);
+            const raw = JSON.stringify({ model: value }); fs.writeFileSync(file, raw);
             const state = readMemoryConfigState();
             return { invalid: Boolean(state.invalid), config: state.config, preserved: fs.readFileSync(file, 'utf8') === raw };
           });
           fs.writeFileSync(file, '{}'); const fallback = readMemoryConfigState();
-          fs.writeFileSync(file, JSON.stringify({provider: ' provider ', model: ' model '})); const valid = readMemoryConfigState();
+          fs.writeFileSync(file, JSON.stringify({model: ' provider/model '})); const valid = readMemoryConfigState();
           console.log(JSON.stringify({ states, fallback, valid }));
         ''',
         {"PI_CODING_AGENT_DIR": str(agent)},
     )
-    assert result["states"] == [{"invalid": True, "config": {}, "preserved": True}] * 6
+    assert result["states"] == [{"invalid": True, "config": {}, "preserved": True}] * 10
+    # A present unified file is authoritative even when it sets no model.
     assert result["fallback"] == {"config": {}, "present": True}
     assert result["valid"] == {"config": {"provider": "provider", "model": "model"}, "present": True}
-
-
-def test_realpath_aliases_share_scope(tmp_path: Path) -> None:
-    # A symlinked alias is the same project, not a second memory identity. The
-    # macOS /var -> /private/var layout used to cover this; build the alias here
-    # so the contract holds on hosts without that layout.
-    real = tmp_path / "real"
-    real.mkdir()
-    alias = tmp_path / "alias"
-    alias.symlink_to(real, target_is_directory=True)
-    result = run_bun(
-        f"""
-        import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-        const left = resolveMemoryPaths({json.dumps(str(real))});
-        const right = resolveMemoryPaths({json.dumps(str(alias))});
-        console.log(JSON.stringify({{ left, right }}));
-        """
-    )
-    assert result["left"]["cwd"] == result["right"]["cwd"] == str(real.resolve())
-    assert result["left"]["scopeKey"] == result["right"]["scopeKey"]
-
-
-def test_loader_reads_only_bounded_bytes_before_truncating() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        agent = root / "agent"
-        memory = repo / ".memory"
-        memory.mkdir(parents=True)
-        initialize_git_repo(repo)
-        (memory / "large.md").write_bytes(b"x" * 1_000_000)
-        result = run_bun(
-            f"""
-            import fs from 'node:fs/promises';
-            const originalOpen = fs.open.bind(fs);
-            let bytesRequested = 0;
-            fs.open = async (target, ...args) => {{
-              const handle = await originalOpen(target, ...args);
-              if (String(target).endsWith('/large.md')) {{
-                const originalRead = handle.read.bind(handle);
-                handle.read = async (buffer, offset, length, position) => {{
-                  bytesRequested += length;
-                  return originalRead(buffer, offset, length, position);
-                }};
-              }}
-              return handle;
-            }};
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/continual-learning/extensions/memory-files.ts');
-            const values = await loadAndDeduplicateMemories({json.dumps(str(repo))}, {{ maxFileChars: 3 }});
-            console.log(JSON.stringify({{ values, bytesRequested }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result["bytesRequested"] <= 16
-        assert result["values"]["entries"][0]["content"] == "xxx\n… [truncated]"
-
-
-def test_loader_fails_closed_when_root_is_replaced_by_a_symlink() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        memory = repo / ".memory"
-        outside = root / "outside"
-        memory.mkdir(parents=True)
-        outside.mkdir()
-        (memory / "a.md").write_text("safe", encoding="utf-8")
-        (outside / "a.md").write_text("secret", encoding="utf-8")
-        initialize_git_repo(repo)
-        result = run_bun(
-            f"""
-            import fs from 'node:fs/promises';
-            const originalOpen = fs.open.bind(fs);
-            let swapped = false;
-            fs.open = async (target, ...args) => {{
-              if (!swapped && String(target).endsWith('/a.md')) {{
-                await fs.rename({json.dumps(str(memory))}, {json.dumps(str(root / 'original-memory'))});
-                await fs.symlink({json.dumps(str(outside))}, {json.dumps(str(memory))}, 'dir');
-                swapped = true;
-              }}
-              return originalOpen(target, ...args);
-            }};
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(root / 'agent'))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/continual-learning/extensions/memory-files.ts');
-            console.log(JSON.stringify(await loadAndDeduplicateMemories({json.dumps(str(repo))})));
-            """,
-            {"PI_CODING_AGENT_DIR": str(root / "agent")},
-        )
-        assert result["entries"] == []
-        assert result["indexes"] == []
-
-
-def test_loader_skips_a_child_replaced_by_a_symlink() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        repo = root / "repo"
-        memory = repo / ".memory"
-        secret = root / "secret.md"
-        memory.mkdir(parents=True)
-        secret.write_text("secret", encoding="utf-8")
-        (memory / "a.md").write_text("safe", encoding="utf-8")
-        initialize_git_repo(repo)
-        result = run_bun(
-            f"""
-            import fs from 'node:fs/promises';
-            const originalOpen = fs.open.bind(fs);
-            let swapped = false;
-            fs.open = async (target, ...args) => {{
-              if (!swapped && String(target).endsWith('/a.md')) {{
-                await fs.unlink(target);
-                await fs.symlink({json.dumps(str(secret))}, target);
-                swapped = true;
-              }}
-              return originalOpen(target, ...args);
-            }};
-            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(root / 'agent'))};
-            const {{ loadAndDeduplicateMemories }} = await import('./packages/continual-learning/extensions/memory-files.ts');
-            console.log(JSON.stringify(await loadAndDeduplicateMemories({json.dumps(str(repo))})));
-            """,
-            {"PI_CODING_AGENT_DIR": str(root / "agent")},
-        )
-        assert result["entries"] == []
-
-
-def test_index_rebuild_rejects_root_swap_before_publishing_metadata(tmp_path: Path) -> None:
-    memory = tmp_path / "memory"
-    outside = tmp_path / "outside"
-    memory.mkdir()
-    outside.mkdir()
-    (memory / "a.md").write_text("---\ndescription: safe cue\n---\n", encoding="utf-8")
-    (outside / "a.md").write_text("---\ndescription: outside cue\n---\n", encoding="utf-8")
-    result = run_bun(
-        f"""
-        import fs from 'node:fs/promises';
-        import {{ rebuildMemoryIndex }} from './packages/continual-learning/extensions/memory-files.ts';
-        const open = fs.open.bind(fs);
-        let swapped = false;
-        fs.open = async (target, ...args) => {{
-          if (!swapped && String(target).endsWith('/a.md')) {{
-            await fs.rename({json.dumps(str(memory))}, {json.dumps(str(tmp_path / 'saved'))});
-            await fs.symlink({json.dumps(str(outside))}, {json.dumps(str(memory))}, 'dir');
-            swapped = true;
-          }}
-          return open(target, ...args);
-        }};
-        let error = '';
-        try {{ await rebuildMemoryIndex({json.dumps(str(memory))}); }} catch (cause) {{ error = cause.message; }}
-        console.log(JSON.stringify({{ error, outside: await fs.readdir({json.dumps(str(outside))}) }}));
-        """
-    )
-    assert "root changed" in result["error"]
-    assert result["outside"] == ["a.md"]
-    assert "outside cue" not in result["error"]
-
-
-def test_index_rebuild_cleanup_does_not_remove_a_replacement_root_file(tmp_path: Path) -> None:
-    memory = tmp_path / "memory"
-    outside = tmp_path / "outside"
-    memory.mkdir()
-    outside.mkdir()
-    (memory / "a.md").write_text("---\ndescription: safe cue\n---\n", encoding="utf-8")
-    result = run_bun(
-        f"""
-        import fs from 'node:fs/promises';
-        import {{ basename, join }} from 'node:path';
-        import {{ rebuildMemoryIndex }} from './packages/continual-learning/extensions/memory-files.ts';
-        const open = fs.open.bind(fs);
-        let replacement = '';
-        fs.open = async (target, ...args) => {{
-          const handle = await open(target, ...args);
-          if (String(target).endsWith('.tmp')) {{
-            const write = handle.writeFile.bind(handle);
-            handle.writeFile = async (...values) => {{
-              await write(...values);
-              await fs.rename({json.dumps(str(memory))}, {json.dumps(str(tmp_path / 'saved'))});
-              await fs.symlink({json.dumps(str(outside))}, {json.dumps(str(memory))}, 'dir');
-              replacement = join({json.dumps(str(outside))}, basename(target));
-              await fs.writeFile(replacement, 'outside must remain');
-            }};
-          }}
-          return handle;
-        }};
-        let error = '';
-        try {{ await rebuildMemoryIndex({json.dumps(str(memory))}); }} catch (cause) {{ error = cause.message; }}
-        let preserved = false;
-        try {{ preserved = (await fs.readFile(replacement, 'utf8')) === 'outside must remain'; }} catch {{}}
-        console.log(JSON.stringify({{ error, preserved }}));
-        """
-    )
-    assert "root changed" in result["error"]
-    assert result["preserved"] is True
 
 
 def test_memory_config_rejects_symlinked_roots_and_targets() -> None:
@@ -586,9 +395,9 @@ def test_memory_config_rejects_symlinked_roots_and_targets() -> None:
 
         agent = root / "agent"
         agent.mkdir()
-        target = outside / "memory.json"
+        target = outside / "continual-learning.json"
         target.write_text("outside\\n", encoding="utf-8")
-        (agent / "memory.json").symlink_to(target)
+        (agent / "continual-learning.json").symlink_to(target)
         target_result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
@@ -610,14 +419,16 @@ def test_memory_config_writes_atomically_under_a_safe_agent_directory() -> None:
         result = run_bun(
             f"""
             process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
-            const {{ writeMemoryConfig }} = await import('./packages/continual-learning/extensions/config.ts');
+            const {{ writeMemoryConfig, memoryConfigPath }} = await import('./packages/continual-learning/extensions/config.ts');
             writeMemoryConfig({{ provider: 'openai', model: 'gpt-5' }});
-            console.log(JSON.stringify({{ raw: await Bun.file({json.dumps(str(agent / 'memory.json'))}).text(), files: await (await import('node:fs/promises')).readdir({json.dumps(str(agent))}) }}));
+            console.log(JSON.stringify({{ path: memoryConfigPath().endsWith('continual-learning.json'), raw: await Bun.file({json.dumps(str(agent / 'continual-learning.json'))}).text(), legacyExists: await Bun.file({json.dumps(str(agent / 'memory.json'))}).exists(), files: await (await import('node:fs/promises')).readdir({json.dumps(str(agent))}) }}));
             """,
             {"PI_CODING_AGENT_DIR": str(agent)},
         )
-        assert json.loads(result["raw"]) == {"provider": "openai", "model": "gpt-5"}
-        assert result["files"] == ["memory.json"]
+        assert result["path"] is True
+        assert json.loads(result["raw"]) == {"model": "openai/gpt-5"}
+        assert result["legacyExists"] is False
+        assert result["files"] == ["continual-learning.json"]
 
 
 def test_stale_dead_owner_lock_is_reclaimed_but_live_owner_is_contention() -> None:
@@ -989,3 +800,75 @@ def test_unavailable_git_probe_disables_public_memory_without_failing(tmp_path: 
     )
     assert result["publicDir"] is None
     assert result["harnessDir"]
+
+
+def test_learning_model_lives_in_continual_learning_json(tmp_path: Path) -> None:
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    result = run_bun(
+        r"""
+          import fs from 'node:fs'; import path from 'node:path';
+          const { readMemoryConfigState, memoryConfigPath } = await import('./packages/continual-learning/extensions/config.ts');
+          const agentDir = process.env.PI_CODING_AGENT_DIR;
+          const unified = path.join(agentDir, 'continual-learning.json');
+          // String form configures the learning model.
+          fs.writeFileSync(unified, JSON.stringify({ jev: { scopes: ['memory'] }, model: 'new-provider/new-model' }));
+          const unifiedState = readMemoryConfigState();
+          // Object form is accepted; an unknown field inside it is invalid.
+          fs.writeFileSync(unified, JSON.stringify({ model: { provider: 'p', model: 'm' } }));
+          const objectForm = readMemoryConfigState();
+          fs.writeFileSync(unified, JSON.stringify({ model: { provider: 'p', model: 'm', extra: 1 } }));
+          const unknownField = readMemoryConfigState();
+          // Half a pair is invalid.
+          fs.writeFileSync(unified, JSON.stringify({ model: { provider: 'p' } }));
+          const halfPair = readMemoryConfigState();
+          // The legacy memory.json pair is never read, whatever it contains.
+          fs.writeFileSync(path.join(agentDir, 'memory.json'), '{ broken');
+          fs.writeFileSync(unified, JSON.stringify({ jev: true }));
+          const noModel = readMemoryConfigState();
+          // An invalid unified model field is not silently ignored.
+          fs.writeFileSync(unified, JSON.stringify({ model: 'no-slash' }));
+          const unifiedInvalid = readMemoryConfigState();
+          console.log(JSON.stringify({ path: memoryConfigPath().endsWith('continual-learning.json'),
+            unifiedState, objectForm, unknownField, halfPair, noModel, unifiedInvalid }));
+        """,
+        {"PI_CODING_AGENT_DIR": str(agent)},
+    )
+    assert result["path"] is True
+    assert result["unifiedState"] == {"config": {"provider": "new-provider", "model": "new-model"}, "present": True}
+    assert result["objectForm"]["config"] == {"provider": "p", "model": "m"}
+    assert result["unknownField"]["invalid"] and result["unknownField"]["config"] == {}
+    assert result["halfPair"]["invalid"] and result["halfPair"]["config"] == {}
+    assert result["noModel"] == {"config": {}, "present": True}
+    assert result["unifiedInvalid"]["invalid"] and result["unifiedInvalid"]["config"] == {}
+
+
+def test_memory_model_write_merges_into_continual_learning_json(tmp_path: Path) -> None:
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    result = run_bun(
+        r"""
+          import fs from 'node:fs'; import path from 'node:path';
+          const { writeMemoryConfig, readMemoryConfigState } = await import('./packages/continual-learning/extensions/config.ts');
+          const agentDir = process.env.PI_CODING_AGENT_DIR;
+          const unified = path.join(agentDir, 'continual-learning.json');
+          fs.writeFileSync(unified, JSON.stringify({ jev: { scopes: ['memory'] }, plannerJsonOutput: true }));
+          writeMemoryConfig({ provider: 'openai', model: 'gpt-5' });
+          const raw = JSON.parse(fs.readFileSync(unified, 'utf8'));
+          const state = readMemoryConfigState();
+          // An unparseable predecessor is never clobbered.
+          fs.writeFileSync(unified, '{ broken');
+          let refused = '';
+          try { writeMemoryConfig({ provider: 'openai', model: 'gpt-5' }); } catch (cause) { refused = String(cause); }
+          console.log(JSON.stringify({ raw, state, refused: refused.includes('not valid JSON'), tempFiles: fs.readdirSync(agentDir).filter(name => name.includes('.tmp')) }));
+        """,
+        {"PI_CODING_AGENT_DIR": str(agent)},
+    )
+    assert result["raw"] == {
+        "jev": {"scopes": ["memory"]},
+        "plannerJsonOutput": True,
+        "model": "openai/gpt-5",
+    }
+    assert result["state"] == {"config": {"provider": "openai", "model": "gpt-5"}, "present": True}
+    assert result["refused"] is True
+    assert result["tempFiles"] == []

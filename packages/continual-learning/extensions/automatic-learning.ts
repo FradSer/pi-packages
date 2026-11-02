@@ -1,5 +1,5 @@
 /** The reason a settled task was recorded without starting a learner. */
-export type AutomaticLearningSkipReason = "auto-memory-off";
+export type AutomaticLearningSkipReason = "settled-learning-off";
 
 export interface AutomaticLearningOptions<T> {
   onPending?: (context: T, revision: number) => void;
@@ -52,7 +52,7 @@ export function createAutomaticLearning<T>(
         pending = undefined;
         let skipped: Promise<void> = Promise.resolve();
         try {
-          skipped = Promise.resolve(options.onSkipped?.(context, settledRevision, "auto-memory-off"));
+          skipped = Promise.resolve(options.onSkipped?.(context, settledRevision, "settled-learning-off"));
         } catch (error) {
           reportError(error, context);
         }

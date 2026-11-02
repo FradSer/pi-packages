@@ -1,7 +1,7 @@
 import path from "node:path";
 import {memoryDeclarationViews} from "./memory-declaration-view";
 import { memoryReferenceResults } from "./memory-evidence-provenance";
-import { MAX_NEW_MEMORY_EVIDENCE, normalizeSnapshotEvidence, snapshotEditPatchText } from "./consolidation-run";
+import { MAX_MEMORY_DESCRIPTION_CHARS, MAX_NEW_MEMORY_EVIDENCE, normalizeSnapshotEvidence, snapshotEditPatchText } from "./consolidation-run";
 
 type RecordValue = Record<string, unknown>;
 function record(value: unknown): RecordValue | undefined {
@@ -354,6 +354,11 @@ export function materializeMemoryDescription(priorContent: string, description: 
   const parts = splitMemoryFrontmatter(priorContent);
   if (!parts || !parts[3].endsWith("\n") || typeof description !== "string" || !description.trim() || /[\r\n]/.test(description)
     || !/^description:[^\r\n]*/m.test(parts[2])) throw new Error("Invalid Memory description correction");
+  // A correction writes a new description; the shared generated bound applies.
+  // Legacy records whose stored description is longer remain readable because
+  // an unchanged field never reaches this materializer.
+  if (description.length > MAX_MEMORY_DESCRIPTION_CHARS) throw new Error(
+    `Memory description correction must be at most ${MAX_MEMORY_DESCRIPTION_CHARS} UTF-16 code units (actual=${description.length}); regenerate it within the bound`);
   return parts[1] + parts[2].replace(/^description:[^\r\n]*/m, () => `description: ${description}`) + parts[3] + parts[4];
 }
 

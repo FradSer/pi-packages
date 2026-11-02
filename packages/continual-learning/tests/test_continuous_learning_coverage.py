@@ -72,7 +72,7 @@ def test_real_pi_verifier_continuation_preserves_original_observations_and_reads
     project=tmp_path/'project';agent=tmp_path/'agent';project.mkdir();agent.mkdir()
     (project/'index.js').write_text('export const observed = 1;\n')
     (agent/'settings.json').write_text('{"packages":[],"quietStartup":true}')
-    (agent/'memory').mkdir();(agent/'memory/settings.json').write_text(json.dumps({'autoMemory':False,'automaticPhases':{'memory':'apply','harness':'apply','agents':'off'}}))
+    (agent/'continual-learning.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False,'automaticPhases':{'memory':'apply','harness':'apply','agents':'off'}}))
     session=agent/'sessions/continuous/stage-0.jsonl';session.parent.mkdir(parents=True);fixture=Path(__file__).with_name('continuous-verifier-fixture.ts')
     command=[workspace_pi(REPO),'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve',
              '--thinking','off','--tools','read','-e',str(fixture),'-e',str(REPO/'packages/continual-learning/index.ts'),'--model','study-verifier-fixture/deterministic','--session',str(session),'--print','--mode','json']

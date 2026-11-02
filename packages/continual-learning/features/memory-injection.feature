@@ -20,10 +20,11 @@ Feature: Auto-memory injects a bounded, discoverable index
     And no entry is omitted
     And the entry rows and the summary together stay within the budget
 
-  Scenario: An existing long description retains its late relevance trigger when it fits
-    Given a description longer than 120 characters whose relevance trigger is at the end
+  Scenario: An existing legacy long description retains its late relevance trigger when it fits
+    Given a stored description longer than the old generated bound whose relevance trigger is at the end
     When the complete description fits in the final index budget
     Then the complete description including its late trigger is injected
+    And legacy metadata is not rewritten merely because the generated bound is 400 characters
 
   Scenario: A description too large for the budget is visibly shortened
     Given a description larger than the available final index budget
@@ -92,10 +93,15 @@ Feature: Auto-memory injects a bounded, discoverable index
     When the memories block is formatted
     Then the index line lists the filename and source without inventing a description
 
-  Scenario: Generated descriptions front-load routing cues without bloating planner protocols
+  Scenario: Generated descriptions carry several grounded facts within the shared bound
     Given the package-owned selector and Memory consolidation prompts
     When the prompts are bound to the parent-provided task and identity
-    Then generated Memory descriptions are single-line relevance cues of at most 120 characters
+    Then generated Memory descriptions are single-line relevance cues of at most 400 characters
+    And the bound keeps subject, applicable project/context, conditions and exceptions in the index
+    And a description longer than 400 characters is rejected before any write and regenerated once
+    And a still-oversized repair leaves the plan unapplied with the proposal retained
+    And no oversized description is silently truncated
     And triggers precede supporting detail that belongs in the body
+    And existing legacy descriptions are never rewritten by the bound alone
     And machine identity, schemas, read-only scope, privacy, evidence, and preservation-backed deletion rules remain explicit
     And the selector remains metadata-only with no tools or per-turn ranking

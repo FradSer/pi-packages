@@ -107,7 +107,7 @@ def run_case(case: dict, evidence: EvidenceRun, source: Path, model: dict, order
             (agent / 'settings.json').write_text(json.dumps({'packages': [], 'quietStartup': True}))
             (agent / 'continual-learning.json').write_text('{"jev":false}')
             (agent / 'memory.json').write_text(json.dumps(model))
-            (agent / 'memory/settings.json').write_text(json.dumps({'autoMemory': arm == 'memory',
+            (agent / 'memory/settings.json').write_text(json.dumps({'autoSettledLearning': arm == 'memory', 'autoContinualLearning': False,
                 'automaticPhases': {'memory': 'apply', 'harness': 'off', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))
             preflight(base, project, agent, isolated_environment(base, agent), real_model=True)
         probe = base/'probe.ts'
@@ -165,7 +165,7 @@ def run_case(case: dict, evidence: EvidenceRun, source: Path, model: dict, order
         for name, contents in case['files'].items():
             (project/name).write_text(json.dumps(contents))
         settings = agents['memory']/'memory/settings.json'
-        value = json.loads(settings.read_text()); value['autoMemory'] = False; settings.write_text(json.dumps(value))
+        value = json.loads(settings.read_text()); value['autoSettledLearning'] = False; settings.write_text(json.dumps(value))
         row = {'id':case['id'], 'category':case['category'], 'training':training, 'armOrder':order,
                'learnedEntries':len([p for p in learned if not p.endswith('/MEMORY.md')])}
         for arm in order:

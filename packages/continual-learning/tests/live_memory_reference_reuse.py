@@ -47,7 +47,7 @@ def run(parent: Path) -> dict:
     public = project / '.memory'; public.mkdir()
     (public / 'fact.md').write_text('---\nname: fact\ndescription: initial description\ntype: project\n---\nBODY_MUST_NOT_BE_INJECTED\n')
     (agent / 'memory').mkdir()
-    (agent / 'memory/settings.json').write_text(json.dumps({'autoMemory': False, 'agentsMd': {'disabled': True}}))
+    (agent / 'memory/settings.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False, 'agentsMd': {'disabled': True}}))
     (agent / 'settings.json').write_text(json.dumps({'packages': []}))
     (agent / 'continual-learning.json').write_text(json.dumps({'jev': False}))
     (agent / 'memory.json').write_text(json.dumps({'provider': PROVIDER, 'model': MODEL}))

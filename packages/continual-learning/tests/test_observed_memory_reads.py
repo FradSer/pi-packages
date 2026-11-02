@@ -183,7 +183,7 @@ def test_memory_preparation_binds_the_leaf_after_asynchronous_start_work(tmp_pat
       const cwd=path.join(process.env.TEST_ROOT,'project');fs.mkdirSync(cwd);(await import('node:child_process')).execFileSync('git',['init','-q',cwd]);fs.mkdirSync(path.join(cwd,'.memory'));
       fs.writeFileSync(path.join(cwd,'.memory/fact.md'),'---\ndescription: fixture fact\n---\nExact private fixture body.\n');
       fs.mkdirSync(process.env.PI_CODING_AGENT_DIR,{recursive:true});fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({jev:false}));
-      fs.mkdirSync(path.join(process.env.PI_CODING_AGENT_DIR,'memory'),{recursive:true});fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'memory/settings.json'),JSON.stringify({autoMemory:false}));
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({jev:false,autoSettledLearning:false,autoContinualLearning:false}));
       const {default:register}=await import('./packages/continual-learning/extensions/inject-memory.ts');
       const hooks={},rows=[{id:'prior',parentId:null,type:'message',message:{role:'user',content:'Previous task'}}];let leaf='prior';
       register({on:(name,f)=>(hooks[name]??=[]).push(f),registerCommand(){},sendMessage(){},getCommands:()=>[],appendEntry:(customType,data)=>{const id='entry-'+rows.length;rows.push({id,parentId:leaf,type:'custom',customType,data});leaf=id}});

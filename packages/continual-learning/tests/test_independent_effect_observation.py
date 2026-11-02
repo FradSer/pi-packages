@@ -86,7 +86,7 @@ def test_real_workflow_wiring_probes_harness_after_memory_gate_failure(
 
     agent = tmp_path / "agent"
     agent.mkdir()
-    (agent / "memory.json").write_text('{"provider":"fixture","model":"offline"}')
+    (agent / "continual-learning.json").write_text('{"model":"fixture/offline"}')
     results = tmp_path / "results"
     work = tmp_path / "work"
     work.mkdir()
@@ -127,7 +127,7 @@ def test_real_workflow_wiring_probes_harness_after_memory_gate_failure(
             (project / ".pi").mkdir()
             (project / ".pi/harness.json").write_text('{"rules":[]}')
         elif label == "harness-enforcement":
-            assert json.loads((agent / "memory/settings.json").read_text())["autoMemory"] is False
+            assert json.loads((agent / "continual-learning.json").read_text())["autoSettledLearning"] is False
             wrapper = tmp_path / "testbin/git"
             assert wrapper.is_file() and 'if [ "$1" = push ]' in wrapper.read_text()
             assert 'exit 0' in wrapper.read_text()
@@ -192,8 +192,9 @@ def test_held_harness_does_not_hide_applied_memory_recall(
 
     agent = tmp_path / "agent"
     agent.mkdir()
-    for name in ("memory.json", "models.json", "settings.json"):
+    for name in ("models.json", "settings.json"):
         (agent / name).write_text('{"provider":"fixture","model":"offline"}')
+    (agent / "continual-learning.json").write_text('{"model":"fixture/offline"}')
     results = tmp_path / "results"
     work = tmp_path / "work"
     work.mkdir()

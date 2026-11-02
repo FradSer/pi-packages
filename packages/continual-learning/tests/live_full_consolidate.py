@@ -278,7 +278,7 @@ def run() -> dict[str, object]:
                                 "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]},
             }}))
             (agent / "memory" / "settings.json").write_text(json.dumps({
-                "autoMemory": False, "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"},
+                "autoSettledLearning": False, "autoContinualLearning": False, "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"},
                 "agentsMd": {"disabled": True},
             }))
             subprocess.run(["git", "init", "-q", str(project)], check=True)

@@ -45,7 +45,7 @@ def verify_upgrade() -> dict[str, object]:
                 (agent / name).chmod(0o600)
         (agent / "settings.json").write_text(json.dumps({"packages": [], "defaultProvider": provider, "defaultModel": model}))
         (agent / "memory").mkdir()
-        (agent / "memory/settings.json").write_text('{"autoMemory":false,"agentsMd":{"disabled":true}}')
+        (agent / "memory/settings.json").write_text('{"autoSettledLearning": false, "autoContinualLearning": false,"agentsMd":{"disabled":true}}')
         (project / ".pi").mkdir()
         target = project / ".pi/harness.local.json"
         before = json.dumps(LEGACY, indent=2) + "\n"

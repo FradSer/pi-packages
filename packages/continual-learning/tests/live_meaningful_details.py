@@ -253,7 +253,7 @@ def main() -> None:
         agent.mkdir()
         (agent / "settings.json").write_text(json.dumps({"theme": "dark", "quietStartup": True, "packages": []}))
         (agent / "memory").mkdir()
-        (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False}))
+        (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False}))
         canonical = str(cwd.resolve())
         scope = "--" + canonical.lstrip("/").replace("/", "-").replace("\\", "-").replace(":", "-") + "--"
         registry = agent / "memory" / "scopes"; registry.mkdir()

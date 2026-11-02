@@ -36,7 +36,7 @@ def test_batch_menu_keeps_exact_change_confirmation_and_index_label():
       const records=[{id:'a',batchId:'batch_0123456789abcdef0123456789abcdef',phase:'memory',status:'applied',createdAt:'2026-10-10T01:00:00Z',changes:[{target:{name:'fact.md'}}]},
         {id:'b',batchId:'batch_0123456789abcdef0123456789abcdef',phase:'memory',status:'applied',createdAt:'2026-10-10T01:00:00Z',changes:[{target:{name:'MEMORY.md'},before:null}]}];
       await openMemoryMenu({cwd:'/fixture',hasUI:true,ui:{notify(){},select:async(title,options)=>{menus.push({title,options});if(title.startsWith('Learning batches')){if(opened)return 'Back';opened=true;return options[0]}return choices.shift()}}},{
-        status:async()=>({autoMemory:false,model:'fixture/model',entries:1}),loadMemories:async()=>({entries:[]}),listHistory:async()=>records,
+        status:async()=>({autoSettledLearning:false,autoContinualLearning:false,model:'fixture/model',entries:1}),loadMemories:async()=>({entries:[]}),listHistory:async()=>records,
         manage:async()=>{throw Error('No batch mutation')},selectModel:async()=>{},toggleAutoMemory:async()=>{},isBusy:()=>false});
       console.log(JSON.stringify(menus));
     ''')

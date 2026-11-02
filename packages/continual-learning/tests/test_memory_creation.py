@@ -127,6 +127,34 @@ def test_empty_existing_scope_accepts_user_evidenced_new_memory() -> None:
         assert details["newMemoryCount"] == 1
 
 
+def test_new_memory_description_accepts_the_shared_bound_and_rejects_oversize() -> None:
+    # Given generated Memory carrying several supported facts,
+    # When the description is within the 400 code-unit bound,
+    # Then the parent validator accepts the complete claim;
+    # And a longer description is rejected instead of truncated.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        snapshot_value = snapshot()
+        snapshot_raw = json.dumps(snapshot_value, ensure_ascii=False, indent=2).encode() + b"\n"
+        at_bound = "Prefer concise status updates. " * 12
+        assert len(at_bound) <= 400
+        accepted = invoke_plan(
+            root,
+            plan(sha_bytes(snapshot_raw), [proposal(content=f"---\ndescription: {at_bound}\n---\nPrefer concise status updates.\n")]),
+            snapshot_value,
+        )
+        assert accepted.returncode == 0, accepted.stdout
+        oversized = "Prefer concise status updates. " * 13
+        rejected = invoke_plan(
+            root,
+            plan(sha_bytes(snapshot_raw), [proposal(content=f"---\ndescription: {oversized}\n---\nPrefer concise status updates.\n")]),
+            snapshot_value,
+        )
+        assert rejected.returncode == 1
+        assert "memory_bounds" in rejected.stdout and "400" in rejected.stdout
+        assert "description" in rejected.stdout
+
+
 def test_new_memory_rejects_assistant_only_evidence() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -243,6 +271,53 @@ def test_project_new_memory_defaults_safe_and_mirrors_to_public_root() -> None:
     assert result["applied"]["created"] == ["project.md"]
     assert result["harness"] == result["public"] == "The project uses TypeScript.\n"
     assert "(harness only)" not in result["publicIndex"]
+
+
+def test_parent_rejects_an_oversized_generated_description_before_any_write() -> None:
+    # Given a fresh proposal whose frontmatter description exceeds the shared bound,
+    # When the parent validates and applies the plan,
+    # Then the plan is refused with a 400 code-unit diagnostic and no file is written;
+    # And a description within the bound is accepted.
+    result = run_bun(
+        r'''
+        import { mkdtemp, readFile, writeFile, access } from 'node:fs/promises';
+        import { join } from 'node:path';
+        import { createHash } from 'node:crypto';
+        import { applyConsolidationPlan } from './packages/continual-learning/extensions/consolidation-run.ts';
+        const claim = 'Run pnpm test --filter continual-learning for this package; run it before reporting package changes complete.';
+        const setup = async (runId) => {
+          const root = await mkdtemp('/tmp/pi-memory-description-');
+          const harness = join(root, 'harness');
+          const publicDir = join(root, 'public');
+          const snapshot = { schemaVersion: 1, runId, scopeKey: 'c'.repeat(64), contextEnabled: true,
+            entries: [{ type: 'message', message: { role: 'user', content: 'Use pnpm test --filter continual-learning for this package.' } }] };
+          const snapshotText = JSON.stringify(snapshot, null, 2) + "\n";
+          const snapshotFile = join(root, 'snapshot.json');
+          await writeFile(snapshotFile, snapshotText);
+          const digest = createHash('sha256').update(snapshotText).digest('hex');
+          const run = { manifest: { runId, scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: digest,
+            harnessDir: harness, publicDir, sourceHashes: { harness: {}, public: {} } },
+            paths: { snapshotFile }, released: false };
+          const plan = (description) => ({ runId, scopeDigest: 'b'.repeat(64), artifactHash: digest, selected: [],
+            newMemories: [{ name: 'verification.md', kind: 'project', classification: 'safe',
+              content: `---\ndescription: ${description}\ntype: project\n---\n${claim}\n`,
+              evidence: [{ index: 0, quote: 'Use pnpm test --filter continual-learning for this package.' }] }] });
+          return { run, plan, harness };
+        };
+        const good = await setup('run_description_ok');
+        const accepted = await applyConsolidationPlan(good.run, good.plan(`${claim} ${claim} ${claim}`));
+        const bad = await setup('run_description_oversize');
+        let rejected = '';
+        try { await applyConsolidationPlan(bad.run, bad.plan(`expanded context ${'x'.repeat(500)}`)); } catch (error) { rejected = error.message; }
+        let wrote = true;
+        try { await access(join(bad.harness, 'verification.md')); } catch { wrote = false; }
+        console.log(JSON.stringify({ accepted: accepted.created, body: await readFile(join(good.harness, 'verification.md'), 'utf8'), rejected, wrote }));
+        '''
+    )
+    assert result["accepted"] == ["verification.md"]
+    assert "description" in result["body"]
+    assert "400 UTF-16 code units" in result["rejected"]
+    assert result["wrote"] is False
 
 
 def test_snapshot_session_context_is_immutable_but_preserves_method_binding() -> None:

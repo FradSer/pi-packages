@@ -60,7 +60,8 @@ export const MAX_UNIT_TEXT_CHARS = 4_000;
 export const MAX_EXTRACT_INSTRUCTIONS_CHARS = 2_000;
 /** Extraction can retain a discoverable route, not another detailed unit. */
 export const MAX_REPLACEMENT_TEXT_CHARS = 500;
-export const MAX_MEMORY_DESCRIPTION_CHARS = 120;
+/** Extracted Memory descriptions follow the shared generated-description bound. */
+export const MAX_MEMORY_DESCRIPTION_CHARS = 400;
 /** Default always-loaded budget (~4k English tokens by the common bytes/4
  * heuristic). Anchored conservatively below two industry reference points:
  * backpass defaults to ~20KB for its memory file, and Claude Code loads only

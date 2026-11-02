@@ -306,7 +306,7 @@ def trial(enabled: bool, base: Path, automatic: bool = False, *, scenario: dict[
     project, agent, probe = prepare(base, False)
     home = base / 'home'; home.mkdir()
     (agent / 'continual-learning.json').write_text(json.dumps({'jev': {'model': 'jev-1.13.0'} if enabled else False}))
-    learning_settings = {'autoMemory': automatic, 'automaticPhases': {'memory': 'apply', 'harness': 'apply', 'agents': 'off'}, 'agentsMd': {'disabled': True}}
+    learning_settings = {'autoSettledLearning': automatic, 'autoContinualLearning': False, 'automaticPhases': {'memory': 'apply', 'harness': 'apply', 'agents': 'off'}, 'agentsMd': {'disabled': True}}
     (agent / 'memory' / 'settings.json').write_text(json.dumps(learning_settings))
     # Public existing metadata forces real selector/fallback and body retrieval.
     shared = project / '.memory'; shared.mkdir()
@@ -373,7 +373,7 @@ def trial(enabled: bool, base: Path, automatic: bool = False, *, scenario: dict[
     fresh_command = command[:]
     fresh_command[fresh_command.index('--session') + 1] = str(fresh)
     settings = json.loads((agent/'memory'/'settings.json').read_text())
-    settings['autoMemory'] = False
+    settings['autoSettledLearning'] = False
     (agent/'memory'/'settings.json').write_text(json.dumps(settings))
     if scenario and scenario.get('nativeApproval'):
         fresh_native_tui(fresh_command, project, env, ready, settled, menus, prompt, scenario['allowedProbes'])

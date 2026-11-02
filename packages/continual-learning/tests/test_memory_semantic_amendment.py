@@ -713,8 +713,9 @@ def test_atomic_knowledge_correction_materializes_body_and_sources_together():
         const discovery=materializeMemoryDescription(prior,'Revised discovery');
         encodedCorrections.push({header,body:corrected.content,discovery,expectedDiscovery:prior.replace('description: Existing observation','description: Revised discovery'),evidence:corrected.evidence});
       }
-      const invalidDescriptions=[];for(const value of ['',null,42,'foreign\nname: injected']){try{materializeMemoryDescription(formatted,value);invalidDescriptions.push(false)}catch{invalidDescriptions.push(true)}}
-      console.log(JSON.stringify({good,denied,original,formatted,described,encodedCorrections,invalidDescriptions}));
+      const invalidDescriptions=[];for(const value of ['',null,42,'foreign\nname: injected','x'.repeat(401)]){try{materializeMemoryDescription(formatted,value);invalidDescriptions.push(false)}catch{invalidDescriptions.push(true)}}
+      const boundDescription=materializeMemoryDescription(formatted,'x'.repeat(400));
+      console.log(JSON.stringify({good,denied,original,formatted,described,encodedCorrections,invalidDescriptions,boundDescription}));
     ''')
     assert all(result['denied'])
     assert result['good']['content'].endswith('second.resolve() occurs after the assertion.')
@@ -728,6 +729,9 @@ def test_atomic_knowledge_correction_materializes_body_and_sources_together():
         assert correction['discovery'] == correction['expectedDiscovery']
         assert correction['evidence'] == result['good']['evidence']
     assert all(result['invalidDescriptions'])
+    # Repairs write new descriptions, so the shared 400 code-unit bound applies;
+    # legacy stored descriptions remain readable because only new writes pass here.
+    assert 'x' * 400 in result['boundDescription']
 
 
 def test_parent_atomic_repair_rejects_body_with_detached_stale_citations():

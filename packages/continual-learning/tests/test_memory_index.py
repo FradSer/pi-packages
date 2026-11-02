@@ -380,15 +380,17 @@ def test_real_consolidation_persists_descriptions_without_forging_private_marker
 @pytest.mark.parametrize("prompt", ["memory-consolidator", "incremental-memory-consolidator"])
 def test_planner_prompts_require_concise_front_loaded_relevance_descriptions(prompt: str) -> None:
     content = (PACKAGE / "prompts" / f"{prompt}.md").read_text(encoding="utf-8")
-    assert "120 characters" in content
+    assert "400 characters" in content
+    assert "120 characters" not in content
     assert "front-load" in content.lower()
     assert "description" in content and "single-line" in content
     # Given either planner, When generating an index entry, Then it asks for
-    # an evidence-backed fact and preserves the original applicable boundary.
-    assert "evidence-backed fact or preference" in content
-    assert "not a bare relevance trigger" in content
-    assert "conditions, duration and permission exceptions" in content
+    # evidence-backed facts and preserves the original applicable boundary.
+    assert "evidence-backed fact" in content or "evidence-backed facts" in content
+    assert "not a bare relevance trigger" in content or "not bare relevance triggers" in content
+    assert "conditions" in content
     assert "Do not invent a guarantee" in content
+    assert "rejected before any" in content and "regenerated" in content
     assert "description: How this project works" not in content
     assert "preservedIn" in content and "private" in content
     assert "read-only" in content

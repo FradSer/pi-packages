@@ -94,7 +94,7 @@ def trial() -> dict:
     with tempfile.TemporaryDirectory(prefix="cl-private-preference-") as raw:
         project, agent, probe = prepare(Path(raw), True, seed_memory=True)
         settings = agent / "memory" / "settings.json"
-        settings.write_text(json.dumps({"autoMemory": True, "agentsMd": {"disabled": True},
+        settings.write_text(json.dumps({"autoSettledLearning": True, "autoContinualLearning": False, "agentsMd": {"disabled": True},
                                       "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"}}))
         run_pi(project, agent, probe,
                f"For my personal replies, I prefer the sign-off marker {PRIVATE}; this is private "
@@ -115,7 +115,7 @@ def trial() -> dict:
         assert private[SEED] == public[SEED]
         assert_current_memory_command(private[SEED], "bun run check", "bun run verify")
         verify_preference_artifacts(agent, preferences, facts)
-        settings.write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))
+        settings.write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
         preference, fact = private_root / preferences[0], project / ".memory" / facts[0]
         fresh = run_pi(project, agent, probe,
                        f"Read `{preference}` and `{fact}` with the read tool. Then state the project's "

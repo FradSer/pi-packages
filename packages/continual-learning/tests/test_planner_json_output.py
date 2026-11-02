@@ -792,7 +792,7 @@ def test_luna_native_fresh_empty_selection_binds_shape_and_preserves_legal_citat
       const base={...top,operations:[],newMemories:[project]};const check=p=>schema?Value.Check(schema,p):false;
       const good=[base,{...base,newMemories:[preference]},{...base,newMemories:[{...preference,classification:'safe'}]},...citations.map(c=>({...base,newMemories:[{...project,knowledge:{sourceCitations:[c],units:[{text:'Observed fact.',citationIndexes:[0]}]}}]}))].map(check);
       const bad=[{...base,runId:'foreign'}, {...base,schemaVersion:2},{...base,operations:[{}]},...[
-        {...project,description:'x'.repeat(123)},{...project,sourceExcerpt:{ref:'e0.b0.l1'}},
+        {...project,description:'x'.repeat(401)},{...project,sourceExcerpt:{ref:'e0.b0.l1'}},
         {...project,knowledge:{sourceCitations:[{ref:'e0.b0.l1',role:null}],units:project.knowledge.units}},
         {...project,knowledge:{sourceCitations:[{index:0,quote:'legacy coordinate'}],units:project.knowledge.units}},
       ].map(p=>({...base,newMemories:[p]}))].map(check);

@@ -52,7 +52,7 @@ def test_incremental_planner_prompt_declares_the_exact_new_memory_kind_enum() ->
 def test_memory_open_reports_invalid_model_configuration(tmp_path: Path, has_ui: bool) -> None:
     agent = tmp_path / "agent"
     agent.mkdir()
-    (agent / "memory.json").write_text("{", encoding="utf-8")
+    (agent / "continual-learning.json").write_text("{", encoding="utf-8")
     result = run_bun(r'''
       const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
       const commands = new Map(), labels = [];
@@ -99,7 +99,7 @@ def test_disabled_settle_reports_the_frozen_snapshot_and_real_user_revision_once
       console.log(JSON.stringify({ skipped, runs }));
     """)
     assert result == {
-        "skipped": [{"context": {"task": "frozen"}, "revision": 1, "reason": "auto-memory-off"}],
+        "skipped": [{"context": {"task": "frozen"}, "revision": 1, "reason": "settled-learning-off"}],
         "runs": [],
     }
 
@@ -287,6 +287,8 @@ def test_headless_pipeline_freezes_context_and_finishes_all_phases() -> None:
           return spawn('node', ['-e', worker], { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
         },
       }));
+      fs.mkdirSync(path.join(agent, 'memory'), { recursive: true });
+      fs.writeFileSync(path.join(agent, 'continual-learning.json'), JSON.stringify({ autoSettledLearning: true, autoContinualLearning: false }));
       const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
       const hooks = new Map();
       const pi = {
@@ -380,7 +382,7 @@ def test_harness_only_evidence_runs_without_memory_mutation_and_records_receipt(
       const { resolveMemoryPaths } = await import('./packages/continual-learning/extensions/memory-paths.ts');
       const configuredPaths = resolveMemoryPaths(cwd);
       fs.mkdirSync(path.dirname(configuredPaths.settingsFile), { recursive: true });
-      fs.writeFileSync(configuredPaths.settingsFile, JSON.stringify({ autoMemory: true, agentsMd: { disabled: true } }));
+      fs.writeFileSync(path.join(configuredPaths.agentDir, 'continual-learning.json'), JSON.stringify({ autoSettledLearning: true, autoContinualLearning: false, agentsMd: { disabled: true } }));
       const workerKinds = [];
       const kit = await import('./packages/kit/src/index.ts');
       mock.module('./packages/kit/src/index.ts', () => ({
@@ -475,6 +477,8 @@ def test_failed_memory_gate_persists_receipt_and_skips_later_phases() -> None:
           return child;
         },
       }));
+      fs.mkdirSync(path.join(agent, 'memory'), { recursive: true });
+      fs.writeFileSync(path.join(agent, 'continual-learning.json'), JSON.stringify({ autoSettledLearning: true, autoContinualLearning: false }));
       const { default: register, resolveMemoryPaths } = await import('./packages/continual-learning/extensions/inject-memory.ts');
       const hooks = new Map(), notices = [];
       register({
@@ -671,8 +675,7 @@ def test_invalid_memory_config_blocks_every_worker_before_normalization(memory_p
           const agent = process.env.PI_CODING_AGENT_DIR;
           const cwd = path.join(base, 'project'); fs.mkdirSync(cwd); fs.mkdirSync(agent);
           fs.mkdirSync(path.join(agent, 'memory'), { recursive: true });
-          fs.writeFileSync(path.join(agent, 'memory.json'), JSON.stringify({ provider: 'only-provider' }));
-          fs.writeFileSync(path.join(agent, 'memory', 'settings.json'), JSON.stringify({ autoMemory: true, automaticPhases: {memory: process.env.TEST_MEMORY_POLICY} }));
+          fs.writeFileSync(path.join(agent, 'continual-learning.json'), JSON.stringify({ model: 'only-provider/any', autoSettledLearning: true, autoContinualLearning: false, automaticPhases: {memory: process.env.TEST_MEMORY_POLICY} }));
           const { resolveMemoryPaths } = await import('./packages/continual-learning/extensions/memory-paths.ts');
           const paths = resolveMemoryPaths(cwd);
           fs.mkdirSync(paths.harnessDir, { recursive: true });
@@ -757,6 +760,8 @@ mock.module('./packages/kit/src/index.ts', () => ({
 }));
 const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
 const cwd = path.join(base, 'project'); fs.mkdirSync(cwd);
+fs.mkdirSync(path.join(process.env.PI_CODING_AGENT_DIR, 'memory'), { recursive: true });
+fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR, 'continual-learning.json'), JSON.stringify({ autoSettledLearning: true, autoContinualLearning: false }));
 const hooks = new Map(), notices = [];
 register({on:(name,handler)=>hooks.set(name,[...(hooks.get(name)??[]),handler]),registerCommand:()=>{},getCommands:()=>[],registerEntryRenderer: () => {}, appendEntry: () => {}, sendMessage: () => {}});
 const evidence = [{message:{role:'user',content:[{type:'text',text:'Always preserve this durable project rule.'}]}}];
@@ -804,9 +809,9 @@ def test_shutdown_while_reading_settings_cannot_start_old_session_backfill() -> 
       const run=new AsyncFunction('runtimeSettings','replayPending','ctx',`let sessionGeneration=1;const generation=1;${body}`);
       let calls=0;
       // Complete the settings await only after the old session is invalidated.
-      const interrupted=new AsyncFunction('replayPending',`let sessionGeneration=1;const generation=1;const ctx={};const runtimeSettings=async()=>{sessionGeneration++;return {autoMemory:true};};${body}`);
+      const interrupted=new AsyncFunction('replayPending',`let sessionGeneration=1;const generation=1;const ctx={};const runtimeSettings=async()=>{sessionGeneration++;return {autoSettledLearning:true,autoContinualLearning:false};};${body}`);
       await interrupted(async()=>calls++);
-      const interruptedCalls=calls;await run(async()=>({autoMemory:true}),async()=>calls++,{});
+      const interruptedCalls=calls;await run(async()=>({autoSettledLearning:true,autoContinualLearning:false}),async()=>calls++,{});
       console.log(JSON.stringify({interruptedCalls,normalCalls:calls-interruptedCalls}));
     ''')
     assert result == {'interruptedCalls': 0, 'normalCalls': 1}

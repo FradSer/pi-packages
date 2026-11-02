@@ -1,6 +1,11 @@
 /** Wire structure only. Parent validators remain the authority for all values. */
 type Schema = Record<string, unknown>;
 export type LearningOutputKind = "memory-selector" | "memory-delta" | "memory-amendment" | "memory-semantic-amendment" | "memory-combined-amendment" | "memory-retained-amendment" | "memory-body-review" | "memory-coverage-review";
+/** Generated Memory descriptions stay bounded; the parent validates the
+ * frontmatter of every new write against the same shared bound. */
+const MEMORY_DESCRIPTION_MAX = 400;
+const memoryDescription: Schema = {type: "string", minLength: 1, maxLength: MEMORY_DESCRIPTION_MAX,
+  description: `Non-empty single-line discovery claim; the parent also enforces the exact ${MEMORY_DESCRIPTION_MAX} UTF-16 code-unit bound`};
 /** Fresh producer format only; legacy readers and materialized plans stay compatible. */
 export function assertFreshMemoryProjectOutput(value: unknown): void {
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
@@ -61,8 +66,6 @@ const citationSchema = (domain?: MemoryCitationDomain, referenceOverride?: Schem
 const classification: Schema = {type: "string", enum: ["safe", "private"]};
 const observations = array(object({path: string, status: {type: "string", enum: ["found", "missing", "updated"]}}, ["path", "status"]), 1, 32);
 const memoryDocument: Schema = {...string, description: "Complete Markdown including name/description/type frontmatter and a non-empty grounded knowledge body; discovery metadata alone is not a body", pattern: "^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n[\\s\\S]*\\S[\\s\\S]*$"};
-const memoryDescription: Schema = {type: "string", minLength: 1, maxLength: 120,
-  description: "Non-empty single-line discovery claim; the parent also enforces the exact 120 UTF-16 code-unit bound"};
 const knowledgeSchema = (evidence: Schema): Schema => {
   const text = object({text: {type: "string", minLength: 1}, citationIndexes: array({type: "integer", minimum: 0, maximum: 7}, 1, 8)},
     ["text", "citationIndexes"]);
@@ -276,7 +279,7 @@ export function nativeMemoryBodyRepairSchema(binding: NativeMemoryRepairBinding,
   const patches: Schema[] = optional.length ? [object({candidateRef: {...candidateRef, enum: optional}, knowledge}, ["candidateRef", "knowledge"])] : [];
   if (binding.descriptionCandidateIds.length) patches.push(object({
     candidateRef: {type: "string", enum: binding.descriptionCandidateIds.map(id => id.slice(0, id.lastIndexOf(":")))},
-    knowledge, description: {type: "string", minLength: 1, maxLength: 120},
+    knowledge, description: {type: "string", minLength: 1, maxLength: MEMORY_DESCRIPTION_MAX},
   }, ["candidateRef", "knowledge", "description"]));
   return object({...Object.fromEntries(Object.entries(binding.requiredTopLevelValues).map(([key, value]) => [key, {type: typeof value === "number" ? "integer" : "string", enum: [value]}])),
     replacements: array({anyOf: patches}, 0, 32),

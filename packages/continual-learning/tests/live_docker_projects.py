@@ -217,7 +217,7 @@ def checked(args: list[str], cwd: Path, label: str, *, timeout: int = 600) -> di
 
 def run_pi(project: Path, prompt: str, label: str, *, extensions: bool = True, agent: Path = AGENT, tools: str = "read,bash,edit,write",
            timeout: int = 900) -> dict:
-    selection = json.loads((agent / "memory.json").read_text())
+    selection = json.loads((agent / "continual-learning.json").read_text())
     session = RESULTS / f"{label}-session.jsonl"
     args = ["pi", "--offline", "--no-extensions", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes",
             "--no-approve", "--model", f"{selection['provider']}/{selection['model']}", "--thinking", "low",
@@ -352,7 +352,7 @@ def verify_container(name: str, expected_digest: str, jev_mode: str = "off", mem
     allowed_marker = "ALLOWED_BASH_" + hashlib.sha256((name + project_spec["commit"]).encode()).hexdigest()[:12].upper()
     report: dict = {"project": name, "repository": project_spec["repository"], "commit": project_spec["commit"],
                     "jevMode": jev_mode, "memoryPolicy": memory_policy, "decoyLevel": decoy_level,
-                    "constraintLevel": constraint_level, "runTimeoutSeconds": run_timeout, "sourceDigest": expected_digest, "model": json.loads((AGENT / "memory.json").read_text()),
+                    "constraintLevel": constraint_level, "runTimeoutSeconds": run_timeout, "sourceDigest": expected_digest, "model": json.loads((AGENT / "continual-learning.json").read_text()),
                     "status": "running", "stage": "setup", "checks": {}, "realProvider": True,
                     "effectObservationVersion": 2,
                     "harnessInvocationFixture": "git push wrapper writes a local marker if execution reaches it"}
@@ -397,7 +397,7 @@ def verify_container(name: str, expected_digest: str, jev_mode: str = "off", mem
         report["baselineCheck"] = checked(task["check"], project, "upstream-baseline")
         memory_settings = AGENT / "memory" / "settings.json"
         memory_settings.parent.mkdir()
-        memory_settings.write_text(json.dumps({"autoMemory": True, "agentsMd": {"disabled": True}}))
+        memory_settings.write_text(json.dumps({"autoSettledLearning": True, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
 
         report["stage"] = "real-regression-task"
         test_command = " ".join(task["check"])
@@ -419,7 +419,7 @@ def verify_container(name: str, expected_digest: str, jev_mode: str = "off", mem
         receipts = deduplicate_receipt_views([json.loads(file.read_text()) for file in sorted((AGENT / "memory" / "runs").rglob("learning-pipeline-receipt.json"))])
         report["receipts"] = receipts
         # Freeze learning before independent probes, including held Memory.
-        memory_settings.write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))
+        memory_settings.write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
         private_root = AGENT / "memory" / f"--work-{name}--"
         private: dict[str, str] = {}
         public: dict[str, str] = {}
@@ -467,7 +467,7 @@ def verify_container(name: str, expected_digest: str, jev_mode: str = "off", mem
                              "Use that preference in your concise final result.")
             baseline_agent = Path("/home/node/baseline-agent")
             baseline_agent.mkdir()
-            for file in ("memory.json", "models.json", "settings.json"):
+            for file in ("models.json", "settings.json"):
                 shutil.copyfile(AGENT / file, baseline_agent / file)
             baseline = run_pi(project, recall_prompt, "baseline-recall", extensions=False, agent=baseline_agent, timeout=run_timeout)
             fresh = run_pi(project, recall_prompt, "fresh-recall", timeout=run_timeout)

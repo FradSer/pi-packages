@@ -172,7 +172,7 @@ def run_case(case: dict[str, Any], arm: dict[str, Any], model: str, source: Path
                 (agent / name).chmod(0o600)
         (agent / "settings.json").write_text(json.dumps({"packages": []}))
         (agent / "memory").mkdir()
-        (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False}))
+        (agent / "continual-learning.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False}))
         subprocess.run(["git", "init", "-q", str(project)], check=True, capture_output=True)
         (project / ".memory").mkdir()
         for name, text in arm["memories"].items():
@@ -275,8 +275,8 @@ def main() -> None:
     source = Path(os.environ.get("PI_CODING_AGENT_DIR", Path.home() / ".pi" / "agent"))
     model = args.model
     if not model:
-        config = json.loads((source / "memory.json").read_text())
-        model = f"{config['provider']}/{config['model']}"
+        config = json.loads((source / "continual-learning.json").read_text())
+        model = config["model"] if isinstance(config.get("model"), str) else f"{config['model']['provider']}/{config['model']['model']}"
     report = json.dumps(evaluate_suite(suite, model, source), ensure_ascii=False, indent=2) + "\n"
     if args.output:
         with args.output.open("x") as target:

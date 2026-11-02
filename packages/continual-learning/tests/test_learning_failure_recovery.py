@@ -204,7 +204,7 @@ def test_semantic_worker_sparse_output_preserves_full_plan_and_private_response(
     assert 'Omitted candidates remain unresolved and are retained by the parent' in result['prompt']
     assert 'Do not infer execution or completion timing from a call or assignment alone' in result['prompt']
     assert 'exact source identifiers and comparison operators' in result['prompt']
-    assert 'exactly one source-backed claim' in result['prompt']
+    assert 'only source-backed claims' in result['prompt']
 
 
 def test_repair_diagnostic_omits_json_escaped_sensitive_material() -> None:
@@ -373,7 +373,7 @@ def test_planning_and_repair_preserve_type_level_scope_in_index_claims() -> None
     ''')
     for text in result.values():
         assert 'type-level restriction' in text
-        assert 'one independently supported clause' in text
+        assert 'independently supported clauses' in text
 
 
 def test_citation_indentation_repair_preserves_exact_original_evidence() -> None:

@@ -34,10 +34,11 @@ def test_registered_early_review_uses_only_current_user_and_never_acknowledges_u
       import {ruleRevision} from './packages/continual-learning/extensions/guardrail-engine.ts';
       const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'early-harness-'));fs.mkdirSync(path.join(cwd,'.git'));fs.mkdirSync(path.join(cwd,'.pi'));
       const agent=process.env.PI_CODING_AGENT_DIR;fs.mkdirSync(path.join(agent,'memory'),{recursive:true});
-      fs.writeFileSync(path.join(agent,'memory','settings.json'),JSON.stringify({autoMemory:true,automaticPhases:{memory:'off',harness:'apply',agents:'off'}}));
-      fs.writeFileSync(path.join(agent,'continual-learning.json'),JSON.stringify({jev:{apiKey:'offline-fixture',scopes:['harness']}}));
+      fs.writeFileSync(path.join(agent,'continual-learning.json'),JSON.stringify({jev:{apiKey:'offline-fixture',scopes:['harness']},autoSettledLearning:true,autoContinualLearning:false,automaticPhases:{memory:'off',harness:'apply',agents:'off'}}));
       const rule={id:'owned-npm',bash:'^npm(?:\\s|$)',action:'block',message:'Block Bash commands whose first executable is npm.'};
       const target=path.join(cwd,'.pi/harness.json');const original=JSON.stringify({rules:[rule],learnedRules:{[rule.id]:{origin:'consolidation',revision:ruleRevision(rule)}}});fs.writeFileSync(target,original);
+      const preflightModule=await import('./packages/continual-learning/extensions/worker-model-preflight.ts');
+      mock.module('./packages/continual-learning/extensions/worker-model-preflight.ts',()=>({...preflightModule,createWorkerModelPreflight:()=>({check:async()=>true})}));
       const harness=await import('./packages/continual-learning/extensions/harness-consolidation.ts');let plans=0,captured,bound;
       mock.module('./packages/continual-learning/extensions/harness-consolidation.ts',()=>({...harness,planHarnessConsolidationPhase:async(ctx,opts)=>{
         plans++;captured=ctx.sessionManager.getBranch();bound=opts.timeoutMs;return {ok:false,detail:'Controlled held plan',durationMs:1,run:opts.run,attempts:[{phase:'harness',attempt:0,outcome:'failed',durationMs:1,operations:0,modelCalls:0}]};
@@ -86,11 +87,12 @@ def test_total_early_deadline_terminates_child_and_retains_partial_cost_without_
       import {ruleRevision} from './packages/continual-learning/extensions/guardrail-engine.ts';
       const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'early-deadline-'));fs.mkdirSync(path.join(cwd,'.git'));fs.mkdirSync(path.join(cwd,'.pi'));
       const agent=process.env.PI_CODING_AGENT_DIR;fs.mkdirSync(path.join(agent,'memory'),{recursive:true});
-      fs.writeFileSync(path.join(agent,'memory/settings.json'),JSON.stringify({autoMemory:true,automaticPhases:{memory:'off',harness:'apply',agents:'off'}}));
-      fs.writeFileSync(path.join(agent,'continual-learning.json'),JSON.stringify({jev:{apiKey:'offline-fixture',scopes:['harness']}}));
+      fs.writeFileSync(path.join(agent,'continual-learning.json'),JSON.stringify({jev:{apiKey:'offline-fixture',scopes:['harness']},autoSettledLearning:true,autoContinualLearning:false,automaticPhases:{memory:'off',harness:'apply',agents:'off'}}));
       const rule={id:'owned',bash:'^npm$',action:'block',message:'Block npm.'};const original=JSON.stringify({rules:[rule],learnedRules:{owned:{origin:'consolidation',revision:ruleRevision(rule)}}});const target=path.join(cwd,'.pi/harness.json');fs.writeFileSync(target,original);
       let fire,bound,pid,closed=false;
       const timer=globalThis.setTimeout;globalThis.setTimeout=(fn,ms,...args)=>ms===230_000?(bound=ms,fire=fn,timer(()=>{},60000)):timer(fn,ms,...args);
+      const preflightModule=await import('./packages/continual-learning/extensions/worker-model-preflight.ts');
+      mock.module('./packages/continual-learning/extensions/worker-model-preflight.ts',()=>({...preflightModule,createWorkerModelPreflight:()=>({check:async()=>true})}));
       const harness=await import('./packages/continual-learning/extensions/harness-consolidation.ts');
       mock.module('./packages/continual-learning/extensions/harness-consolidation.ts',()=>({...harness,planHarnessConsolidationPhase:async(ctx,opts,hooks)=>{
         const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});pid=child.pid;hooks.onChild(child);

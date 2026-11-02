@@ -144,7 +144,7 @@ def test_extract_pointer_schema_is_optional_bounded_and_extraction_only() -> Non
 
 def test_memory_description_is_short_nonblank_and_single_line() -> None:
     base = extract_skill_plan()["operations"][1]
-    for description, expected in (("Schema changes: regenerate fixtures before testing", True), ("x" * 120, True), ("x" * 121, False), (" ", False), ("Schema\nextra: injected", False), ("Schema\rhidden", False)):
+    for description, expected in (("Schema changes: regenerate fixtures before testing", True), ("x" * 400, True), ("x" * 401, False), (" ", False), ("Schema\nextra: injected", False), ("Schema\rhidden", False)):
         op = {**base, "extraction": {**base["extraction"], "description": description}}
         result = call_js(f"validateAgentsMdPlan({json.dumps({'kind': 'agents-md-consolidation-plan', 'operations': [op]})})", "validateAgentsMdPlan")
         assert result["ok"] is expected, description
@@ -954,7 +954,7 @@ def test_procedure_declares_readonly_boundary_and_discipline() -> None:
 def test_procedure_routes_conditionally_with_compact_authority() -> None:
     text = (PKG_DIR / "prompts" / "agents-md-consolidator.md").read_text(encoding="utf-8")
     normalized = " ".join(text.split())
-    for retained in ("common", "conditional pointer", "replacementText", "500", "120", "front-loaded", "registered", "skillRule", "ruleId", "instructions", "safe", "private"):
+    for retained in ("common", "conditional pointer", "replacementText", "500", "400", "front-loaded", "registered", "skillRule", "ruleId", "instructions", "safe", "private"):
         assert retained in normalized
     assert "always-relevant" not in normalized
     assert "neural net" not in normalized and "gradient" not in normalized

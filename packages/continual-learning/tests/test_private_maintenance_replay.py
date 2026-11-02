@@ -5,8 +5,8 @@ def test_disposable_settings_use_product_schema(tmp_path) -> None:
     import json
     from live_memory_maintenance import prepare_learning_settings
     prepare_learning_settings(tmp_path)
-    file = tmp_path / 'memory/settings.json'
-    assert json.loads(file.read_text()) == {'autoMemory': False}
+    file = tmp_path / 'continual-learning.json'
+    assert json.loads(file.read_text()) == {'autoSettledLearning': False, 'autoContinualLearning': False}
     assert file.stat().st_mode & 0o077 == 0
 
 

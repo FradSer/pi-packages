@@ -785,7 +785,7 @@ def run_command_initialization(c: str, proxy: InferenceProxy, output: Path, labe
 
 def run_initial_policy(c: str, proxy: InferenceProxy, output: Path, *, prior: dict, row: dict, enabled: bool) -> dict:
     """Run the same original-user no-tools policy task in both independent arms."""
-    settings={'autoMemory':enabled,'automaticPhases':{'memory':'off','harness':'apply' if enabled else 'off','agents':'off'}}
+    settings={'autoSettledLearning': enabled, 'autoContinualLearning': False,'automaticPhases':{'memory':'off','harness':'apply' if enabled else 'off','agents':'off'}}
     base.put(c,base.AGENT+'/memory/settings.json',json.dumps(settings).encode())
     call={'initializationStep':'automatic-policy','exitCode':None,'usage':{'totalTokens':0},'reportedCost':0,'seconds':0}
     row.setdefault('initializationCalls',[]).append(call)
@@ -1012,7 +1012,7 @@ def run(args: argparse.Namespace) -> dict:
             for arm,c in zip(protocol['arms'],containers):
                 base.configuration(c,proxy)
                 enabled=arm=='with-learning'
-                base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoMemory':enabled and not explicit_command_initialization,
+                base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoSettledLearning': enabled and not explicit_command_initialization, 'autoContinualLearning': False,
                     'automaticPhases':{'memory':'apply' if enabled else 'off','harness':'apply' if enabled and not explicit_command_initialization else 'off','agents':'off'}}).encode())
                 before=base.protected(c,'p-limit');pre=score(c,1,proxy,evidence.output/('preflight-'+arm),before)
                 if failure_input:
@@ -1055,7 +1055,7 @@ def run(args: argparse.Namespace) -> dict:
                         arm=protocol['arms'][arm_index];c=containers[arm_index];out=evidence.output/task['id']/arm;outputs[arm]=out
                         if explicit_command_initialization and index==1:
                             enabled=arm=='with-learning'
-                            base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoMemory':enabled,'automaticPhases':{
+                            base.put(c,base.AGENT+'/memory/settings.json',json.dumps({'autoSettledLearning': enabled, 'autoContinualLearning': False,'automaticPhases':{
                                 'memory':'apply' if enabled else 'off','harness':'apply' if enabled else 'off','agents':'off'}}).encode())
                         before=base.protected(c,'p-limit')
                         prompt=task['prompt']+('\nActual preceding verification results:\n'+feedback if index==4 else '')
@@ -1160,7 +1160,7 @@ def run(args: argparse.Namespace) -> dict:
                             evidence.write(str(Path(task['id'])/arm/'verifier-observation.json'),json.dumps(observation,ensure_ascii=False,indent=2))
                             settings_file=base.AGENT+'/memory/settings.json'
                             old_settings=base.checked(['docker','exec',c,'cat',settings_file])
-                            feedback_settings=json.loads(old_settings);feedback_settings['autoMemory']=False
+                            feedback_settings=json.loads(old_settings);feedback_settings['autoSettledLearning']=False;feedback_settings.pop('autoMemory',None)
                             base.put(c,settings_file,json.dumps(feedback_settings).encode())
                             try:
                                 verifier_feedback=run_session(c,'continue',proxy,out/'verifier-feedback','stage-'+str(index),feedback_observation=observation,unlimited_budget=unlimited_budget)

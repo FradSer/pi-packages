@@ -44,7 +44,8 @@ def test_mixed_initial_knowledge_copies_source_bytes_with_its_context_and_exact_
           tooMany:(s,p,g)=>{p.newMemories[0].knowledge.sourceCitations=Array(9).fill({ref:'e1.b0.l1'});return g},
           tooManyUnits:(s,p,g)=>{p.newMemories[0].knowledge.units=Array(33).fill({sourceCitationIndex:0});return g},
           oversize:(s,p,g)=>{p.newMemories[0].knowledge.units[1].text='x'.repeat(64001);return g},
-          descriptionLines:(s,p,g)=>{p.newMemories[0].description='claim\ntype: feedback';return g}};
+          descriptionLines:(s,p,g)=>{p.newMemories[0].description='claim\ntype: feedback';return g},
+          descriptionOversize:(s,p,g)=>{p.newMemories[0].description='x'.repeat(401);return g}};
         for(const [name,mutate] of Object.entries(mutations)){
           fs.writeFileSync(file,text);const s=structuredClone(snapshot),p=structuredClone(raw),g=mutate(s,p,grant(s));
           try{await materializeSourceExcerptPlan({manifest:{cwd:root}},p,s,g);rejected[name]=false}catch{rejected[name]=true}
@@ -291,7 +292,7 @@ def test_source_excerpt_retrieval_cues_are_literal_bounded_and_preserve_full_bod
       console.log(JSON.stringify(out));fs.rmSync(root,{recursive:true,force:true});
     ''')
     rows = {row['name']: row for row in value}
-    assert all(row['bodyPreserved'] and len(row['description']) <= 120 and row['evidence'] for row in value)
+    assert all(row['bodyPreserved'] and 0 < len(row['description']) <= 400 and row['evidence'] for row in value)
     assert rows['duplicates']['description'].endswith('text cues: sample')
     assert rows['bounded']['description'].endswith('text cues: First, Second, third')
     assert rows['comments']['description'].endswith('text cues: actual')
@@ -734,23 +735,23 @@ def test_static_fresh_diagnostics_collect_metadata_quote_and_missing_roles_befor
       const pkg=JSON.stringify({type:'module',exports:{types:'./api.d.ts',default:'./api.js'}});
       const call=(id,name)=>({type:'toolCall',id,name:'read',arguments:{path:root+'/'+name,offset:1,limit:1000}}),result=(id,content)=>({role:'toolResult',toolName:'read',toolCallId:id,isError:false,content});
       const snapshot={entries:[{role:'user',content:'Inspect batchWorker and its flush relationship.'},{role:'assistant',content:[call('p','package.json'),call('j','api.js'),call('d','api.d.ts')]},result('p',pkg),result('j',js),result('d',dts)]};
-      const raw={operations:[],newMemories:[{name:'fact.md',kind:'project',classification:'private',description:'x'.repeat(138),knowledge:{sourceCitations:[{ref:'e4.b0.l6'},{ref:'e3.b0.l3'},{ref:'e4.b0.l1',endRef:'e4.b0.l4'}],units:[{text:'batchWorker uses allocatePool; its internal result has the declared flush member.',citationIndexes:[0,1,2]}]}}]};
+      const raw={operations:[],newMemories:[{name:'fact.md',kind:'project',classification:'private',description:'x'.repeat(401),knowledge:{sourceCitations:[{ref:'e4.b0.l6'},{ref:'e3.b0.l3'},{ref:'e4.b0.l1',endRef:'e4.b0.l4'}],units:[{text:'batchWorker uses allocatePool; its internal result has the declared flush member.',citationIndexes:[0,1,2]}]}}]};
       const original=JSON.stringify(raw),run={manifest:{cwd:root}};let reads=0;
       const prior={lstat:fs.lstat,open:fs.open,realpath:fs.realpath};for(const key of Object.keys(prior))fs[key]=async()=>{reads++;throw Error('Unexpected current-file read')};
       const check=async p=>{try{await materializeSourceExcerptPlan(run,p,snapshot,undefined,{retainSelectedDeclarations:true});return null}catch(e){return e.message}};
       let all,bounds,utf16,dropped;
       try{all=await check(raw);const many=structuredClone(raw);many.newMemories[0].knowledge.sourceCitations=Array(9).fill({ref:'e0.b0.l1'});many.newMemories[0].knowledge.units=Array(33).fill({text:'Observed.',citationIndexes:[0]});bounds=await check(many);
-        const unicode=structuredClone(raw);unicode.newMemories[0].description='😀'.repeat(61);utf16=await check(unicode);
+        const unicode=structuredClone(raw);unicode.newMemories[0].description='😀'.repeat(201);utf16=await check(unicode);
         const removed=structuredClone(raw);removed.newMemories[0].description='Observed role.';removed.newMemories[0].knowledge.sourceCitations=[{ref:'e0.b0.l1'}];removed.newMemories[0].knowledge.units=[{text:'Observed role.',citationIndexes:[0]}];dropped=await check(removed);
       }finally{Object.assign(fs,prior)}
       console.log(JSON.stringify({all,bounds,utf16,dropped,reads,unchanged:JSON.stringify(raw)===original}));
     ''')
-    assert 'description' in value['all'] and '138' in value['all'] and 'UTF-16' in value['all']
+    assert 'description' in value['all'] and '401' in value['all'] and 'UTF-16' in value['all']
     assert 'quote-length-out-of-bounds' in value['all'] and '2000' in value['all']
     assert 'factory' in value['all'] and 'e4.b0.l5' in value['all']
     assert 'sourceCitations' in value['bounds'] and '1..8' in value['bounds']
     assert 'units' in value['bounds'] and '1..32' in value['bounds']
-    assert '122' in value['utf16'] and 'UTF-16' in value['utf16']
+    assert '402' in value['utf16'] and 'UTF-16' in value['utf16']
     assert 'factory' in value['dropped']  # Parent closure obligation survives diagnostic failure.
     assert 'initiating-wrapper' in value['dropped']  # Already selected wrapper witness survives an invalid draft.
     assert 'sourceSpan' not in value['dropped']  # Internal character boundaries never become producer diagnostics.

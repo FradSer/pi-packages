@@ -347,7 +347,7 @@ def run() -> dict[str, object]:
                                 "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]},
             }}))
             (agent / "memory" / "settings.json").write_text(json.dumps({
-                "autoMemory": True,
+                "autoSettledLearning": True, "autoContinualLearning": False,
                 "automaticPhases": {"memory": "apply", "harness": "apply", "agents": "off"},
                 "agentsMd": {"disabled": True},
             }))
@@ -407,7 +407,7 @@ def run() -> dict[str, object]:
                 raise AssertionError(f"parent evaluator produced unexpected decisions: {decisions}")
 
             first_response_count = len(LoopbackProvider.responses)
-            (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))
+            (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
             second_session = root / "second-session.jsonl"
             second = run_pi(project, agent, second_session, "LOOPBACK_RUNTIME: run the blocked marker and then the safe marker.", server.server_port)
             if second.returncode != 0:
@@ -422,7 +422,7 @@ def run() -> dict[str, object]:
                 raise AssertionError("the future model did not read the persisted Memory body before Bash")
             future_responses = LoopbackProvider.responses[first_response_count:]
             if future_responses != ["runtime-read-memory", "runtime-blocked", "runtime-safe", "runtime-done"]:
-                raise AssertionError(f"autoMemory=false still caused learning calls: {future_responses}")
+                raise AssertionError(f"settled learning disabled still caused learning calls: {future_responses}")
             first_runtime_request = LoopbackProvider.runtime_request_texts[0]
             if "# Project memories" not in first_runtime_request or "- loopback_memory_fact.md" not in first_runtime_request:
                 raise AssertionError("persisted Memory index was not injected into the first future request")
@@ -449,7 +449,7 @@ def run() -> dict[str, object]:
 
             # --- Stage 3: 新证据纠正同一条正文 (New evidence correcting SAME body) ---
             (agent / "memory" / "settings.json").write_text(json.dumps({
-                "autoMemory": True,
+                "autoSettledLearning": True, "autoContinualLearning": False,
                 "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"},
                 "agentsMd": {"disabled": True},
             }))
@@ -478,7 +478,7 @@ def run() -> dict[str, object]:
                 raise AssertionError("history did not record both initial create and rewrite for loopback_memory_fact.md")
 
             # --- Stage 4: 纠正后使用 (Downstream task uses corrected knowledge) ---
-            (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False, "agentsMd": {"disabled": True}}))
+            (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
             fourth_session = root / "fourth-session.jsonl"
             fourth = run_pi(project, agent, fourth_session, "LOOPBACK_RUNTIME_V2: read updated memory and verify.", server.server_port)
             if fourth.returncode != 0:

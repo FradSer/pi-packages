@@ -7,7 +7,7 @@ const cwd = path.join(root, "project"), agent = path.join(root, "agent");
 process.env.PI_CODING_AGENT_DIR = agent;
 fs.mkdirSync(cwd); fs.mkdirSync(path.join(agent, "memory"), { recursive: true });
 const scenario = process.argv[2];
-fs.writeFileSync(path.join(agent, "memory", "settings.json"), scenario === "invalid-settings" ? "{" : JSON.stringify({ autoMemory: !scenario.startsWith("disabled") }));
+fs.writeFileSync(path.join(agent, "continual-learning.json"), scenario === "invalid-settings" ? "{" : JSON.stringify({ autoSettledLearning: !scenario.startsWith("disabled"), autoContinualLearning: false }));
 const entries = [{ id: "task1", message: { role: "user", content: scenario === "freeze" || scenario.startsWith("shutdown") ? "Inspect original task evidence." : "I prefer original task evidence." } }, { id: "result1", message: { role: "assistant", content: "Acknowledged." } }];
 if (scenario === "disabled-later") entries.unshift({id:"older",message:{role:"user",content:"Inspect the previous task."}},entries[1]);
 const session = path.join(root, "session.jsonl");
@@ -44,7 +44,7 @@ try {
   const hooks = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>(), commands = new Map();
   const notices: string[] = [];
   let reported = 0;
-  register({on:(name,fn)=>hooks.set(name,[...(hooks.get(name)??[]),fn]),registerCommand:(name,command)=>commands.set(name,command),getCommands:()=>[],registerMessageRenderer:()=>{},sendMessage:()=>{reported += 1;},appendEntry:()=>{},registerEntryRenderer:()=>{}} as Parameters<typeof register>[0]);
+  register({on:(name,fn)=>hooks.set(name,[...(hooks.get(name)??[]),fn]),registerCommand:(name,command)=>commands.set(name,command),getCommands:()=>[],registerMessageRenderer:()=>{},sendMessage:()=>{reported += 1;},appendEntry:()=>{},registerEntryRenderer:()=>{},registerTool:()=>{},getActiveTools:()=>[],setActiveTools:()=>{}} as Parameters<typeof register>[0]);
   const ctx={cwd,mode:"json",hasUI:false,ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{}},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries,getSessionFile:()=>session}};
   const emit=async(name:string,event:unknown={})=>{for(const fn of hooks.get(name)??[])await fn(event,ctx)};
   await emit("session_start");

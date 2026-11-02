@@ -10,7 +10,7 @@ def test_empty_memory_discovery_is_explicit_with_or_without_an_empty_index(tmp_p
       import {{resolveMemoryPaths}} from './packages/continual-learning/extensions/memory-paths.ts';
       const cwd={json.dumps(str(tmp_path / 'project'))}; await fs.mkdir(cwd);
       const paths=resolveMemoryPaths(cwd); await fs.mkdir(paths.harnessDir,{{recursive:true}});
-      await fs.writeFile(paths.settingsFile,JSON.stringify({{autoMemory:false}}));
+      await fs.writeFile(path.join(paths.agentDir,'continual-learning.json'),JSON.stringify({{autoSettledLearning:false,autoContinualLearning:false}}));
       const hooks=new Map(); register({{on:(n,f)=>hooks.set(n,f),registerCommand:()=>{{}},sendMessage:()=>{{}},appendEntry:()=>{{}},getCommands:()=>[],exec:async()=>({{stdout:'',stderr:'',code:0}})}});
       const ctx={{cwd,ui:{{notify:()=>{{}}}}}};
       const options={{promptGuidelines:[],sections:{{project_memory_discovery:'STALE_DISCOVERY',project_memory_auto_learning:'STALE_AUTO',other:'KEEP'}}}};
@@ -44,7 +44,7 @@ def test_automatic_learning_owns_durable_writes_and_remember_does_not_expand_tas
       import {{resolveMemoryPaths}} from './packages/continual-learning/extensions/memory-paths.ts';
       const cwd={json.dumps(str(tmp_path / 'project'))};await fs.mkdir(cwd);
       const paths=resolveMemoryPaths(cwd);await fs.mkdir(paths.harnessDir,{{recursive:true}});
-      await fs.writeFile(paths.settingsFile,JSON.stringify({{autoMemory:true}}));
+      await fs.writeFile(path.join(paths.agentDir,'continual-learning.json'),JSON.stringify({{autoSettledLearning:true,autoContinualLearning:false}}));
       const hooks=new Map();register({{on:(n,f)=>hooks.set(n,f),registerCommand(){{}},sendMessage(){{}},appendEntry(){{}},getCommands:()=>[]}});
       const options={{sections:{{}}}};await hooks.get('before_agent_start')({{systemPromptOptions:options}},{{cwd,ui:{{notify(){{}}}}}});
       console.log(JSON.stringify(options.sections));

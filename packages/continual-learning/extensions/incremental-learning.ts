@@ -100,7 +100,8 @@ interface IndexedMemory {
   identity: FileIdentity;
 }
 
-function entryRole(entry: unknown): string {
+/** Role of a session entry or message wrapper; shared with the parent tool gate. */
+export function entryRole(entry: unknown): string {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return "";
   const record = entry as Record<string, unknown>;
   const message = record.message;

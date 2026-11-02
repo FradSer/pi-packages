@@ -30,8 +30,12 @@ function configRoot(): string {
   return resolve(getAgentDir());
 }
 
-function configPath(): string {
-  return join(configRoot(), "memory.json");
+/** The unified package configuration: Jev, capability flags and the learning
+ * model share one user-level file. The legacy `memory.json` remains readable
+ * as a fallback for existing installs. */
+const UNIFIED_CONFIG_MAX_BYTES = 4096;
+function unifiedConfigPath(): string {
+  return join(configRoot(), "continual-learning.json");
 }
 
 function isMissing(error: unknown): boolean {
@@ -99,27 +103,6 @@ function validPair(provider: unknown, model: unknown): MemoryConfig | undefined 
   return { provider: p, model: m };
 }
 
-function readFileConfig(raw: string): MemoryConfigState {
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    return { config: {}, invalid: "memory.json is not valid JSON", present: true };
-  }
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { config: {}, invalid: "memory.json must contain an object", present: true };
-  }
-  const record = value as Record<string, unknown>;
-  const config = validPair(record.provider, record.model);
-  if (!config) {
-    return { config: {}, invalid: "memory.json must contain provider and model together", present: true };
-  }
-  if (Object.keys(record).some((key) => key !== "provider" && key !== "model")) {
-    return { config, invalid: "memory.json contains unknown fields", present: true };
-  }
-  return { config, present: true };
-}
-
 function readEnvironmentConfig(): MemoryConfigState {
   const rawModel = nonEmpty(process.env.PI_MEMORY_MODEL);
   const rawProvider = nonEmpty(process.env.PI_MEMORY_PROVIDER);
@@ -131,17 +114,30 @@ function readEnvironmentConfig(): MemoryConfigState {
   return { config: {}, invalid: "memory model configuration must be provider/model", present: false };
 }
 
-export function readMemoryConfigState(): MemoryConfigState {
+export interface UnifiedConfigState {
+  record?: Record<string, unknown>;
+  present: boolean;
+  invalid?: string;
+}
+
+/** Read the single user-level configuration file with the package's path rules. */
+export function readUnifiedConfig(): UnifiedConfigState {
+  const file = unifiedConfigPath();
+  if (!lstatIfPresent(file)) return { present: false };
   try {
-    const file = configPath();
-    const root = assertSafeAgentDir(false);
-    const target = join(root, "memory.json");
-    if (!lstatIfPresent(target)) return readEnvironmentConfig();
-    assertSafeConfigTarget(target);
-    return readFileConfig(readFileSync(file, "utf8"));
+    assertSafeConfigTarget(file);
+    if (lstatSync(file).size > UNIFIED_CONFIG_MAX_BYTES) {
+      return { present: true, invalid: "continual-learning.json exceeds 4096 bytes" };
+    }
+    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return { present: true, invalid: "continual-learning.json must contain an object" };
+    }
+    return { present: true, record: raw as Record<string, unknown> };
   } catch (error) {
-    if (isMissing(error)) return readEnvironmentConfig();
-    return { config: {}, invalid: "memory.json could not be read safely", present: true };
+    return { present: true, invalid: error instanceof SyntaxError
+      ? "continual-learning.json is not valid JSON"
+      : "continual-learning.json could not be read safely" };
   }
 }
 
@@ -154,16 +150,7 @@ function writeAll(fd: number, bytes: Buffer): void {
   }
 }
 
-export function writeMemoryConfig(config: MemoryConfig): void {
-  const normalized = validPair(config.provider, config.model);
-  if (!normalized || !normalized.provider || !normalized.model) {
-    throw new Error("Memory model must include provider and model together.");
-  }
-  const root = assertSafeAgentDir(true);
-  const file = join(root, "memory.json");
-  assertSafeConfigTarget(file);
-  const temporary = join(root, `.memory.json.${process.pid}.${randomBytes(12).toString("hex")}.tmp`);
-  const bytes = Buffer.from(`${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+function writeConfigAtomically(temporary: string, file: string, bytes: Buffer): void {
   let fd: number | undefined;
   try {
     fd = openSync(
@@ -192,8 +179,74 @@ export function writeMemoryConfig(config: MemoryConfig): void {
   }
 }
 
+/** Merge `patch` into continual-learning.json, preserving every other section.
+ * An unparseable predecessor is never clobbered: the user repairs it first. */
+export function writeUnifiedConfig(patch: Record<string, unknown>): void {
+  const root = assertSafeAgentDir(true);
+  const file = unifiedConfigPath();
+  assertSafeConfigTarget(file);
+  let next: Record<string, unknown> = {};
+  const current = readUnifiedConfig();
+  if (current.invalid) {
+    throw new Error(`${current.invalid}; repair it before writing continual-learning.json`);
+  }
+  if (current.record) next = current.record;
+  Object.assign(next, patch);
+  const temporary = join(root, `.continual-learning.json.${process.pid}.${randomBytes(12).toString("hex")}.tmp`);
+  const bytes = Buffer.from(`${JSON.stringify(next, null, 2)}\n`, "utf8");
+  writeConfigAtomically(temporary, file, bytes);
+}
+
+export function readMemoryConfigState(): MemoryConfigState {
+  try {
+    assertSafeAgentDir(false);
+    // The unified file is the only configuration source; an invalid model field
+    // surfaces instead of silently falling back to the session model.
+    const unified = readUnifiedModelState();
+    if (unified.invalid) return { config: {}, invalid: unified.invalid, present: true };
+    if (unified.model) return { config: unified.model, present: true };
+    // A present unified file is authoritative even when it sets no model.
+    if (unified.present) return { config: {}, present: true };
+    return readEnvironmentConfig();
+  } catch (error) {
+    if (isMissing(error)) return readEnvironmentConfig();
+    return { config: {}, invalid: "memory model configuration could not be read safely", present: true };
+  }
+}
+
+/** Read only the unified file's learning model. Absence of the file or of its
+ * `model` key is not an error: legacy memory.json and the environment follow. */
+function readUnifiedModelState(): { model?: MemoryConfig; invalid?: string; present: boolean } {
+  const state = readUnifiedConfig();
+  if (state.invalid) return { present: true, invalid: state.invalid };
+  if (!state.record) return { present: false };
+  const value = state.record.model;
+  if (value === undefined) return { present: true };
+  if (typeof value === "string") {
+    const parsed = parseModelRef(value);
+    return parsed ? { present: true, model: parsed } : { present: true, invalid: "continual-learning.json model must be provider/model" };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value as Record<string, unknown>).some((key) => key !== "provider" && key !== "model")) {
+    return { present: true, invalid: "continual-learning.json model must be provider/model" };
+  }
+  const pair = validPair((value as Record<string, unknown>).provider, (value as Record<string, unknown>).model);
+  if (!pair || (!pair.provider && !pair.model) || (pair.provider !== undefined) !== (pair.model !== undefined)) {
+    return { present: true, invalid: "continual-learning.json model must be provider/model" };
+  }
+  return pair.provider && pair.model ? { present: true, model: pair } : { present: true };
+}
+
+export function writeMemoryConfig(config: MemoryConfig): void {
+  const normalized = validPair(config.provider, config.model);
+  if (!normalized || !normalized.provider || !normalized.model) {
+    throw new Error("Memory model must include provider and model together.");
+  }
+  writeUnifiedConfig({ model: `${normalized.provider}/${normalized.model}` });
+}
+
 export function memoryConfigPath(): string {
-  return configPath();
+  return unifiedConfigPath();
 }
 
 export type JevStage = "selection" | "memory" | "harness";
@@ -217,14 +270,10 @@ export interface JevConfigState {
  * Reads only the Jev section; unrelated unified configuration is preserved. */
 export function readJevConfigState(): JevConfigState {
   try {
-    const root = assertSafeAgentDir(false);
-    const file = join(root, "continual-learning.json");
-    if (!lstatIfPresent(file)) return {};
-    assertSafeConfigTarget(file);
-    if (lstatSync(file).size > 4096) return { invalid: "invalid-config" };
-    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { invalid: "invalid-config" };
-    const jev = (raw as Record<string, unknown>).jev;
+    const state = readUnifiedConfig();
+    if (state.invalid) return { invalid: "invalid-config" };
+    if (!state.record) return {};
+    const jev = state.record.jev;
     if (jev === undefined) return {};
     if (jev === false) return { disabled: true };
     if (jev !== true && (!jev || typeof jev !== "object" || Array.isArray(jev))) return { invalid: "invalid-config" };
@@ -254,13 +303,9 @@ export function readJevConfigState(): JevConfigState {
 /** Explicit capability opt-in for a verified learning-model gateway. */
 function plannerOutputCapabilityEnabled(key: "plannerJsonOutput" | "plannerStructuredOutput"): boolean {
   try {
-    const file = join(assertSafeAgentDir(false), "continual-learning.json");
-    if (!lstatIfPresent(file)) return false;
-    assertSafeConfigTarget(file);
-    if (lstatSync(file).size > 4096) return false;
-    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
-    return !!raw && typeof raw === "object" && !Array.isArray(raw)
-      && (raw as Record<string, unknown>)[key] === true;
+    const state = readUnifiedConfig();
+    if (state.invalid || !state.record) return false;
+    return state.record[key] === true;
   } catch { return false; }
 }
 

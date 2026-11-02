@@ -32,7 +32,7 @@ def main() -> None:
             (memory / entry['filename']).write_text(entry['content'])
         (memory / 'MEMORY.md').write_text('\n'.join('- [' + e['filename'] + '](' + e['filename'] + ')' for e in fixture['entries']))
         (agent / 'settings.json').write_text(json.dumps({'packages': [], 'quietStartup': True}))
-        (agent / 'memory/settings.json').write_text(json.dumps({'autoMemory': False, 'automaticPhases': {'memory': 'off', 'harness': 'off', 'agents': 'off'}}))
+        (agent / 'memory/settings.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False, 'automaticPhases': {'memory': 'off', 'harness': 'off', 'agents': 'off'}}))
         result = root / 'result.json'
         env = {k: v for k, v in os.environ.items() if k in {'PATH', 'LANG', 'LC_ALL'}}
         env.update(HOME=str(root), PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE='1',

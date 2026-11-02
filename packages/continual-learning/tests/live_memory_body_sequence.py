@@ -229,7 +229,7 @@ def run(output: Path, *, pi_version: str = '1.3.0') -> dict:
     env = isolated_environment(output / 'home', agent)
     env.update(TYPESAFE_BASE_URL=f'http://127.0.0.1:{server.server_port}/jev', TYPESAFE_API_KEY='offline-fixture')
     (agent / 'memory').mkdir()
-    (agent / 'memory/settings.json').write_text(json.dumps({'autoMemory': False,
+    (agent / 'memory/settings.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False,
         'automaticPhases': {'memory': 'off', 'harness': 'off', 'agents': 'off'}}))
     (agent / 'settings.json').write_text(json.dumps({'packages': [], 'quietStartup': True, 'retry': {'enabled': False}}))
     (agent / 'continual-learning.json').write_text(json.dumps({'jev': {'model': 'jev-1.13.0', 'allowPrivateMemory': True, 'requestConcurrency': 1}}))

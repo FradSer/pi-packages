@@ -23,7 +23,7 @@ export default function showcase(pi: ExtensionAPI): void {
     });
     const history:LearningHistory[]=Array.from({length:50},(_,i)=>({version:1,id:`change_fixture_${String(i).padStart(16,"0")}`,cwd:ctx.cwd,agentDir:ctx.cwd,phase:i%2?"harness":"memory",createdAt:`2026-10-09T${String(i%24).padStart(2,"0")}:30:00Z`,status:"applied",changes:[{target:{root:"project",name:i%2?".pi/harness.json":"build-command.md"},before:null,after:{bytes:Buffer.from("Verified change for record "+(i+1)).toString("base64"),mode:420,digest:"fixture"}}]}));
     await openMemoryMenu(ctx,{
-      status:async()=>({autoMemory:false,model:"fixture/jkev",entries:129}),
+      status:async()=>({autoSettledLearning:false,autoContinualLearning:false,model:"fixture/jkev",entries:129}),
       loadMemories:async()=>({entries,totalEntries:129,omittedEntries:0,limitedEntries:0,unavailableEntries:0,indexes:[],maxTotalChars:6000}),
       listHistory:async()=>history,manage:async()=>{throw Error("Showcase must not change policies or undo")},
       selectModel:async()=>{},toggleAutoMemory:async()=>{},isBusy:()=>false,

@@ -547,9 +547,11 @@ def run(output: Path, case: str = 'applied', *, pi_version: str = '1.3.0') -> di
         cli=_install_fixture_pnpm(REPO,output,env)
     env.update(TYPESAFE_BASE_URL=f'http://127.0.0.1:{server.server_port}/jev',TYPESAFE_API_KEY='offline-fixture')
     (agent/'settings.json').write_text(json.dumps({'packages':[],'quietStartup':True,'defaultThinkingLevel':'off','retry':{'enabled':False}}))
-    (agent/'memory').mkdir(); (agent/'memory/settings.json').write_text(json.dumps({'autoMemory':not is_manual,'automaticPhases':{'memory':'off' if is_manual else 'apply','harness':'apply' if case in ('legacy','held-later','mixed-noop') else 'off','agents':'off'}}))
-    (agent/'continual-learning.json').write_text(json.dumps({'jev':{'enabled':case!='legacy','model':'jev-1.13.0','allowPrivateMemory':True,'requestConcurrency':1,**({'scopes':['memory']} if case=='read-review' else {})}}))
-    (agent/'memory.json').write_text('{"provider":"fixture","model":"scripted"}')
+    (agent/'continual-learning.json').write_text(json.dumps({
+      'model':'fixture/scripted','autoSettledLearning': not is_manual, 'autoContinualLearning': False,
+      'automaticPhases':{'memory':'off' if is_manual else 'apply','harness':'apply' if case in ('legacy','held-later','mixed-noop') else 'off','agents':'off'},
+      'jev':{'enabled':case!='legacy','model':'jev-1.13.0','allowPrivateMemory':True,'requestConcurrency':1,**({'scopes':['memory']} if case=='read-review' else {})}}))
+
     (agent/'models.json').write_text(json.dumps({'providers':{'fixture':{'baseUrl':f'http://127.0.0.1:{server.server_port}/v1','api':'openai-completions','apiKey':'offline-fixture','models':[{'id':'scripted','reasoning':False,'input':['text'],'contextWindow':200000,'maxTokens':4096,'cost':{'input':0,'output':0,'cacheRead':0,'cacheWrite':0}}]}}}))
     code='import {resolveMemoryPaths} from '+json.dumps(str(REPO/'packages/continual-learning/extensions/memory-paths.ts'))+';console.log(JSON.stringify(resolveMemoryPaths(process.argv[1])));'
     paths=json.loads(subprocess.check_output(['node','--import','tsx','--input-type=module','-e',code,str(project)],cwd=REPO,env=env,text=True))
@@ -1183,7 +1185,7 @@ console.log(JSON.stringify({proof:check(input,state.prior,state.current,actualPi
                 'command':'/consolidate backfill','countedAsNewLearning':False}
             phase['backfill']=False
             phase['policy']=True
-            (agent/'memory/settings.json').write_text(json.dumps({'autoMemory':True,'automaticPhases':{'memory':'off','harness':'apply','agents':'off'}}))
+            (agent/'continual-learning.json').write_text(json.dumps({'model':'fixture/scripted','autoSettledLearning': True, 'autoContinualLearning': False,'automaticPhases':{'memory':'off','harness':'apply','agents':'off'}}))
             policy_session=agent/'sessions/fixture/policy.jsonl'
             policy_command=command[:-1].copy()
             tools_index=policy_command.index('--tools');policy_command[tools_index:tools_index+2]=['--no-tools']
@@ -1278,7 +1280,7 @@ console.log(JSON.stringify({proof:check(original.input,original.prior,original.c
                 'automaticRuleWasAbsent':set(json.loads(harness_before).get('learnedRules',{}))==set(),
                 'decisions':probe['decisions'],'learningBenefitEstablished':False}
             phase['probe']=True
-            (agent/'memory/settings.json').write_text(json.dumps({'autoMemory':False,'automaticPhases':{'memory':'off','harness':'off','agents':'off'}}))
+            (agent/'continual-learning.json').write_text(json.dumps({'model':'fixture/scripted','autoSettledLearning': False, 'autoContinualLearning': False,'automaticPhases':{'memory':'off','harness':'off','agents':'off'}}))
             probe_command=command[:-1].copy()
             probe_command[probe_command.index('--tools')+1]='bash'
             probe_session=agent/'sessions/fixture/owned-execution.jsonl'

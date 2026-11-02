@@ -24,6 +24,28 @@ and descriptions, while bodies require relevant reads. Harness owns scoped
 parent-evaluated execution conditions and guidance. AGENTS consolidation maintains
 project instructions; user-level AGENTS files are not targets.
 
+All user-level configuration lives in one file,
+`<agent-dir>/continual-learning.json`: the learning model (`model` as
+`provider/model` or `{provider, model}`), the learning triggers, phase policies,
+the AGENTS.md budget, Jev and the capability flags. The legacy
+`<agent-dir>/memory.json` pair and `<agent-dir>/memory/settings.json` learning
+fields remain read-only fallbacks; nothing writes them. Learning triggers:
+`autoSettledLearning` runs the settled-task learner after `agent_settled`, and
+`autoContinualLearning` exposes the parent `learn_current_memory` tool so the
+agent can request current-task Memory learning once before its answer. Both
+default off; the retired `autoMemory` field is ignored. Both share the
+`automaticPhases` Memory policy and the same parent pipeline: agent-requested
+runs use the automatic policy, floor Memory routing without supplying content,
+and never run Harness or AGENTS.md phases. A terminal agent attempt records the
+task anchor so the settled run skips Memory for that task while still processing
+Harness and AGENTS.md.
+
+Planner children run without extensions, so the learning model must resolve from
+the static catalog or the user's custom-provider config. The parent preflights
+the configured or session model with the same no-extensions view and blocks with
+`/memory model` guidance when the model is extension-registered; an unavailable
+preflight itself never blocks.
+
 Automatic learning and default `/consolidate` use one completed Task Slice. A
 metadata selector chooses related Memory; the parent freezes the Learning Dossier,
 runs one-shot planners, validates deltas and owns mutation. Package prompts and
@@ -31,7 +53,8 @@ typed builders own generation. Planner prose is not success. Memory must verify
 before a selected Harness phase; a later failure does not undo an earlier verified
 phase. `/consolidate full` explicitly requests whole-corpus maintenance.
 `/memory <request>` retains original evidence and actual command arguments, forces
-Memory review and excludes Harness/AGENTS. Backfill requires verified original
+Memory review and excludes Harness/AGENTS. The agent tool carries no request
+text; the parent freezes the evidence and the agent cannot author Memory content. Backfill requires verified original
 session references, never change-history summaries or repeated task tools.
 
 Harness layers are project personal `.pi/harness.local.json`, project shared
