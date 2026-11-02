@@ -27,6 +27,35 @@ export const MAX_NEW_MEMORY_NAME_CHARS = 96;
 export const MAX_NEW_MEMORY_EVIDENCE = 8;
 export const MAX_NEW_MEMORY_QUOTE_CHARS = 2_000;
 export const MAX_NEW_MEMORY_TOTAL_BYTES = 256_000;
+/** Generated or rewritten frontmatter `description` bound. Existing entry
+ * metadata stays untouched; only newly written or explicitly rewritten
+ * descriptions are validated against this shared bound. */
+export const MAX_MEMORY_DESCRIPTION_CHARS = 400;
+/** Validate a freshly generated or explicitly rewritten Memory frontmatter
+ * description. Extracts the single-line scalar from the proposal's complete
+ * Markdown, tolerates JSON quoting, and refuses empty, multiline or oversized
+ * claims. Legacy records keep their stored metadata; only new writes use this. */
+export function assertMemoryDescriptionContent(content: string, label: string): void {
+  assertMemoryBodyContent(content, label);
+  const document = content.replace(/^\uFEFF+/, "");
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(document);
+  if (!frontmatter) return;
+  const match = /(?:^|\r?\n)description:[ \t]*([^\r\n]*)/.exec(frontmatter[1]);
+  if (!match) return;
+  let description = match[1].trim();
+  if (/^["']/.test(description)) {
+    const quote = description[0];
+    const inner = description.slice(1);
+    if (inner.endsWith(quote)) description = inner.slice(0, -1);
+    else description = inner;
+  }
+  if (!description.trim() || /[\r\n]/.test(description)) {
+    throw new Error(`${label}.description must be a non-empty single line`);
+  }
+  if (description.length > MAX_MEMORY_DESCRIPTION_CHARS) {
+    throw new Error(`${label}.description must be at most ${MAX_MEMORY_DESCRIPTION_CHARS} UTF-16 code units (actual=${description.length}); rewrite the description within the bound and keep complete claims in the body`);
+  }
+}
 
 export interface ConsolidationRunPaths {
   memory: MemoryPaths;
@@ -570,7 +599,38 @@ function freezeJson(value: unknown): unknown {
  * returned context keeps the original context surface, while branch/context
  * readers return bounded frozen clones and all other manager methods retain
  * their original receiver.
+ *
+ * A whole session branch can exceed MAX_SNAPSHOT_BYTES on long sessions: tool
+ * results keep their full output, so one xcodebuild or test run can add
+ * megabytes per entry. The initial freeze in that case is the bounded current
+ * task window — the same entries currentTaskSlice would select — instead of
+ * failing before the pipeline can narrow the evidence itself. A caller that
+ * passes taskEntries explicitly keeps getting exactly those entries frozen.
  */
+function boundedBranchEntries(entries: readonly unknown[]): readonly unknown[] {
+  try {
+    return cloneJson(entries, MAX_SNAPSHOT_BYTES) as readonly unknown[];
+  } catch (error) {
+    if (!(error instanceof SnapshotLimitError)) throw error;
+    // The branch is too large to freeze whole. Keep the tail: recent entries
+    // are the ones currentTaskSlice and the evidence review read, and losing
+    // ancient history degrades gracefully (omitted evidence) rather than
+    // failing the whole learning run.
+    const window = 256;
+    const kept = entries.length > window ? entries.slice(-window) : entries;
+    try {
+      return cloneJson(kept, MAX_SNAPSHOT_BYTES) as readonly unknown[];
+    } catch {
+      // Even the window exceeds the cap (giant single entries). Drop entries
+      // from the head until the remainder fits: recent evidence wins.
+      for (let take = kept.length; take > 0; take = Math.floor(take / 2)) {
+        try { return cloneJson(kept.slice(-take), MAX_SNAPSHOT_BYTES) as readonly unknown[]; } catch { continue; }
+      }
+      return [];
+    }
+  }
+}
+
 export function snapshotSessionContext(ctx: ExtensionContext, taskEntries?: readonly unknown[]): ExtensionContext {
   const manager = ctx.sessionManager;
   const cwd = ctx.cwd;
@@ -585,12 +645,12 @@ export function snapshotSessionContext(ctx: ExtensionContext, taskEntries?: read
   const frozenBranch = taskEntries !== undefined
     ? freezeJson(cloneJson(taskEntries, MAX_SNAPSHOT_BYTES))
     : manager.getBranch
-      ? freezeJson(cloneJson(manager.getBranch(), MAX_SNAPSHOT_BYTES))
+      ? freezeJson(boundedBranchEntries(manager.getBranch()))
       : undefined;
   const frozenContext = taskEntries !== undefined
     ? freezeJson(cloneJson(taskEntries, MAX_SNAPSHOT_BYTES))
     : manager.buildContextEntries
-      ? freezeJson(cloneJson(manager.buildContextEntries(), MAX_SNAPSHOT_BYTES))
+      ? freezeJson(boundedBranchEntries(manager.buildContextEntries()))
       : undefined;
   const frozenManager = new Proxy(manager, {
     get(target, property, receiver) {
@@ -711,11 +771,15 @@ export async function captureConsolidationSnapshot(
 ): Promise<{ snapshot: ConsolidationSnapshot; manifest: ContextManifest; digest: string }> {
   await ensureConsolidationRunDir(paths);
   const manager = ctx.sessionManager;
-  const branch = manager?.getBranch ? normalizeSnapshotEntries(cloneJson(manager.getBranch(), maxBytes)) : undefined;
+  // The frozen context's getBranch/buildContextEntries already bounded these
+  // entries, but a caller can pass an unfrozen manager (e.g. the pre-pipeline
+  // invocationContext before it is narrowed). Apply the same tail-window
+  // degradation here so a long session never kills the run with a size error.
+  const branch = manager?.getBranch ? normalizeSnapshotEntries(boundedBranchEntries(manager.getBranch())) : undefined;
   let contextEntries: unknown[] | undefined;
   if (manager?.buildContextEntries) {
     try {
-      contextEntries = normalizeSnapshotEntries(cloneJson(manager.buildContextEntries(), maxBytes));
+      contextEntries = normalizeSnapshotEntries(boundedBranchEntries(manager.buildContextEntries()));
     } catch (error) {
       if (error instanceof SnapshotLimitError) throw error;
       contextEntries = undefined;
@@ -745,8 +809,29 @@ export async function captureConsolidationSnapshot(
   }
   readCurrentMemoryCommandPhase(snapshot);
   readCurrentMaintenanceCommand(snapshot);
-  const encoded = jsonText(snapshot);
+  let encoded = jsonText(snapshot);
+  // The entries were bounded to maxBytes, but JSON pretty-printing and the
+  // envelope can push the encoded form past it. Trim from the head — oldest
+  // entries first — until it fits: an over-cap snapshot that throws here would
+  // fail automatic learning on long sessions that already bounded their
+  // evidence, which is exactly the failure this degradation prevents.
+  let trimmed = false;
+  while (Buffer.byteLength(encoded, "utf8") > maxBytes && snapshot.entries.length > 0) {
+    const remove = Math.max(1, Math.ceil(snapshot.entries.length / 8));
+    snapshot.entries = snapshot.entries.slice(remove);
+    trimmed = true;
+    encoded = jsonText(snapshot);
+  }
   if (Buffer.byteLength(encoded, "utf8") > maxBytes) throw new Error(`Consolidation snapshot exceeds ${maxBytes} bytes.`);
+  if (trimmed) {
+    // Digests captured before the trim describe entries that are no longer
+    // present. Recompute them so the manifest and command bindings match the
+    // persisted snapshot exactly.
+    const digestNow = sha256Digest(JSON.stringify(snapshot.entries));
+    if (snapshot.currentMaintenanceRequest) snapshot.currentMaintenanceRequest.sourceEntriesDigest = digestNow;
+    if (snapshot.currentMemoryCommandPhase) snapshot.currentMemoryCommandPhase.sourceEntriesDigest = digestNow;
+    encoded = jsonText(snapshot);
+  }
   await writeFileAtomic(paths.snapshotFile, encoded);
   const snapshotDigest = sha256Digest(encoded);
   const manifest: ContextManifest = {
@@ -757,7 +842,7 @@ export async function captureConsolidationSnapshot(
     mode: "snapshot",
     snapshotFile: path.basename(paths.snapshotFile),
     snapshotDigest,
-    entryCount: entries.length,
+    entryCount: snapshot.entries.length,
     createdAt: snapshot.capturedAt,
   };
   await writeJsonAtomic(paths.contextManifestFile, manifest);
@@ -1924,6 +2009,7 @@ export function normalizeNewMemoryProposals(
     const content = item.content;
     if (typeof content !== "string" || content.length === 0) throw new Error(`${label}.content must be a non-empty string`);
     assertMemoryBodyContent(content, `${label}.content`);
+    assertMemoryDescriptionContent(content, `${label}.content`);
     const contentBytes = Buffer.byteLength(content, "utf8");
     if (contentBytes > MAX_MEMORY_BYTES) throw new Error(`${label}.content exceeds ${MAX_MEMORY_BYTES} bytes`);
     if (containsSensitiveMemoryMaterial(content)) throw new Error(`${label}.content contains sensitive material`);
