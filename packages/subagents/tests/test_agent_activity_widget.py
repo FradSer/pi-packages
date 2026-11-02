@@ -23,14 +23,14 @@ mock.module({json.dumps(SPAWNER)}, {{namedExports:{{...spawner,
 const {{default:extension,setAgentHost}}=await import({json.dumps((PACKAGE / 'index.ts').as_uri())});
 const {{getAgent,resetRoster,registerAgent,updateAgent}}=await import({json.dumps((SRC / 'roster.ts').as_uri())});
 resetRoster();setAgentHost(undefined);
-const handlers=new Map(),tools=[],mounts=[],sent=[],widgets=new Map();
+const handlers=new Map(),tools=[],mounts=[],sent=[],widgets=new Map(),painted=[];
 let renders=0;
-const theme={{fg:(_color,text)=>text,bold:text=>text}};
+const theme={{fg:(color,text)=>{{painted.push([color,text]);return text}},bold:text=>text}};
 const ui={{setWidget(key,factory,options){{
   widgets.get(key)?.dispose?.();widgets.delete(key);mounts.push({{key,mounted:!!factory,options}});
   if(factory)widgets.set(key,factory({{requestRender:()=>renders++}},theme));
 }}}};
-const pi={{registerTool:t=>tools.push(t),registerMessageRenderer(){{}},events:{{emit(){{}}}},
+const pi={{registerTool:t=>tools.push(t),registerMessageRenderer(){{}},events:{{emit(){{}}}},getSettings:()=>({{}}),
   sendMessage:(message,options)=>sent.push({{message,options}}),
   on:(name,handler)=>{{const list=handlers.get(name)??[];list.push(handler);handlers.set(name,list);}}
 }};
@@ -134,6 +134,41 @@ def test_widget_streams_sanitized_activity_and_drops_settled_children(tmp_path: 
     # Once the working child fails too, the area is empty and the widget unmounts.
     assert result['widgets'] == 0
     assert result['results'] == 2
+
+
+def test_hidden_thinking_shows_pis_label_instead_of_the_reasoning(tmp_path: Path) -> None:
+    """The status row is the same reader's surface as the transcript.
+
+    Pi hides thinking blocks when `hideThinkingBlock` is set, and this area used
+    to stream the reasoning anyway. A reader who asked not to read thinking must
+    not read it above the editor either, so the row shows Pi's own label, gray.
+    """
+    result = run("""
+      const pending=call({name:'quiet',prompt:'1+1'});acknowledge(true);await pending;
+      pi.getSettings=()=>({hideThinkingBlock:true});
+      spawns[0].onUpdate({text:'',liveThinking:'**private reasoning**',turns:1,finalResponse:false});
+      const thinking=lines();
+      // The label is plain activity text, which the shared row paints muted.
+      const gray=painted.some(([color,text])=>color==='muted'&&text.includes('Thinking'));
+      spawns[0].onUpdate({text:'',liveThinking:'**private reasoning**',activeTool:'read: notes.md',turns:1,finalResponse:false});
+      const tool=lines();
+      // The label describes thinking, so answer text replaces it once it exists.
+      spawns[0].onUpdate({text:'the answer',liveThinking:'**private reasoning**',turns:1,finalResponse:false});
+      const answered=lines();
+      pi.getSettings=()=>({hideThinkingBlock:false});
+      spawns[0].onUpdate({text:'the answer',liveThinking:'**private reasoning** ',turns:1,finalResponse:false});
+      const shown=lines();
+      console.log(JSON.stringify({thinking,tool,answered,shown,gray}));
+    """, tmp_path)
+    assert len(result['thinking']) == 1
+    assert 'quiet · Thinking...' in result['thinking'][0]
+    assert 'private reasoning' not in result['thinking'][0]
+    assert result['gray'] is True, 'the hidden-thinking label keeps the shared muted activity color'
+    assert 'read: notes.md' in result['tool'][0]
+    assert 'the answer' in result['answered'][0]
+    assert 'Thinking' not in result['answered'][0]
+    assert 'private reasoning' not in result['answered'][0]
+    assert 'quiet · private reasoning' in result['shown'][0]
 
 
 def test_settled_standalone_child_leaves_the_activity_area(tmp_path: Path) -> None:

@@ -32,6 +32,19 @@ Feature: A lifecycle row paints one band, not a receipt dump
       Then the widget shows the latest activity through the same shared row
       And control characters are sanitized and narrow or wide rows fit their width
 
+    Scenario: Hidden thinking keeps its label instead of its text
+      Given a reader who hid thinking blocks in the session settings
+      When a working child streams reasoning and no tool or answer text
+      Then the row reads Thinking... as muted activity text
+      And the reasoning text never reaches the activity area
+      When that child starts streaming its answer
+      Then the row shows the answer text instead of the label
+
+    Scenario: Visible thinking keeps streaming its own text
+      Given a reader who shows thinking blocks in the session settings
+      When a working child streams reasoning
+      Then the row shows the reasoning through the shared markdown activity
+
     Scenario: Package module roots share roster observation
       Given one extension entry observes the roster from its own module root
       When another module root registers or streams a child
