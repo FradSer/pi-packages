@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-subagents",
   "version": "0.1.0",
-  "description": "Subagent execution layer for Pi packages — child process spawn and lifecycle, the child roster, session routes, environment policy, workspace isolation, Agent Memory, and the intent child tools (`agent_start`, `agent_input`, `agent_stop`, `agent_inspect`, `agent_list`). Temporary delegation by default, explicitly persistent roles and private sessions, with provider-compatible lazy activation.",
+  "description": "Subagent execution layer for Pi packages — child process spawn and lifecycle, the child roster, session routes, environment policy, workspace isolation, Agent Memory, and the intent child tools (`agent_start`, `agent_input`, `agent_stop`, `agent_list`). Temporary delegation by default, explicitly persistent roles and private sessions, with provider-compatible lazy activation.",
   "keywords": [
     "pi-subagents",
     "pi-packages",

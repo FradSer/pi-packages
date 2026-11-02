@@ -315,19 +315,44 @@ export class GoalCore {
 
   // ── checker model ───────────────────────────────────────────────────
 
+  /** API id Pi gives a virtual catalog entry. A virtual model is a router: only
+   * the parent runtime can resolve it, because the child never sees the route. */
+  private static readonly VIRTUAL_MODEL_API = "pi-virtual";
+
   /** The model a child uses: the configured one, else the session's.
    *
    * A child given no model falls back to the persisted CLI default, which is a
    * different model from the session's and may be unavailable. The settings
    * already describe the configured model as used "instead of the session's", so
-   * an unset model means the session's. */
+   * an unset model means the session's.
+   *
+   * The check child runs with `-ne`, so a provider an extension registered and a
+   * virtual router do not exist there; naming one made Pi exit with `Model not
+   * found` before the check could start, and every completion request failed
+   * instead of being judged. Those candidates are skipped, and with none left the
+   * child receives no model so Pi selects one from its own catalog. */
   private childModel(
     configuredProvider: string | undefined,
     configuredModel: string | undefined,
-    session: { provider?: string; id?: string } | undefined,
+    session: { provider?: string; id?: string; api?: string } | undefined,
+    registry: {
+      getRegisteredProviderIds?: () => readonly string[];
+      find?: (provider: string, modelId: string) => { api?: string } | undefined;
+    } | undefined,
   ): string | undefined {
-    if (configuredProvider && configuredModel) return `${configuredProvider}/${configuredModel}`;
-    return session?.provider && session?.id ? `${session.provider}/${session.id}` : undefined;
+    const extensionProviders = registry?.getRegisteredProviderIds?.() ?? [];
+    const configured = configuredProvider && configuredModel
+      ? { provider: configuredProvider, id: configuredModel, virtual: registry?.find?.(configuredProvider, configuredModel)?.api === GoalCore.VIRTUAL_MODEL_API }
+      : undefined;
+    const candidates = [
+      configured,
+      session?.provider && session.id ? { provider: session.provider, id: session.id, virtual: session.api === GoalCore.VIRTUAL_MODEL_API } : undefined,
+    ];
+    for (const candidate of candidates) {
+      if (!candidate || candidate.virtual || extensionProviders.includes(candidate.provider)) continue;
+      return `${candidate.provider}/${candidate.id}`;
+    }
+    return undefined;
   }
 
   // ── completion check ─────────────────────────────────────────────────
@@ -368,7 +393,7 @@ export class GoalCore {
     if (toolSignal?.aborted) cancel();
     this.checkProgress = "Evaluating the objective and recorded evidence...";
     this.refreshUi(ctx);
-    const model = this.childModel(settings.provider, settings.model, ctx.model);
+    const model = this.childModel(settings.provider, settings.model, ctx.model, ctx.modelRegistry);
     const evidence = collectGoalEvidence(ctx.sessionManager.getBranch(), goal, this.owner());
     try {
       const result = await this.runCheck({

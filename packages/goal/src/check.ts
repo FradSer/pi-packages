@@ -134,7 +134,9 @@ export interface RunCheckOptions {
  *
  * The child is started through pi-kit's minimal worker arguments with an empty
  * tool allowlist, so it is a fresh context with no extensions, no session, and
- * nothing it could act with.
+ * nothing it could act with. Because it loads no extensions, a provider those
+ * extensions registered does not exist there; an omitted model lets Pi pick one
+ * the child can resolve instead of failing before the check starts.
  */
 export async function runCompletionCheck(options: RunCheckOptions): Promise<CheckVerdict> {
   const prompt = buildCheckPrompt({ objective: options.objective, claim: options.claim, evidence: options.evidence });

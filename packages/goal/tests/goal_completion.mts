@@ -20,7 +20,7 @@ async function scenario(name: string, body: () => Promise<void>) {
   try { await observeScenario(name, body); outcomes.push(`ok ${name}`); }
   catch (error) { outcomes.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }
 }
-function fixture(runCheck: GoalCoreOptions["runCheck"], options: { sessionModel?: { provider?: string; id?: string } } = {}) {
+function fixture(runCheck: GoalCoreOptions["runCheck"], options: { sessionModel?: { provider?: string; id?: string; api?: string }; registeredProviders?: string[]; virtualModels?: string[] } = {}) {
   assert.ok(runCheck, "completion scenarios always inject a checker");
   const cwd = mkdtempSync(join(tmpdir(), "goal-completion-"));
   const events = new Map<string, Function>();
@@ -37,6 +37,10 @@ function fixture(runCheck: GoalCoreOptions["runCheck"], options: { sessionModel?
   };
   const ctx = { cwd, mode: "tui", ui: { notify() {}, setWidget() {} }, isIdle: () => false, hasPendingMessages: () => false,
     ...(options.sessionModel ? { model: options.sessionModel } : {}),
+    ...(options.registeredProviders ? { modelRegistry: {
+      getRegisteredProviderIds: () => options.registeredProviders,
+      find: (provider: string, id: string) => options.virtualModels?.includes(`${provider}/${id}`) ? { api: "pi-virtual" } : undefined,
+    } } : {}),
     sessionManager: { getSessionId: () => "completion-thread", getBranch: () => branch } };
   const core = new GoalCore(pi as never, cwd, { runCheck });
   core.store.create({ id: "completion-goal", owner: "completion-thread", objective: "Export CSV and pass its E2E test." });
@@ -440,6 +444,63 @@ await scenario("a configured check model is used instead of the session's", asyn
     assert.deepEqual(seen, ["anthropic/claude-haiku"], "the configured model wins over the session's");
   } finally {
     f.core.shutdown();
+  }
+});
+
+await scenario("a model a minimal child cannot resolve is left for Pi to choose", async () => {
+  // The check child runs with `-ne`, so a provider an extension registered and a
+  // virtual router do not exist there. Naming one made Pi exit with `Model not
+  // found` before the check started, and every completion request then failed
+  // instead of being judged. The next resolvable candidate is used; with none,
+  // the child receives no model and Pi selects one it can resolve itself.
+  const cases: Array<{
+    name: string;
+    session: { provider?: string; id?: string; api?: string };
+    configured?: { provider: string; model: string };
+    registered: string[];
+    virtual?: string[];
+    expected: string | undefined;
+  }> = [
+    {
+      name: "the session model comes from an extension-registered provider",
+      session: { provider: "magpie", id: "group/flash" },
+      registered: ["magpie"],
+      expected: undefined,
+    },
+    {
+      name: "the configured model does, but the session model is resolvable",
+      session: { provider: "cliproxyapi", id: "bailian/deepseek-v4.1-flash" },
+      configured: { provider: "magpie", model: "group/flash" },
+      registered: ["magpie"],
+      expected: "cliproxyapi/bailian/deepseek-v4.1-flash",
+    },
+    {
+      name: "the session model is a virtual router",
+      session: { provider: "cliproxyapi", id: "router", api: "pi-virtual" },
+      registered: [],
+      expected: undefined,
+    },
+    {
+      name: "the configured model is a virtual router, but the session model is resolvable",
+      session: { provider: "cliproxyapi", id: "bailian/deepseek-v4.1-flash" },
+      configured: { provider: "cliproxyapi", model: "router" },
+      registered: [],
+      virtual: ["cliproxyapi/router"],
+      expected: "cliproxyapi/bailian/deepseek-v4.1-flash",
+    },
+  ];
+  for (const item of cases) {
+    const seen: (string | undefined)[] = [];
+    const f = fixture((async (options: RunCheckOptions) => {
+      seen.push(options.model);
+      return { met: false, report: "NOT MET" };
+    }) as never, { sessionModel: item.session, registeredProviders: item.registered, virtualModels: item.virtual });
+    try {
+      await f.core.check(f.ctx as never, f.core.goal!, "Everything is finished.", item.configured ?? {});
+      assert.deepEqual(seen, [item.expected], item.name);
+    } finally {
+      f.core.shutdown();
+    }
   }
 });
 

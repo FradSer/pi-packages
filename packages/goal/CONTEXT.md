@@ -99,7 +99,9 @@ produces them. Fixed items are named in place.
 - `core.ts` — focus and owner rules, activation handshake, usage accounting, stop guard, and the
   receipt memory the loop's bound reads. `performedWork` is now the one progress fact — a receipt new
   to this session — and the same set still resets a blocker streak. Fixed: `currentTurnSeq` and
-  `focusedId` had no reader.
+  `focusedId` had no reader. Fixed: the check named an extension-registered or virtual session model
+  to a `-ne` child, where it cannot exist, and Pi exited with `Model not found`; the model is now
+  skipped and the child selects one it can resolve.
 - `tools.ts` — three tools, validation, stop guard, paging. Fixed: comments describing a removed
   refusal count and a dead prose file; two exports with no external reader. Fixed: `goalBody`
   repeated `Tokens used:` on every creation, revision and status row.

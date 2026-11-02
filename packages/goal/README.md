@@ -138,8 +138,12 @@ Global settings are `~/.pi/agent/goal.json`; a project's overrides are
 `settings.json` inside that project's goal directory. An override stored by an
 earlier version in `<project>/.pi/goals/settings.json` is still read. Supported
 settings are `maxAutonomousRuns`, `provider`
-and `model`. The check defaults to the current session model. `PI_GOAL_MODEL`,
-`PI_GOAL_PROVIDER` and `PI_GOAL_MAX_RUNS` provide temporary overrides.
+and `model`. The check defaults to the current session model. A model that only
+an extension registers, or a virtual router, is not named to the tool-less child
+because it loads no extensions; the configured or session model is used when it
+can be resolved, otherwise the child selects one from the models it can see.
+`PI_GOAL_MODEL`, `PI_GOAL_PROVIDER` and `PI_GOAL_MAX_RUNS` provide temporary
+overrides.
 `maxAutonomousRuns` is a lifetime continuation allowance; unset is unlimited and
 `0` disables continuation. Resume does not replenish the allowance. Legacy research
 and check-bypass settings are ignored; the completion check cannot be bypassed.

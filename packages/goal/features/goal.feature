@@ -552,6 +552,11 @@ Feature: Goal prompt replay
     And the predicate assert.ok(args.includes("-ne"), "no extensions") holds for every observed invocation
     And the predicate assert.ok(args.includes("-ns"), "no skills") holds for every observed invocation
 
+  Scenario: Goal completion transport: an omitted model is not named to the child
+    Given the isolated fixtures for an omitted model is not named to the child
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(args.includes("--model"), false, `no model argument must be passed, got ${JSON.stringify(args)}`) holds for every observed invocation
+
   Scenario: Goal completion transport: the verdict is the report's last line, or there is no verdict
     Given the isolated fixtures for the verdict is the report's last line, or there is no verdict
     When the real Goal modules execute this behavior case
@@ -915,6 +920,12 @@ Feature: Goal completion evidence
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
     And the predicate assert.deepEqual(seen, ["anthropic/claude-haiku"], "the configured model wins over the session's") holds for every observed invocation
+
+  Scenario: Goal completion evidence: a model a minimal child cannot resolve is left for Pi to choose
+    Given the isolated fixtures for a model a minimal child cannot resolve is left for Pi to choose
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
+    And the predicate assert.deepEqual(seen, [item.expected], item.name) holds for every observed invocation
 
   Scenario: Goal completion evidence: a late charge after completion never revives the finished goal
     Given the isolated fixtures for a late charge after completion never revives the finished goal

@@ -100,6 +100,17 @@ await scenario("the child is granted no tools at all", async () => {
   assert.ok(args.includes("-ns"), "no skills");
 });
 
+await scenario("an omitted model is not named to the child", async () => {
+  // The core omits a model a minimal child cannot resolve so Pi picks one from
+  // the child's own catalog. Passing an empty or inherited name instead would
+  // bring back the `Model not found` exit this omission exists to avoid.
+  process.env.GOAL_CHECK_REPORT = "All present.\nMET";
+  process.env.GOAL_CHECK_ARGS = argsFile;
+  await runCompletionCheck({ ...base });
+  const args = JSON.parse(await import("node:fs").then((fs) => fs.readFileSync(argsFile, "utf-8"))) as string[];
+  assert.equal(args.includes("--model"), false, `no model argument must be passed, got ${JSON.stringify(args)}`);
+});
+
 await scenario("the verdict is the report's last line, or there is no verdict", () => {
   // One scenario because it is one rule: trailing MET approves, MET anywhere
   // else or nowhere rejects, and a rejection names what to do. Splitting it
