@@ -61,6 +61,7 @@ function policyBlock(_settings: { maxAutonomousRuns?: number }): string {
     "Continue using ordinary work tools while the objective remains unmet and the user-authorized boundaries permit progress.",
     "Do something new each run: a tool receipt this session has not already produced counts as progress. Three consecutive runs that produce nothing new stop automatic continuation until the user resumes.",
     "Only update_goal({status: \"complete\"}) requests the completion check. Gather concrete evidence first; ordinary turns do not check automatically.",
+    "When the completion-check report says the objective is undecidable as written, revise the objective with update_goal to state its completion condition in provable terms, preserving the user's requirements; re-requesting completion on the unchanged objective only repeats the refusal.",
     "Use update_goal({status: \"blocked\", reason}) only when the same blocker recurs on three consecutive turns and no defensible progress remains.",
     "Use update_goal({status: \"paused\", reason}) only when the user explicitly requests pausing. The user controls pause, resume and clear.",
     "Preserve existing requirements when the user refines the goal. Commit the complete revised objective with update_goal({objective}).",
@@ -183,7 +184,7 @@ export function goalCapabilityNote(hasFocusedGoal: boolean): string {
     "Start one only when the user explicitly asks for a persistent goal; do not infer one just because work",
     "spans sessions or takes several turns.",
     "Do not make a goal out of ordinary work you will finish before the user replies.",
-    `Write the objective yourself from the conversation: it has to say what is true when the goal is met. ${create}`,
+    `Write the objective yourself from the conversation: it has to say what is true when the goal is met, and its completion must be decidable from evidence the session can record. ${create}`,
   ].join("\n");
 }
 
@@ -201,6 +202,7 @@ export function goalCapabilityNote(hasFocusedGoal: boolean): string {
 export function goalRequest(seed?: string): string {
   const objectiveGuidance = [
     "Write one short, outcome-focused sentence (aim for under 200 characters) with only the detail needed to tell when the work is complete.",
+    "Make the objective decidable: when the request is broad, record its concrete success condition — the tests, build, or artifacts that count as done — not an absolute no evidence could bound.",
     "Base it on the user's latest request. Use earlier conversation only to resolve references or preserve explicit existing requirements.",
     "Keep explicit requirements that remain relevant. Do not turn background, reasoning, or plans into the objective; do not add unrequested implementation steps, tests, documentation, platforms, or speculative acceptance criteria.",
   ].join(" ");

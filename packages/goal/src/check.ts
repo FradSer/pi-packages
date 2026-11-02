@@ -96,6 +96,8 @@ export function buildCheckPrompt(args: {
     "or",
     "NOT MET",
     "If the evidence does not establish that the objective is satisfied, answer NOT MET. An unproven claim is not proof, and 'probably fine' is NOT MET.",
+    "When the objective names its own completion condition — the checks, artifacts, or outcomes that make it met — judge exactly that condition. Do not widen it into an absolute the objective never stated.",
+    "When no recorded evidence could ever establish the objective as written, answer NOT MET and name in your report the completion condition the objective is missing, so it can be revised into one evidence can prove.",
     "",
     "Objective:",
     "<objective>",

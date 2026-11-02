@@ -256,6 +256,7 @@ function goalCreate(core: GoalCore) {
       objective: Type.String({ minLength: 1 }),
     }, { additionalProperties: false }),
     promptGuidelines: [
+      "Write an objective whose completion is decidable from evidence this session can record: name the concrete success signal — the tests that pass, the build that succeeds, the artifacts that exist. An absolute with no stated condition cannot be judged met and will loop.",
       "There is no spending cap and none can be set: a goal continues while it changes the workspace, and the user controls pause, resume and clear.",
     ],
     renderShell, renderCall, renderResult: renderGoalResultFor(),
@@ -282,7 +283,8 @@ function goalUpdate(core: GoalCore) {
     name: "update_goal", label: "Update Goal",
     description: "Request evidence-based completion, report a recurring blocker, carry out a user pause, or commit a complete user-requested revision.",
     promptGuidelines: [
-      "Request complete only after gathering the required evidence. Ordinary turns do not run completion checks.",
+      "Request complete only after gathering the required evidence. Ordinary turns do not run completion checks. Run the checks the objective names and let their outputs land in this session's transcript first: the checker reads recorded observations, not your summary.",
+      "When the check's report says the objective itself is undecidable as written, revise the objective with update_goal to state the user's success condition in provable terms, preserving the user's requirements. Do not re-request completion on the unchanged objective.",
       "paused requires an explicit user request. Report blocked only when no defensible progress remains; the same blocker must recur on three consecutive turns.",
       "A revision must preserve the user's existing requirements unless the user explicitly removes them.",
     ],
