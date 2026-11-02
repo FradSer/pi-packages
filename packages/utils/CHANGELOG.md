@@ -1,5 +1,155 @@
 # @fradser/pi-utils
 
+## 0.6.0
+
+### Minor Changes
+
+- e86a44f: `/autoname` names the current session with the current model.
+  
+  Pi's own `/name` answers `Usage: /name <name>` when it is submitted with no
+  argument and no name set. `/autoname` is the model-generated counterpart: it
+  reads what the session is about and applies a short, recognizable display name.
+  
+  **Why a new command**
+  
+  `/name` is compiled into the interactive mode. Its branch runs before
+  extension commands are consulted, and Pi exposes no hook to intercept it, so an
+  extension cannot give it a model-generated argumentless behavior. `/name
+  <name>` still sets an explicit name; `/autoname` is for the case where you do
+  not want to type one.
+  
+  **What it does**
+  
+  - Builds its digest from the user's own requests only, so the name describes the
+    task instead of the assistant's wording, and bounds the digest to a fixed
+    character budget.
+  - Steers the name with an optional argument: `/autoname release notes rewrite`.
+  - Reduces the model answer to a plain display name. Quoting, markdown, list
+    markers, and any sentence after the first line are dropped; an over-long name
+    is cut at a word boundary.
+  - Sends a bounded one-shot request: no tools, at most 64 output tokens, no
+    caching, and the current session id forwarded so conversation-routing gateways
+    accept the nested call.
+  
+  **Failure behavior**
+  
+  Generation always settles. A 20-second deadline, an aborted session, a missing
+  model, absent credentials, a provider rejection, and an unusable answer each
+  report their own cause. The deadline races the request rather than only
+  signalling it, so a provider that ignores its abort signal cannot hold the
+  command open, and each failure is reported as a reported failure rather than an
+  unhandled rejection. A provider rejection arrives as a message carrying
+  `stopReason: "error"` rather than as a thrown error, and is no longer reported
+  as a credential problem.
+- e86a44f: Worktree paths now anchor to the repository root, the /effort menu mirrors pi's supported-level rule, and live-session control has a command to reach it.
+  
+  **@fradser/pi-utils**
+  
+  - **One worktree location.** `git worktree add` issued from a repository subdirectory was rewritten to a cwd-relative `.pi/worktrees/<name>`, so the worktree landed somewhere `/enter-worktree` and the isolation filters never looked. The redirect now resolves the repository root and emits the absolute managed path, and all three worktree layers share one porcelain parser, canonicalizer, and `.pi/worktrees` definition (`extensions/git/worktrees.ts`). A repository that does not git-ignore `.pi/` is told so; the extension never edits a `.gitignore`.
+  - **`/effort` matches pi.** The menu hid `xhigh`/`max` only when a `thinkingLevelMap` was present and treated an absent `reasoning` flag as full support, diverging from pi's own rule. It now applies the same predicate, pinned by a parity test against `getSupportedThinkingLevels` from `@earendil-works/pi-ai`.
+  - **`/live-sessions`.** Live-session discovery and delivery had no entry point in the shipped package. The new command lists instances (with id completions) and sends text, reporting `accepted` or `queued` without ever claiming completion, and bounds its arguments before touching a socket.
+  - **Transition honesty.** An aborted run drops the queued worktree transition and now says so instead of leaving the model believing one was coming; a worktree command invoked while a transition is queued is refused rather than racing the session switch; the batch barrier names the pending transition.
+  - **Registry and guard cleanups.** A session removes its record from every directory it registered under (session replacement changes cwd without reloading extensions), registry temp names no longer depend on a per-millisecond clock, and the publish guard's advice follows the repository's lockfile instead of asserting "this pnpm workspace" to every user.
+  - **Cross-package tool inputs.** The worktree isolation filters write `exclude` only into search tools whose declared schema has that parameter; undeclared tools keep their input untouched and are still filtered on the way back.
+  - **Verification.** Extension tests that asserted on source text are replaced by tests that drive registered command handlers, tool `execute`, and event handlers against a fake host: the same mutation that used to pass `/effort` tests silently now fails seven.
+- 4d20b94: A managed worktree is created on the name itself, with no tool namespace.
+  
+  `/enter-worktree feature-auth` created `.pi/worktrees/feature-auth` on branch
+  `pi/worktree/feature-auth`: a namespace plus a `worktree` segment that repeated
+  what the managed path already says.
+  
+  - The branch is now the name: `.pi/worktrees/feature-auth` on branch
+    `feature-auth`, the spelling a plain
+    `git worktree add .pi/worktrees/<name> <branch>` reads. The location stays
+    `.pi/worktrees/<name>`; only the branch lost the prefix.
+  - Two names are refused before anything is created, so the user reads one reason
+    instead of git's fatal and no empty `.pi/worktrees` directory is left behind:
+    a name git rejects as a ref (a leading dot, a trailing `.lock`), and a name
+    whose branch already exists — the common collision of a bare name, which
+    `git worktree add -b` would refuse. That message names the way out: another
+    name, or `path` for an existing worktree.
+  - `/exit-worktree` is unaffected: it removes the branch recorded in the session
+    state, so a worktree created under the old name still cleans up.
+  
+  A worktree created by a redirected `git worktree add` keeps the branch named in
+  that command; this changes only the branch this package creates.
+- faa2664: A redirected `git worktree add` moves the Pi session into the worktree it
+  created.
+  
+  The redirect already kept linked worktrees inside `.pi/worktrees/<name>`. It now
+  also switches the session there, so the next relative path, edit, or shell
+  command belongs to the new checkout instead of the parent.
+  
+  - The move is reserved before the command runs, so the rest of that tool batch
+    is blocked rather than editing the checkout the session is leaving.
+  - The replacement session is forked from the current one and records the parent,
+    exactly like `/enter-worktree`, so `/exit-worktree` keeps its behavior. The
+    worktree is entered as an existing one: no second worktree or branch appears.
+  - The replacement session records one `[worktree] entered` row with the managed path,
+    so the move is confirmed in the session it happened in. An extension notice sent
+    during the switch does not reliably paint; the row does, and Ctrl+O expands it to
+    `Path: <absolute directory>`. This replaces the transient
+    `Entered worktree:` notice of the explicit command path too.
+  - A failed creation releases the batch and tells the user the session stays in
+    its current directory. A reserved command that produces no result at all — a
+    truncated message, or a blocker that stops it before execution — never moves
+    the session, because only a successful result confirms the directory exists.
+  - A creation cannot start while another switch is already in flight, and a
+    worktree command invoked after a reservation is refused by name until the turn
+    settles. Neither case leaves a stray worktree or a silent session move.
+  - A session without a session file cannot be replaced: the worktree stays on
+    disk and the user is told that Pi cannot switch to it.
+  - An explicit `/enter-worktree` or `enter_worktree` in the same message wins
+    over the automatic move.
+  - An aborted run drops the queued move and says so; the created worktree is
+    kept. Pi 1.2.0 reports the abort on `agent_settled`; an older host that does
+    not report it still applies the move.
+  
+  Commands that are not rewritten, such as a chained shell form or an
+  already-managed path, never move the session.
+
+### Patch Changes
+
+- 8662e95: Use additive run-start prompt contributions instead of complete prompt overrides. Do not use custom messages for context injection. Handle custom startup without a user prompt. Keep unrelated workflow records and authorization checkpoints.
+- 0010f51: Move the development Pi core cohort to 1.2.0 and stay type-correct on it. `before_agent_start` handlers in the goal runtime, Agent Teams and utils now test for the prompt instead of reading it directly, so they compile against both the older event shape and the current union Pi discriminates by run kind.
+- 53cb34f: Stop `setActiveTools` toggle writes from deactivating tools the harness has not published yet.
+  
+  `setActiveTools` is an allowlist write: the caller passes the complete set the
+  model may call, and anything absent is deactivated for the rest of the session.
+  Every extension that toggled a tool read the active-tool snapshot, adjusted it,
+  and wrote it back, so a snapshot that had not yet reported an extension's own
+  registrations silently erased them. `pi-matt-pocock` then kept delivering routing
+  prompts that name `matt_pocock_workflow`, instructing the model to call a tool it
+  could not see.
+  
+  `@fradser/pi-kit` gains `setOwnedTools`, which re-asserts the extension's own
+  tools instead of trusting the snapshot, and all five call sites now use it:
+  `pi-matt-pocock`, `pi-monitor`, `pi-utils` sessions and worktree-session, and
+  `@fradser/pi-agent-teams`' worker disclosure. Repeated identical writes are now
+  idempotent rather than accumulating a duplicate entry.
+- e86a44f: Read the last complete session entry when it exceeds the continuation read window. Report a rejected continuation delivery to the user instead of leaving it to the host. Replace source-text checks with behavior tests and share the test runner.
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [ff9b7ff]
+- Updated dependencies [2bba220]
+- Updated dependencies [426ef90]
+- Updated dependencies [6603d43]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [6416992]
+- Updated dependencies [fc0d801]
+- Updated dependencies [53cb34f]
+- Updated dependencies [ceb8e23]
+- Updated dependencies [842b92e]
+- Updated dependencies [b3daa7f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [842b92e]
+- Updated dependencies [e86a44f]
+- Updated dependencies [53cb34f]
+- Updated dependencies [53cb34f]
+  - @fradser/pi-kit@0.6.0
+
 ## 0.5.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@fradser/pi-goal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Thread-scoped goals for Pi with three tools, authorized continuation, and evidence-based completion.",
   "keywords": [
     "pi-package",

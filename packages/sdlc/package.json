@@ -1,6 +1,6 @@
 {
   "name": "pi-sdlc",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run an artifact-driven SDLC with intent, design, plan, verification, review, release and metric feedback.",
   "type": "module",
   "keywords": [

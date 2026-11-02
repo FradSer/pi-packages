@@ -1,5 +1,41 @@
 # @fradser/pi-btw
 
+## 0.2.11
+
+### Patch Changes
+
+- e86a44f: Include the truncation marker in the conversation context limit. Return empty context when a limit is zero.
+  
+  Simplify overlay input and cancellation handling. Preserve follow-up history and the legacy single-turn interface.
+  
+  Reserve space for the composer and footer when the terminal height decreases.
+- e86a44f: Clamp shared scroll offsets at zero. Allow consumers to supply a horizontal-rule callback without changing legacy defaults.
+  
+  Delegate btw focus to its native input. Preserve loading animation during cache invalidation. Handle normalized fullscreen wheel events.
+  
+  Keep the composer visible in compact layouts down to 20 columns and 8 rows. Home and End edit the visible composer.
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [ff9b7ff]
+- Updated dependencies [2bba220]
+- Updated dependencies [426ef90]
+- Updated dependencies [6603d43]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [6416992]
+- Updated dependencies [fc0d801]
+- Updated dependencies [53cb34f]
+- Updated dependencies [ceb8e23]
+- Updated dependencies [842b92e]
+- Updated dependencies [b3daa7f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [842b92e]
+- Updated dependencies [e86a44f]
+- Updated dependencies [53cb34f]
+- Updated dependencies [53cb34f]
+  - @fradser/pi-kit@0.6.0
+
 ## 0.2.10
 
 ### Patch Changes
