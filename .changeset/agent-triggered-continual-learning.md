@@ -16,9 +16,10 @@ All user-level configuration now lives in one file,
 `<agent-dir>/continual-learning.json`: the learning model (`model` as
 `provider/model` or `{provider, model}`), the two learning triggers, phase
 policies, AGENTS.md budget, Jev and the capability flags. `/memory model` and the
-settings menu merge into it and preserve every other section. The legacy
+settings menu merge into it and preserve every other section. The retired
 `<agent-dir>/memory.json` pair and `<agent-dir>/memory/settings.json` learning
-fields remain readable as fallbacks for existing installs; nothing writes them.
+fields are neither read nor written; with no unified `model`, learning follows
+the session model.
 
 Learning also preflights the model against the no-extensions view used by planner
 children. An extension-registered session or configured model now blocks with an

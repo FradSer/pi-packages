@@ -32,7 +32,7 @@ def verify_upgrade() -> dict[str, object]:
     source = Path(os.environ.get("PI_CODING_AGENT_DIR", Path.home() / ".pi/agent"))
     provider, model = os.environ.get("PI_PROVIDER"), os.environ.get("PI_MODEL")
     if not provider or not model:
-        configured = json.loads((source / "memory.json").read_text())
+        configured = json.loads((source / "continual-learning.json").read_text())
         provider, model = configured["provider"], configured["model"]
     with tempfile.TemporaryDirectory(prefix="harness-upgrade-live-") as directory:
         base = Path(directory)
@@ -45,7 +45,7 @@ def verify_upgrade() -> dict[str, object]:
                 (agent / name).chmod(0o600)
         (agent / "settings.json").write_text(json.dumps({"packages": [], "defaultProvider": provider, "defaultModel": model}))
         (agent / "memory").mkdir()
-        (agent / "memory/settings.json").write_text('{"autoSettledLearning": false, "autoContinualLearning": false,"agentsMd":{"disabled":true}}')
+        (agent / "continual-learning.json").write_text('{"autoSettledLearning": false, "autoContinualLearning": false,"agentsMd":{"disabled":true}}')
         (project / ".pi").mkdir()
         target = project / ".pi/harness.local.json"
         before = json.dumps(LEGACY, indent=2) + "\n"

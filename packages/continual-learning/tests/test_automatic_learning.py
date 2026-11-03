@@ -381,7 +381,6 @@ def test_harness_only_evidence_runs_without_memory_mutation_and_records_receipt(
       fs.mkdirSync(cwd); fs.mkdirSync(agent); execFileSync('git', ['init', '-q', cwd]);
       const { resolveMemoryPaths } = await import('./packages/continual-learning/extensions/memory-paths.ts');
       const configuredPaths = resolveMemoryPaths(cwd);
-      fs.mkdirSync(path.dirname(configuredPaths.settingsFile), { recursive: true });
       fs.writeFileSync(path.join(configuredPaths.agentDir, 'continual-learning.json'), JSON.stringify({ autoSettledLearning: true, autoContinualLearning: false, agentsMd: { disabled: true } }));
       const workerKinds = [];
       const kit = await import('./packages/kit/src/index.ts');
@@ -802,7 +801,7 @@ def test_shutdown_while_reading_settings_cannot_start_old_session_backfill() -> 
     result = run_bun(r'''
       import fs from 'node:fs';
       const source=fs.readFileSync('./packages/continual-learning/extensions/inject-memory.ts','utf8');
-      const end=source.indexOf('\n    reportError: (error, ctx) => notifyPi(ctx.ui, `Automatic learning failed:');
+      const end=source.indexOf('\n    reportError: (error, ctx) => {');
       const start=source.lastIndexOf('} finally { release(); }',end)+'} finally { release(); }'.length;
       const body=source.slice(start,end).replace(/\n    },\s*$/,'');
       const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;

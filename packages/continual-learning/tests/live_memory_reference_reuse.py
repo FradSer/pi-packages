@@ -47,10 +47,10 @@ def run(parent: Path) -> dict:
     public = project / '.memory'; public.mkdir()
     (public / 'fact.md').write_text('---\nname: fact\ndescription: initial description\ntype: project\n---\nBODY_MUST_NOT_BE_INJECTED\n')
     (agent / 'memory').mkdir()
-    (agent / 'memory/settings.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False, 'agentsMd': {'disabled': True}}))
+    (agent / 'continual-learning.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False, 'agentsMd': {'disabled': True}}))
     (agent / 'settings.json').write_text(json.dumps({'packages': []}))
     (agent / 'continual-learning.json').write_text(json.dumps({'jev': False}))
-    (agent / 'memory.json').write_text(json.dumps({'provider': PROVIDER, 'model': MODEL}))
+    (agent / 'continual-learning.json').write_text(json.dumps({'model': f'{PROVIDER}/{MODEL}'}))
     server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
     thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
     (agent / 'models.json').write_text(json.dumps({'providers': {PROVIDER: {
@@ -129,7 +129,7 @@ def run(parent: Path) -> dict:
                                'wireFullBodyVerified': mode != 'partial', 'efficacyEstablished': False})
         # Given explicit user authorization, configuration diagnosis remains
         # possible. Retrieval guidance grants no such authority by itself.
-        configuration = agent / 'memory/settings.json'
+        configuration = agent / 'continual-learning.json'
         before_configuration = configuration.read_bytes()
         Provider.read_path = str(configuration); Provider.read_limit = 100
         start = len(Provider.requests)

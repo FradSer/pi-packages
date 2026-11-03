@@ -271,7 +271,7 @@ def run() -> dict[str, object]:
                     f"---\ndescription: {descriptions[name]}\ntype: project\n---\n\n{bodies[name]}\n"
                 )
             (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "packages": []}))
-            (agent / "memory.json").write_text(json.dumps({"provider": PROVIDER, "model": MODEL}))
+            (agent / "continual-learning.json").write_text(json.dumps({"model": f"{PROVIDER}/{MODEL}"}))
             (agent / "models.json").write_text(json.dumps({"providers": {
                 PROVIDER: {"baseUrl": f"http://127.0.0.1:{server.server_port}/v1", "api": "openai-completions", "apiKey": API_KEY,
                     "models": [{"id": MODEL, "reasoning": False, "input": ["text"], "contextWindow": 200000, "maxTokens": 4096,

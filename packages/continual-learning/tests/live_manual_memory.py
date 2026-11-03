@@ -39,8 +39,8 @@ PRIVATE_MARKER = "PRIVATE_PREF_LIVE_SABLE"
 
 
 def _model(agent: Path) -> tuple[str, str]:
-    value = json.loads((agent / "memory.json").read_text(encoding="utf-8"))
-    provider, model = value.get("provider"), value.get("model")
+    value = json.loads((agent / "continual-learning.json").read_text(encoding="utf-8")).get("model")
+    provider, model = (value.split("/", 1) + [""])[:2] if isinstance(value, str) else (value or {}).get("provider"), ((value.split("/", 1) + [""])[1] if isinstance(value, str) else (value or {}).get("model"))
     if not isinstance(provider, str) or not isinstance(model, str) or not provider or not model:
         raise AssertionError("Disposable agent memory.json has no usable provider/model")
     return provider, model

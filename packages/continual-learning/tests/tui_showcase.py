@@ -29,7 +29,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="cl-tui-showcase-") as raw:
         cwd=Path(raw); agent=cwd/"agent"; agent.mkdir(); (agent/"memory").mkdir()
         (agent/"settings.json").write_text(json.dumps({"theme":"dark","quietStartup":True,"packages":[]}))
-        (agent/"memory/settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False}))
+        (agent/"continual-learning.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False}))
         events=cwd/"events.jsonl"
         env={k:v for k,v in os.environ.items() if k in {"PATH","LANG","LC_ALL"}}
         env.update({"HOME":str(cwd),"PI_CODING_AGENT_DIR":str(agent),"PI_OFFLINE":"1","TERM":"xterm-256color","PI_DETAILS_LIVE_AUTH":secrets.token_hex(16),"PI_DETAILS_LIVE_SNAPSHOTS":str(events)})

@@ -17,7 +17,7 @@ def test_live_prepare_isolates_authentication(
     original = {
         "auth.json": json.dumps({"synthetic": {"type": "api_key", "key": "synthetic-source-only"}}),
         "models.json": json.dumps({"providers": {"synthetic": {"models": []}}}),
-        "memory.json": json.dumps({"provider": "synthetic", "model": "fixture"}),
+        "continual-learning.json": json.dumps({"model": "synthetic/fixture"}),
     }
     for name, content in original.items():
         (source / name).write_text(content)

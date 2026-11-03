@@ -293,7 +293,7 @@ class InferenceProxy:
         self.jev_observations: list[dict] = []
         self.model_observations: list[dict] = []
         self.jev_key = jev_key
-        self.selection = dict(selection) if selection is not None else json.loads((config_root / "memory.json").read_text())
+        self.selection = dict(selection) if selection is not None else self._selection_from_config(config_root)
         provider = json.loads((config_root / "models.json").read_text())["providers"][self.selection["provider"]]
         self.upstream = urlsplit(provider["baseUrl"])
         if self.upstream.scheme not in {"http", "https"} or not self.upstream.hostname:
@@ -688,19 +688,26 @@ class InferenceProxy:
         return {"TYPESAFE_API_KEY": self.token,
                 "TYPESAFE_BASE_URL": f"http://host.docker.internal:{self.server.server_address[1]}/jev"}
 
+    @staticmethod
+    def _selection_from_config(config_root: Path) -> dict:
+        """The host's single configuration file names the learning model."""
+        config = json.loads((config_root / "continual-learning.json").read_text())
+        model = config.get("model")
+        if isinstance(model, str):
+            provider, _, id = model.partition("/")
+            return {"provider": provider, "model": id}
+        return {"provider": model["provider"], "model": model["model"]}
+
     def write_agent_config(self, root: Path) -> None:
         root.mkdir(mode=0o700)
         port = self.server.server_address[1]
         provider = {**self.public_provider, "apiKey": self.token, "models": [self.model],
                     "baseUrl": f"http://host.docker.internal:{port}/v1"}
         (root / "models.json").write_text(json.dumps({"providers": {self.selection["provider"]: provider}}))
-        (root / "memory.json").write_text(json.dumps(self.selection))
+        (root / "continual-learning.json").write_text(json.dumps(
+            {"model": f"{self.selection['provider']}/{self.selection['model']}", **({"jev": {"model": self.jev_model, "allowPrivateMemory": True}} if self.jev_key else {})}))
         (root / "settings.json").write_text(json.dumps({"defaultProvider": self.selection["provider"],
             "defaultModel": self.selection["model"], "packages": []}))
-        if self.jev_key:
-            # Only public synthetic personal preferences are used in this experiment.
-            (root / "continual-learning.json").write_text(json.dumps({"jev": {
-                "model": self.jev_model, "allowPrivateMemory": True}}))
         for file in root.iterdir():
             file.chmod(0o600)
 

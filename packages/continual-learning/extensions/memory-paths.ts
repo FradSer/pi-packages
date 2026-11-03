@@ -9,7 +9,6 @@ export interface MemoryPaths {
   scopeKey: string;
   harnessDir: string;
   publicDir?: string;
-  settingsFile: string;
   lockFile: string;
   runsDir: string;
   userInstructionsFile: string;
@@ -129,7 +128,6 @@ export function resolveMemoryPaths(cwd: string, agentDir = getAgentDir()): Memor
     scopeKey,
     harnessDir,
     publicDir: resolvePublicMemoryDir(canonicalCwd, root),
-    settingsFile: path.join(root, "memory", "settings.json"),
     lockFile: path.join(root, "memory", "locks", `${scopeKey}.lock`),
     runsDir: path.join(root, "memory", "runs", scopeKey),
     userInstructionsFile: path.join(root, "AGENTS.md"),

@@ -27,9 +27,9 @@ project instructions; user-level AGENTS files are not targets.
 All user-level configuration lives in one file,
 `<agent-dir>/continual-learning.json`: the learning model (`model` as
 `provider/model` or `{provider, model}`), the learning triggers, phase policies,
-the AGENTS.md budget, Jev and the capability flags. The legacy
-`<agent-dir>/memory.json` pair and `<agent-dir>/memory/settings.json` learning
-fields remain read-only fallbacks; nothing writes them. Learning triggers:
+the AGENTS.md budget, Jev and the capability flags. The retired
+`<agent-dir>/memory.json` and `<agent-dir>/memory/settings.json` are neither
+read nor written. Learning triggers:
 `autoSettledLearning` runs the settled-task learner after `agent_settled`, and
 `autoContinualLearning` exposes the parent `learn_current_memory` tool so the
 agent can request current-task Memory learning once before its answer. Both

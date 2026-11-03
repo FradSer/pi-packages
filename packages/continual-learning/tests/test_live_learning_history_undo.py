@@ -105,8 +105,7 @@ def test_offline_preflight_rejects_inherited_services_and_remote_provider(tmp_pa
     from live_acceptance_support import preflight
     project, agent = tmp_path / 'project', tmp_path / 'agent'
     project.mkdir(); agent.mkdir()
-    (agent / 'continual-learning.json').write_text(json.dumps({'jev': False}))
-    (agent / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'test'}))
+    (agent / 'continual-learning.json').write_text(json.dumps({'jev': False, 'model': 'fixture/test'}))
     (agent / 'models.json').write_text(json.dumps({'providers': {'fixture': {'baseUrl': 'https://example.com/v1'}}}))
     env = {'HOME': str(tmp_path), 'PI_CODING_AGENT_DIR': str(agent)}
     with pytest.raises(AssertionError, match='loopback'):

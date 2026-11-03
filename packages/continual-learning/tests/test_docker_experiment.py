@@ -20,7 +20,7 @@ def test_explicit_main_selection_does_not_follow_or_modify_ambient_model(tmp_pat
     # Then temporary agent config uses the requested identity without host edits.
     config = tmp_path / 'host'
     config.mkdir()
-    (config / 'memory.json').write_text('{"provider":"cli-proxy","model":"ambient-other"}')
+    (config / 'continual-learning.json').write_text('{"model":"cli-proxy/ambient-other"}')
     (config / 'models.json').write_text(json.dumps({'providers': {'cli-proxy': {
         'apiKey': 'HOST_ONLY_FIXTURE', 'baseUrl': 'http://127.0.0.1:1/v1',
         'api': 'openai-completions', 'models': [
@@ -34,7 +34,8 @@ def test_explicit_main_selection_does_not_follow_or_modify_ambient_model(tmp_pat
         assert proxy.selection == selection and proxy.model['id'] == selection['model']
         target = tmp_path / 'temporary-agent'
         proxy.write_agent_config(target)
-        assert json.loads((target / 'memory.json').read_text()) == selection
+        unified = json.loads((target / 'continual-learning.json').read_text())
+        assert unified == {"model": f"{selection['provider']}/{selection['model']}"}
         assert proxy.requests == 0
     assert {p.name: p.read_bytes() for p in config.iterdir()} == before
 
@@ -164,7 +165,7 @@ def test_experiment_proxy_bounds_routing_and_never_copies_host_credentials(tmp_p
     try:
         config = tmp_path / "host"
         config.mkdir()
-        (config / "memory.json").write_text(json.dumps({"provider": "fixture", "model": "selected"}))
+        (config / "continual-learning.json").write_text(json.dumps({"model": "fixture/selected"}))
         (config / "models.json").write_text(json.dumps({"providers": {"fixture": {
             "apiKey": "HOST_ONLY_SECRET", "headers": {"X-Secret": "HOST_HEADER_SECRET"},
             "baseUrl": f"http://127.0.0.1:{upstream.server_address[1]}/v1", "api": "openai-completions",
@@ -245,7 +246,7 @@ def test_experiment_proxy_bounds_routing_and_never_copies_host_credentials(tmp_p
 def test_jev_proxy_configuration_keeps_real_credentials_host_only(tmp_path: Path) -> None:
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {
         'apiKey': 'HOST_MODEL_SECRET', 'baseUrl': 'https://example.invalid/v1',
         'models': [{'id': 'selected'}],
@@ -278,7 +279,7 @@ def test_real_jev_proxy_route_and_model_stream_do_not_compete_for_slots(tmp_path
     thread.start()
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {'apiKey': 'HOST_MODEL_SECRET',
         'baseUrl': f'http://127.0.0.1:{upstream.server_address[1]}/v1', 'models': [{'id': 'selected'}]}}}))
     monkeypatch.setattr(docker_experiment.http.client, 'HTTPSConnection',
@@ -317,7 +318,7 @@ def test_real_jev_proxy_route_and_model_stream_do_not_compete_for_slots(tmp_path
 @pytest.mark.parametrize("evidence_bytes", [20, 90000])
 def test_jev_bun_forwarder_preserves_wire_and_keeps_secret_out_of_arguments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int, evidence_bytes: int, transport: str, long_context: bool, jev_model: str) -> None:
     root=tmp_path/'host';root.mkdir()
-    (root/'memory.json').write_text(json.dumps({'provider':'fixture','model':'selected'}))
+    (root/'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root/'models.json').write_text(json.dumps({'providers':{'fixture':{'apiKey':'MODEL_SECRET','baseUrl':'https://example.invalid/v1','models':[{'id':'selected'}]}}}))
     observed=[]
     def run(args, **kwargs):
@@ -383,7 +384,7 @@ def test_jev_forwarder_failure_has_controlled_diagnostics(tmp_path: Path, monkey
     import subprocess
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {'apiKey': 'MODEL_SECRET',
         'baseUrl': 'https://example.invalid/v1', 'models': [{'id': 'selected'}]}}}))
     def run(args, **kwargs):
@@ -432,7 +433,7 @@ def test_explicit_public_jev_route_preserves_hostname_tls_and_wire(tmp_path: Pat
     # When forwarding a complete wire, Then retain origin identity and default TLS validation.
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {'apiKey': 'MODEL_SECRET',
         'baseUrl': 'https://example.invalid/v1', 'models': [{'id': 'selected'}]}}}))
     observed = []
@@ -475,7 +476,7 @@ def test_shutdown_requires_counted_forwarder_quiescence_before_settlement(tmp_pa
     # Then settlement waits for its late usage or reports uncertain termination.
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {
         'apiKey': 'LOCAL_MODEL_FIXTURE', 'baseUrl': 'https://example.invalid/v1',
         'models': [{'id': 'selected'}]}}}))
@@ -566,7 +567,7 @@ def test_confirmed_downstream_reset_cancels_owned_node_forwarder(tmp_path: Path,
 
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {
         'apiKey': 'LOCAL_MODEL_FIXTURE', 'baseUrl': 'https://example.invalid/v1',
         'models': [{'id': 'selected'}]}}}))
@@ -767,7 +768,7 @@ def test_explicit_unlimited_proxy_retains_every_request_and_zero_preflight(tmp_p
     # Then None admits all and zero admits none; closing still settles exactly.
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider':'fixture','model':'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers':{'fixture':{
         'apiKey':'LOCAL_MODEL_FIXTURE','baseUrl':'https://example.invalid/v1',
         'models':[{'id':'selected'}]}}}))
@@ -806,7 +807,7 @@ def test_opt_in_jev_envelopes_preserve_exact_buffers_without_changing_transport(
     import hashlib
     root = tmp_path / 'host'
     root.mkdir()
-    (root / 'memory.json').write_text(json.dumps({'provider':'fixture','model':'selected'}))
+    (root / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     (root / 'models.json').write_text(json.dumps({'providers':{'fixture':{
         'apiKey':'MODEL_SECRET','baseUrl':'https://example.invalid/v1','models':[{'id':'selected'}]}}}))
     payload = json.dumps({'model':'jev-1.14.0','state':'public source ' + ('MODEL_SECRET' if mode == 'request-secret' else 'x' * (2_097_153 if mode == 'oversize' else 20)),
@@ -995,7 +996,7 @@ def test_expected_model_api_pins_route_before_admission_and_keeps_jev(tmp_path: 
     upstream=ThreadingHTTPServer(('127.0.0.1',0),Upstream)
     thread=threading.Thread(target=upstream.serve_forever,daemon=True);thread.start()
     root=tmp_path/'config';root.mkdir()
-    (root/'memory.json').write_text(json.dumps({'provider':'fixture','model':'selected'}))
+    (root/'continual-learning.json').write_text(json.dumps({'model': 'fixture/selected'}))
     effective=expected_api or 'openai-completions'
     provider_api='openai-responses' if effective=='openai-completions' else 'openai-completions'
     (root/'models.json').write_text(json.dumps({'providers':{'fixture':{'apiKey':'LOCAL_FIXTURE_KEY',
@@ -1043,7 +1044,7 @@ def test_expected_model_api_pins_route_before_admission_and_keeps_jev(tmp_path: 
     (None,None,'openai-responses',False),
     ('openai-responses',None,'unknown-api',False)])
 def test_expected_model_api_validates_effective_model_precedence_before_start(tmp_path: Path, provider_api: str | None, model_api: str | None, expected_api: str, accepted: bool) -> None:
-    (tmp_path/'memory.json').write_text('{"provider":"fixture","model":"selected"}')
+    (tmp_path/'continual-learning.json').write_text('{"model":"fixture/selected"}')
     provider={'apiKey':'LOCAL_FIXTURE_KEY','baseUrl':'http://127.0.0.1:1/v1',
         'models':[{'id':'selected',**({'api':model_api} if model_api else {})}],**({'api':provider_api} if provider_api else {})}
     (tmp_path/'models.json').write_text(json.dumps({'providers':{'fixture':provider}}))
@@ -1105,7 +1106,7 @@ def test_model_retry_after_reaches_http_client_without_proxy_retry(
     upstream = ThreadingHTTPServer(('127.0.0.1', 0), Upstream)
     thread = threading.Thread(target=upstream.serve_forever, daemon=True)
     thread.start()
-    (tmp_path / 'memory.json').write_text('{"provider":"fixture","model":"selected"}')
+    (tmp_path / 'continual-learning.json').write_text('{"model":"fixture/selected"}')
     (tmp_path / 'models.json').write_text(json.dumps({'providers': {'fixture': {
         'apiKey': credential, 'baseUrl': f'http://127.0.0.1:{upstream.server_address[1]}/v1',
         'api': api, 'models': [{'id': 'selected'}],

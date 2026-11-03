@@ -12,7 +12,7 @@ def test_unchanged_discovery_is_structured_and_bodies_are_never_injected(tmp_pat
       const cwd={json.dumps(str(tmp_path / 'project'))};await fs.mkdir(cwd);execFileSync('git',['init','-q',cwd]);
       const p=resolveMemoryPaths(cwd);await fs.mkdir(p.harnessDir,{{recursive:true}});
       await fs.writeFile(p.harnessDir+'/test.md','---\\nname: test\\ndescription: Unique routing description\\ntype: project\\n---\\nSECRET_BODY_MARKER');
-      await fs.writeFile(p.settingsFile,JSON.stringify({{autoSettledLearning:false,autoContinualLearning:false}}));
+      await fs.writeFile(p.agentDir+'/continual-learning.json',JSON.stringify({{autoSettledLearning:false,autoContinualLearning:false}}));
       const hooks={{}};register({{on:(n,f)=>hooks[n]=f,registerCommand(){{}},sendMessage(){{}},appendEntry(){{}},getCommands:()=>[]}});
       const ctx={{cwd,ui:{{notify(){{}}}}}};
       await fs.mkdir(cwd+'/.memory');await fs.writeFile(cwd+'/.memory/TEST.md','---\\nname: test\\ndescription: STALE_PUBLIC_DESCRIPTION\\n---\\nPUBLIC_BODY');

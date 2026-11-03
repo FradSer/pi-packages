@@ -11,6 +11,15 @@ from continuous_failure_retention import deduplicate_receipt_views
 
 from live_acceptance_support import workspace_pi
 
+
+def _model_pair(config: dict) -> dict:
+    """Extract the {provider, model} pair from the unified configuration."""
+    raw = config.get("model")
+    if isinstance(raw, str):
+        provider, _, id = raw.partition("/")
+        return {"provider": provider, "model": id}
+    return {"provider": raw.get("provider"), "model": raw.get("model")}
+
 import json
 import re
 import os
@@ -36,7 +45,7 @@ def run_pi(
     session_name: str = "session.jsonl",
 ) -> dict:
     """Run a real task and inspect its persisted, synthetic test messages."""
-    model = json.loads((agent / "memory.json").read_text())
+    model = _model_pair(json.loads((agent / "continual-learning.json").read_text()))
     session = project.parent / session_name
     result = subprocess.run(
         [
@@ -78,8 +87,8 @@ def prepare(base: Path, auto_memory: bool, *, seed_memory: bool = False, agents_
         if (source / name).is_file():
             shutil.copyfile(source / name, agent / name)
             (agent / name).chmod(0o600)
-    model = json.loads((source / "memory.json").read_text())
-    (agent / "memory.json").write_text(json.dumps({"provider": model["provider"], "model": model["model"]}))
+    model = _model_pair(json.loads((source / "continual-learning.json").read_text()))
+    (agent / "continual-learning.json").write_text(json.dumps({"model": f"{model['provider']}/{model['model']}"}))
     (agent / "settings.json").write_text(json.dumps({
         "defaultProvider": model["provider"], "defaultModel": model["model"], "packages": [],
     }))

@@ -339,8 +339,7 @@ def run() -> dict[str, object]:
             (project / ".pi").mkdir()
             (agent / "memory").mkdir()
             (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "packages": []}))
-            (agent / "continual-learning.json").write_text(json.dumps({"jev": False}))
-            (agent / "memory.json").write_text(json.dumps({"provider": PROVIDER, "model": MODEL}))
+            (agent / "continual-learning.json").write_text(json.dumps({"model": f"{PROVIDER}/{MODEL}", "jev": False}))
             (agent / "models.json").write_text(json.dumps({"providers": {
                 PROVIDER: {"baseUrl": f"http://127.0.0.1:{server.server_port}/v1", "api": "openai-completions", "apiKey": API_KEY,
                     "models": [{"id": MODEL, "reasoning": False, "input": ["text"], "contextWindow": 200000, "maxTokens": 4096,

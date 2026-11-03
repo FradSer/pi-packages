@@ -100,7 +100,7 @@ def run_native_harness_probe(harness: dict[str, Any], *, pi_binary: str | None =
         (project / ".pi/harness.json").write_text(json.dumps(harness))
         (agent / "settings.json").write_text(json.dumps({"packages": [], "compaction": {"enabled": False}}))
         (agent / "continual-learning.json").write_text('{"jev":false}')
-        (agent / "memory/settings.json").write_text('{"autoSettledLearning": false, "autoContinualLearning": false,"agentsMd":{"disabled":true}}')
+        (agent / "continual-learning.json").write_text('{"autoSettledLearning": false, "autoContinualLearning": false,"agentsMd":{"disabled":true}}')
         marker = base / "forbidden-executed"
         wrapper = bin_dir / "git"
         wrapper.write_text('#!/bin/sh\nfor arg in "$@"; do\n if [ "$arg" = push ]; then\n'

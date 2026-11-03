@@ -30,9 +30,8 @@ function configRoot(): string {
   return resolve(getAgentDir());
 }
 
-/** The unified package configuration: Jev, capability flags and the learning
- * model share one user-level file. The legacy `memory.json` remains readable
- * as a fallback for existing installs. */
+/** The single user-level package configuration: learning model, learning
+ * triggers, phase policies, Jev and the capability flags share one file. */
 const UNIFIED_CONFIG_MAX_BYTES = 4096;
 function unifiedConfigPath(): string {
   return join(configRoot(), "continual-learning.json");
@@ -215,7 +214,8 @@ export function readMemoryConfigState(): MemoryConfigState {
 }
 
 /** Read only the unified file's learning model. Absence of the file or of its
- * `model` key is not an error: legacy memory.json and the environment follow. */
+ * `model` key is not an error: the environment override or the session model
+ * follows. */
 function readUnifiedModelState(): { model?: MemoryConfig; invalid?: string; present: boolean } {
   const state = readUnifiedConfig();
   if (state.invalid) return { present: true, invalid: state.invalid };
@@ -266,8 +266,8 @@ export interface JevConfigState {
   disabled?: boolean;
 }
 
-/** User-level opt-in, using the same safe file boundaries as memory.json.
- * Reads only the Jev section; unrelated unified configuration is preserved. */
+/** User-level opt-in in the same file and safe boundaries. Reads only the Jev
+ * section; unrelated unified configuration is preserved. */
 export function readJevConfigState(): JevConfigState {
   try {
     const state = readUnifiedConfig();

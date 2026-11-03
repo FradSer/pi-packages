@@ -29,7 +29,10 @@ def preflight(base: Path, project: Path, agent: Path, env: dict[str, str], *, re
     assert Path(env['HOME']).resolve() == base.resolve(), 'HOME is not isolated'
     assert Path(env['PI_CODING_AGENT_DIR']).resolve() == agent.resolve(), 'Agent is not isolated'
     assert json.loads((agent / 'continual-learning.json').read_text()).get('jev') is False, 'Jev must be explicitly disabled'
-    model = json.loads((agent / 'memory.json').read_text())
+    config = json.loads((agent / 'continual-learning.json').read_text())
+    raw_model = config.get('model')
+    model = ({'provider': raw_model.split('/', 1)[0], 'model': raw_model.split('/', 1)[1]}
+             if isinstance(raw_model, str) else dict(raw_model or {}))
     assert all(isinstance(model.get(key), str) and model[key] for key in ('provider', 'model')), 'Missing explicit provider/model'
     models_file = agent / 'models.json'
     providers = json.loads(models_file.read_text()).get('providers', {}) if models_file.exists() else {}

@@ -148,21 +148,21 @@ def _run(evidence: EvidenceRun, report: dict, *, real_model: bool, raw_memory_js
             (project / 'AGENTS.md').write_bytes(b'# Existing project\r\n\r\nPreserve this file.\r\n')
             (project / 'unrelated.txt').write_bytes(b'unrelated predecessor\x00\r\n')
             (agent / 'settings.json').write_text(json.dumps({'quietStartup': True, 'packages': []}))
-            (agent / 'continual-learning.json').write_text(json.dumps({'jev': False}))
-            (agent / 'memory.json').write_text(json.dumps({'provider': PROVIDER, 'model': MODEL}))
+            (agent / 'continual-learning.json').write_text(json.dumps({'model': f'{PROVIDER}/{MODEL}', 'jev': False}))
             (agent / 'models.json').write_text(json.dumps({'providers': {PROVIDER: {
                 'baseUrl': f'http://127.0.0.1:{server.server_port}/v1', 'api': 'openai-completions', 'apiKey': API_KEY,
                 'models': [{'id': MODEL, 'reasoning': False, 'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
                             'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}]}}}))
-            settings = agent / 'memory/settings.json'
+            settings = agent / 'continual-learning.json'
             settings.write_text(json.dumps({'autoSettledLearning': True, 'autoContinualLearning': False, 'automaticPhases': {'memory': 'apply', 'harness': 'apply', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))
             provider, model = PROVIDER, MODEL
             if real_model:
                 # Explicit opt-in: copy auth privately, never into retained evidence.
                 source = Path(os.environ.get('PI_CODING_AGENT_DIR', str(Path.home() / '.pi/agent')))
-                configured = json.loads((source / 'memory.json').read_text())
-                provider, model = configured['provider'], configured['model']
-                (agent / 'memory.json').write_text(json.dumps({'provider': provider, 'model': model}))
+                configured = json.loads((source / 'continual-learning.json').read_text())
+                raw_model = configured['model']
+                provider, model = (raw_model.split('/', 1) + [''])[:2] if isinstance(raw_model, str) else (raw_model['provider'], raw_model['model'])
+                settings.write_text(json.dumps({**json.loads(settings.read_text()), 'model': f'{provider}/{model}'}))
                 (agent / 'models.json').unlink()
                 secrets = private_provider_copy(source, agent, provider)
                 settings.write_text(json.dumps({'autoSettledLearning': True, 'autoContinualLearning': False, 'automaticPhases': {'memory': 'apply', 'harness': 'off', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))

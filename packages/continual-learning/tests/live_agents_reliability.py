@@ -81,13 +81,15 @@ def trial(number: int, output: Path, source: Path, model: dict, full_pipeline: b
         def archive(name: str, data: bytes) -> None:
             if any(secret in data for secret in secrets): raise RuntimeError('Credential evidence refused')
             dest=target/name;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
-        (agent/'memory').mkdir();(agent/'memory.json').write_text(json.dumps(model));(agent/'settings.json').write_text('{"packages":[]}')
-        (agent/'continual-learning.json').write_text('{"jev":false}')
-        (agent/'memory/settings.json').write_text(json.dumps({'autoSettledLearning': True, 'autoContinualLearning': False,'automaticPhases':{'memory':'off','harness':'off','agents':'apply'},'agentsMd':{'disabled':False}}))
+        config={'model':f"{model['provider']}/{model['model']}", 'jev': False,
+                'autoSettledLearning': True, 'autoContinualLearning': False,
+                'automaticPhases':{'memory':'off','harness':'off','agents':'apply'},'agentsMd':{'disabled':False}}
+        (agent/'continual-learning.json').write_text(json.dumps(config))
         (project/'AGENTS.md').write_text('# Project instructions\n\n## Progress reporting\n\nReport progress as a paragraph describing what changed and why.\n')
         subprocess.run(['git','init','-q',str(project)],check=True)
         if full_pipeline:
-            (agent/'memory/settings.json').write_text(json.dumps({'autoSettledLearning': True, 'autoContinualLearning': False,'agentsMd':{'disabled':False}}))
+            config['automaticPhases']={'memory':'off','harness':'off','agents':'apply'}
+            (agent/'continual-learning.json').write_text(json.dumps(config))
             scope='--'+str(project).lstrip('/').replace('/','-')+'--'
             registry=agent/'memory/scopes';registry.mkdir();(registry/(scope+'.json')).write_text(json.dumps({'version':1,'cwd':str(project)}))
             root=agent/'memory'/scope;root.mkdir()
@@ -114,7 +116,7 @@ def trial(number: int, output: Path, source: Path, model: dict, full_pipeline: b
 
 
 def run(parent: Path, trials: int, full_pipeline: bool = False) -> dict:
-    source=Path(os.environ.get('PI_CODING_AGENT_DIR',str(Path.home()/'.pi/agent')));cfg=json.loads((source/'memory.json').read_text());model={k:cfg[k] for k in ('provider','model')}
+    source=Path(os.environ.get('PI_CODING_AGENT_DIR',str(Path.home()/'.pi/agent')));cfg=json.loads((source/'continual-learning.json').read_text());raw=cfg.get('model');model={'provider':raw.split('/',1)[0],'model':raw.split('/',1)[1]} if isinstance(raw,str) else dict(raw)
     sources=[*PACKAGE.glob('index.ts'),*(PACKAGE/'extensions').glob('*.ts'),*(PACKAGE/'prompts').glob('*.md'),Path(__file__)]
     e=EvidenceRun(parent,{str(f.relative_to(REPO)):f for f in sources});e.write('prompt.txt',FULL_PROMPT if full_pipeline else PROMPT)
     report={'status':'running','model':model,'trials':[]};e.write('manifest.json',json.dumps(report,indent=2));print(json.dumps({'started':str(e.output)}),flush=True)

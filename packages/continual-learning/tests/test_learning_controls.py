@@ -740,3 +740,17 @@ def test_extension_only_learning_model_blocks_before_any_worker_spawns() -> None
     assert "without extensions" in receipt["attempts"][0]["diagnostic"], receipt
     assert value["lock"] is False, value
     assert value["history"] == [], value
+
+
+def test_agent_learning_still_runs_when_the_replay_backlog_is_unavailable() -> None:
+    # Given a malformed historical backlog row, When the agent requests Memory
+    # learning before answering, Then the parent still runs the validated
+    # pipeline: replay bookkeeping is best-effort, not a precondition.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-backlog-unavailable")
+    first = value["agentFirst"]
+    assert first["status"] in {"applied", "no-change", "proposed"}, first
+    assert first["isError"] is False, first
+    assert "learning was not started" not in first["text"].lower(), first
+    assert "Memory learning finished" in first["text"], first
+    assert value["planners"] == ["memory"], value["planners"]
+    assert "concise.md" in value["privateFiles"], value

@@ -105,9 +105,8 @@ def run_case(case: dict, evidence: EvidenceRun, source: Path, model: dict, order
             agents[arm] = agent
             secrets.extend(private_provider_copy(source, agent, model['provider']))
             (agent / 'settings.json').write_text(json.dumps({'packages': [], 'quietStartup': True}))
-            (agent / 'continual-learning.json').write_text('{"jev":false}')
-            (agent / 'memory.json').write_text(json.dumps(model))
-            (agent / 'memory/settings.json').write_text(json.dumps({'autoSettledLearning': arm == 'memory', 'autoContinualLearning': False,
+            (agent / 'continual-learning.json').write_text(json.dumps({'jev': False, 'model': f"{model['provider']}/{model['model']}",
+                'autoSettledLearning': arm == 'memory', 'autoContinualLearning': False,
                 'automaticPhases': {'memory': 'apply', 'harness': 'off', 'agents': 'off'}, 'agentsMd': {'disabled': True}}))
             preflight(base, project, agent, isolated_environment(base, agent), real_model=True)
         probe = base/'probe.ts'
@@ -164,7 +163,7 @@ def run_case(case: dict, evidence: EvidenceRun, source: Path, model: dict, order
         archive('learned-memory.json', json.dumps(learned, indent=2))
         for name, contents in case['files'].items():
             (project/name).write_text(json.dumps(contents))
-        settings = agents['memory']/'memory/settings.json'
+        settings = agents['memory']/'continual-learning.json'
         value = json.loads(settings.read_text()); value['autoSettledLearning'] = False; settings.write_text(json.dumps(value))
         row = {'id':case['id'], 'category':case['category'], 'training':training, 'armOrder':order,
                'learnedEntries':len([p for p in learned if not p.endswith('/MEMORY.md')])}
@@ -205,8 +204,9 @@ def run(parent: Path, split: str, workers: int = 2, only: list[str] | None = Non
         corpus = [c for c in corpus if c['id'] in only]
     evidence.write('corpus.json',json.dumps(corpus,indent=2))
     source = Path(os.environ.get('PI_CODING_AGENT_DIR',str(Path.home()/'.pi/agent')))
-    config = json.loads((source/'memory.json').read_text())
-    model = {key:config[key] for key in ('provider','model')}
+    config = json.loads((source/'continual-learning.json').read_text())
+    raw_model = config['model']
+    model = {'provider': raw_model.split('/',1)[0], 'model': raw_model.split('/',1)[1]} if isinstance(raw_model, str) else dict(raw_model)
     report = {'status':'running','split':split,'taskType':task_type,'providerModel':model,'outputDir':str(evidence.output),
               'piVersion':subprocess.run([workspace_pi(REPO),'--version'],capture_output=True,text=True,check=True).stdout.strip(),
               'revision':subprocess.run(['git','rev-parse','HEAD'],cwd=REPO,capture_output=True,text=True,check=True).stdout.strip(),

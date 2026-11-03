@@ -48,7 +48,7 @@ PROBE = r"""
       // The planner child needs credentials. Copied privately, the way the live
       // smoke does it, so a runtime refresh cannot alter the source files.
       const source = process.env.SOURCE_AGENT_DIR;
-      for (const name of ['auth.json', 'models.json', 'memory.json']) {
+      for (const name of ['auth.json', 'models.json', 'continual-learning.json']) {
         if (fs.existsSync(path.join(source, name))) {
           fs.copyFileSync(path.join(source, name), path.join(agent, name));
         }

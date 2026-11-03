@@ -58,6 +58,17 @@ if (process.env.CL_JEV_FIXTURE?.startsWith("subset-name-collision")) {
   fs.mkdirSync(path.join(cwd,".memory"),{recursive:true});
   fs.writeFileSync(path.join(cwd,".memory","cache.md"),"---\nname: cache\ndescription: Cache timeout cleared on retry\ntype: project\n---\nA timeout cleared on retry.\n");
 }
+// A single malformed backlog row must not stop an agent-requested learning run.
+let backlogSessionFile: string | undefined;
+if (scenario === "agent-memory-backlog-unavailable") {
+  const backlogDir = path.join(agent, "learning");
+  fs.mkdirSync(backlogDir, { recursive: true });
+  fs.writeFileSync(path.join(backlogDir, "backlog.jsonl"), "{ this is not valid JSON\n");
+  const sessionsDir = path.join(agent, "sessions", "backlog-case");
+  fs.mkdirSync(sessionsDir, { recursive: true });
+  backlogSessionFile = path.join(sessionsDir, "session.jsonl");
+  fs.writeFileSync(backlogSessionFile, JSON.stringify({type:"session",id:"backlog-case",cwd,version:3})+"\n");
+}
 fs.writeFileSync(path.join(agent, "continual-learning.json"), JSON.stringify({ ...(scenario === "model-freeze" ? { model: "old/one" } : {}), autoSettledLearning: isAgentMemory ? scenario !== "agent-memory-disabled" : !isRemember, autoContinualLearning: isAgentMemory && scenario !== "agent-memory-disabled", automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
 const coverageRepairFixture = process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-repair-") === true;
 const quote = (process.env.CL_JEV_FIXTURE === "coverage-real-correction" || process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? `Remember that the project build convention is CL_MANUAL_SHARED.${(process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? "\n" : " "}Apply this convention only during releases.` : laterAfterMemory ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry. I prefer concise progress updates. Never run the retired compiler. The AGENTS.md workflow instruction is wrong; use pnpm test instead." : scenario === "remember-private-maintenance" ? "整理记忆" : scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
@@ -755,7 +766,7 @@ try {
     {message:{role:"assistant",content:[{type:"toolCall",id:"environment",name:"bash",arguments:{command:"env"}}]}} as typeof entries[number],
     {message:{role:"toolResult",toolCallId:"environment",toolName:"bash",isError:false,
       content:"TYPESAFE_API_KEY=CL_BASH_LEARNING_SECRET_0123456789"}} as typeof entries[number]);
-  const ctx = {cwd,mode:"json",hasUI:privateAccepted,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{},confirm:async()=>{consentCount++;return true;}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries}};
+  const ctx = {cwd,mode:"json",hasUI:privateAccepted,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{},confirm:async()=>{consentCount++;return true;}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries,...(backlogSessionFile?{getSessionFile:()=>backlogSessionFile!,getSessionId:()=>"backlog-case",getLeafId:()=>"leaf"}:{})}};
   if (manualReplayProbe && manualReplayProbe !== "no-session") {
     const {SessionManager} = await import("@earendil-works/pi-coding-agent");
     const sessionDir=path.join(agent,"sessions","manual-request");fs.mkdirSync(sessionDir,{recursive:true});

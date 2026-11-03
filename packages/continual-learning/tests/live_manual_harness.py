@@ -231,8 +231,8 @@ def verify() -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="continual-learning-manual-harness-") as raw:
         base = Path(raw)
         project, agent, probe = _prepare(base)
-        model = json.loads((agent / "memory.json").read_text(encoding="utf-8"))
-        provider, model_id = model["provider"], model["model"]
+        raw_model = json.loads((agent / "continual-learning.json").read_text(encoding="utf-8"))["model"]
+        provider, model_id = (raw_model.split("/", 1) + [""])[:2] if isinstance(raw_model, str) else (raw_model["provider"], raw_model["model"])
 
         project_target = project / ".pi" / "harness.json"
         local_target = project / ".pi" / "harness.local.json"

@@ -90,7 +90,7 @@ def configuration(c: str, proxy: InferenceProxy) -> None:
 
 
 def policy(c: str, learn: bool) -> None:
-    put(c,AGENT+'/memory/settings.json',json.dumps({'autoSettledLearning': learn, 'autoContinualLearning': False,
+    put(c,AGENT+'/continual-learning.json',json.dumps({'autoSettledLearning': learn, 'autoContinualLearning': False,
         'automaticPhases':{'memory':'apply' if learn else 'off','agents':'off','harness':'off'}}).encode())
 
 

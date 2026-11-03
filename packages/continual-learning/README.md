@@ -347,9 +347,9 @@ review, and `off` refuses to run.
 ```
 
 `/memory model` and the `/memory` settings menu merge their fields into that
-file and preserve every other section. The legacy `<agent-dir>/memory.json`
-model pair and `<agent-dir>/memory/settings.json` learning fields remain
-readable only as fallbacks for existing installs; nothing writes them anymore.
+file and preserve every other section. The retired `<agent-dir>/memory.json`
+pair and `<agent-dir>/memory/settings.json` learning fields are neither read
+nor written; they are dead files and can be deleted.
 
 Planner children run without extensions, so the learning model must resolve from
 the static model catalog or the user's custom-provider config. Before any worker
@@ -867,8 +867,7 @@ A pre-receipt records exact predecessors before mutation; startup recovers an
 interrupted transaction only after verifying the canonical scope. User-level
 instruction files are never automatic targets. Learning settings share the single package configuration file
 `<agent-dir>/continual-learning.json`; see the learning-pipeline section for the
-complete schema. The legacy `<agent-dir>/memory.json` pair remains readable as a
-fallback for existing installs.
+complete schema. The retired `<agent-dir>/memory.json` is not read.
 
 `agentsMd.disabled: true` skips that phase. At or above budget, changes are
 zero-sum rather than mandatory expansion. Empty validated plans are successful no-ops.
