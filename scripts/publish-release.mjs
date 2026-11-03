@@ -101,7 +101,7 @@ export function isRegistryConflict(error) {
   const stderrCodes = stderrNpmErrorCodes(error);
   if (stderrCodes.length > 0) return stderrCodes.every((code) => REGISTRY_CONFLICT_CODES.has(code));
   if (errorStatus(error) === 409) return true;
-  // pnpm reports the registry's own conflict without an npm error code line, and
+  // npm reports the registry's own conflict without an npm error code line, and
   // it can arrive on either captured stream, so search both.
   return REGISTRY_CONFLICT_PATTERN.test(`${errorStdout(error)}\n${errorStderr(error)}`);
 }
@@ -181,58 +181,32 @@ export function loadWorkspacePackages(
   return workspacePackages;
 }
 
-function packedFilename(packOutput) {
-  const text = Buffer.isBuffer(packOutput) ? packOutput.toString("utf8").trim() : String(packOutput).trim();
-  let result;
-  try {
-    result = JSON.parse(text);
-  } catch {
-    throw new Error("pnpm pack returned invalid JSON; packed manifest validation stopped.");
-  }
-  const filename = Array.isArray(result) ? result[0]?.filename : result?.filename;
-  if (typeof filename !== "string" || filename.length === 0) {
-    throw new Error("pnpm pack returned no tarball filename; packed manifest validation stopped.");
-  }
-  return filename;
-}
-
 /**
- * Pack one package and inspect the manifest that pnpm would publish.
+ * Pack one package with Bun and inspect the manifest npm would publish.
+ *
+ * Bun rewrites `workspace:*` dependencies to the versions recorded in
+ * `bun.lock`, so a version bump must be followed by `bun install` before
+ * packing; otherwise the tarball keeps the previous workspace version.
+ * The caller owns the returned temporary directory and must clean it up.
  */
-export function verifyPackedManifest(packageDir, options = {}) {
+export function packAndVerify(packageDir, options = {}) {
   const execFileSync = options.execFileSync ?? defaultExecFileSync;
   const mkdtemp = options.mkdtemp ?? defaultMkdtempSync;
   const remove = options.remove ?? defaultRmSync;
   const tempDir = mkdtemp(join(tmpdir(), "pi-pack-verify-"));
   try {
-    let tarballPath;
-    if (options.execFileSync) {
-      const packOutput = execFileSync(
-        "pnpm",
-        ["--dir", packageDir, "pack", "--pack-destination", tempDir, "--json"],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-      );
-      const packedPath = packedFilename(packOutput);
-      tarballPath = isAbsolute(packedPath) ? packedPath : join(tempDir, packedPath);
-    } else {
-      try {
-        const output = execFileSync(
-          "bun",
-          ["pm", "pack", "--destination", tempDir, "--quiet", "--cwd", packageDir],
-          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-        );
-        const filename = output.trim().split("\n").pop();
-        tarballPath = isAbsolute(filename) ? filename : join(tempDir, filename);
-      } catch {
-        const packOutput = execFileSync(
-          "pnpm",
-          ["--dir", packageDir, "pack", "--pack-destination", tempDir, "--json"],
-          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-        );
-        const packedPath = packedFilename(packOutput);
-        tarballPath = isAbsolute(packedPath) ? packedPath : join(tempDir, packedPath);
-      }
+    const output = execFileSync(
+      options.packCommand ?? "bun",
+      ["pm", "pack", "--destination", tempDir, "--quiet", "--cwd", packageDir],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const filename = Buffer.isBuffer(output)
+      ? output.toString("utf8").trim().split("\n").pop()
+      : String(output).trim().split("\n").pop();
+    if (!filename) {
+      throw new Error("bun pm pack returned no tarball filename; packed manifest validation stopped.");
     }
+    const tarballPath = isAbsolute(filename) ? filename : join(tempDir, filename);
     const manifestJson = execFileSync("tar", ["-xOf", tarballPath, "package/package.json"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -251,9 +225,20 @@ export function verifyPackedManifest(packageDir, options = {}) {
         );
       }
     }
-    return manifest;
-  } finally {
+    return { manifest, tarballPath, cleanup: () => remove(tempDir, { recursive: true, force: true }) };
+  } catch (error) {
     remove(tempDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/** Pack, validate and return only the manifest (pack validation mode). */
+export function verifyPackedManifest(packageDir, options = {}) {
+  const packed = packAndVerify(packageDir, options);
+  try {
+    return packed.manifest;
+  } finally {
+    packed.cleanup();
   }
 }
 
@@ -277,8 +262,9 @@ export function selectUnpublishedPackages(targets, queryVersion) {
 
 /**
  * Run release publication or registry-free packed-manifest validation.
- * Inject `execFileSync` and `verifyPackedManifest` in tests; the default path is
- * only used by the executable script and never during module import.
+ * Inject `execFileSync`, `packAndVerify` and `verifyPackedManifest` in tests; the
+ * default path is only used by the executable script and never during module
+ * import.
  */
 export function publishRelease(options = {}) {
   const rootDir = options.rootDir ?? REPO_ROOT;
@@ -292,9 +278,13 @@ export function publishRelease(options = {}) {
   const checkOnly = options.checkOnly === true;
   const packedTargets = checkOnly ? resolvePackedTargets(workspacePackages, publishScope) : targets;
   const useProvenance = options.useProvenance ?? process.env.GITHUB_ACTIONS === "true";
+  // The packed tarball is what npm uploads, so one pack feeds both validation
+  // and publication.
   const verify =
     options.verifyPackedManifest ??
     ((packageDir) => verifyPackedManifest(packageDir, { execFileSync, readFile: options.readFile }));
+  const pack =
+    options.packAndVerify ?? ((packageDir) => packAndVerify(packageDir, { execFileSync }));
 
   if (checkOnly) {
     for (const target of packedTargets) {
@@ -315,23 +305,23 @@ export function publishRelease(options = {}) {
   for (const target of unpublished) {
     const packageDir = join(packagesDir, target.directory);
     logger.log(`Verifying packed manifest for ${target.name}...`);
-    verify(packageDir);
-    logger.log(`Publishing ${target.name}@${target.version}`);
+    const packed = pack(packageDir);
     try {
+      logger.log(`Publishing ${target.name}@${target.version}`);
       // Capture both child streams instead of inheriting them: a registry
       // conflict is only visible on stderr, and an inherited stdio would send it
       // straight to the terminal, leaving the thrown error with just an exit
       // status. The captured text is re-emitted so the log keeps its detail.
+      // The tarball is published instead of the directory because npm does not
+      // understand the workspace protocol; bun already rewrote it.
       const stdout = execFileSync(
-        "pnpm",
+        "npm",
         [
           "publish",
-          "--filter",
-          target.name,
+          packed.tarballPath,
           ...(useProvenance ? ["--provenance"] : []),
           "--access",
           "public",
-          "--no-git-checks",
         ],
         { cwd: rootDir, stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
       );
@@ -342,6 +332,8 @@ export function publishRelease(options = {}) {
       }
       if (!isRegistryConflict(error)) throw error;
       logger.log(`${target.name}@${target.version} is already published; continuing.`);
+    } finally {
+      packed.cleanup();
     }
   }
   if (unpublished.length === 0) logger.log("All selected packages are already published.");

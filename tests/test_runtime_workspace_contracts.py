@@ -130,24 +130,20 @@ def test_consumers_declare_kit_as_workspace_dependency() -> None:
 def test_packed_consumers_resolve_workspace_protocol_dependencies() -> None:
     feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
     assert "Consumer packages resolve workspace dependency protocols when packed" in feature
-    # Reuse only the preinstalled CLI. Corepack otherwise treats isolated HOME
-    # as an empty cache and attempts a download during a registry-free check.
+    # Use only the preinstalled Bun CLI: packing is offline and needs no cache.
     from importlib.util import module_from_spec, spec_from_file_location
     helper_file = REPO / "tests" / "install-wiring" / "install_wiring_helper.py"
     spec = spec_from_file_location("kit_install_wiring_helper", helper_file)
     assert spec and spec.loader
     helper = module_from_spec(spec)
-    import sys
     sys.modules[spec.name] = helper
     spec.loader.exec_module(helper)
-    pnpm = [helper.executable("pnpm")]
-    if pnpm[0].endswith("pnpm.cjs"):
-        pnpm.insert(0, helper.executable("node"))
     temp_dir = tempfile.mkdtemp(prefix="kit-pack-test-")
     try:
         for consumer in ("matt-pocock", "agent-teams", "vision"):
             output = subprocess.check_output(
-                [*pnpm, "--dir", str(REPO / "packages" / consumer), "pack", "--pack-destination", temp_dir],
+                [helper.executable("bun"), "pm", "pack", "--cwd", str(REPO / "packages" / consumer),
+                 "--destination", temp_dir, "--quiet"],
                 text=True,
             )
             tarball_match = re.search(r"([^\s]+\.tgz)", output)
@@ -169,6 +165,12 @@ def test_packed_consumers_resolve_workspace_protocol_dependencies() -> None:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def load_bun_lock() -> dict[str, object]:
+    """bun.lock is JSON with a trailing comma before each closing brace."""
+    text = (REPO / "bun.lock").read_text(encoding="utf-8")
+    return json.loads(re.sub(r",(\s*)(\}|\])", r"\1\2", text))
+
+
 def test_the_split_dependency_chain_resolves_one_pi_core_version() -> None:
     """One core version across the chain whose packages import each other.
 
@@ -179,29 +181,25 @@ def test_the_split_dependency_chain_resolves_one_pi_core_version() -> None:
     exists in pi-agent-core 0.84.1 and 0.85.1 but was removed in 0.87.1, so a
     package resolving 0.87.1 fails to typecheck code written against 0.84.
 
-    Development dependencies select the root cohort through pnpm; wildcard
+    Development dependencies select the root cohort through bun; wildcard
     published peers do not select a verification version by themselves. Run the
     package-manager operation rather than editing resolved lockfile entries.
     """
-    lock = (REPO / "pnpm-lock.yaml").read_text(encoding="utf-8")
-    importers = lock.split("importers:", 1)[1].split("\nsnapshots:", 1)[0]
+    workspaces = load_bun_lock()["workspaces"]
     found: dict[str, dict[str, str]] = {}
-    for block in re.split(r"\n  (?=\S)", importers):
-        lines = block.strip().splitlines()
-        if not lines:
-            continue
-        name = lines[0].strip().rstrip(":")
-        if name not in SPLIT_CHAIN:
-            continue
-        found[name] = dict(re.findall(
-            r"'(@earendil-works/pi-[a-z-]+)':\n\s+specifier: [^\n]+\n\s+version: ([\d.]+)", block
-        ))
-    assert set(found) == set(SPLIT_CHAIN), f"missing importers: {sorted(set(SPLIT_CHAIN) - set(found))}"
+    for path in SPLIT_CHAIN:
+        entry = workspaces.get(path)
+        assert entry, f"missing workspace entry for {path} in bun.lock"
+        declarations = {**entry.get("dependencies", {}), **entry.get("devDependencies", {})}
+        found[path] = {
+            name: version for name, version in declarations.items()
+            if name.startswith("@earendil-works/pi-")
+        }
     for package in sorted({core for versions in found.values() for core in versions}):
         resolved = {name: versions[package] for name, versions in found.items() if package in versions}
         assert len(set(resolved.values())) == 1, (
             f"{package} resolves differently across the split chain: {resolved}. "
-            f"Align the new package to the cohort in pnpm-lock.yaml."
+            f"Align the new package to the cohort in bun.lock."
         )
 
 

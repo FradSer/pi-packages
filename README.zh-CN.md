@@ -295,23 +295,23 @@ pi install npm:@fradser/pi-vision
 ## 开发
 
 ```bash
-pnpm install
-pnpm test
-pnpm typecheck
-pnpm pack:check
+bun install
+bun run test
+bun run typecheck
+bun run pack:check
 # 或一次运行全部检查
-pnpm check
+bun run check
 ```
 
 每个包将行为场景放在 `features/`，测试放在 `tests/`。
 
-`pnpm check` 会运行包测试和根目录 pytest 测试、扩展 TypeScript 项目检查，以及对每个工作区包进行无需访问 registry 的打包清单检查。使用 `pnpm check:install` 可以单独审计当前 Pi 设置文件中的已安装包。
+`bun run check` 会运行包测试和根目录 pytest 测试、扩展 TypeScript 项目检查，以及对每个工作区包进行无需访问 registry 的打包清单检查。使用 `bun run check:install` 可以单独审计当前 Pi 设置文件中的已安装包。
 
-测试需要 Python 3、`pytest` 以及供子进程测试使用的 Bun 1.4.1。CI 工作流会在运行 `pnpm check` 前安装这两个运行时。
+测试需要 Python 3、`pytest` 以及供子进程测试使用的 Bun 1.4.1。CI 工作流会在运行 `bun run check` 前安装这两个运行时。安装、测试和打包全部由 Bun 负责；发布本身交给 npm CLI（11.5.1 或更新），因为只有 npm 能附带 provenance 证明并使用 OIDC Trusted Publishing。
 
 `kit` / `subagents` / `tasks` / `agent-teams` 开发链显式选用根仓库的 Pi 1.0.0 验证版本；发布清单中的 Pi core 仍是由宿主提供的 `"*"` peers，不是运行时依赖。@features/pi-core-cohort.feature 和 @tests/test_pi_core_cohort.py 同时检查实际模块解析与清单。
 
-在仓库根目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查单个包将要发布的文件。
+在仓库根目录执行 `bun pm pack --destination /tmp --quiet --cwd packages/<name>` 可以检查单个包将要发布的文件。
 
 共享运行时辅助位于内部包 [`@fradser/pi-kit`](packages/kit/)。它是内部工作区依赖，不能通过 `pi install` 安装。生命周期渲染器仅在有补充展示内容，或当前宽度隐藏了可展开恢复的文字时提示展开，不因工具结果含有 metadata 就显示提示。各包移除与标题重复的详情，同时保留完整报告和有用的诊断信息。
 
@@ -325,7 +325,7 @@ pnpm check
 
 ## 发布
 
-发布使用 `.github/workflows/release.yml` 中的 Changesets 和 GitHub Actions 工作流。Pull request 和发布流程都会在发布动作前运行 `pnpm check`；根目录的 `pnpm run publish` 也会在本地发布脚本前运行同一质量门。将修改推送到 `main`，然后合并生成的 version PR。工作流按依赖顺序通过 npm Trusted Publishing 发布明确列出的包，并跳过 registry 中已经存在的精确版本。
+发布使用 `.github/workflows/release.yml` 中的 Changesets 和 GitHub Actions 工作流。Pull request 和发布流程都会在发布动作前运行 `bun run check`；根目录的 `bun run publish` 也会在本地发布脚本前运行同一质量门。将修改推送到 `main`，然后合并生成的 version PR。工作流按依赖顺序通过 npm Trusted Publishing 发布明确列出的包，并跳过 registry 中已经存在的精确版本。
 
 新包需要先手动完成一次首次发布并配置 npm Trusted Publishing，后续版本才能通过 GitHub Actions 发布。
 

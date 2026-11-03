@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import shlex
 import shutil
 import signal
 import subprocess
@@ -27,21 +26,6 @@ REPORT_PREFIX = "INSTALL_WIRING_REPORT "
 def executable(name: str) -> str:
     resolved = shutil.which(name)
     assert resolved is not None, f"{name} is required for the isolated install wiring check"
-    # Corepack's shim otherwise looks for pnpm in the disposable HOME and tries
-    # downloading it. Reuse only the preinstalled executable, never user npmrc.
-    if name == "pnpm" and "corepack" in Path(resolved).resolve().parts:
-        manifest = json.loads((REPO / "package.json").read_text(encoding="utf-8"))
-        version = manifest["packageManager"].split("@", 1)[1].split("+", 1)[0]
-        cache = Path(os.environ.get("COREPACK_HOME") or
-            str(Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "node" / "corepack"))
-        cached = cache / "v1" / "pnpm" / version / "bin" / "pnpm.cjs"
-        if not cached.is_file() and os.name == "posix":
-            # A caller can already isolate HOME before pytest starts. Locate only
-            # the executable cache using the OS account directory, never settings.
-            import pwd
-            cached = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".cache" / "node" / "corepack" / "v1" / "pnpm" / version / "bin" / "pnpm.cjs"
-        assert cached.is_file(), f"preinstalled pnpm {version} is required; network downloads are forbidden"
-        return str(cached)
     return resolved
 
 
@@ -107,15 +91,6 @@ def isolated_install(root: Path, packages: Sequence[Path]) -> Install:
     # inherited Pi paths, package credentials or SSH socket enter the process.
     env = {key: value for key, value in os.environ.items()
            if key in {"PATH", "LANG", "LANGUAGE", "TZ", "TERM"} or key.startswith("LC_")}
-    # The pack script invokes pnpm again. Point it at the same preinstalled CLI
-    # without Corepack needing either a personal cache HOME or a download.
-    bin_dir = root / "bin"
-    bin_dir.mkdir()
-    pnpm = executable("pnpm")
-    shim = bin_dir / "pnpm"
-    shim.write_text(f'#!/bin/sh\nexec {shlex.quote(executable("node"))} {shlex.quote(pnpm)} "$@"\n', encoding="utf-8")
-    shim.chmod(0o700)
-    env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", os.defpath)
     env.update({
         "HOME": str(home), "PI_CODING_AGENT_DIR": str(agent_dir),
         "PI_OFFLINE": "1", "PI_SKIP_VERSION_CHECK": "1", "PI_TELEMETRY": "0",
@@ -141,8 +116,6 @@ def run(install: Install, command: Sequence[str], *, cwd: Path | None = None,
         timeout: int = 120, scenario: str = "surface") -> subprocess.CompletedProcess[str]:
     env = {**install.env, "INSTALL_WIRING_SCENARIO": scenario}
     command = list(command)
-    if command[0].endswith("pnpm.cjs"):
-        command.insert(0, executable("node"))
     process = subprocess.Popen(command, cwd=cwd or install.cwd, env=env,
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, start_new_session=True)
@@ -172,7 +145,7 @@ def run(install: Install, command: Sequence[str], *, cwd: Path | None = None,
 def audit(install: Install, settings: Path) -> subprocess.CompletedProcess[str]:
     # Keep the production command's default user audit semantics untouched. Only
     # this test invocation supplies an explicit path to the unchanged script.
-    return run(install, [executable("pnpm"), "check:install", str(settings)], cwd=REPO)
+    return run(install, [executable("bun"), "run", "check:install", str(settings)], cwd=REPO)
 
 
 def loader_report(install: Install) -> dict[str, object]:

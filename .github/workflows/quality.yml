@@ -17,15 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.1"
+
+      # Bun runs the package tests and the workspace scripts; Node is only the
+      # harness for the Python-driven checks and the TypeScript test fixtures.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
 
       - uses: actions/setup-python@v7
         with:
@@ -36,10 +36,10 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Install pytest
         run: python3 -m pip install --disable-pip-version-check pytest pytest-xdist
 
       - name: Run quality gate
-        run: pnpm check
+        run: bun run check

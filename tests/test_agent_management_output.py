@@ -457,7 +457,7 @@ def test_native_types_accept_schema_and_discriminated_output_without_any() -> No
       const badState: AgentToolData = {{operation:"stop",ok:true,outcome:"stopped",state:"acknowledged",nextActor:"caller",name:"a",session:"session:a:id"}};
       void [tool, failures, narrow, badOutcome, badSuccess, badState];
     """
-    tsc = [str(REPO / "node_modules/.bin/tsc")] if (REPO / "node_modules/.bin/tsc").exists() else ["bun", "x", "tsc"] if shutil.which("bun") else ["pnpm", "exec", "tsc"]
+    tsc = [str(REPO / "node_modules/.bin/tsc")] if (REPO / "node_modules/.bin/tsc").exists() else ["bun", "x", "tsc"]
     with tempfile.TemporaryDirectory(prefix="agent-output-types-", dir=REPO / "tests") as scratch:
             fixture = Path(scratch) / "fixture.ts"
             fixture.write_text(source, encoding="utf-8")

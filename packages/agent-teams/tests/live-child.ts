@@ -2,7 +2,7 @@
  * Real child spawn, over the configured install, and a real model turn.
  *
  * This is the manual, credentialed counterpart to the offline E2E. It is not part
- * of `pnpm test`: it needs a live provider, and the child costs a real model turn.
+ * of `bun test`: it needs a live provider, and the child costs a real model turn.
  *
  * Run it when the seam that the offline suites cannot reach needs checking by
  * hand — a child's output coming back to the leader. The offline E2E proves the

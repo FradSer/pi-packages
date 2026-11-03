@@ -19,17 +19,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      # pnpm version comes from package.json#packageManager — do not also
-      # pass `version:` here, pnpm/action-setup errors on double-specification.
-      - uses: pnpm/action-setup@v5
+      # Bun installs, tests, and packs; npm publishes because only npm CLI
+      # >= 11.5.1 can attach a provenance statement and use OIDC trusted
+      # publishing, which `bun publish` does not implement.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.1"
 
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.1"
 
       - uses: actions/setup-python@v7
         with:
@@ -39,20 +38,27 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Use the npm CLI that supports provenance and trusted publishing
+        run: npm install --global npm@^11.5.1
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Install pytest
         run: python3 -m pip install --disable-pip-version-check pytest pytest-xdist
 
       - name: Run quality gate
-        run: pnpm check
+        run: bun run check
 
-      # Standard changesets CLI (pnpm 11's native `pnpm version -r` has a bug:
-      # it reads change intents but does not apply the bump — verified locally,
-      # see memory). @changesets/cli applies bumps correctly in this workspace.
+      # Standard changesets CLI: @changesets/cli applies the version bumps and
+      # changelogs described by the pending changesets. `bun pm version` only
+      # rewrites one manifest, so it cannot drive a changeset release.
       #
-      # Publish is intentionally scoped: `changeset publish` / `pnpm publish -r`
+      # `bun install` after the bump refreshes the workspace versions recorded in
+      # bun.lock: `bun pm pack` rewrites `workspace:*` from that lockfile, so a
+      # stale lockfile would publish consumers pinned to the previous pi-kit.
+      #
+      # Publish is intentionally scoped: `changeset publish` / a recursive publish
       # would also sweep every never-published workspace package (code-context,
       # lark, matt-pocock, ...) because they carry version numbers. Only the
       # packages in PUBLISH_SCOPE are ever published here — keep it in sync
@@ -61,8 +67,8 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: pnpm changeset version
-          publish: node scripts/publish-release.mjs
+          version: bun x changeset version && bun install
+          publish: bun scripts/publish-release.mjs
           commit: "chore(release): version packages"
           title: "chore(release): version packages"
         env:
@@ -74,6 +80,6 @@ jobs:
       # npm after a partial publish or a merged version PR.
       - name: Retry publishing versioned packages
         if: github.ref == 'refs/heads/main' && steps.changesets.outputs.hasChangesets != 'true'
-        run: node scripts/publish-release.mjs
+        run: bun scripts/publish-release.mjs
         env:
           NPM_CONFIG_PROVENANCE: "true"

@@ -7,7 +7,7 @@ description: Re-run one concrete reproduction of the current Pi-package problem 
 
 Use this skill after the user reloads Pi and asks to try the current case again.
 
-The purpose is to **simulate the problem the user encountered, then execute that same scenario once against the reloaded package**. It is not a generic test run. A passing `pytest`, `pnpm test`, or typecheck result does not answer whether the reloaded Pi extension works for the user's actual workflow.
+The purpose is to **simulate the problem the user encountered, then execute that same scenario once against the reloaded package**. It is not a generic test run. A passing `pytest`, `bun test`, or typecheck result does not answer whether the reloaded Pi extension works for the user's actual workflow.
 
 ## Recover the exact reproduction
 
@@ -28,7 +28,7 @@ The purpose is to **simulate the problem the user encountered, then execute that
    - Print/RPC repro: use the same Pi CLI mode and package configuration that made the issue observable.
 2. Use the minimum setup needed to simulate the original conditions, then run the scenario **once** after reload.
 3. Observe the user-visible outcome first: transcript row, command result, tool invocation, UI state, error, or follow-up behavior. Capture only the signal needed to compare it with the original symptom.
-4. Do **not** run `pytest`, `pnpm test`, `tsc`, a package build, or a broad smoke suite as this retest. Those commands may be useful for later development, but they neither replace nor belong in the reload retry by default.
+4. Do **not** run `pytest`, `bun test`, `tsc`, a package build, or a broad smoke suite as this retest. Those commands may be useful for later development, but they neither replace nor belong in the reload retry by default.
 5. If the scenario fails, report the observed failure verbatim enough to diagnose it and stop there. Do not mask it with unrelated automated checks.
 
 ## Completion report

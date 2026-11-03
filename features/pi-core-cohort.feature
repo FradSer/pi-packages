@@ -17,6 +17,6 @@ Feature: Development checks use one Pi core cohort across the split chain
 
   Scenario: Refreshing dependencies does not silently upgrade unrelated packages
     Given a development Pi peer-cohort alignment
-    When pnpm updates the split packages
+    When bun updates the split packages
     Then their peers stay wildcard compatible with the installed Pi host
     And only their development dependency requirements are pinned

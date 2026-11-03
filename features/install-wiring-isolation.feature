@@ -66,4 +66,4 @@ Feature: Install wiring is isolated by default and uses Pi's real package loader
     When the install wiring suite checks those declarations
     Then missing declarations and dead local paths are reported without repair
     And ordinary loader and smoke checks still use disposable HOME and agent settings
-    And the separately invoked pnpm check:install keeps its user-install audit semantics
+    And the separately invoked bun run check:install keeps its user-install audit semantics

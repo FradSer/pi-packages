@@ -3,16 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "description": "Monorepo of Frad's pi packages — skills and extensions published to npm and listed on pi.dev/packages",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "bun test packages/impeccable/tests packages/open-deskos/tests packages/utils/tests/live-sessions*.test.ts packages/continual-learning/tests/*.test.ts",
     "test:py": "uv run pytest tests",
-    "check:install": "node scripts/check-installation.mjs",
-    "example:sdk": "tsx examples/sdk-session.ts",
-    "publish": "pnpm check && node scripts/publish-release.mjs",
-    "publish:dry-run": "pnpm pack:check",
-    "typecheck": "pnpm exec tsc --noEmit -p tsconfig.extensions.json",
-    "check": "pnpm test && pnpm typecheck && pnpm pack:check",
-    "pack:check": "node scripts/publish-release.mjs --check"
+    "check:install": "bun scripts/check-installation.mjs",
+    "example:sdk": "bun examples/sdk-session.ts",
+    "publish": "bun run check && bun scripts/publish-release.mjs",
+    "publish:dry-run": "bun run pack:check",
+    "typecheck": "bun x tsc --noEmit -p tsconfig.extensions.json",
+    "check": "bun run test && bun run typecheck && bun run pack:check",
+    "pack:check": "bun scripts/publish-release.mjs --check"
   },
   "devDependencies": {
     "@babel/parser": "^7.29.9",
@@ -25,9 +28,26 @@
     "typebox": "^1.3.12",
     "typescript": "^7.0.2"
   },
+  "overrides": {
+    "brace-expansion": "^5.0.12",
+    "shell-quote": "^1.11.0",
+    "source-map-js": "^1.2.2",
+    "@earendil-works/pi-coding-agent": "1.3.0",
+    "@earendil-works/pi-ai": "1.3.0",
+    "@earendil-works/pi-agent-core": "1.3.0",
+    "@earendil-works/pi-codemode": "1.3.0",
+    "@earendil-works/pi-mcp": "1.3.0",
+    "@earendil-works/pi-telemetry": "1.3.0",
+    "@earendil-works/pi-tui": "1.3.0"
+  },
+  "trustedDependencies": [
+    "esbuild",
+    "@google/genai",
+    "protobufjs"
+  ],
   "engines": {
     "node": ">=20"
   },
   "type": "module",
-  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1"
+  "packageManager": "bun@1.4.1"
 }

@@ -7,54 +7,47 @@ container_name="tasks-isolated-$$"
 cleanup() { docker rm -f "$container_name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
 cd "$repo_root"
-pnpm --dir packages/kit pack --pack-destination "$receipt_dir" > "$receipt_dir/kit-pack.log"
-pnpm --dir packages/tasks pack --pack-destination "$receipt_dir" > "$receipt_dir/tasks-pack.log"
+bun pm pack --cwd packages/kit --destination "$receipt_dir" --quiet > "$receipt_dir/kit-pack.log"
+bun pm pack --cwd packages/tasks --destination "$receipt_dir" --quiet > "$receipt_dir/tasks-pack.log"
 cat > "$receipt_dir/setup.sh" <<'SETUP'
 #!/bin/sh
 set -eu
-corepack enable
 mkdir -p /isolated /verify/packages/tasks/tests
 cd /isolated
 set -- /receipts/fradser-pi-kit-*.tgz
 export TASK_KIT_TARBALL="$1"
 set -- /receipts/fradser-pi-tasks-*.tgz
 export TASKS_TARBALL="$1"
+apt-get update -qq
+apt-get install -y -qq curl unzip python3 python3-venv >/dev/null
+curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.1" >/dev/null
+export BUN_INSTALL="${HOME}/.bun"
+export PATH="${BUN_INSTALL}/bin:${PATH}"
 node --input-type=module <<'JSON'
 import { writeFileSync } from "node:fs";
 const kit = `file:${process.env.TASK_KIT_TARBALL}`;
 writeFileSync("package.json", JSON.stringify({
-  name: "isolated-tasks-verification", private: true, type: "module", packageManager: "pnpm@11.21.0",
+  name: "isolated-tasks-verification", private: true, type: "module", packageManager: "bun@1.4.1",
   dependencies: {
     "@earendil-works/pi-coding-agent": "1.0.4", "@earendil-works/pi-ai": "1.0.4", "@earendil-works/pi-tui": "1.0.4",
     "@fradser/pi-kit": kit, "@fradser/pi-tasks": `file:${process.env.TASKS_TARBALL}`,
     tsx: "^4.19.0", typebox: "^1.3.12",
   },
+  // Keep the pinned Pi cohort and the local kit tarball authoritative for
+  // transitive requirements too, the way the pnpm workspace overrides did.
+  overrides: {
+    "@earendil-works/chord": "1.0.4",
+    "@earendil-works/pi-agent-core": "1.0.4",
+    "@earendil-works/pi-ai": "1.0.4",
+    "@earendil-works/pi-codemode": "1.0.4",
+    "@earendil-works/pi-mcp": "1.0.4",
+    "@earendil-works/pi-tui": "1.0.4",
+    "@fradser/pi-kit": kit,
+  },
+  trustedDependencies: ["esbuild", "@google/genai", "protobufjs"],
 }));
 JSON
-cat > pnpm-workspace.yaml <<'YAML'
-packages:
-  - '.'
-overrides:
-  '@earendil-works/chord': 1.0.4
-  '@earendil-works/pi-agent-core': 1.0.4
-  '@earendil-works/pi-ai': 1.0.4
-  '@earendil-works/pi-codemode': 1.0.4
-  '@earendil-works/pi-mcp': 1.0.4
-  '@earendil-works/pi-tui': 1.0.4
-allowBuilds:
-  esbuild: true
-  '@google/genai': true
-  protobufjs: true
-YAML
-node --input-type=module <<'OVERRIDE'
-import { readFileSync, writeFileSync } from "node:fs";
-const yaml = readFileSync("pnpm-workspace.yaml", "utf8");
-writeFileSync("pnpm-workspace.yaml", yaml.replace("overrides:\n",
-  `overrides:\n  '@fradser/pi-kit': ${JSON.stringify(`file:${process.env.TASK_KIT_TARBALL}`)}\n`));
-OVERRIDE
-pnpm install
-apt-get update -qq
-apt-get install -y -qq python3 python3-venv >/dev/null
+bun install
 python3 -m venv /verify/venv
 /verify/venv/bin/pip install -q pyte pytest
 cp -R /tasks-tests/. /verify/packages/tasks/tests/

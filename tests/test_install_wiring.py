@@ -1,10 +1,11 @@
 """Real configured-install checks, isolated by default.
 
-Ordinary pnpm check declares local packages in disposable settings and uses Pi's
-real package resolver and CLI. It never reads a personal HOME/config or loads a
-personal extension. PI_INSTALL_SETTINGS is an explicit, read-only declaration
-AUDIT opt-in only; loader and smoke runs remain isolated even in that mode.
-The separately invoked pnpm check:install keeps its live user-install semantics.
+Ordinary bun run check declares local packages in disposable settings and uses
+Pi's real package resolver and CLI. It never reads a personal HOME/config or
+loads a personal extension. PI_INSTALL_SETTINGS is an explicit, read-only
+declaration AUDIT opt-in only; loader and smoke runs remain isolated even in
+that mode. The separately invoked bun run check:install keeps its live
+user-install semantics.
 """
 from __future__ import annotations
 
@@ -226,7 +227,7 @@ def test_pi_cli_lists_the_actual_disposable_declarations(declared_install: Insta
 
 
 def test_packed_manifests_carry_no_workspace_protocol(declared_install: Install) -> None:
-    result = run(declared_install, [executable("pnpm"), "pack:check"], cwd=REPO, timeout=600)
+    result = run(declared_install, [executable("bun"), "run", "pack:check"], cwd=REPO, timeout=600)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Validated packed manifests" in result.stdout
     assert not declared_install.records("network-attempts.jsonl")
@@ -237,12 +238,12 @@ def test_coordination_tarballs_ship_declared_entries(declared_install: Install, 
     directory = REPO / "packages" / package
     destination = declared_install.root / "packed"
     destination.mkdir()
-    result = run(declared_install, [executable("pnpm"), "--dir", str(directory), "pack",
-        "--pack-destination", str(destination), "--json"], cwd=REPO)
+    result = run(declared_install, [executable("bun"), "pm", "pack", "--cwd", str(directory),
+        "--destination", str(destination), "--quiet"], cwd=REPO)
     assert result.returncode == 0, result.stdout + result.stderr
-    packed = json.loads(result.stdout)
-    filename = packed[0]["filename"] if isinstance(packed, list) else packed["filename"]
-    tarball = Path(filename)
+    tarballs = [line.strip() for line in result.stdout.splitlines() if line.strip().endswith(".tgz")]
+    assert tarballs, result.stdout
+    tarball = Path(tarballs[-1])
     if not tarball.is_absolute():
         tarball = destination / tarball
     with tarfile.open(tarball) as archive:

@@ -66,7 +66,7 @@ independently; shared helpers belong to pi-kit rather than copied implementation
 ## Verification and history
 
 Use the commands and completion gates in @AGENTS.md and the owning package.
-`pnpm test`, `pnpm typecheck`, `pnpm pack:check` and `pnpm check` have different
+`bun run test`, `bun run typecheck`, `bun run pack:check` and `bun run check` have different
 coverage; installation checks and live Pi acceptance remain separate. Do not
 reuse a past dependency cohort or historical CI result as current verification.
 

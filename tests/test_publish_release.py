@@ -119,29 +119,40 @@ def test_release_selection_is_stubbed_and_keeps_kit_first() -> None:
           ["@fradser/pi-kit", { directory: "kit", version: "1.0.0" }],
           ["pi-b", { directory: "b", version: "2.0.0" }],
         ]);
-        const queries = [];
-        const publishes = [];
-        const result = publishRelease({
-          rootDir: "/tmp/release-root",
-          packagesDir: "/tmp/release-root/packages",
-          workspacePackages,
-          publishScope: ["@fradser/pi-kit", "pi-b"],
-          queryVersion(name, version) { queries.push(`${name}@${version}`); return undefined; },
-          verifyPackedManifest() {},
-          execFileSync(file, args, options) { publishes.push([file, args, options]); },
-          useProvenance: false,
-          logger: { log() {} },
-        });
-        console.log(JSON.stringify({ queries, publishes, published: result.published.map(({ name }) => name) }));
+        const run = (useProvenance) => {
+          const queries = [];
+          const publishes = [];
+          const cleaned = [];
+          const result = publishRelease({
+            rootDir: "/tmp/release-root",
+            packagesDir: "/tmp/release-root/packages",
+            workspacePackages,
+            publishScope: ["@fradser/pi-kit", "pi-b"],
+            queryVersion(name, version) { queries.push(`${name}@${version}`); return undefined; },
+            packAndVerify(directory) {
+              return { tarballPath: `${directory}.tgz`, cleanup: () => cleaned.push(directory) };
+            },
+            execFileSync(file, args, options) { publishes.push([file, args, options]); },
+            useProvenance,
+            logger: { log() {} },
+          });
+          return { queries, publishes, cleaned, published: result.published.map(({ name }) => name) };
+        };
+        console.log(JSON.stringify({ local: run(false), ci: run(true) }));
         """,
     )
     assert result.returncode == 0, result.stderr
     values = json.loads(result.stdout)
-    assert values["queries"] == ["@fradser/pi-kit@1.0.0", "pi-b@2.0.0"]
-    assert [call[0] for call in values["publishes"]] == ["pnpm", "pnpm"]
-    assert all(call[1][0:2] == ["publish", "--filter"] for call in values["publishes"])
-    assert all(call[2]["cwd"] == "/tmp/release-root" for call in values["publishes"])
-    assert values["published"] == ["@fradser/pi-kit", "pi-b"]
+    local = values["local"]
+    assert local["queries"] == ["@fradser/pi-kit@1.0.0", "pi-b@2.0.0"]
+    assert [call[0] for call in local["publishes"]] == ["npm", "npm"]
+    assert all(call[1][0] == "publish" and call[1][1].endswith(".tgz") for call in local["publishes"])
+    assert all("--access" in call[1] and "public" in call[1] for call in local["publishes"])
+    assert all("--provenance" not in call[1] for call in local["publishes"])
+    assert all(call[2]["cwd"] == "/tmp/release-root" for call in local["publishes"])
+    assert local["published"] == ["@fradser/pi-kit", "pi-b"]
+    assert local["cleaned"] == ["/tmp/release-root/packages/kit", "/tmp/release-root/packages/b"]
+    assert all("--provenance" in call[1] for call in values["ci"]["publishes"]), values["ci"]
 
 
 def test_published_version_that_wins_the_publish_race_is_not_a_release_failure() -> None:
@@ -150,7 +161,7 @@ def test_published_version_that_wins_the_publish_race_is_not_a_release_failure()
     The main-branch retry runs the publisher immediately after the Changesets
     step published the same versions, and npm answers that version query from a
     staged record or a stale edge cache, so the write is rejected with 409
-    Conflict. pnpm can report it on either captured stream, so both shapes are
+    Conflict. npm can report it on either captured stream, so both shapes are
     covered here; the documented retry contract skips already published versions
     safely either way.
 
@@ -176,12 +187,14 @@ def test_published_version_that_wins_the_publish_race_is_not_a_release_failure()
             ]),
             publishScope: ["@fradser/pi-kit", "pi-b"],
             queryVersion() { return undefined; },
-            verifyPackedManifest() {},
+            packAndVerify(directory) {
+              return { tarballPath: `${directory}.tgz`, cleanup() {} };
+            },
             execFileSync(file, args, options) {
               calls.push(`${file} ${args.join(" ")}`);
               stdioModes.push(options.stdio);
-              if (!args.includes("@fradser/pi-kit")) return "";
-              const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
+              if (!args[1].endsWith("/kit.tgz")) return "";
+              const error = new Error("Command failed: npm publish /tmp/release-root/packages/kit.tgz");
               error.status = 1;
               error.stdout = stream === "stdout" ? conflictText : "";
               error.stderr = stream === "stderr" ? conflictText : "";
@@ -215,7 +228,7 @@ def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> Non
         """
         import { publishRelease } from "./scripts/publish-release.mjs";
         const forbidden = () => {
-          const error = new Error("Command failed: pnpm publish --filter @fradser/pi-kit");
+          const error = new Error("Command failed: npm publish /tmp/release-root/packages/kit.tgz");
           error.status = 1;
           error.stdout = "";
           error.stderr = Buffer.from("npm error code E403\\nnpm error 403 Forbidden - PUT https://registry.npmjs.org/@fradser%2fpi-kit\\n");
@@ -234,7 +247,9 @@ def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> Non
             ]),
             publishScope: ["@fradser/pi-kit", "pi-b"],
             queryVersion() { return undefined; },
-            verifyPackedManifest() {},
+            packAndVerify(directory) {
+              return { tarballPath: `${directory}.tgz`, cleanup() {} };
+            },
             execFileSync(file, args) { calls.push(`${file} ${args.join(" ")}`); throw forbidden(); },
             useProvenance: false,
             logger: { log: (line) => messages.push(line) },
@@ -299,7 +314,7 @@ def test_packed_manifest_failure_uses_real_tar_format_without_publish(tmp_path: 
         try {{
           verifyPackedManifest("packages/kit", {{
             execFileSync(file, args, options) {{
-              if (file === "pnpm") return JSON.stringify({{ filename: {json.dumps(str(tarball))} }});
+              if (file === "bun") return {json.dumps(str(tarball))};
               return realExecFileSync(file, args, options);
             }},
           }});
@@ -322,13 +337,24 @@ def test_pack_validation_mode_is_registry_free_and_kit_first() -> None:
 
 def test_workflow_runs_publish_script_after_version_commits() -> None:
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert "publish: node scripts/publish-release.mjs" in workflow
+    assert "publish: bun scripts/publish-release.mjs" in workflow
     assert "NPM_CONFIG_PROVENANCE" in workflow
     assert "oven-sh/setup-bun@v2" in workflow
     assert 'bun-version: "1.4.1"' in workflow
     assert "actions/setup-python@v7" in workflow
     assert "python3 -m pip install" in workflow
-    assert "run: pnpm check" in workflow
+    assert "run: bun install --frozen-lockfile" in workflow
+    assert "run: bun run check" in workflow
+    assert "pnpm" not in workflow
+
+
+def test_version_step_refreshes_the_bun_lockfile_before_publishing() -> None:
+    """bun pm pack rewrites `workspace:*` from bun.lock, so a version bump that
+    left the lockfile behind would publish consumers pinned to the old pi-kit."""
+    feature = (REPO / "features" / "publish-provenance.feature").read_text(encoding="utf-8")
+    assert "Version bumps refresh the lockfile that packing reads" in feature
+    workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "version: bun x changeset version && bun install" in workflow
 
 
 def test_pull_request_quality_workflow_runs_the_same_check() -> None:
@@ -339,13 +365,14 @@ def test_pull_request_quality_workflow_runs_the_same_check() -> None:
     assert "actions/setup-python@v7" in workflow
     assert "permissions:\n  contents: read" in workflow
     assert "python3 -m pip install" in workflow
-    assert "run: pnpm check" in workflow
+    assert "run: bun run check" in workflow
+    assert "pnpm" not in workflow
 
 
 def test_workflow_has_a_main_branch_publish_retry() -> None:
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "if: github.ref == 'refs/heads/main'" in workflow
-    assert "node scripts/publish-release.mjs" in workflow
+    assert "bun scripts/publish-release.mjs" in workflow
 
 
 def test_workflow_skips_retry_when_changesets_created_a_version_pr() -> None:
@@ -358,10 +385,11 @@ def test_workflow_uses_node_24_compatible_actions() -> None:
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "actions/checkout@v5" in workflow
     assert "actions/setup-node@v5" in workflow
-    assert "pnpm/action-setup@v5" in workflow
+    assert "pnpm/action-setup@v5" not in workflow
     assert "actions/checkout@v4" not in workflow
     assert "actions/setup-node@v4" not in workflow
-    assert "pnpm/action-setup@v4" not in workflow
+    # Trusted publishing and provenance need npm >= 11.5.1 on the runner.
+    assert "npm install --global npm@^11.5.1" in workflow
 
 
 def test_publish_allowlist_includes_skill_router() -> None:
@@ -522,10 +550,12 @@ def test_root_quality_feature_and_scripts_are_declared() -> None:
 
     manifest = json.loads((REPO / "package.json").read_text(encoding="utf-8"))
     assert manifest["scripts"]["test"] in ("python3 -m pytest packages tests", "uv run pytest packages tests") or "bun test" in manifest["scripts"]["test"]
-    assert manifest["scripts"]["check"] in ("pnpm test && pnpm typecheck && pnpm pack:check", "pnpm test && pnpm test:node && pnpm typecheck && pnpm pack:check")
-    assert manifest["scripts"]["typecheck"] == "pnpm exec tsc --noEmit -p tsconfig.extensions.json"
-    assert manifest["scripts"]["pack:check"] == "node scripts/publish-release.mjs --check"
-    assert manifest["scripts"]["publish"] == "pnpm check && node scripts/publish-release.mjs"
+    assert manifest["scripts"]["check"] == "bun run test && bun run typecheck && bun run pack:check"
+    assert manifest["scripts"]["typecheck"] == "bun x tsc --noEmit -p tsconfig.extensions.json"
+    assert manifest["scripts"]["pack:check"] == "bun scripts/publish-release.mjs --check"
+    assert manifest["scripts"]["publish"] == "bun run check && bun scripts/publish-release.mjs"
+    assert manifest["workspaces"] == ["packages/*"]
+    assert manifest["packageManager"].startswith("bun@")
     for documentation in [REPO / "README.md", REPO / "README.zh-CN.md", REPO / "AGENTS.md"]:
         text = documentation.read_text(encoding="utf-8")
         assert "pytest" in text

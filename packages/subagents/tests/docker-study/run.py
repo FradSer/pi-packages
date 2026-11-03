@@ -40,8 +40,24 @@ def main() -> None:
                 digest.update(file.read_bytes())
         source_hash = digest.hexdigest()
         image = f"subagents-study:{source_hash[:16]}"
-        (context / "package.json").write_text('{"private":true,"type":"module","packageManager":"pnpm@11.21.0"}')
-        (context / "pnpm-workspace.yaml").write_text('packages:\n  - packages/*\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
+        (context / "package.json").write_text(json.dumps({
+            "private": True,
+            "type": "module",
+            "packageManager": "bun@1.4.1",
+            "workspaces": ["packages/*"],
+            # Pin the whole Pi cohort so both workspace members resolve 1.0.4
+            # even though their own manifests record a newer development core.
+            "overrides": {
+                "@earendil-works/chord": "1.0.4",
+                "@earendil-works/pi-agent-core": "1.0.4",
+                "@earendil-works/pi-ai": "1.0.4",
+                "@earendil-works/pi-coding-agent": "1.0.4",
+                "@earendil-works/pi-codemode": "1.0.4",
+                "@earendil-works/pi-mcp": "1.0.4",
+                "@earendil-works/pi-tui": "1.0.4",
+            },
+            "trustedDependencies": ["esbuild", "@google/genai", "protobufjs"],
+        }))
         shutil.copyfile(Path(__file__).with_name("Dockerfile"), context / "Dockerfile")
         print(f"BUILD {image}", flush=True)
         (output / "build.log").write_text(command(["docker", "build", "-t", image, str(context)]))

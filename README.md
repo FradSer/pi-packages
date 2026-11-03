@@ -319,30 +319,30 @@ pi install npm:@fradser/pi-vision
 ## Development
 
 ```bash
-pnpm install
-pnpm test
-pnpm typecheck
-pnpm pack:check
+bun install
+bun run test
+bun run typecheck
+bun run pack:check
 # or run all three checks together
-pnpm check
+bun run check
 ```
 
 Pi loads a local package source in place and never installs its dependencies. Run
-`pnpm install` once per checkout before pointing Pi at `packages/*`; otherwise
+`bun install` once per checkout before pointing Pi at `packages/*`; otherwise
 every extension that imports the shared runtime fails at startup with
-`Cannot find module '@fradser/pi-kit'`. `pnpm check:install` reports that state as
+`Cannot find module '@fradser/pi-kit'`. `bun run check:install` reports that state as
 `BROKEN` with the dependency and the install command. Installs from npm or git
 need no extra step, because Pi installs their declared dependencies.
 
 Each package keeps behavior scenarios in `features/` and tests in `tests/`.
 
-`pnpm check` runs the package and root pytest suites, the extension TypeScript project, and a registry-free packed-manifest check for every workspace package. Use `pnpm check:install` separately to audit the packages in the live Pi settings file.
+`bun run check` runs the package and root pytest suites, the extension TypeScript project, and a registry-free packed-manifest check for every workspace package. Use `bun run check:install` separately to audit the packages in the live Pi settings file.
 
-The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixtures. The CI workflows install both runtimes before running `pnpm check`.
+The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixtures. The CI workflows install both runtimes before running `bun run check`. Bun owns installation, testing, and packing; the npm CLI (11.5.1 or newer) performs the publish itself, because only npm can attach a provenance statement and use OIDC Trusted Publishing.
 
 The `kit` / `subagents` / `tasks` / `agent-teams` development chain selects the root Pi 1.3.0 cohort explicitly. Published Pi core imports remain `"*"` peers supplied by the host, never runtime dependencies. @features/pi-core-cohort.feature and @tests/test_pi_core_cohort.py check both installed resolution and manifests.
 
-Use `pnpm --dir packages/<name> pack --dry-run` to inspect one package's contents before publishing.
+Use `bun pm pack --destination /tmp --quiet --cwd packages/<name>` to inspect one package's contents before publishing.
 
 Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) package. It is an internal workspace dependency and is not installable via `pi install`; it declares no `dependencies`, only the host-provided Pi core packages it uses as `"*"` peers. Its lifecycle renderers show expansion hints only for supplementary display content or text hidden at the current width—not merely because tool results contain metadata. Consumer packages omit details that repeat the title while preserving full reports and actionable diagnostics.
 
@@ -356,7 +356,7 @@ Shared runtime helpers live in the internal [`@fradser/pi-kit`](packages/kit/) p
 
 ## Publishing
 
-Releases use Changesets and the GitHub Actions workflow in `.github/workflows/release.yml`. Pull requests and releases run `pnpm check` before release actions; the root `pnpm run publish` command runs the same gate before its local release script. Push changes to `main`, then merge the generated version PR. The workflow publishes the explicit package list through npm Trusted Publishing, in dependency order, and skips exact versions already present in the npm registry.
+Releases use Changesets and the GitHub Actions workflow in `.github/workflows/release.yml`. Pull requests and releases run `bun run check` before release actions; the root `bun run publish` command runs the same gate before its local release script. Push changes to `main`, then merge the generated version PR. The workflow publishes the explicit package list through npm Trusted Publishing, in dependency order, and skips exact versions already present in the npm registry. Bun packs each tarball (rewriting `workspace:*` from `bun.lock`) and the npm CLI uploads it with a provenance statement.
 
 New packages require one manual first publication and npm Trusted Publishing configuration before later versions can be released by GitHub Actions.
 

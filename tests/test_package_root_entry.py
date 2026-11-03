@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import subprocess
 
 REPO = Path(__file__).resolve().parents[1]
@@ -84,15 +85,19 @@ def test_concise_workspace_directories_link_their_published_packages() -> None:
     assert continual_learning["name"] == "pi-continual-learning"
     assert kit["name"] == "@fradser/pi-kit"
 
-    lockfile = (REPO / "pnpm-lock.yaml").read_text(encoding="utf-8")
-    assert "packages/continual-learning:" in lockfile
-    assert "version: link:../kit" in lockfile
-    # The kit importer records its core peers and no workspace dependency: kit is
+    text = (REPO / "bun.lock").read_text(encoding="utf-8")
+    lock_text = (REPO / "bun.lock").read_text(encoding="utf-8")
+    lock = json.loads(re.sub(r",(\s*)(\}|\])", r"\1\2", lock_text))
+    workspaces = lock["workspaces"]
+    # Bun links the workspace package, so the dependency stays a protocol
+    # reference instead of a registry version until pack time.
+    assert workspaces["packages/continual-learning"]["dependencies"]["@fradser/pi-kit"] == "workspace:*"
+    # The kit entry records its core peers and no workspace dependency: kit is
     # a plain runtime library whose only declared peers are host-provided.
-    kit_importer = lockfile.split("  packages/kit:\n", 1)[1].split("\n  packages/", 1)[0]
-    assert "'@earendil-works/pi-tui':" in kit_importer
-    assert "'@earendil-works/pi-coding-agent':" in kit_importer
-    assert "link:../" not in kit_importer
+    kit_entry = workspaces["packages/kit"]
+    assert kit_entry["name"] == "@fradser/pi-kit"
+    assert set(kit_entry["devDependencies"]) == {"@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}
+    assert "dependencies" not in kit_entry
     assert "dependencies" not in kit
 
 

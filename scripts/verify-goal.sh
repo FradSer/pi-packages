@@ -12,12 +12,12 @@ line "combined pytest exit" "$code"
 line "combined pytest result" "${summary:-NO SUMMARY}"
 [ "$code" -eq 0 ] || fail=1
 
-out=$(pnpm typecheck 2>&1); code=$?
-line "pnpm typecheck exit" "$code"
+out=$(bun run typecheck 2>&1); code=$?
+line "bun run typecheck exit" "$code"
 [ "$code" -eq 0 ] || fail=1
 
-out=$(pnpm --dir packages/tasks pack --dry-run 2>&1); code=$?
-listed=$(printf '%s' "$out" | grep -c '^src/')
+out=$(bun pm pack --dry-run --cwd packages/tasks 2>&1); code=$?
+listed=$(printf '%s' "$out" | grep -c 'src/')
 line "pack dry-run exit" "$code"
 line "pack dry-run sources listed" "$listed"
 [ "$code" -eq 0 ] || fail=1

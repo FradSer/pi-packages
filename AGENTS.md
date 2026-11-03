@@ -21,6 +21,13 @@ bun run check      # Full workspace quality gate (~25s)
 `bun test` runs package tests natively using Bun 1.4.1. `bun run check` runs
 package tests, the extension TypeScript project, and registry-free
 packed-manifest validation.
+**Publishing is the one npm step.** Bun installs, tests, and packs; the npm CLI
+(11.5.1 or newer) uploads the tarball, because `bun publish` rejects
+`--provenance` and only npm performs OIDC trusted publishing.
+`scripts/publish-release.mjs` packs with `bun pm pack` (which rewrites
+`workspace:*` from `bun.lock`) and then publishes that tarball. Run
+`bun install` after any version bump, or the tarball pins the previous
+workspace version.
 **Continual-Learning Python Experiments**: Run directly inside `packages/continual-learning`:
 - `cd packages/continual-learning && make test` (full study suite)
 - `cd packages/continual-learning && make test-one FILE=packages/continual-learning/tests/test_x.py`

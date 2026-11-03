@@ -5,13 +5,13 @@ Feature: Release publishing without local provenance assumptions
   Scenario: Local publishing does not force CI-only provenance
     Given the release script runs outside GitHub Actions
     When it publishes an unpublished package
-    Then it does not pass --provenance to pnpm publish
+    Then it does not pass --provenance to npm publish
     And npm authentication errors remain visible to the caller
 
   Scenario: CI publishing enables npm provenance
     Given the release script runs in GitHub Actions
     When it publishes an unpublished package
-    Then it passes --provenance to pnpm publish
+    Then it passes --provenance to npm publish
 
   Scenario: Publishing verifies packed packages contain no unresolved workspace protocols
     Given an unpublished package is ready for publication
@@ -35,7 +35,7 @@ Feature: Release publishing without local provenance assumptions
     Given a test imports the release module
     When the module is evaluated
     Then it does not query npm
-    And it does not invoke pnpm publish
+    And it does not invoke npm publish
 
   Scenario: Pack validation can run without registry access
     Given the release script is invoked in validation mode
@@ -83,4 +83,11 @@ Feature: Release publishing without local provenance assumptions
     When GitHub loads the release workflow actions
     Then checkout uses actions/checkout@v5
     And Node setup uses actions/setup-node@v5
-    And pnpm setup uses pnpm/action-setup@v5
+    And Bun setup uses oven-sh/setup-bun@v2
+    And the npm CLI is upgraded because trusted publishing and provenance need npm 11.5.1
+
+  Scenario: Version bumps refresh the lockfile that packing reads
+    Given Changesets has bumped a workspace package version
+    When the release workflow versions packages
+    Then it runs `bun install` in the same step
+    So packed consumers pin the version the version PR declares

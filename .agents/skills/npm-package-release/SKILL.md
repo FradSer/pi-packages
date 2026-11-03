@@ -28,11 +28,18 @@ Distinguish the two scenarios before acting:
 - Publish **before** configuring trust. `npm trust github` on an unpublished
   package fails with `404 Package not found` — that error means ordering, not
   a missing name.
-- In pnpm workspaces always publish with `pnpm publish`. It rewrites
-  `workspace:*` dependencies to real versions; plain `npm publish` would ship
-  an unresolvable manifest.
-- Do not run recursive root-level publishes (`pnpm -r publish`). Publish one
-  package from its directory.
+- Publish a workspace package as a tarball: pack it first with `bun pm pack`, then
+  publish the tarball with the npm CLI and `--access public`. Bun rewrites
+  `workspace:*` from `bun.lock`; publishing the raw directory ships an
+  unresolvable manifest, and `bun publish` cannot attach provenance or use OIDC
+  trusted publishing (it rejects `NPM_CONFIG_PROVENANCE` outright).
+- Run `bun install` after any version bump before packing: `bun pm pack` reads
+  the `workspace:*` version from `bun.lock`, so a stale lockfile publishes
+  consumers pinned to the previous version.
+- Do not run recursive root-level publishes. Pack and publish one package at a
+  time through `scripts/publish-release.mjs`.
+- Use npm CLI 11.5.1 or newer. Only that CLI creates provenance statements and
+  performs OIDC trusted publishing; CI upgrades npm before it publishes.
 
 ## Procedure
 
@@ -72,7 +79,7 @@ curl -s https://registry.npmjs.org/<package-name>
 - **Package exists with versions**: Scenario B (Subsequent release) — **STOP**.
   - Do **NOT** ask the user to manually publish from their terminal.
   - Do **NOT** run `npm trust` again (trust relationship is already active).
-  - Normal flow: create a Changeset (`pnpm changeset`), commit, push to `main`, and merge the Changesets Version PR. CI publishes automatically via OIDC.
+  - Normal flow: create a Changeset (`bun x changeset`), commit, push to `main`, and merge the Changesets Version PR. CI publishes automatically via OIDC.
   - If CI fails during a subsequent release: inspect CI logs first before assuming manual intervention is needed. For example, if the version already succeeded in publishing in the `changesets/action` step, a subsequent retry step encountering `409 Conflict` simply means the package is already published on the registry (an eventual consistency or idempotency artifact), not an authorization or bootstrap failure.
 
 ---
@@ -83,12 +90,12 @@ curl -s https://registry.npmjs.org/<package-name>
 The user runs, from the package directory:
 
 ```bash
-pnpm publish --access public
+bun pm pack --destination /tmp/pi-release
+npm publish /tmp/pi-release/*.tgz --access public
 ```
 
-pnpm prompts `Enter OTP:` inline; they type their authenticator code. If the
-branch is not the configured publish branch, pnpm asks to continue — answering
-yes is expected on wip/release branches.
+npm prompts `Enter OTP:` inline; they type their authenticator code. Packing
+first keeps the `workspace:*` rewrite that npm cannot do itself.
 
 If the user must publish the exact version a changesets version PR produces,
 check out that PR's branch and publish from there, then merge it; the CI
