@@ -173,6 +173,42 @@ let memoryConfigState = safelyReadMemoryConfigState();
 let memoryConfig: MemoryConfig = memoryConfigState.config;
 const workerModelPreflight = createWorkerModelPreflight();
 
+/**
+ * Find a catalog or custom-provider model that a no-extensions planner child
+ * can resolve, when the session's model (or the configured learning model) is
+ * extension-registered. Prefers models the user has enabled in settings, so
+ * the fallback respects their choice rather than picking an arbitrary entry
+ * from the catalog.
+ */
+async function resolveWorkerCapableModel(ctx: ExtensionContext, unavailable: string): Promise<string | undefined> {
+  const provider = unavailable.slice(0, unavailable.indexOf("/"));
+  const candidates: string[] = [];
+  try {
+    const scoped = (ctx as { scopedModels?: readonly { model?: { provider?: string; id?: string } }[] }).scopedModels;
+    if (Array.isArray(scoped)) {
+      for (const entry of scoped) {
+        const model = entry?.model;
+        if (model?.provider && model.id && model.provider !== provider) candidates.push(`${model.provider}/${model.id}`);
+      }
+    }
+  } catch { /* scoped models are an optimization, not a requirement */ }
+  try {
+    const available = ctx.modelRegistry?.getAvailable?.();
+    if (Array.isArray(available)) {
+      const seen = new Set(candidates);
+      for (const model of available) {
+        if (model?.provider && model.id && model.provider !== provider && !seen.has(`${model.provider}/${model.id}`)) {
+          candidates.push(`${model.provider}/${model.id}`);
+        }
+      }
+    }
+  } catch { /* the catalog read is best-effort */ }
+  for (const candidate of candidates) {
+    if (await workerModelPreflight.check(candidate) === true) return candidate;
+  }
+  return undefined;
+}
+
 // ── agent learning guidance (injected when enabled) ────────────────
 
 const AGENT_LEARNING_TOOL_GUIDANCE = `When this task produced a durable, reusable fact, preference or verified project
@@ -4855,7 +4891,7 @@ async function startConsolidationPipeline(
   let selectorRun: ConsolidationRun | undefined;
   // Every generative phase runs on this one model. Resolved once so the Memory,
   // Harness, and AGENTS.md phases cannot drift onto different models.
-  const consolidationModel = modelRef(memoryConfig)
+  let consolidationModel = modelRef(memoryConfig)
     ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
   const modelConfigurationError = memoryConfigState.invalid;
   let acquiredLaterRun: ConsolidationRun | undefined;
@@ -4997,17 +5033,26 @@ async function startConsolidationPipeline(
     }
     if (consolidationModel) {
       // Planner workers run without extensions, so a model registered by a
-      // session extension would fail every worker after setup. Refuse up front
-      // with the actionable fix instead of a mid-pipeline selector failure.
+      // session extension would fail every worker after setup. Fall back to
+      // the first enabled catalog model that the child can resolve instead of
+      // blocking learning on the session's routing-group default; the fallback
+      // is reported so the user can pin a preferred model with /memory model.
       const workerModelAvailable = await workerModelPreflight.check(consolidationModel);
       if (!isCurrent()) return;
       if (workerModelAvailable === false) {
-        state.outcome = "failed";
-        pipelineAttempts.push({ phase: fullMode ? "memory" : "selector", attempt: 0, outcome: "failed", durationMs: 0, operations: 0,
-          diagnostic: "Learning model is unavailable to read-only planner workers, which run without extensions." });
-        notifyPi(ctx.ui, `Learning is blocked: model "${consolidationModel}" is provided by an extension and cannot be used by read-only planner workers. Run /memory model and choose a catalog or custom-provider model.`, "error");
-        await writeCurrentReceipt();
-        return;
+        const fallback = await resolveWorkerCapableModel(ctx, consolidationModel);
+        if (!isCurrent()) return;
+        if (fallback) {
+          consolidationModel = fallback;
+          notifyPi(ctx.ui, `Learning model: the session model is unavailable to read-only planner workers; using ${fallback} for this run. Run /memory model to pin a specific model.`, "info");
+        } else {
+          state.outcome = "failed";
+          pipelineAttempts.push({ phase: fullMode ? "memory" : "selector", attempt: 0, outcome: "failed", durationMs: 0, operations: 0,
+            diagnostic: "Learning model is unavailable to read-only planner workers, and no enabled catalog model can take its place." });
+          notifyPi(ctx.ui, `Learning is blocked: model "${consolidationModel}" is provided by an extension and no enabled catalog model is available to planner workers. Run /memory model and choose a catalog or custom-provider model.`, "error");
+          await writeCurrentReceipt();
+          return;
+        }
       }
     }
     let incrementalSelection: Awaited<ReturnType<typeof selectIncrementalLearning>> | undefined;
