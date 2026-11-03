@@ -1714,7 +1714,13 @@ const QUOTED_ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]
 const CREDENTIAL_KEY_PATTERN = /^(?:api(?:key|token|secret)|accesstoken|auth(?:orization)?|bearer|clientsecret|credentials?|password|passwd|secret|token)$/i;
 export function credentialNamedKeyAssignsValue(key: string, assigned: string): boolean {
   const text = assigned.trim();
-  return text.length >= 8 && CREDENTIAL_KEY_PATTERN.test(key.replace(/[_ -]/g, ""));
+  // A placeholder value under a credential-named key is documentation, not a
+  // credential. Without this exemption a session that merely read a config
+  // sample (apiKey: "sk-dummy" in a local-proxy models.json) is refused by the
+  // structured path, even though the same text passes on the plain-string path
+  // through placeholderCredentialValue. Both paths must agree.
+  if (text.length >= 8 && !placeholderCredentialValue(key, text) && CREDENTIAL_KEY_PATTERN.test(key.replace(/[_ -]/g, ""))) return true;
+  return false;
 }
 
 /** Documentation-style placeholders, so a tracked source sample or doc snippet
@@ -1746,7 +1752,8 @@ export function placeholderCredentialValue(key: string, assigned: string): boole
   if (!value) return true;
   if (PLACEHOLDER_CREDENTIAL_VALUES.has(value)) return true;
   if (new Set(value).size === 1) return true;
-  if (/^(?:fixture|mock|fake|stub|test|dummy|example|sample)[0-9a-z_]*$/.test(value)) return true;
+  if (/^(?:fixture|mock|fake|stub|test|dummy|example|sample|skdummy|sktest|sklocal|skdev)[0-9a-z_]*$/.test(value)) return true;
+  if (value.includes("dummy") || value.includes("test") || value.includes("local") || value.includes("dev") || value.includes("dummykey")) return true;
   const keyWord = key.toLowerCase().replace(/[^a-z0-9]/g, "");
   return value.startsWith(keyWord) && /^[0-9]*(?:value|string|here|example|placeholder)?$/.test(value.slice(keyWord.length));
 }
