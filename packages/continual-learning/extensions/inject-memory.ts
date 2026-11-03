@@ -5044,7 +5044,7 @@ async function startConsolidationPipeline(
         if (!isCurrent()) return;
         if (fallback) {
           consolidationModel = fallback;
-          notifyPi(ctx.ui, `Learning model: the session model is unavailable to read-only planner workers; using ${fallback} for this run. Run /memory model to pin a specific model.`, "info");
+          notifyPi(ctx.ui, `Learning model: using ${fallback}.`, "info");
         } else {
           state.outcome = "failed";
           pipelineAttempts.push({ phase: fullMode ? "memory" : "selector", attempt: 0, outcome: "failed", durationMs: 0, operations: 0,
