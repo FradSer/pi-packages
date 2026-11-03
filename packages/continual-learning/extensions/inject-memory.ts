@@ -3155,7 +3155,7 @@ export function setDreamingActivity(activity: string, ctx = currentDreamingConte
   dreamingActivity = activity;
   if (ctx) {
     currentDreamingContext = ctx;
-    dreamingWidget.update(ctx, [{ id: "dreaming", identity: "Starting learning...", activity: dreamingActivity }]);
+    dreamingWidget.update(ctx, [{ id: "dreaming", identity: "Learning...", activity: dreamingActivity }]);
   }
 }
 
