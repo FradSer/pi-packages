@@ -628,7 +628,6 @@ function formatJevTelemetry(jev: JevTelemetry): string {
   } else if (jev.strategy === "new-memory-no-entry") {
     parts.push("optional draft obligations; no write authority");
   }
-  if (jev.model) parts.push(jev.model);
   if (jev.durationMs > 0) parts.push(formatDurationMs(jev.durationMs));
   if (jev.inputTokens !== undefined || jev.knownInputTokens !== undefined) {
     parts.push(`input ${jev.inputTokens ?? `at least ${jev.knownInputTokens}`}`);
