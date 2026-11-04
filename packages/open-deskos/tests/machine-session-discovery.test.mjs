@@ -201,7 +201,9 @@ test("bounds scanned entries and prioritizes running then recent sessions within
   assert.ok(!sessions.some((s) => s.sessionId === "s1"));
 });
 
-test("metadata file and workspace traversal budgets stop reads before unbounded inventories", async (t) => {
+// This case writes MAX_METADATA_FILES + MAX_WORKSPACES fixture files sequentially;
+// allow headroom over the runner's 5s default when the machine is loaded.
+test("metadata file and workspace traversal budgets stop reads before unbounded inventories", { timeout: 20000 }, async (t) => {
   const { scanDirectorySessions, MAX_METADATA_FILES, MAX_WORKSPACES } = await discovery();
   for (const [limit, grouped] of [[MAX_METADATA_FILES, true], [MAX_WORKSPACES, false]]) {
     const { root, put } = await registry(t);
