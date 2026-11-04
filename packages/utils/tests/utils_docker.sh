@@ -21,12 +21,11 @@ container_name="utils-worktree-$$"
 cleanup() { docker rm -f "$container_name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
 cd "$repo_root"
-pnpm --dir packages/kit pack --pack-destination "$receipt_dir" > "$receipt_dir/kit-pack.log"
-pnpm --dir packages/utils pack --pack-destination "$receipt_dir" > "$receipt_dir/utils-pack.log"
+bun pm pack --destination "$receipt_dir" --quiet --cwd packages/kit > "$receipt_dir/kit-pack.log"
+bun pm pack --destination "$receipt_dir" --quiet --cwd packages/utils > "$receipt_dir/utils-pack.log"
 cat > "$receipt_dir/setup.sh" <<'SETUP'
 #!/bin/sh
 set -eu
-corepack enable
 mkdir -p /isolated /verify
 cd /isolated
 set -- /receipts/fradser-pi-kit-*.tgz
@@ -37,7 +36,7 @@ node --input-type=module <<'JSON'
 import { writeFileSync } from "node:fs";
 const kit = 'file:' + process.env.WORKTREE_KIT_TARBALL;
 writeFileSync("package.json", JSON.stringify({
-  name: "isolated-utils-verification", private: true, type: "module", packageManager: "pnpm@11.21.0",
+  name: "isolated-utils-verification", private: true, type: "module", packageManager: "bun@1.4.1",
   dependencies: {
     "@earendil-works/pi-coding-agent": "1.2.0", "@earendil-works/pi-ai": "1.2.0", "@earendil-works/pi-tui": "1.2.0",
     "@fradser/pi-kit": kit, "@fradser/pi-utils": 'file:' + process.env.WORKTREE_UTILS_TARBALL,
@@ -45,30 +44,26 @@ writeFileSync("package.json", JSON.stringify({
   },
 }, null, 2) + "\n");
 JSON
-cat > pnpm-workspace.yaml <<'YAML'
-packages:
-  - '.'
-overrides:
-  '@earendil-works/chord': 1.2.0
-  '@earendil-works/pi-agent-core': 1.2.0
-  '@earendil-works/pi-ai': 1.2.0
-  '@earendil-works/pi-codemode': 1.2.0
-  '@earendil-works/pi-mcp': 1.2.0
-  '@earendil-works/pi-tui': 1.2.0
-allowBuilds:
-  esbuild: true
-  '@google/genai': true
-  protobufjs: true
-YAML
 node --input-type=module <<'OVERRIDE'
 import { readFileSync, writeFileSync } from "node:fs";
-const yaml = readFileSync("pnpm-workspace.yaml", "utf8");
-writeFileSync("pnpm-workspace.yaml", yaml.replace("overrides:\n",
-  "overrides:\n  '@fradser/pi-kit': " + JSON.stringify("file:" + process.env.WORKTREE_KIT_TARBALL) + "\n"));
+const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+manifest.overrides = {
+  '@fradser/pi-kit': "file:" + process.env.WORKTREE_KIT_TARBALL,
+  '@earendil-works/chord': "1.2.0",
+  '@earendil-works/pi-agent-core': "1.2.0",
+  '@earendil-works/pi-ai': "1.2.0",
+  '@earendil-works/pi-codemode': "1.2.0",
+  '@earendil-works/pi-mcp': "1.2.0",
+  '@earendil-works/pi-tui': "1.2.0",
+};
+writeFileSync("package.json", JSON.stringify(manifest, null, 2) + "\n");
 OVERRIDE
-pnpm install
 apt-get update -qq
-apt-get install -y -qq git python3 python3-venv >/dev/null
+apt-get install -y -qq git python3 python3-venv curl unzip >/dev/null
+curl -fsSL --retry 3 --retry-delay 2 --max-time 300 https://bun.sh/install -o /tmp/bun-install.sh
+BUN_INSTALL=/usr/local bash /tmp/bun-install.sh bun-v1.4.1 >/dev/null
+bun --version | tee /receipts/bun-version.txt
+bun install
 python3 -m venv /verify/venv
 /verify/venv/bin/pip install -q pyte
 ln -s /isolated/node_modules/.bin/pi /usr/local/bin/pi

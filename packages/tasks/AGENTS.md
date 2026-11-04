@@ -13,7 +13,7 @@ Run focused tests from the repository root:
 
 ```bash
 python3 -m pytest packages/tasks/tests/ -q
-pnpm --dir packages/tasks pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/tasks
 sh packages/tasks/tests/tasks_docker.sh
 ```
 

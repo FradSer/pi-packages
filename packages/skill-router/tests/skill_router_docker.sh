@@ -18,53 +18,55 @@ pi_version=${PI_VERSION:-1.3.0}
 printf "%s\n" "$pi_version" > "$receipt_dir/pi-version.txt"
 printf "isolated Pi baseline: %s\n" "$pi_version" >&2
 
-pnpm --dir packages/kit pack --pack-destination "$receipt_dir" > "$receipt_dir/kit-pack.log"
-pnpm --dir packages/skill-router pack --pack-destination "$receipt_dir" > "$receipt_dir/skill-router-pack.log"
+bun pm pack --destination "$receipt_dir" --quiet --cwd packages/kit > "$receipt_dir/kit-pack.log"
+bun pm pack --destination "$receipt_dir" --quiet --cwd packages/skill-router > "$receipt_dir/skill-router-pack.log"
 kit_tgz=$(basename "$(ls "$receipt_dir"/fradser-pi-kit-*.tgz | head -1)")
 router_tgz=$(basename "$(ls "$receipt_dir"/pi-skill-router-*.tgz | head -1)")
 
 # Every @earendil-works package the Pi entry points depend on at this version, so a
 # transitive release cannot pull a second copy of the runtime into the tree.
 pi_family=$(for pkg in pi-coding-agent pi-ai pi-tui; do
-  pnpm view "@earendil-works/$pkg@$pi_version" dependencies --json 2>/dev/null
+  bun pm view "@earendil-works/$pkg@$pi_version" dependencies --json 2>/dev/null
 done | grep -o "\"@earendil-works/[a-z-]*\"" | tr -d "\"" | sed "s|^@earendil-works/||" | sort -u)
 
-{
-  printf "{\n  \"name\": \"isolated-skill-router-verification\",\n  \"private\": true,\n  \"type\": \"module\",\n"
-  printf "  \"packageManager\": \"pnpm@11.21.0\",\n  \"dependencies\": {\n"
-  for pkg in pi-coding-agent pi-ai pi-tui; do
-    printf "    \"@earendil-works/%s\": \"%s\",\n" "$pkg" "$pi_version"
-  done
-  printf "    \"@fradser/pi-kit\": \"file:/receipts/%s\",\n" "$kit_tgz"
-  printf "    \"pi-skill-router\": \"file:/receipts/%s\",\n" "$router_tgz"
-  printf "    \"tsx\": \"^4.19.0\",\n    \"typebox\": \"*\"\n  }\n}\n"
-} > "$receipt_dir/isolated-package.json"
-
-{
-  printf "packages:\n  - .\noverrides:\n"
-  printf "  \"@fradser/pi-kit\": file:/receipts/%s\n" "$kit_tgz"
-  { for pkg in pi-coding-agent pi-ai pi-tui $pi_family; do printf "  \"@earendil-works/%s\": %s\n" "$pkg" "$pi_version"; done; } | sort -u
-  printf "allowBuilds:\n  esbuild: true\n  \"@google/genai\": true\n  protobufjs: true\n"
-} > "$receipt_dir/isolated-workspace.yaml"
+# A single package.json carries both the dependencies and the version pins;
+# bun reads `overrides` from the project root, so no separate workspace file.
+node --input-type=module - "$kit_tgz" "$router_tgz" "$pi_version" "$pi_family" > "$receipt_dir/isolated-package.json" <<'JSON'
+import { writeFileSync } from "node:fs";
+const [kit, router, version, family] = process.argv.slice(2);
+const overrides = { "@fradser/pi-kit": `file:/receipts/${kit}` };
+for (const pkg of ["pi-coding-agent", "pi-ai", "pi-tui", ...family.trim().split(/\s+/)]) {
+  if (pkg) overrides[`@earendil-works/${pkg}`] = version;
+}
+writeFileSync(1, JSON.stringify({
+  name: "isolated-skill-router-verification", private: true, type: "module",
+  packageManager: "bun@1.4.1",
+  dependencies: {
+    "@earendil-works/pi-coding-agent": version,
+    "@earendil-works/pi-ai": version,
+    "@earendil-works/pi-tui": version,
+    "@fradser/pi-kit": `file:/receipts/${kit}`,
+    "pi-skill-router": `file:/receipts/${router}`,
+    tsx: "^4.19.0", typebox: "*",
+  },
+  overrides,
+}, null, 2) + "\n");
+JSON
 
 cat > "$receipt_dir/setup.sh" <<'SETUP'
 #!/bin/sh
 set -eu
-corepack enable
 mkdir -p /isolated /verify/packages/skill-router/tests
 cd /isolated
 cp /receipts/isolated-package.json package.json
-cp /receipts/isolated-workspace.yaml pnpm-workspace.yaml
-pnpm install
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv git curl unzip >/dev/null
-# The package suite and `pnpm check` require Bun (CI pins 1.4.1): one registry test
-# reads the module through `bun -e`, so the image provides the declared runtime
-# instead of skipping that test. The official installer is pinned; npm's bun
-# postinstall fetches the same binary through undici, which timed out here.
+# The suite reads modules through `bun -e`, so the image provides the declared
+# runtime instead of skipping that test.
 curl -fsSL --retry 3 --retry-delay 2 --max-time 300 https://bun.sh/install -o /tmp/bun-install.sh
 BUN_INSTALL=/usr/local bash /tmp/bun-install.sh bun-v1.4.1 >/dev/null
 bun --version | tee /receipts/bun-version.txt
+bun install
 python3 -m venv /verify/venv
 /verify/venv/bin/pip install -q pytest
 cp -R /skill-router-package/tests/. /verify/packages/skill-router/tests/
@@ -92,12 +94,9 @@ if grep -E "pi-(skill-router|kit|tasks|goal|utils|subagents|monitor|recap|keyboa
 fi
 
 cd /verify
-# Warm corepack before the gate: one package test shells out to `pnpm exec tsx`
-# under a 20-second budget, and the first corepack download in a fresh image is
-# slower than that budget. The warm-up uses the same working directory, because that
-# is what decides which pnpm version corepack resolves.
-corepack pnpm --version >/dev/null 2>&1 || pnpm --version >/dev/null
-pnpm exec tsx --version >/dev/null 2>&1 || true
+# The 20-second lock-wait test runs through `bun x tsx`; warm its binary once so
+# the first resolution does not eat that budget.
+bun x tsx --version >/dev/null 2>&1 || true
 echo "=== skill-router package gate: pytest packages/skill-router/tests ==="
 PI_OFFLINE=1 /verify/venv/bin/python -m pytest packages/skill-router/tests/ -q
 
@@ -128,7 +127,7 @@ git init -q -b main
 git add -A
 git -c user.email=test@test -c user.name=test commit -qm init
 cd /verify
-PI_CODING_AGENT_DIR=/isolated/e2e-agent npx tsx packages/skill-router/tests/router_harness.ts add /isolated/upstream --description "Search engine and release communication workflows."
+PI_CODING_AGENT_DIR=/isolated/e2e-agent bun x tsx packages/skill-router/tests/router_harness.ts add /isolated/upstream --description "Search engine and release communication workflows."
 test -f /isolated/e2e-agent/skill-router/collections.json
 test -f /isolated/e2e-agent/skill-router/exposed/collections/upstream/leaves/seo-audit/SKILL.md
 

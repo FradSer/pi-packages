@@ -5,7 +5,8 @@
 #
 # Exemptions from the minimum release age so verified fresh Pi runtime and
 # chord releases stay installable. No base `minimumReleaseAge` is configured, so
-# these stay inert until one is set; they carry over the pnpm workspace list.
+# these stay inert until one is set; they are the exact versions carried over
+# from the earlier workspace list.
 # Entries are exact versions on purpose: a name-only entry would exempt every
 # future release too.
 minimumReleaseAgeExcludes = [

@@ -185,7 +185,7 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
           user: eventsFromMessage({ role: "user", content: [{ type: "text", text: "why is the renderer empty" }] }),
           userText: eventsFromMessage({ role: "user", content: "plain text prompt" }),
           thinking: eventsFromMessage({ role: "assistant", content: [{ type: "thinking", thinking: "checking the composer\nand more" }] }),
-          tool: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", name: "bash", arguments: { command: "pnpm test" } }] }),
+          tool: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", name: "bash", arguments: { command: "bun test" } }] }),
           assistant: eventsFromMessage({ role: "assistant", content: [{ type: "text", text: "the composer never ran" }] }),
           result: eventsFromMessage({ role: "toolResult", toolName: "bash", content: [{ type: "text", text: "first line\nsecond line" }] }),
           empty: eventsFromMessage(null),
@@ -208,7 +208,7 @@ def test_events_come_from_messages_with_complete_tool_result_bodies() -> None:
     assert result["user"] == [{"kind": "user", "text": "why is the renderer empty"}]
     assert result["userText"] == [{"kind": "user", "text": "plain text prompt"}]
     assert result["thinking"] == [{"kind": "thinking", "text": "checking the composer\nand more"}]
-    assert result["tool"] == [{"kind": "tool", "text": "bash: pnpm test"}]
+    assert result["tool"] == [{"kind": "tool", "text": "bash: bun test"}]
     assert result["assistant"] == [{"kind": "assistant", "text": "the composer never ran"}]
     assert result["result"] == [{"kind": "result", "text": "first line\nsecond line", "toolName": "bash"}]
     assert result["empty"] == []
@@ -235,8 +235,8 @@ def test_events_carry_the_call_identity_and_error_pi_recorded() -> None:
         r'''
         import { eventsFromMessage, boundSessionEvent } from "./packages/open-deskos/src/events.ts";
         console.log(JSON.stringify({
-          call: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", id: "call_1", name: "bash", arguments: { command: "pnpm test" } }] }),
-          callWithoutId: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", name: "bash", arguments: { command: "pnpm test" } }] }),
+          call: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", id: "call_1", name: "bash", arguments: { command: "bun test" } }] }),
+          callWithoutId: eventsFromMessage({ role: "assistant", content: [{ type: "toolCall", name: "bash", arguments: { command: "bun test" } }] }),
           failed: eventsFromMessage({ role: "toolResult", toolName: "bash", toolCallId: "call_1", isError: true, content: [{ type: "text", text: "exit code 1" }] }),
           passed: eventsFromMessage({ role: "toolResult", toolName: "bash", toolCallId: "call_1", content: [{ type: "text", text: "ok" }] }),
           identityOnly: eventsFromMessage({ role: "toolResult", toolCallId: "call_2", content: [{ type: "text", text: "ok" }] }),
@@ -248,8 +248,8 @@ def test_events_carry_the_call_identity_and_error_pi_recorded() -> None:
     )
     # A desk reads one tool box and the outcome Pi recorded from these two fields,
     # so both travel with the event instead of being inferred from its position.
-    assert result["call"] == [{"kind": "tool", "text": "bash: pnpm test", "toolCallId": "call_1"}]
-    assert result["callWithoutId"] == [{"kind": "tool", "text": "bash: pnpm test"}]
+    assert result["call"] == [{"kind": "tool", "text": "bash: bun test", "toolCallId": "call_1"}]
+    assert result["callWithoutId"] == [{"kind": "tool", "text": "bash: bun test"}]
     assert result["failed"] == [{"kind": "result", "text": "exit code 1", "toolName": "bash", "toolCallId": "call_1", "isError": True}]
     assert result["passed"] == [{"kind": "result", "text": "ok", "toolName": "bash", "toolCallId": "call_1"}]
     assert result["identityOnly"] == [{"kind": "result", "text": "ok", "toolCallId": "call_2"}]
@@ -320,7 +320,7 @@ def test_a_configured_reporter_opens_one_link_and_reports_its_session() -> None:
         reporter.start();
         const connecting = reporter.snapshot().link;
         h.transports[0].open();
-        reporter.recordEvents("s1", [{ kind: "tool", text: "bash: pnpm test" }]);
+        reporter.recordEvents("s1", [{ kind: "tool", text: "bash: bun test" }]);
         console.log(JSON.stringify({
           beforeStart,
           connecting,

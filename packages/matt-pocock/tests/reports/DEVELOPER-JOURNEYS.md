@@ -30,6 +30,8 @@
 
 ## 验证与复现
 
+复现命令使用当前 bun 工具链；报告保留历史结果，不把此前入口矩阵计作本轮重跑。
+
 - 当前包完整测试：206 passed。
 - TypeScript、安装路径检查、打包 dry-run：通过。
 - 原生 Pi print/TUI：通过；包含 Ctrl+O、48 列、Escape、问题超时。
@@ -37,10 +39,10 @@
 
 ```bash
 uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/developer-journey-cases.json --all --deadline 420 --output /tmp/matt-developer-journeys.json
-python3 -m pytest packages/matt-pocock/tests/ -q
-pnpm typecheck
-pnpm check:install
-pnpm --dir packages/matt-pocock pack --dry-run
+uv run pytest packages/matt-pocock/tests/ -q
+bun run typecheck
+bun run check:install
+bun pm pack --destination /tmp --quiet --cwd packages/matt-pocock
 python3 packages/matt-pocock/tests/live/live_smoke.py
 ```
 

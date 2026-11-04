@@ -40,7 +40,7 @@ def packed_install(output: Path) -> Path:
     archives.mkdir()
     modules = output / "installed/node_modules"
     for name in ("kit", "sdlc"):
-        result = run(["pnpm", "--dir", str(REPO / "packages" / name), "pack", "--pack-destination", str(archives)], cwd=REPO)
+        result = run(["bun", "pm", "pack", "--destination", str(archives), "--quiet", "--cwd", str(REPO / "packages" / name)], cwd=REPO)
         assert result.returncode == 0, result.stdout + result.stderr
         package_name = "pi-sdlc" if name == "sdlc" else "@fradser/pi-kit"
         archive_prefix = package_name.lstrip("@").replace("/", "-")

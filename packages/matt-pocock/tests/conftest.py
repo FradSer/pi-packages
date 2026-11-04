@@ -12,7 +12,7 @@ from matt_pocock_helpers import PACKAGE
 def packed_package(tmp_path_factory: pytest.TempPathFactory) -> Path:
     destination = tmp_path_factory.mktemp("matt-pocock-pack")
     result = subprocess.run(
-        ["pnpm", "--dir", str(PACKAGE), "pack", "--pack-destination", str(destination)],
+        ["bun", "pm", "pack", "--destination", str(destination), "--quiet", "--cwd", str(PACKAGE)],
         text=True, capture_output=True, timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr

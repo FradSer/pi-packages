@@ -34,7 +34,7 @@ writeFileSync("package.json", JSON.stringify({
     tsx: "^4.19.0", typebox: "^1.3.12",
   },
   // Keep the pinned Pi cohort and the local kit tarball authoritative for
-  // transitive requirements too, the way the pnpm workspace overrides did.
+  // transitive requirements too, the way the workspace overrides did.
   overrides: {
     "@earendil-works/chord": "1.0.4",
     "@earendil-works/pi-agent-core": "1.0.4",

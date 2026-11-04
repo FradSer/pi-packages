@@ -13,7 +13,7 @@ Run from the repository root:
 
 ```bash
 python3 -m pytest packages/context/tests/ -q
-pnpm --dir packages/context pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/context
 ```
 
 ## Architecture & Security

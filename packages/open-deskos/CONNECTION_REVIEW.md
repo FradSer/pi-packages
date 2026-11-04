@@ -48,8 +48,8 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 - 包的 Python 全套：24 passed，0 skipped。此前因旧路径误跳过的跨仓库协议 fixture 检查已恢复。
 - Open DeskOS Link 服务端及客户端相关测试：75 passed，0 failed。
 - 扩大到 Pi Sessions source/events、Windows host、本地通道：117 passed，1 skipped，1 unrelated failure。失败是另一个任务删除或搬移了 `docs/wayfinding/windows-x64-shell-host/SPEC-WINDOWS-SHELL-HOST.md`，相应文档引用测试尚未完成调整。
-- 包的独立 TypeScript 检查及全仓最终 `pnpm typecheck` 均通过。期间曾遇到并行任务在 monitor 包中的两处错误，最终复跑时已消失；本次未修改该包。
-- `pnpm check:install` 通过；发布清单 dry-run 通过，包含 `session-control`。
+- 包的独立 TypeScript 检查及全仓最终 `bun run typecheck` 均通过。期间曾遇到并行任务在 monitor 包中的两处错误，最终复跑时已消失；本次未修改该包。
+- `bun run check:install` 通过；发布清单 dry-run 通过，包含 `session-control`。
 - 实际安装的 Pi v1.0.0：隔离环境下 `--print /odk status` 成功；真实 TUI 菜单及 Link status 操作成功。环境没有模型和凭据，没有模型请求。
 - 本任务改动的差异格式检查通过；独立审查最终未发现新的可确认阻塞项。
 

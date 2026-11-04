@@ -36,10 +36,10 @@ and the script now satisfies them instead of skipping anything:
    fetched the same binary through undici and timed out, so the installer is used
    and pinned.
 2. **Corepack needs warming before the gate.** `test_lock_wait.py` shells out to
-   `pnpm exec tsx` under a 20-second budget, and the first corepack download in a
+   `bun x tsx` under a 20-second budget, and the first package-manager download in a
    fresh image exceeded it (`TimeoutExpired` on the `release` case). The setup runs
    the same invocation once from the same working directory, because that directory
-   decides which pnpm version corepack resolves, so the test measures the wait it
+   decides which package-manager version corepack resolves, so the test measures the wait it
    is about rather than a download.
 
 ## Reproduce

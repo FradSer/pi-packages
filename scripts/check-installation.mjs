@@ -88,8 +88,7 @@ function unresolvedDependencies(packageDir, manifest) {
 }
 
 function workspaceInstallCommand() {
-  const usesBun = ["bun.lock", "bun.lockb"].some((lockfile) => existsSync(join(REPO_ROOT, lockfile)));
-  return usesBun ? "bun install" : "pnpm install";
+  return "bun install";
 }
 
 /**

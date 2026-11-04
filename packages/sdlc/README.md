@@ -103,8 +103,8 @@ semantic summary quality or enforce a write against explicit user restrictions.
 
 ```bash
 uv run --with pytest python -m pytest packages/sdlc/tests -q
-pnpm typecheck
-pnpm --dir packages/sdlc pack --dry-run
+bun run typecheck
+bun pm pack --destination /tmp --quiet --cwd packages/sdlc
 uv run --with pytest python packages/sdlc/tests/live_sdlc.py --output /tmp/pi-sdlc-e2e
 ```
 

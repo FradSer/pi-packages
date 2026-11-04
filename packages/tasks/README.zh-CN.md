@@ -107,8 +107,8 @@ Tasks 记录工作，不控制模型执行。扩展不注册结算、请求上�
 
 ```bash
 python3 -m pytest packages/tasks/tests/ -q
-pnpm typecheck
-pnpm --dir packages/tasks pack --dry-run
+bun run typecheck
+bun pm pack --destination /tmp --quiet --cwd packages/tasks
 uv run --with pyte python packages/tasks/tests/task_native_frames.py --output /tmp/tasks-native-frames
 sh packages/tasks/tests/tasks_docker.sh
 ```

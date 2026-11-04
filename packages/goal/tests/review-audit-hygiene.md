@@ -49,7 +49,7 @@ No publish, push, commit, or commit-history rewrite.
 Every regression was observed RED before its fix, including the 5s subprocess timeout on unbounded evidence
 collection, and mutation spot-checks reintroduce the dead setting and the ghost import to confirm the checks
 still fail. Final `python3 -m pytest packages/goal/tests/ -q` reports 20 passed. Goal-specific `tsc`, the new
-tests tsconfig, root `pnpm typecheck`, pack dry-run, installation audit and the three native offline probes run
+tests tsconfig, root `bun run typecheck`, pack dry-run, installation audit and the three native offline probes run
 in a separate final chain whose result is reported with this review.
 
 ## Two-axis review

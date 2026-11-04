@@ -547,7 +547,7 @@ behavior.
 
 | Step | Work | Gate |
 | --- | --- | --- |
-| 0 | Freeze baseline: record candidate revision, run `pnpm check`, snapshot `pnpm --dir packages/agent-teams pack --dry-run` | All green before any move |
+| 0 | Freeze baseline: record candidate revision, run `bun run check`, snapshot `bun pm pack --destination /tmp --quiet --cwd packages/agent-teams` | All green before any move |
 | 1 | **Env policy at spawn.** DONE. Replace `env: { ...process.env, ...options.env }` with an explicit allowlist plus a secret denylist. Independent of the split, needs no kernel support, and closes the finding that every subagent currently inherits every provider key | Live spawn: child can run, `env` inside the child shows no provider token |
 | 2 | Extract `worker-runtime` into `@fradser/pi-kit`: env binding, attempt authority, intent files, outbox append, `readJsonlBatch`. **2a DONE** (primitives added to kit, additive, no consumer rewired); **2b pending** — rewiring `statefile.ts` / `worker.ts` touches files the step-1 security review is reading, so it waits for that review rather than invalidating its evidence | `packages/kit/tests/test_pi_kit.py` + agent-teams suite unchanged |
 | 3 | Make `SpawnRequest.extensions: string[]` replace `WORKER_EXTENSION`; capability tool set becomes contributed per loaded worker extension. **DONE** | Live `pi --print` spawn + one resident round-trip; command line asserted from inside a spawned child |
@@ -588,7 +588,7 @@ Two findings worth carrying forward:
   which the current design forbids (`types.ts`: a teammate name is "unique among
   living teammates"). It fails identically at baseline `aa05ae0` — verified in a
   clean worktree — with `A living teammate named "live-worker" already exists.`
-  It is opt-in and not run by `pnpm test`, which is why the breakage went
+  It is opt-in and not run by `bun test`, which is why the breakage went
   unnoticed. Left unfixed here as out of scope; it should be repaired or removed
   when Package 1 work touches the live fixtures.
 - **`tests/agent-actions-fixture.ts` mocks `spawnTeammate`**, so the Python suite
@@ -822,7 +822,7 @@ Publishing: `scripts/publish-release.mjs` `PUBLISH_SCOPE` must list
 `@fradser/pi-agent-teams` in that order, since consumers use their dependencies
 at runtime. `~/.pi/agent/settings.json` currently points at
 `packages/agent-teams`; the two new local paths must be added and the installed
-paths verified with `pnpm check:install`. Changesets are required for all three,
+paths verified with `bun run check:install`. Changesets are required for all three,
 and packed manifests must contain no `workspace:` protocols.
 
 ## The final tool design
@@ -1093,7 +1093,7 @@ Checked against every tool registered in this repository: no package registers
   platform (10); budget and depth fail-closed behavior (11).
 - `tests/test_prompt_budget.py` imports `packages/agent-teams/src/guidance.ts`
   by path and must be updated at step 3-5 as guidance splits three ways.
-- Runtime changes need `pnpm check:install` plus live `pi --print` verification;
+- Runtime changes need `bun run check:install` plus live `pi --print` verification;
   console and widget changes need interactive TUI checks.
 
 ## Out of scope

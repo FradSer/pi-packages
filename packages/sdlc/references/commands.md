@@ -30,8 +30,8 @@ Commit `.sdlc/config.json`. A plan approves its exact digest. Example:
 {
   "version": 1,
   "checks": [
-    {"name":"tests", "argv":["pnpm","test"], "timeout":120},
-    {"name":"build", "argv":["pnpm","build"], "timeout":120}
+    {"name":"tests", "argv":["bun","test"], "timeout":120},
+    {"name":"build", "argv":["bun","build"], "timeout":120}
   ],
   "agentFiles": ["AGENTS.md"],
   "evalSuite": "/managed/sdlc/evals.json"

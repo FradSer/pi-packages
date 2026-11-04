@@ -17,7 +17,7 @@ Run from the repository root:
 
 ```bash
 python3 -m pytest packages/utils/tests/ -q
-pnpm --dir packages/utils pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/utils
 sh packages/utils/tests/utils_docker.sh
 UTILS_DOCKER_BASE_IMAGE=node:24-trixie-slim sh packages/utils/tests/utils_docker.sh
 ```

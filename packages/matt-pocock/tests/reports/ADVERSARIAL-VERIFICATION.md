@@ -2,6 +2,8 @@
 
 确定性与原生运行基线日期：2026-10-03；真实模型扩展验证：2026-10-04。Pi CLI、包内 `pi-ai`、`pi-coding-agent`、`pi-tui` 均为 **1.0.0**。
 
+当前工具链为 bun：等价命令是 `bun run typecheck`、`bun run check:install`、`bun pm pack --destination /tmp --quiet --cwd packages/matt-pocock`。下方结果保留历史运行记录，不改写为本次重跑。
+
 本轮新增 **29 个参数展开后的构造场景**，测试先复现失败，再修复并回归。覆盖当前目录的所有条目及转换边；这不表示穷举任意输入、调度时序或下游业务结果。
 
 ## 已复现并修复
@@ -38,7 +40,7 @@
 
 - 完整包测试：**158 passed**。
 - 无实现历史的独立复审：新增 **29 passed**；`CI=true` 下原生/问答 **7 passed**。
-- `pnpm typecheck`、`pnpm check:install`、包的 `pack --dry-run`：通过。
+- typecheck、安装路径检查、包的 `pack --dry-run`：通过。
 - 更新后的所有 TypeScript 夹具严格 Pi v1 API 检查与包内依赖解析：**2 passed**。
 - 实际 Pi 工具矩阵：**271 次工具执行，3 个预期拒绝**；重启、原生树切换和原生会话压缩通过。
 - 实际 TUI 命令矩阵：**26 个入口**（21 个能力、5 条路由），每轮均有程序投递和 agent_end 证据，**26 个进程均正常退出，exitCode=0**。
@@ -141,7 +143,7 @@ python3 packages/matt-pocock/tests/real_model_live.py --all --output /tmp/matt-p
 | 自然语言路由 | 1 | 0 | 1 |
 | 额外 scope-creep 审查回归 | 1 | 1 | 0 |
 
-最终包测试 **190 passed**；最后收紧 provider-error 诊断后，受影响的 runner 回归 **18 passed**，并重新校验已保留的实际 Pi pending 诊断。`pnpm typecheck`、`pnpm check:install`、包 `pack --dry-run` 通过。与真实上游 checkout 比较也通过：**37 skills、25 selected、12 excluded**，远端 HEAD 仍为 `d81f3a183412e71a5b1e84ca21bc1a35eea03a60`。独立复审的 path guard、source-file 验收、pending 汇总和错误诊断反例均已修复。
+最终包测试 **190 passed**；最后收紧 provider-error 诊断后，受影响的 runner 回归 **18 passed**，并重新校验已保留的实际 Pi pending 诊断。typecheck、安装路径检查、包 `pack --dry-run` 通过。与真实上游 checkout 比较也通过：**37 skills、25 selected、12 excluded**，远端 HEAD 仍为 `d81f3a183412e71a5b1e84ca21bc1a35eea03a60`。独立复审的 path guard、source-file 验收、pending 汇总和错误诊断反例均已修复。
 
 收尾在当前最终候选上再运行 `python3 packages/matt-pocock/tests/live/live_smoke.py`：真实 Pi print、TUI、问答超时、Escape、Ctrl+O 展开和 48 列窗口均通过。这轮 smoke 使用独立 HOME 与本地确定性 provider；上述 28 项则使用实际外部模型。
 
@@ -160,4 +162,4 @@ python3 packages/matt-pocock/tests/real_model_live.py --all --output /tmp/matt-p
 
 本轮首次扫描曾出现 3 项失败（`cap-pr`、`cap-wizard`、`route-hard-bug`），看起来像本变更引入的回归。对照实验否定了这一点：同一模型、同一用例，仅源码不同，有变更臂 6 轮 18 次用例运行失败 3 次，无变更臂 5 轮 15 次失败 1 次，Fisher 精确检验双尾 **p = 0.6074**，且 `route-hard-bug` 在无变更臂同样失败。结论是该套件本身存在逐用例的随机失败率，首次扫描的 3 项失败属偶发聚集；这一统计已写入 `real-model-results.json` 的 `flakiness` 字段，供后续读者区分真回归与随机失败。
 
-本轮验证：包测试 **250 passed**；`pnpm typecheck`、包 `pack --dry-run` 通过；真实 Pi 运行矩阵 **280 次工具执行、4 项预期拒绝**；`tests/e2e/matt_pocock_grill_me.py` 的两个入口（菜单与模型网关）均 `completed`。仓库级测试 139 passed、2 failed，两项失败均由未跟踪的 `packages/bdd-jev/` 引起（不在 PUBLISH_SCOPE、无 git-agent scope），与本变更无关。
+本轮验证：包测试 **250 passed**；typecheck、包 `pack --dry-run` 通过；真实 Pi 运行矩阵 **280 次工具执行、4 项预期拒绝**；`tests/e2e/matt_pocock_grill_me.py` 的两个入口（菜单与模型网关）均 `completed`。仓库级测试 139 passed、2 failed，两项失败均由未跟踪的 `packages/bdd-jev/` 引起（不在 PUBLISH_SCOPE、无 git-agent scope），与本变更无关。

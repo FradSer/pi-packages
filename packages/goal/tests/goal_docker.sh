@@ -15,7 +15,7 @@ cd "$repo_root"
 
 pi_version=${PI_VERSION:-}
 if [ -z "$pi_version" ]; then
-  pi_version=$(pnpm view @earendil-works/pi-coding-agent dist-tags.latest 2>/dev/null | tr -d "[:space:]")
+  pi_version=$(bun pm view @earendil-works/pi-coding-agent dist-tags.latest 2>/dev/null | tr -d "[:space:]")
   if [ -z "$pi_version" ]; then
     printf "%s\n" "cannot resolve the latest Pi version from the registry; set PI_VERSION to pin one" >&2
     exit 1
@@ -24,46 +24,54 @@ fi
 printf "%s\n" "$pi_version" > "$receipt_dir/pi-version.txt"
 printf "isolated Pi baseline: %s\n" "$pi_version" >&2
 
-pnpm --dir packages/kit pack --pack-destination "$receipt_dir" > "$receipt_dir/kit-pack.log"
-pnpm --dir packages/goal pack --pack-destination "$receipt_dir" > "$receipt_dir/goal-pack.log"
+bun pm pack --destination "$receipt_dir" --quiet --cwd packages/kit > "$receipt_dir/kit-pack.log"
+bun pm pack --destination "$receipt_dir" --quiet --cwd packages/goal > "$receipt_dir/goal-pack.log"
 kit_tgz=$(basename "$(ls "$receipt_dir"/fradser-pi-kit-*.tgz | head -1)")
 goal_tgz=$(basename "$(ls "$receipt_dir"/fradser-pi-goal-*.tgz | head -1)")
 
 # Every @earendil-works package the Pi entry points depend on at this version.
 pi_family=$(for pkg in pi-coding-agent pi-ai pi-tui; do
-  pnpm view "@earendil-works/$pkg@$pi_version" dependencies --json 2>/dev/null
+  bun pm view "@earendil-works/$pkg@$pi_version" dependencies --json 2>/dev/null
 done | grep -o "\"@earendil-works/[a-z-]*\"" | tr -d "\"" | sed "s|^@earendil-works/||" | sort -u)
 
-{
-  printf "{\n  \"name\": \"isolated-goal-verification\",\n  \"private\": true,\n  \"type\": \"module\",\n"
-  printf "  \"packageManager\": \"pnpm@11.21.0\",\n  \"dependencies\": {\n"
-  for pkg in pi-coding-agent pi-ai pi-tui; do
-    printf "    \"@earendil-works/%s\": \"%s\",\n" "$pkg" "$pi_version"
-  done
-  printf "    \"@fradser/pi-kit\": \"file:/receipts/%s\",\n" "$kit_tgz"
-  printf "    \"@fradser/pi-goal\": \"file:/receipts/%s\",\n" "$goal_tgz"
-  printf "    \"tsx\": \"^4.19.0\",\n    \"@babel/parser\": \"^7.29.9\",\n    \"typescript\": \"^5.9.0\",\n    \"@types/node\": \"^22.0.0\"\n  }\n}\n"
-} > "$receipt_dir/isolated-package.json"
-
-
-{
-  printf "packages:\n  - .\noverrides:\n"
-  printf "  \"@fradser/pi-kit\": file:/receipts/%s\n" "$kit_tgz"
-  { for pkg in pi-coding-agent pi-ai pi-tui $pi_family; do printf "  \"@earendil-works/%s\": %s\n" "$pkg" "$pi_version"; done; } | sort -u
-  printf "allowBuilds:\n  esbuild: true\n  \"@google/genai\": true\n  protobufjs: true\n"
-} > "$receipt_dir/isolated-workspace.yaml"
+# A single package.json carries both the dependencies and the version pins;
+# bun reads `overrides` from the project root, so no separate workspace file.
+node --input-type=module - "$kit_tgz" "$goal_tgz" "$pi_version" "$pi_family" > "$receipt_dir/isolated-package.json" <<'JSON'
+import { writeFileSync } from "node:fs";
+const [kit, goal, version, family] = process.argv.slice(2);
+const overrides = { "@fradser/pi-kit": `file:/receipts/${kit}` };
+for (const pkg of ["pi-coding-agent", "pi-ai", "pi-tui", ...family.trim().split(/\s+/)]) {
+  if (pkg) overrides[`@earendil-works/${pkg}`] = version;
+}
+writeFileSync(1, JSON.stringify({
+  name: "isolated-goal-verification", private: true, type: "module",
+  packageManager: "bun@1.4.1",
+  dependencies: {
+    "@earendil-works/pi-coding-agent": version,
+    "@earendil-works/pi-ai": version,
+    "@earendil-works/pi-tui": version,
+    "@fradser/pi-kit": `file:/receipts/${kit}`,
+    "@fradser/pi-goal": `file:/receipts/${goal}`,
+    tsx: "^4.19.0", "@babel/parser": "^7.29.9",
+    typescript: "^5.9.0", "@types/node": "^22.0.0",
+  },
+  overrides,
+}, null, 2) + "\n");
+JSON
 
 cat > "$receipt_dir/setup.sh" <<'SETUP'
 #!/bin/sh
 set -eu
-corepack enable
 mkdir -p /isolated /verify/packages/goal/tests
 cd /isolated
 cp /receipts/isolated-package.json package.json
-cp /receipts/isolated-workspace.yaml pnpm-workspace.yaml
-pnpm install
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv >/dev/null
+apt-get install -y -qq curl unzip >/dev/null
+curl -fsSL --retry 3 --retry-delay 2 --max-time 300 https://bun.sh/install -o /tmp/bun-install.sh
+BUN_INSTALL=/usr/local bash /tmp/bun-install.sh bun-v1.4.1 >/dev/null
+bun --version | tee /receipts/bun-version.txt
+bun install
 python3 -m venv /verify/venv
 /verify/venv/bin/pip install -q pyte pytest
 mkdir -p /verify/packages/goal

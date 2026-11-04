@@ -22,7 +22,7 @@ Run from the repository root:
 ```bash
 python3 -m pytest packages/open-deskos/tests/ -q
 node --test packages/open-deskos/tests/*.test.mjs
-pnpm --dir packages/open-deskos pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/open-deskos
 ```
 
 ## Style and Architecture

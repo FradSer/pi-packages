@@ -1,4 +1,4 @@
-Use a **teammate when the teammate facility is available** to do the research, so the main conversation stays focused while it reads. Otherwise do the research in the current context.
+Use a **teammate when the teammate facility is available** to do the research, so the main conversation stays focused while it reads. Start it with a fresh context window, not inherited parent history. Otherwise do the research in the current context.
 
 Its job:
 

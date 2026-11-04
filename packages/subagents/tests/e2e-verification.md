@@ -133,11 +133,11 @@ failure and is not counted as a passing run.
 
 Checks completed for the final parent-isolation candidate:
 
-- Root `pnpm typecheck`.
-- `pnpm pack:check`: 18 workspace packed manifests.
-- `pnpm --dir packages/subagents pack --dry-run`: entry, 27 source modules,
+- Root `bun run typecheck`.
+- `bun run pack:check`: 18 workspace packed manifests.
+- `bun pm pack --destination /tmp --quiet --cwd packages/subagents`: entry, 27 source modules,
   authority/vision guidance and bundled role reference present.
-- `pnpm check:install`: 17 installed packages and 18 settings entries.
+- `bun run check:install`: 17 installed packages and 18 settings entries.
 - 14 focused root runtime-workspace and Pi dependency-cohort checks in 2.71 seconds.
 - `git diff --check` and post-run fixture-process inspection.
 

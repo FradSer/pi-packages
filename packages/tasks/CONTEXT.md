@@ -20,9 +20,9 @@ The user confirms passive Tasks and explicitly requests complete removal of reti
 
 - RED: export-removal regression identifies all ten retained exports before deletion.
 - Tasks suite: 154 passed with `python3 -m pytest packages/tasks/tests -q`.
-- `pnpm typecheck` and the Tasks package dry-run passed.
+- `bun run typecheck` and the Tasks package dry-run passed.
 - The packed Tasks manifest excludes both deleted modules.
-- `pnpm pack:check` validated all 18 packed manifests.
+- `bun run pack:check` validated all 18 packed manifests.
 - `git diff --check` passed after removing a trailing blank line.
 - Source search finds no retired status identifier or execution helpers in Tasks source or package entry.
 - Actual isolated CLI tests stop with open tasks and use explicit list/get.

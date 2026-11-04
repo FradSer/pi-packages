@@ -277,12 +277,12 @@ test("state follows the same events the reporter uses", async (t) => {
   h.host.markRunning();
   h.idle(false);
   h.host.observeMessage(user("read the layout"));
-  h.host.observeActivity("bash: pnpm test");
+  h.host.observeActivity("bash: bun test");
   const running = await ask(h.socketPath, { version: 1, requestId: "s1", command: "status", taskId: SESSION });
   assert.equal(running.task.state, "running");
   assert.equal(running.task.activity, "working");
   assert.equal(running.task.prompt, "read the layout", "the goal is what the session was asked");
-  assert.equal(running.task.latestActivity, "bash: pnpm test", "and the activity is the tool running now");
+  assert.equal(running.task.latestActivity, "bash: bun test", "and the activity is the tool running now");
   assert.equal("turnOutcome" in running.task, false, "a turn in flight has no outcome yet");
 
   // A tool call keeps the turn going, so it is not a claim about how the turn ended.
@@ -314,7 +314,7 @@ test("state follows the same events the reporter uses", async (t) => {
   const aborted = await ask(h.socketPath, { version: 1, requestId: "s5", command: "status", taskId: SESSION });
   assert.equal(aborted.task.turnOutcome, "cancelled");
   const listed = await ask(h.socketPath, { version: 1, requestId: "s6", command: "list" });
-  assert.equal(listed.tasks[0].latestActivity, "bash: pnpm test", "list carries the same activity the card shows");
+  assert.equal(listed.tasks[0].latestActivity, "bash: bun test", "list carries the same activity the card shows");
 });
 
 test("shutdown is idempotent and takes the endpoint with it", async (t) => {

@@ -105,7 +105,7 @@ When the command can be wrapped, print a unique sentinel containing JSON:
 
 ```bash
 sh -c '
-  if pnpm test; then
+  if bun test; then
     printf '\''__PI_MONITOR_RESULT__ {"status":"success"}\n'\''
   else
     code=$?
@@ -210,7 +210,7 @@ named captures:
 
 ```text
 monitor_start
-  command="pnpm build && printf 'BUILD_OK\\n'"
+  command="bun run build && printf 'BUILD_OK\\n'"
   description="production build"
   result_pattern="^BUILD_OK$"
   completion="exit"
@@ -1049,9 +1049,9 @@ Reproduce the checks:
 
 ```bash
 uv run --no-project --with pytest python -m pytest packages/monitor/tests/ -q
-pnpm typecheck
-pnpm check:install
-pnpm --dir packages/monitor pack --dry-run
+bun run typecheck
+bun run check:install
+bun pm pack --destination /tmp --quiet --cwd packages/monitor
 PYTHONPATH=packages/monitor/tests uv run --no-project python -c 'from live_monitor import tui_probe; [tui_probe(w,h) for w,h in [(80,24),(40,6),(20,4),(120,40)]]; tui_probe(80,24,case="tui-values"); tui_probe(40,6,case="tui-values")'
 ```
 
@@ -1074,7 +1074,7 @@ text never becomes terminal control data.
 
 Timeout: 7m
 Command:
-pnpm test
+bun test
 success condition: TEST_RESULT …
 ```
 

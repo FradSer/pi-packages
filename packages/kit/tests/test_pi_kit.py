@@ -1461,15 +1461,15 @@ def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path
           {{ type: "message_update", assistantMessageEvent: {{ type: "thinking_delta", delta: "older reasoning" }} }},
           {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "newer answer" }} }},
           {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_start" }} }},
-          {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_delta", delta: JSON.stringify({{ command: "pnpm test" }}) }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_delta", delta: JSON.stringify({{ command: "bun test" }}) }} }},
           {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_end", toolCall: {{ name: "bash" }} }} }},
           {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "pre-tool answer" }}] }} }},
-          {{ type: "tool_execution_start", toolCallId: "call-1", toolName: "bash", args: {{ command: "pnpm check" }} }},
+          {{ type: "tool_execution_start", toolCallId: "call-1", toolName: "bash", args: {{ command: "bun run check" }} }},
           {{ type: "tool_execution_end", toolCallId: "call-1", toolName: "bash" }},
           {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "final answer" }} }},
           {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "final answer" }}] }} }},
         ];
-        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 5)); }}\\n`, {{ mode: 0o755 }});
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 40)); }}\\n`, {{ mode: 0o755 }});
         const originalArgv1 = process.argv[1];
         process.argv[1] = fakePi;
         const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
@@ -1483,8 +1483,8 @@ def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path
     assert "firstsecond" not in result["activities"]
     assert "older reasoning" in result["activities"]
     assert "newer answer" in result["activities"]
-    assert "bash: pnpm test" in result["activities"]
-    assert "bash: pnpm check" in result["activities"]
+    assert "bash: bun test" in result["activities"]
+    assert "bash: bun run check" in result["activities"]
     assert result["activities"][-1] == "final answer"
     assert all(activity not in ("pre-tool answerfinal answer", "older reasoningfinal answer") for activity in result["activities"])
 
@@ -1515,7 +1515,7 @@ def test_pi_worker_progress_keeps_the_full_tool_activity(tmp_path: Path) -> None
           {{ type: "tool_execution_start", toolCallId: "call-3", toolName: "grep", args: {{ pattern: "MINIMAL_PI_WORKER_TOOLS", path: "/repo/packages/context" }} }},
           {{ type: "tool_execution_start", toolCallId: "call-4", toolName: "find", args: {{ pattern: "**/*.feature", path: "/repo/packages" }} }},
         ];
-        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 5)); }}\\n`, {{ mode: 0o755 }});
+        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 40)); }}\\n`, {{ mode: 0o755 }});
         const originalArgv1 = process.argv[1];
         process.argv[1] = fakePi;
         const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
@@ -1547,7 +1547,7 @@ def test_tool_activity_classification_prefers_a_search_pattern_over_its_root() -
         console.log(JSON.stringify({{
           grep: classify({{ pattern: "MINIMAL_PI_WORKER_TOOLS", path: "/repo/packages/context" }}),
           find: classify({{ pattern: "**/*.feature", path: "/repo/packages" }}),
-          command: classify({{ command: "  pnpm   test  ", pattern: "ignored" }}),
+          command: classify({{ command: "  bun   test  ", pattern: "ignored" }}),
           read: classify({{ path: "  /repo/packages/context/index.ts  " }}),
           query: classify({{ query: "context worker" }}),
           subject: classify({{ subject: "Ship it" }}),
@@ -1564,7 +1564,7 @@ def test_tool_activity_classification_prefers_a_search_pattern_over_its_root() -
     assert result["grep"] == {"kind": "search", "value": "MINIMAL_PI_WORKER_TOOLS"}, result["grep"]
     assert result["find"] == {"kind": "search", "value": "**/*.feature"}, result["find"]
     # An explicit command outranks every other argument a call may carry.
-    assert result["command"] == {"kind": "command", "value": "pnpm   test"}, result["command"]
+    assert result["command"] == {"kind": "command", "value": "bun   test"}, result["command"]
     assert result["read"] == {"kind": "file", "value": "/repo/packages/context/index.ts"}, result["read"]
     assert result["query"] == {"kind": "search", "value": "context worker"}, result["query"]
     assert result["subject"] == {"kind": "message", "value": "Ship it"}, result["subject"]

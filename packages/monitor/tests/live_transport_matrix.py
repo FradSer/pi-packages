@@ -47,9 +47,9 @@ def cases() -> list[dict]:
         result.append({"name": f"{mode}-codemode-parallel", "mode": mode, "route": "codemode", "jobs": parallel, "expected": ["success", "failure", "success"]})
     result.append({"name": "rpc-stop", "mode": "rpc", "route": "stop", "jobs": [job("setTimeout(()=>{},10000)")], "expected": ["stopped"]})
     for name, workflow, expected in [
-        ("monitor-typecheck", "pnpm exec tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --strict --skipLibCheck packages/monitor/index.ts", "success"),
+        ("monitor-typecheck", "bun x tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --strict --skipLibCheck packages/monitor/index.ts", "success"),
         ("monitor-regressions", "uv run --no-project --with pytest python -m pytest packages/monitor/tests/test_monitor_token_boundary.py -q", "success"),
-        ("compiler-diagnostic", "pnpm exec tsc --noEmit --strict --skipLibCheck __INVALID_FIXTURE__", "failure"),
+        ("compiler-diagnostic", "bun x tsc --noEmit --strict --skipLibCheck __INVALID_FIXTURE__", "failure"),
     ]:
         command = f"if (cd '{REPO}' && {workflow}); then printf 'FINAL {{\"ok\":true}}\\n'; else code=$?; printf 'FAILED {{\"ok\":false,\"exitCode\":%s}}\\n' \"$code\"; exit \"$code\"; fi"
         result.append({"name": f"print-real-{name}", "mode": "print", "route": "direct", "expected": [expected],

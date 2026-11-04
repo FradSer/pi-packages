@@ -13,7 +13,7 @@ Run focused tests from the repository root:
 
 ```bash
 python3 -m pytest packages/subagents/tests/ -q
-pnpm --dir packages/subagents pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/subagents
 ```
 
 For real-model Docker studies, see `packages/subagents/tests/docker-study/README.md`.

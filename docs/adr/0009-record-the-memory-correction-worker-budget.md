@@ -89,7 +89,7 @@ and a 7200-second guardian in unlimited mode
   still satisfy every learning-coverage field, and its acceptance run must use the
   unlimited guardian.
 - Checks at acceptance: full package suite 1997 passed and 1 skipped,
-  `pnpm typecheck` and `pnpm --dir packages/continual-learning pack --dry-run`
+  `bun run typecheck` and `bun pm pack --destination /tmp --quiet --cwd packages/continual-learning`
   green.
 
 ## Consequences

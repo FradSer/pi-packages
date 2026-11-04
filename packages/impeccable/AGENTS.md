@@ -25,7 +25,7 @@ python3 -m pytest packages/impeccable/tests/ -q
 node --import tsx/esm --test packages/impeccable/tests/loader.test.mjs
 node --import tsx/esm --test packages/impeccable/tests/routing.test.mjs
 python3 packages/impeccable/tests/live_procedure_row.py
-pnpm --dir packages/impeccable pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/impeccable
 ```
 
 ## Style and Architecture

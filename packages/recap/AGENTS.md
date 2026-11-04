@@ -20,8 +20,8 @@ Run focused tests and type checks from the repository root:
 
 ```bash
 python3 -m pytest packages/recap/tests/ -q
-pnpm exec tsc --noEmit --allowImportingTsExtensions -p packages/recap/tsconfig.json
-pnpm --dir packages/recap pack --dry-run
+bun x tsc --noEmit --allowImportingTsExtensions -p packages/recap/tsconfig.json
+bun pm pack --destination /tmp --quiet --cwd packages/recap
 ```
 
 ## Style and Architecture

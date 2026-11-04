@@ -8,7 +8,7 @@ does not match.
 
 - Task baseline: uncommitted work tree of this repository. The task's own change
   set is `packages/skill-router/**` (plus `README.md`, `README.zh-CN.md`,
-  `pnpm-lock.yaml`, `docs/adr/0010-…`, `docs/spec-…`, and
+  `bun.lock`, `docs/adr/0010-…`, `docs/spec-…`, and
   `.changeset/skill-router-codemode-skill-tools.md`). Unrelated dirty work in
   `packages/continual-learning`, `packages/goal`, `packages/utils`, `packages/sdlc`,
   and `scripts/` is pre-existing and out of scope; it must not be inspected,
@@ -83,8 +83,7 @@ Changed since the first fingerprint:
   feature-listing test matches the existing repository convention).
 
 Checks on the second candidate: `python3 -m pytest packages/skill-router/tests/
--q -W ignore` → 95 passed; `pnpm typecheck` → clean; `pnpm --dir
-packages/skill-router pack --dry-run` → clean. A live Pi 1.3.0 run on this
+-q -W ignore` → 95 passed; `bun run typecheck` → clean; `bun pm pack --destination /tmp --quiet --cwd packages/skill-router` → clean. A live Pi 1.3.0 run on this
 candidate ran `searchTools("seo audit")`, called
 `tools.skill_router__upstream__seo_audit({})` from inside the script (a nested
 call: the tool was never declared), and answered with the token only the skill
@@ -106,7 +105,7 @@ Owner-side verification that the tightened assertion can fail: with
 `MAX_SKILL_BODY_CHARS` temporarily raised to 25000, the test failed with
 `assert '…16491 chars truncated…' in '…'`, and it passed again after restoring
 20000. The constant is confirmed back at 20000, and the full suite is 95 passed
-with `pnpm typecheck` clean on the third candidate.
+with `bun run typecheck` clean on the third candidate.
 
 1. Are B1 and B2 resolved by the delta above, and does the new code introduce no
    new blocking defect? Resolved — see "Post-recheck delta" for the verdict and
@@ -157,8 +156,7 @@ loop made the remove/disable tests fail with `'codemode' == 'hidden'`. Both
 mutations were reverted.
 
 Checks on the fourth candidate: `python3 -m pytest packages/skill-router/tests/
--q -W ignore` → 99 passed; `pnpm typecheck` → clean; `pnpm --dir
-packages/skill-router pack --dry-run` and `pnpm pack:check` → clean. A live Pi
+-q -W ignore` → 99 passed; `bun run typecheck` → clean; `bun pm pack --destination /tmp --quiet --cwd packages/skill-router` and `bun run pack:check` → clean. A live Pi
 1.3.0 run repeated the search-and-call and answered with the skill body's token.
 
 ## Third post-recheck delta
@@ -193,8 +191,7 @@ all dispositioned:
   `selected`), so it cannot discard a swap.
 
 Checks on the fifth candidate: `python3 -m pytest packages/skill-router/tests/ -q
--W ignore` → 101 passed; `pnpm typecheck` → clean; `pnpm --dir
-packages/skill-router pack --dry-run` → clean. A live Pi 1.3.0 run repeated
+-W ignore` → 101 passed; `bun run typecheck` → clean; `bun pm pack --destination /tmp --quiet --cwd packages/skill-router` → clean. A live Pi 1.3.0 run repeated
 `searchTools` and the nested skill-tool call and answered with the skill body's
 token.
 
@@ -244,8 +241,8 @@ setup now satisfies instead of skipping any test.
 
 ```bash
 python3 -m pytest packages/skill-router/tests/ -q -W ignore
-pnpm typecheck
-pnpm --dir packages/skill-router pack --dry-run
+bun run typecheck
+bun pm pack --destination /tmp --quiet --cwd packages/skill-router
 ```
 
 Do not run installers, do not write to `~/.pi/agent`, and do not touch files

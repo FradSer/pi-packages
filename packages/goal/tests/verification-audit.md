@@ -119,9 +119,9 @@ Superseded. This chain ran on `ed1a58fb…` after the `checkProgress.detail` and
 
 - `python3 -m pytest packages/goal/tests/ -q`: 21 passed.
 - goal source `tsc`: passed. goal tests `tsc`: passed.
-- root `pnpm typecheck`: passed.
-- `pnpm --dir packages/goal pack --dry-run`: passed.
-- `pnpm check:install`: passed.
+- root `bun run typecheck`: passed.
+- `bun pm pack --destination /tmp --quiet --cwd packages/goal`: passed.
+- `bun run check:install`: passed.
 - native preflight rejection, native PTY lifecycle, native CLI/TUI completion: all passed.
 - no fixture process remained.
 
@@ -192,9 +192,9 @@ round five above.
 
 - `python3 -m pytest packages/goal/tests/ -q`: 21 passed.
 - goal source `tsc`: passed. goal tests `tsc`: passed.
-- root `pnpm typecheck`: passed.
-- `pnpm --dir packages/goal pack --dry-run`: passed.
-- `pnpm check:install`: passed.
+- root `bun run typecheck`: passed.
+- `bun pm pack --destination /tmp --quiet --cwd packages/goal`: passed.
+- `bun run check:install`: passed.
 - native preflight rejection, native PTY lifecycle, native CLI/TUI completion: all passed.
 - no fixture process remained.
 
@@ -219,13 +219,13 @@ Earlier chains: `monitor_9124e6c3` (50.7s) on `064a75bd…`, `monitor_443ce926` 
 
 ## Unrelated breakage found outside this package
 
-Root `pnpm typecheck` compiles `tsconfig.extensions.json`, which includes every extension, so it reports on
+Root `bun run typecheck` compiles `tsconfig.extensions.json`, which includes every extension, so it reports on
 packages this audit does not own. On `bc9948f4…` it briefly failed with three errors in
 `packages/continual-learning/extensions/inject-memory.ts:1435` and `:1873`: `readFile` and `MAX_MEMORY_BYTES`
 undefined, and a `{}` assigned where a readonly array is expected. That file was uncommitted work in progress from
 another session (`git status` showed it modified), it contains no reference to packages/goal, and this audit's
 scope forbids editing code outside its own package, so it was reported rather than fixed. The other session
-completed its edit and root `pnpm typecheck` returned to exit 0 with no change from this audit. Nothing in
+completed its edit and root `bun run typecheck` returned to exit 0 with no change from this audit. Nothing in
 packages/goal caused it: the package's own typechecks, its 22 tests, its pack dry-run, its installation audit and
 its three native offline probes passed on the same candidate throughout.
 
@@ -237,10 +237,10 @@ not be mistaken for one inside it:
 
 - `python3 -m pytest packages/goal/tests/ -q`: 22 passed.
 - goal source `tsc`: passed. goal tests `tsc`: passed.
-- `pnpm --dir packages/goal pack --dry-run`: passed.
-- `pnpm check:install`: passed.
+- `bun pm pack --destination /tmp --quiet --cwd packages/goal`: passed.
+- `bun run check:install`: passed.
 - native preflight rejection, native PTY lifecycle, native CLI/TUI completion: all passed.
-- root `pnpm typecheck`: exit 0, confirmed separately after the unrelated breakage cleared.
+- root `bun run typecheck`: exit 0, confirmed separately after the unrelated breakage cleared.
 - runtime fingerprint asserted equal to `bc9948f4…`; no fixture process remained.
 
 ## Round six: reviewer findings closed
@@ -273,10 +273,10 @@ not be mistaken for one inside it:
 
 - `python3 -m pytest packages/goal/tests/ -q`: passed.
 - goal source `tsc`: passed. goal tests `tsc`: passed.
-- `pnpm --dir packages/goal pack --dry-run`: passed.
-- `pnpm check:install`: passed.
+- `bun pm pack --destination /tmp --quiet --cwd packages/goal`: passed.
+- `bun run check:install`: passed.
 - native preflight rejection, native PTY lifecycle, native CLI/TUI completion: all passed.
-- root `pnpm typecheck`: reported separately so a failure outside this package cannot be read as one inside it.
+- root `bun run typecheck`: reported separately so a failure outside this package cannot be read as one inside it.
 - no fixture process remained.
 
 Mutation spot-checks on this candidate, each run against the real tree and restored byte-for-byte with an
@@ -306,8 +306,8 @@ satisfied the previous `/cursor=/` assertion, now fails with "a cursor must adva
 
 Receipts on this candidate: `PYTEST_EXIT=0` with 23 passed, goal source and tests `tsc` exit 0, pack dry-run exit
 0, and the native rejection, TUI and completion probes all exit 0. Two failures are outside this package and were
-reported rather than fixed, because the objective forbids editing other packages: root `pnpm typecheck` fails in
-`packages/agent-teams/tests/tool-param-schema-fixture.ts`, and `pnpm check:install` reports `packages/utils` and
+reported rather than fixed, because the objective forbids editing other packages: root `bun run typecheck` fails in
+`packages/agent-teams/tests/tool-param-schema-fixture.ts`, and `bun run check:install` reports `packages/utils` and
 `packages/vision` not installed.
 
 ## Independent review of this round

@@ -66,7 +66,7 @@ def run_input_harness(
 
 def test_custom_run_without_prompt_clears_prior_image_analysis(tmp_path: Path) -> None:
     completed = subprocess.run(
-        ["pnpm", "exec", "tsx", str(PACKAGE / "tests" / "vision_custom_start_harness.ts")],
+        ["bun", "x", "tsx", str(PACKAGE / "tests" / "vision_custom_start_harness.ts")],
         cwd=PACKAGE.parents[1],
         env={**os.environ, "PI_CODING_AGENT_DIR": str(tmp_path / "agent")},
         check=True,

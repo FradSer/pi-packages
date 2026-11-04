@@ -6,7 +6,7 @@ The package bundles `references/workflow.md` and both templates; no external
 dotcodex checkout is needed at runtime.
 
 Run `uv run --with pytest python -m pytest packages/sdlc/tests -q`,
-`pnpm typecheck`, and `pnpm --dir packages/sdlc pack --dry-run` from the repository.
+`bun run typecheck`, and `bun pm pack --destination /tmp --quiet --cwd packages/sdlc` from the repository.
 `tests/live_sdlc.py` uses real Pi print and RPC with a deterministic local provider.
 Keep this evidence separate from real-model instruction-following quality.
 

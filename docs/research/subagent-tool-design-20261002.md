@@ -322,8 +322,8 @@ No numerical accuracy improvement is claimed until those evaluations run.
 A fresh independent review is required before shipping this public-interface and concurrency-sensitive change.
 Use a new temporary reviewer without fork; reopening a durable identity can resume history and does not establish independence.
 
-For each runtime increment, run the affected Python and Node suites, pnpm typecheck, and the package pack dry-run.
-Also run pnpm check:install, isolated native Pi print/RPC checks, and interactive TUI checks under the package contract.
+For each runtime increment, run the affected Python and Node suites, bun run typecheck, and the package pack dry-run.
+Also run bun run check:install, isolated native Pi print/RPC checks, and interactive TUI checks under the package contract.
 Report pre-existing workspace failures separately; do not weaken unrelated task expectations to make the refactor pass.
 
 ## Current verification and remaining work

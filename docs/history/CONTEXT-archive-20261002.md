@@ -144,7 +144,7 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   typed/bounded output APIs and31 output tests; its root goal/activation type errors
   are historical candidates, not current blockers. Parent read the actual delivered
   files and reran root tests/test_agent_output.py **31 passed**, package output suite
-  **7 passed**, and pnpm typecheck **passed**. The child feature/tests landed at root
+  **7 passed**, and bun run typecheck **passed**. The child feature/tests landed at root
   features/agent-output.feature and tests/test_agent_output.py; package equivalents
   added during parent takeover also exist. Both sets preserved, no silent removal.
   This implementer report is not the independent review-agent-boundary verdict.
@@ -259,7 +259,7 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   fixed with no scoped blocking finding or control regression. Static closure
   only; the reviewer inspected tests/fixtures but ran no dynamic verification.
   Parent owns the 926 passing checks. No polling/duplicate starts, broader
-  storage/security acceptance or full pnpm check claim.
+  storage/security acceptance or full bun run check claim.
 - Current loaded extension still requires reload; do not claim the user's
   original old handle was retested live. No history archive or recovery of
   replaced/lost-parent records is introduced. Widget policy remains unchanged.
@@ -301,7 +301,7 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
 
 - User explicitly superseded the earlier 0.99.2 requirement: this session must
   also use Pi **1.0.0**. Confirmed/reconciled root pi-ai/coding-agent/tui and split
-  kit/subagents/tasks/teams coding-agent/tui via offline pnpm add -D (scripts off).
+  kit/subagents/tasks/teams coding-agent/tui via offline bun add -d (scripts off).
   Manifests ^1.0.0, installed/locked 1.0.0, published wildcard peers unchanged.
 - Updated current cohort assertions, native/E2E guards, features and bilingual
   docs. Old verification reports/0.99.2 counts below remain historical evidence,
@@ -314,7 +314,7 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   (989 disjoint tests). Only tasks/tool.ts + lockfile changed during those runs;
   final affected/cohort/native/combination recheck **82 passed** after those edits.
   Root tsc, strict native fixtures, four pack dry-runs and all 18 packed manifests
-  pass. pnpm frozen offline dry-run makes no dependency changes.
+  pass. a frozen offline bun dry-run makes no dependency changes.
 - This closes the user-authorized version upgrade and previous cohort mismatch,
   not separate cross-parent safety policy or migration acceptance. Global
   check:install remains a personal declaration audit with known missing packages;
@@ -487,7 +487,7 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   canonical disk identity/history/Memory resume, project identity without user
   promotion, correlated real steer, and PTY expanded source. Typecheck now passes.
   Parent shutdown role cleanup **2 passed**; Corepack pack test now uses installed
-  local pnpm under isolated HOME and passes without network downloads.
+  the local bun executable under isolated HOME and passes without network downloads.
 - In-progress broad integration **412 passed / 47 failed** during parallel edits: mostly
   old flag/flat-path assertions and migration module not yet written; owners received
   scoped failure lists. Idle prompt budget currently exceeds 3600 by 29 chars and
@@ -531,10 +531,10 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   **508 passed**; team+combination **306 passed**. Full-repository attempt timed
   out at 600s before completion. Two encountered failures reproduced separately:
   plan-mode PTY sends /plan during native startup (2 failed/1 print passed), an
-  unrelated test-readiness issue. No claim of full pnpm check success.
+  unrelated test-readiness issue. No claim of full bun run check success.
 - Final affected-package/root verification **853 passed in 430.82s**. Previous
   combined run had 851 pass/2 harness failures: PTY quit predicate race (fixed
-  with authoritative process exit recheck) and parent-created pnpm shell shim
+  with authoritative process exit recheck) and parent-created package-manager shell shim
   incorrectly reused as Node input (removed for final run). No business assertions
   relaxed. No runtime fingerprint changed during the preceding final candidate run.
 - Parent integration found a new state-writer gap: workspace bypassed Memory
@@ -598,7 +598,7 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   Consumer resident + combination/install wiring rerun after delta **73 passed**.
   Real migration stays dry-run until effective current-candidate review arrives.
 - Pi 0.99.2 validation preceding the design change: **668 passed, 1 tooling failure**
-  (isolated HOME hid Corepack's pnpm cache and attempted a network download).
+  (isolated HOME hid the Corepack cache and attempted a network download).
   Runtime fingerprints stayed stable except concurrent lockfile edits. Typecheck
   passed. pack:check now blocked by concurrently missing `@fradser/pi-goal`; do
   not restore/remove another session's package work. Earlier 0.87.1 passes are not
@@ -618,8 +618,8 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   budget currently passes; no budget change is needed.
 - User corrected the development cohort to Pi **0.99.2**. Parent updated root
   pi-ai/coding-agent/tui and split kit/subagents/tasks/teams coding-agent/tui
-  through pnpm add -D; manifests use ^0.99.2 and installed/locked versions are
-  0.99.2. Published wildcard peers/runtime dependencies stay unchanged. pnpm added
+  through bun add -d; manifests use ^0.99.2 and installed/locked versions are
+  0.99.2. Published wildcard peers/runtime dependencies stay unchanged. the package manager added
   exact 0.99.2 core release-age exclusions to workspace config; install scripts
   stayed disabled. Full dedupe was only probed in temporary copy and rejected.
   Root and split installed-resolution regression tests pass. Current typecheck
@@ -669,7 +669,7 @@ Agent Teams models durable AI Agents that can work across projects, develop thei
   expectation in `test_agent_delegation.py`; fake child without RPC acknowledgement
   in `test_work_sessions.py`; existing 0.84.1/0.87.1 peer lockfile mismatch in
   kit's dependency-chain check. Root and native-fixture TypeScript checks passed;
-  packed manifests passed for 18 packages. `pnpm check:install` reports 15 missing
+  packed manifests passed for 18 packages. `bun run check:install` reports 15 missing
   global package declarations; no global installation changes authorized or made.
 - Concurrent local work changed `prompt` to `send`/`interrupt` and added saved-role
   persistence derivation during this task; those changes were retained and tests

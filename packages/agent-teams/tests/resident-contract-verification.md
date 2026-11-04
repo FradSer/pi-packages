@@ -43,11 +43,11 @@ Commands use `uv run --no-project --python "$(command -v python3)" python -m pyt
 | `packages/agent-teams/tests -q` final run | **281 passed** |
 | `tests/test_three_package_installs.py tests/test_prompt_budget.py -q` final run | **28 passed** |
 | `packages/tasks/tests -q` with outer temporary HOME/config | **43 passed**, no task files edited |
-| `pnpm typecheck` | Passed |
+| `bun run typecheck` | Passed |
 | Strict standalone tsc of new resident fixture + two native TS probes | Passed |
-| `pnpm --dir packages/agent-teams pack --dry-run` | Passed |
-| `pnpm pack:check` | **18 packed manifests** passed |
-| `pnpm check:install <temporary-settings.json>` using cached pnpm executable and generated local sources | **17 entries** passed; no real settings read |
+| `bun pm pack --destination /tmp --quiet --cwd packages/agent-teams` | Passed |
+| `bun run pack:check` | **18 packed manifests** passed |
+| `bun run check:install <temporary-settings.json>` using the workspace bun executable and generated local sources | **17 entries** passed; no real settings read |
 | Owned-path `git diff --check` | Passed |
 
 Native coverage is real Pi 0.99.2, fixture-only in-process/loopback providers:
@@ -77,7 +77,7 @@ claim about the original symptom.
   `live-capability-blocker.ts` predate the current flat tool contract and were not
   used as evidence. `live-child-env.ts` still assumes caller-owned auth/config;
   it was not run. Use the new isolated native probes for this change.
-- The first isolated Corepack audit invocation was blocked from downloading pnpm;
+- The first isolated audit invocation was blocked from downloading a package manager;
   rerunning the cached 11.21.0 executable with network disabled passed. Earlier
   parent-owned observer/scripted fixture failures disappeared after concurrent
   owner repairs; final 25 install tests pass.

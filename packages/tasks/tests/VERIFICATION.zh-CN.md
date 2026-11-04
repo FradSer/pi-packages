@@ -46,7 +46,7 @@ test_task_stop_live.py 使用真实 Pi CLI，执行 recover、ignore、progress�
 
 task_native_frames.py 通过 PTY 启动真实交互 Pi，以同步终端帧在 80、40 列验证 content、ignore、progress：完整默认长文本尾部可见，等待原因显示，没有展开提示或伪用户暂停。测试使用较高的终端行数容纳全部 transcript；这证明渲染和窗口宽度适配，不是物理终端滚动操作验收。
 
-tasks_docker.sh 打包 Tasks 与必需的 pi-kit，安装在 node:24-bookworm-slim 的隔离 Pi 1.0.4 中。设置 packages 只有 @fradser/pi-tasks；测试用本地 provider fixture 单独加载。pnpm-workspace.yaml 显式将传递 pi-kit 指向同一 tarball，避免混入注册表版本。源码检查及运行检查指向安装的打包文件；Subagents 仅提供只读 participant-registry 参考文件，未安装或加载其扩展。验证完成后仅移除本次创建的容器，tarball、哈希、原生帧和日志保留在 receipt 目录。
+tasks_docker.sh 打包 Tasks 与必需的 pi-kit，安装在 node:24-bookworm-slim 的隔离 Pi 1.0.4 中。设置 packages 只有 @fradser/pi-tasks；测试用本地 provider fixture 单独加载。`package.json` 的 `overrides` 显式将传递 pi-kit 指向同一 tarball，避免混入注册表版本。源码检查及运行检查指向安装的打包文件；Subagents 仅提供只读 participant-registry 参考文件，未安装或加载其扩展。验证完成后仅移除本次创建的容器，tarball、哈希、原生帧和日志保留在 receipt 目录。
 
 最终 receipt：`/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/tasks-docker-bZ0nqzC9`。
 
@@ -62,4 +62,4 @@ tasks_docker.sh 打包 Tasks 与必需的 pi-kit，安装在 node:24-bookworm-sl
 
 Changeset 为 @fradser/pi-tasks minor、@fradser/pi-agent-teams patch。公开状态由旧状态收敛为四种，Agent Teams 消费方同步适配；旧文件在读取时兼容，保留证据与替换历史。加载新代码需要重新加载 Pi。当前没有执行发布。
 
-pnpm check:install 仍受用户现有全局 Pi 安装设置影响：缺少 Agent Teams、btw、context、keyboard、monitor、plan-mode、recap、skill-router、utils、vision 共十项本地安装路径。未为通过检查而修改用户设置或安装无关扩展。独立 Docker 安装验收只证明本次 Tasks 安装范围；整个全局安装环境仍有此阻碍。
+bun run check:install 仍受用户现有全局 Pi 安装设置影响：缺少 Agent Teams、btw、context、keyboard、monitor、plan-mode、recap、skill-router、utils、vision 共十项本地安装路径。未为通过检查而修改用户设置或安装无关扩展。独立 Docker 安装验收只证明本次 Tasks 安装范围；整个全局安装环境仍有此阻碍。

@@ -51,7 +51,7 @@ def test_live_fixtures_use_valid_pi_v1_api_signatures() -> None:
     fixtures = sorted((PACKAGE / "tests").rglob("*.ts"))
     assert fixtures
     process = subprocess.run(
-        ["pnpm", "exec", "tsc", "--noEmit", "--strict", "--skipLibCheck",
+        ["bun", "x", "tsc", "--noEmit", "--strict", "--skipLibCheck",
          "--target", "ES2022", "--module", "ESNext", "--moduleResolution", "bundler",
          "--allowImportingTsExtensions", "--types", "node", *map(str, fixtures)],
         cwd=REPO, text=True, capture_output=True, timeout=60,

@@ -78,7 +78,7 @@ Memory 索引注入。计分不是根据模型自称“使用了记忆”。首�
 
 - 宿主机 subagents 原有测试：575 passed；新增证据评分测试：2 passed。
 - Docker / Pi 1.0.4 下的 Memory、intent、身份生命周期／存储相关测试：146 passed。
-- pnpm typecheck、独立研究 fixture TypeScript 检查、Python 编译检查通过。
+- bun run typecheck、独立研究 fixture TypeScript 检查、Python 编译检查通过。
 - subagents pack --dry-run 通过，测试材料不进入发布包。
 - check:install 失败：宿主机有 11 个其他包未配置；没有擅自变更安装配置。
 

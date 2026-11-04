@@ -17,7 +17,7 @@ Run from the repository root:
 
 ```bash
 python3 -m pytest packages/agent-teams/tests/ -q
-pnpm --dir packages/agent-teams pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/agent-teams
 ```
 
 ## Style and Architecture

@@ -291,9 +291,9 @@ def test_monitor_start_derives_a_bounded_label_from_the_command() -> None:
         ).render(160);
 
         // Derived label: whitespace collapses, the `sh -c` wrapper is dropped.
-        const derived = rowFor({ command: "sh -c '\n  pnpm --filter @fradser/deskos test\n'", result_pattern: "WEATHER_OK" });
+        const derived = rowFor({ command: "sh -c '\n  bun test --filter @fradser/deskos\n'", result_pattern: "WEATHER_OK" });
         const derivedLine = derived.find((line) => line.includes("[monitor] started ·"));
-        if (!derivedLine || !derivedLine.includes("started · pnpm --filter @fradser/deskos test")) {
+        if (!derivedLine || !derivedLine.includes("started · bun test --filter @fradser/deskos")) {
           throw new Error("Derived label incorrect: " + JSON.stringify(derived));
         }
         const multiline = rowFor({ command: "echo one\necho two", result_pattern: "WEATHER_OK" })

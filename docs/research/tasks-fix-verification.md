@@ -44,7 +44,7 @@ Explicit outstanding lists replace current work. Historical findings remain addi
 
 The installation audit reports eleven missing workspace packages, including Agent Teams.
 Tasks is configured. No settings or dependency installation changed.
-Standard pnpm commands trigger an unsolicited dependency check; verification disables that check only.
+Earlier package-manager commands trigger an unsolicited dependency check; verification disables that check only.
 No remote machine operations, paid provider calls, publication or commits occurred.
 Native deterministic acceptance does not prove real-model judgment or accessibility.
 The current user session has not reloaded the changed renderer.

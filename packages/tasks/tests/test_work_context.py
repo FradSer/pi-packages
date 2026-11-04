@@ -29,7 +29,7 @@ def test_handoff_carries_every_supplied_field_and_formats_one_section_each(tmp_p
         const built = task.buildTaskHandoff({
           candidate: "rev abc123, excluding dirty recap files",
           delta: "rewrote the retry loop",
-          verification: "pnpm typecheck clean; 42 tests pass",
+          verification: "bun run typecheck clean; 42 tests pass",
           priorFindings: ["F1: unbounded list", "F2: vacuous assertion"],
           outstanding: ["sandbox profile not implemented"],
         });

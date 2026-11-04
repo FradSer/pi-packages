@@ -106,6 +106,33 @@ def test_checker_compares_an_already_cloned_upstream_tree(tmp_path: Path) -> Non
     assert report["content"]["adapted"] == 0
 
 
+def test_selection_classifies_new_in_progress_upstream_skill() -> None:
+    metadata = json.loads(SELECTION.read_text())
+    excluded = {item["upstreamSkill"]: item for item in metadata["excluded"]}
+    assert "software-factory" in excluded
+    entry = excluded["software-factory"]
+    assert entry["upstreamPath"] == "skills/in-progress/software-factory/SKILL.md"
+    assert "Pi v1" in entry["reason"]
+    assert "factory" in entry["reason"].lower()
+
+
+def test_checker_rejects_an_unclassified_upstream_skill(tmp_path: Path) -> None:
+    metadata = json.loads(SELECTION.read_text())
+    upstream = tmp_path / "skills"
+    write_upstream_fixture(upstream, metadata)
+    extra = upstream / "skills" / "in-progress" / "unclassified-skill" / "SKILL.md"
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text("---\nname: unclassified-skill\n---\n\nUnclassified fixture.\n")
+    subprocess.check_call(["git", "-C", str(upstream), "add", "."])
+    subprocess.check_call(["git", "-C", str(upstream), "commit", "-qm", "unclassified skill"])
+    metadata["latestCheckedCommit"] = git(upstream, "rev-parse", "HEAD")
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps(metadata))
+    result = run_checker("--selection", str(selection), "--upstream", str(upstream))
+    assert result.returncode == 1
+    assert "unclassified upstream skills" in result.stderr
+
+
 def test_checker_rejects_upstream_checkout_at_a_different_head(tmp_path: Path) -> None:
     metadata = json.loads(SELECTION.read_text())
     upstream = tmp_path / "skills"

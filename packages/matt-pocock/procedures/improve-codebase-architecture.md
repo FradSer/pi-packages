@@ -18,7 +18,7 @@ This command is _informed_ by the project's domain model and built on a shared d
 
 Read the project's domain glossary (`GLOSSARY.md`) and any ADRs in the area you're touching first.
 
-If the teammate facility is available, delegate this codebase walk to a teammate; otherwise perform it in the current context. Don't follow rigid heuristics — explore organically and note where you experience friction:
+If the teammate facility is available, delegate this codebase walk to a teammate with a fresh context window; otherwise perform it in the current context. Don't follow rigid heuristics — explore organically and note where you experience friction:
 
 - Where does understanding one concept require bouncing between many small modules?
 - Where are modules **shallow** — interface nearly as complex as the implementation?

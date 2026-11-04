@@ -15,8 +15,8 @@ Run from the repository root:
 
 ```bash
 python3 -m pytest packages/vision/tests/ -q
-pnpm exec tsc --noEmit -p tsconfig.extensions.json
-pnpm --dir packages/vision pack --dry-run
+bun x tsc --noEmit -p tsconfig.extensions.json
+bun pm pack --destination /tmp --quiet --cwd packages/vision
 ```
 
 ## Style and Architecture

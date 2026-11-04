@@ -17,9 +17,9 @@ Run focused tests from the repository root:
 
 ```bash
 uv run --no-project --with pytest python -m pytest packages/monitor/tests/ -q
-pnpm typecheck
-pnpm check:install
-pnpm --dir packages/monitor pack --dry-run
+bun run typecheck
+bun run check:install
+bun pm pack --destination /tmp --quiet --cwd packages/monitor
 uv run --no-project python packages/monitor/tests/live_monitor.py
 ```
 

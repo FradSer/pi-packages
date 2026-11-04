@@ -93,9 +93,9 @@ Start changes with Given/When/Then scenarios and a failing regression. Use
 
 ```bash
 python3 -m pytest packages/goal/tests/ -q
-pnpm exec tsc --noEmit -p packages/goal/tsconfig.tests.json
-pnpm typecheck
-pnpm --dir packages/goal pack --dry-run
+bun x tsc --noEmit -p packages/goal/tsconfig.tests.json
+bun run typecheck
+bun pm pack --destination /tmp --quiet --cwd packages/goal
 uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_continuation.py

@@ -38,9 +38,9 @@ Run these commands from the repository root:
 
 ```bash
 python3 -m pytest packages/btw/tests/ -q
-pnpm typecheck
-pnpm exec tsc --noEmit -p packages/btw/tsconfig.json
-pnpm --dir packages/btw pack --dry-run
+bun run typecheck
+bun x tsc --noEmit -p packages/btw/tsconfig.json
+bun pm pack --destination /tmp --quiet --cwd packages/btw
 ```
 
 Runtime changes also require installation checks and live `pi --print` verification.

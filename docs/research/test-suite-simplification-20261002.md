@@ -48,7 +48,7 @@ Each removed check must have a retained observable contract check.
 | Duplicate answer preview and metadata render checks | Session Result renderer tests, bounded-output integration and native TUI |
 | Pi-kit empty/malformed response wrappers | Five grouped transport checks preserve each response/failure class |
 | Pi-kit repeated runtime helper/source assertions | Native worker, shared expansion and package boundary checks |
-| Cross-package dependency, publication and UI-contribution scans | Twelve checks move to tests/test_runtime_workspace_contracts.py and still run in pnpm test |
+| Cross-package dependency, publication and UI-contribution scans | Twelve checks move to tests/test_runtime_workspace_contracts.py and still run in bun test |
 | Repeated synthetic environment resolution | Grouped allowlist, secret diagnostics, exact opt-in and override checks keep all assertions |
 | Four 600-entry Memory budget fixtures | One read-only dataset checks all four budget boundaries |
 

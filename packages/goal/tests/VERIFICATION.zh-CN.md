@@ -19,7 +19,7 @@
 
 ## Docker 隔离验收
 
-执行 `sh packages/goal/tests/goal_docker.sh`，使用 `node:24-bookworm-slim`、**最新的 Pi**（默认在运行时从 registry 解析，`PI_VERSION` 可固定基线）和 pnpm **11.21.0**。先打包 Goal 与必需依赖 pi-kit，再从 tarball 安装；不挂载宿主凭据、Pi 设置或其他扩展。
+执行 `sh packages/goal/tests/goal_docker.sh`，使用 `node:24-bookworm-slim`、**最新的 Pi**（默认在运行时从 registry 解析，`PI_VERSION` 可固定基线）和 bun **1.4.1**。先打包 Goal 与必需依赖 pi-kit，再从 tarball 安装；不挂载宿主凭据、Pi 设置或其他扩展。
 
 Pi 的 packages 配置仅为 `/isolated/node_modules/@fradser/pi-goal`。pi-kit 是运行依赖，测试 provider 仅用于驱动可重复的模型响应。
 
@@ -45,6 +45,6 @@ Pi 的 packages 配置仅为 `/isolated/node_modules/@fradser/pi-goal`。pi-kit 
 
 所有模型响应由脚本 provider 控制；原生完成检查使用注入式 stand-in。无工具检查的 subprocess 参数、完整目标、报告解析及凭据隔离由专门测试验证。本次没有请求真实远程模型，不宣称真实模型判定质量。
 
-`pnpm check:install` 报宿主有 10 个无关 package 未配置：agent-teams、btw、context、keyboard、monitor、plan-mode、recap、skill-router、utils、vision。Goal 不在缺失列表，Docker 唯一 Goal 安装验收通过；未改变这些无关宿主安装项。
+`bun run check:install` 报宿主有 10 个无关 package 未配置：agent-teams、btw、context、keyboard、monitor、plan-mode、recap、skill-router、utils、vision。Goal 不在缺失列表，Docker 唯一 Goal 安装验收通过；未改变这些无关宿主安装项。
 
 本次未运行全部仓库的 pytest，不发布包、不修改远程分支、不删除原有历史。

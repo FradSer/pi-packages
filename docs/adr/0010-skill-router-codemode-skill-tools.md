@@ -114,8 +114,8 @@ tool.
   registering nothing, the tools-channel gate suppressing the suggestion, the
   fallback suggestion while codemode is unavailable or the allowlist has removed
   the tools, and refusal to read outside the exposed tree.
-- `python3 -m pytest packages/skill-router/tests/ -q`, `pnpm typecheck`, and
-  `pnpm --dir packages/skill-router pack --dry-run`.
+- `python3 -m pytest packages/skill-router/tests/ -q`, `bun run typecheck`, and
+  `bun pm pack --destination /tmp --quiet --cwd packages/skill-router`.
 - A live Pi run that actually searches and calls a skill tool through codemode.
   Unit tests do not establish that codemode reaches a registered extension tool.
 

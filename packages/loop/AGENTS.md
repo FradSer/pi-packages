@@ -19,12 +19,12 @@ Run focused tests from the repository root:
 
 ```bash
 python3 -m pytest packages/loop/tests/ -q
-pnpm typecheck
-pnpm check:install
-pnpm --dir packages/loop pack --dry-run
+bun run typecheck
+bun run check:install
+bun pm pack --destination /tmp --quiet --cwd packages/loop
 ```
 
-`pnpm typecheck` resolves `src/` only, so `tests/test_loop_hygiene.py` runs
+`bun run typecheck` resolves `src/` only, so `tests/test_loop_hygiene.py` runs
 `tsc -p packages/loop/tsconfig.tests.json` over the harnesses. Keep that check:
 a harness import that Bun erases at runtime is invisible to every other gate.
 

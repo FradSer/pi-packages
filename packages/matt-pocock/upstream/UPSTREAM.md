@@ -3,10 +3,10 @@
 ## Recorded revisions
 
 - Repository: `mattpocock/skills`
-- Compared commit: `49dd158d1076134a641b33efb035946536778336`
-- Comparison tag: `v1.3.1`
-- Resolved tag commit: `24fe0ef7737efae15c87225755e9f6f5965e4888`
-- Latest checked commit: `49dd158d1076134a641b33efb035946536778336`
+- Compared commit: `4ae2317ddb22b046e26455e4f9c9b3aaaf62212d`
+- Comparison tag: `v1.3.2`
+- Resolved tag commit: `d1478fcb140db0b93c0c8df17bcfd311844749d0`
+- Latest checked commit: `4ae2317ddb22b046e26455e4f9c9b3aaaf62212d`
 
 These values describe different roles. The compared commit is the content
 baseline, the comparison tag is the human-readable release marker, the resolved
@@ -17,8 +17,11 @@ the checker validates each role against Git rather than requiring artificial
 distinctions. The newest tag is not necessarily the reviewed tree: when the
 baseline runs ahead of it, the tag names the newest release marker reachable
 from the baseline, and the checked commits between them carry the skills
-changes adopted here. The full compare always reads the checkout at the
-latest checked commit.
+changes adopted here. At this revision the checked tree carries three commits
+after `v1.3.2`: fresh-context-window guidance for delegated work, the setup
+procedure's legacy glossary migration and reachable-repo requirement, and the
+new `software-factory` in-progress skill. The full compare always reads the
+checkout at the latest checked commit.
 
 The machine-readable selection is in
 [`upstream-selection.json`](upstream-selection.json). It classifies every
@@ -85,14 +88,24 @@ and `assets/`; none are Pi skills, and the package contains no `SKILL.md` file.
    frontier question through that tool. A real-upstream
    comparison that reports `adapted` above zero for these files is therefore
    expected, not drift. The isolated sync test compares against a fixture
-   generated from the local files, so it stays exact either way.
+   generated from the local files, so it stays exact either way. Upstream since
+   `v1.3.1` also asks that delegated work start with a fresh context window;
+   local wording keeps the teammate-or-current-context rule and adds that a
+   delegated teammate starts fresh rather than inheriting parent history. Local
+   procedure text names bun as the default task runner and uses bun-workspace
+   signals instead of upstream's other-package-manager examples. The package's
+   tests, contributor commands, and reproduction notes run on bun only.
 8. Classify every new or removed upstream skill in
    `upstream-selection.json`, then update the four revision fields together.
-   Promoted `pr` and `retro` are adapted to the Pi catalog. `implement-spec`
-   remains excluded because it requires the upstream Skill tool, background
-   subagents, worktrees, and integration-branch orchestration, which this
-   package's gateway does not implement. The removed `resolving-merge-conflicts` capability remains
-   locally for compatibility but is no longer claimed as upstream content.
+   This tree has 39 `SKILL.md` files: 25 selected, 14 excluded. Promoted `pr`
+   and `retro` are adapted to the Pi catalog. `implement-spec` remains excluded
+   because it requires the upstream Skill tool, a fresh background implementer
+   subagent per ticket in its own worktree, and integration-branch
+   orchestration, which this package's gateway does not implement. The new
+   `software-factory` in-progress skill is excluded because it defines a
+   vocabulary for agent factory infrastructure the gateway does not run. The
+   removed `resolving-merge-conflicts` capability remains locally for
+   compatibility but is no longer claimed as upstream content.
 9. Re-run the harness feature, isolated sync tests, package tests, and package
    dry-run after a sync.
 10. Supporting references and assets are not classified by

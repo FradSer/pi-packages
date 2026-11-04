@@ -26,6 +26,6 @@ python3 -m pytest packages/subagents/tests/ -q
 ```
 
 For a focused iteration, pass the relevant test modules explicitly, then run the
-whole package and `pnpm typecheck` before completion. Historical verification
+whole package and `bun run typecheck` before completion. Historical verification
 reports and candidate hashes in this directory record earlier runs; they are not
 the current test inventory.

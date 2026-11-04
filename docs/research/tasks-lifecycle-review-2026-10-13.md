@@ -205,7 +205,7 @@ The case shows an incomplete recovery view, not a requirement for those features
 - Source probes run through the existing Node test helper with a disposable agent directory.
 - Public tool probes confirm stale blocker text, oversized recovery acceptance, and direct blocked-to-completed delivery.
 - Probe observations are retained in `docs/research/tasks-lifecycle-review-probes-2026-10-13.json`.
-- A first `pnpm exec tsx` attempt failed because pnpm requested a dependency installation without a TTY.
+- A first `bun x tsx` attempt failed because the package manager requested a dependency installation without a TTY.
   No installation was accepted. The probes then used the existing Node test helper.
 - No runtime source changed. Typecheck, packaging, installation, and PTY acceptance were not rerun.
 - No remote connection, real-model recovery, or original-session reproduction was performed.

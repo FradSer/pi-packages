@@ -50,7 +50,7 @@ class WorktreeSessionTests(unittest.TestCase):
         for order in ("enter-first", "write-first", "malformed", "follow-up", "abort", "post-switch-error", "rebind-error"):
             with self.subTest(order=order):
                 result = subprocess.run(
-                    ["pnpm", "exec", "tsx", str(UTILS_PKG_DIR / "tests" / "worktree_lifecycle.mts"), order],
+                    ["bun", "x", "tsx", str(UTILS_PKG_DIR / "tests" / "worktree_lifecycle.mts"), order],
                     cwd=REPO, capture_output=True, text=True, timeout=30,
                 )
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

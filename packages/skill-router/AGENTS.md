@@ -15,7 +15,7 @@ Run focused validation with:
 
 ```bash
 python3 -m pytest packages/skill-router/tests/ -q
-pnpm --dir packages/skill-router pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/skill-router
 ```
 
 `features/codemode-skill-tools.feature` is exercised by
@@ -33,7 +33,7 @@ It packs this package and pi-kit, installs them into an isolated tree inside
 gate, installs a collection through the router, and runs both scripted end-to-end
 assemblies (`tests/skill_router_e2e.py` with `tests/skill_router_e2e_fixture.ts`).
 The image must provide the runtimes the suite declares: Bun 1.4.1 (one registry test
-uses `bun -e`) and a warmed corepack (one lock test shells out to `pnpm exec tsx`
+uses `bun -e`) and a warmed corepack (one lock test shells out to `bun x tsx`
 under a 20-second budget). `tests/docker-acceptance-evidence.md` records the run and
 what those requirements cost when they are missing.
 

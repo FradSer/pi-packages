@@ -16,7 +16,7 @@ Run focused tests with:
 
 ```bash
 python3 -m pytest packages/keyboard/tests/ -q
-pnpm --dir packages/keyboard pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/keyboard
 ```
 
 ## Style and Architecture

@@ -159,7 +159,7 @@ Feature: Shared pi-kit runtime helpers
     When the consumer package is packed
     Then the packed manifest resolves @fradser/pi-kit to a concrete version
     And the tarball contains no workspace protocol dependencies
-    And an isolated HOME uses the already installed pnpm executable rather than downloading it
+    And an isolated HOME uses the workspace bun executable rather than downloading another package manager
 
   Scenario: Passive console widgets use the shared row layout
     Given a package displays a one-line status widget

@@ -96,6 +96,12 @@ produces them. Fixed items are named in place.
   never set or read, and their comment.
 - `evidence.ts` — bounded, redacted observations. `research_goal` stays excluded as a retired
   tool, now with a comment. No defect.
+- `inflight.ts` — observation-only reader of the `packages/subagents` roster symbol and the
+  completed delegated-result custom messages. A living child holds the no-new-work window (it
+  neither spends a chance nor earns one); a completed result counts as new work and re-arms only
+  a stop the runtime itself wrote. It grants no run, verdict or mutation: arm/claim and the
+  completion check still own those. Pinned by the rewritten `goal_completion.mts` subagent
+  scenario and two `goal_simplified.mts` regressions. No defect.
 - `core.ts` — focus and owner rules, activation handshake, usage accounting, stop guard, and the
   receipt memory the loop's bound reads. `performedWork` is now the one progress fact — a receipt new
   to this session — and the same set still resets a blocker streak. Fixed: `currentTurnSeq` and
@@ -206,8 +212,8 @@ package gate (`pytest packages/goal/tests/`) plus every PTY probe. Verified `GOA
 
 - `python3 -m pytest packages/goal/tests/ -q` -> 33 passed; with `tests/test_pi_core_cohort.py`,
   35 passed.
-- `pnpm exec tsc --noEmit -p packages/goal/tsconfig.tests.json`, `pnpm typecheck` (0 errors),
-  `pnpm --dir packages/goal pack --dry-run` and `pnpm pack:check` (18 manifests) pass.
+- `bun x tsc --noEmit -p packages/goal/tsconfig.tests.json`, `bun run typecheck` (0 errors),
+  `bun pm pack --destination /tmp --quiet --cwd packages/goal` and `bun run pack:check` (18 manifests) pass.
 - Native: `goal_native_completion.py`, `goal_native_request_row.py`, `goal_native_revision.py`
   and `goal_native_request_continuation.py` pass on the workspace Pi and inside the container. The
   last one accepts the shape a real model produces on a request: the goal keeps pursuing, exactly the

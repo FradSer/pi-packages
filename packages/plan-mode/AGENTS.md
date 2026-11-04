@@ -67,9 +67,9 @@ For code changes, run from the repository root:
 
 ```bash
 uv run --with pytest python -m pytest packages/plan-mode/tests/ -q
-pnpm exec tsc --noEmit --allowImportingTsExtensions -p packages/plan-mode/tsconfig.json
-pnpm typecheck
-pnpm --dir packages/plan-mode pack --dry-run
+bun x tsc --noEmit --allowImportingTsExtensions -p packages/plan-mode/tsconfig.json
+bun run typecheck
+bun pm pack --destination /tmp --quiet --cwd packages/plan-mode
 ```
 
 The pytest suite invokes the Node/tsx lifecycle harness. Keep behavior coverage
@@ -79,4 +79,4 @@ must include `index.ts`, `src`, and `README.md`.
 
 For runtime changes, also follow the root installation/live-verification rules;
 exercise TUI changes interactively. Shared pi-kit or lifecycle-contract changes
-require `pnpm check`. Documentation-only edits need content and reference checks.
+require `bun run check`. Documentation-only edits need content and reference checks.

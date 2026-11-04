@@ -67,8 +67,8 @@ test("the card's activity becomes the tool that is running now", async (t) => {
   // Mid-turn the newest thing a running session is doing is the tool it is
   // executing, not the prompt that started the turn: the card showed that prompt
   // for the whole turn, which is the report the desk owner made.
-  await handlers.get("tool_execution_start")({ toolCallId: "t1", toolName: "bash", args: { command: "pnpm test" } }, ctx)
-  await waitFor(() => activities(records).includes("bash: pnpm test"))
+  await handlers.get("tool_execution_start")({ toolCallId: "t1", toolName: "bash", args: { command: "bun test" } }, ctx)
+  await waitFor(() => activities(records).includes("bash: bun test"))
 
   await handlers.get("tool_execution_start")({ toolCallId: "t2", toolName: "read", args: { path: "src/example.js" } }, ctx)
   await waitFor(() => activities(records).includes("read: src/example.js"))
@@ -85,8 +85,8 @@ test("the card's activity becomes the tool that is running now", async (t) => {
 
 test("a finished tool is replaced by the message that follows it", async (t) => {
   const { handlers, ctx, records } = await desk(t)
-  await handlers.get("tool_execution_start")({ toolCallId: "t1", toolName: "bash", args: { command: "pnpm test" } }, ctx)
-  await waitFor(() => activities(records).includes("bash: pnpm test"))
+  await handlers.get("tool_execution_start")({ toolCallId: "t1", toolName: "bash", args: { command: "bun test" } }, ctx)
+  await waitFor(() => activities(records).includes("bash: bun test"))
 
   await handlers.get("message_end")({ message: { role: "assistant", content: [{ type: "text", text: "Tests pass." }] } }, ctx)
   await waitFor(() => activities(records).includes("Tests pass."))

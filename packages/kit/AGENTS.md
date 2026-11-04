@@ -10,8 +10,8 @@ From the repository root:
 
 ```bash
 python3 -m pytest packages/kit/tests/ -q
-pnpm exec tsc --noEmit -p packages/kit/tsconfig.json
-pnpm --dir packages/kit pack --dry-run
+bun x tsc --noEmit -p packages/kit/tsconfig.json
+bun pm pack --destination /tmp --quiet --cwd packages/kit
 ```
 
 ## Style and architecture

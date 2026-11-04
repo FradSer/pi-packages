@@ -3,7 +3,7 @@ Two-axis review of a task-scoped candidate against an explicit baseline:
 - **Standards**: does the code conform to this repo's documented coding standards?
 - **Spec** — does the code faithfully implement the originating issue / PRD / spec? If the spec contains Gherkin scenarios (from [bdd](../references/bdd.md)), those are the authoritative acceptance criteria.
 
-For a bounded change, one fresh reviewer can assess both axes and return separate verdicts. Use separate reviewers only when scale, distinct expertise, or repository policy justifies them. Without delegation, assess Standards then Spec and preserve the reports separately. Agent count is not evidence of independence or quality.
+For a bounded change, one fresh reviewer can assess both axes and return separate verdicts. Use separate reviewers only when scale, distinct expertise, or repository policy justifies them. Start each delegated reviewer with a fresh context window, not inherited parent history. Without delegation, assess Standards then Spec and preserve the reports separately. Agent count is not evidence of independence or quality.
 
 Use the confirmed requirements already available; an issue tracker is optional. Read repository issue-tracker guidance only when the spec actually lives there. Missing tracker setup is not a reason to start setup work for a local review.
 

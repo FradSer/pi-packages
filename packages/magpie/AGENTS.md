@@ -14,7 +14,7 @@ Run focused tests from the repository root:
 
 ```bash
 python3 -m pytest packages/magpie/tests/ -q
-pnpm --dir packages/magpie pack --dry-run
+bun pm pack --destination /tmp --quiet --cwd packages/magpie
 ```
 
 ## Structure and Invariants

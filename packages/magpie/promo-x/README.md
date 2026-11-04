@@ -12,9 +12,9 @@ A 27-second, 1920×1080, 30 fps product promo with English on-screen text. Desig
 ## Preview and render
 
 ```sh
-pnpm dlx hyperframes@0.8.214 preview --background
-pnpm dlx hyperframes@0.8.214 check --json
-pnpm dlx hyperframes@0.8.214 render --quality delivery --output magpie-for-pi-x.mp4
+bun x hyperframes@0.8.214 preview --background
+bun x hyperframes@0.8.214 check --json
+bun x hyperframes@0.8.214 render --quality delivery --output magpie-for-pi-x.mp4
 ```
 
 The HyperFrames desktop app can edit this project. Preview is local only. Product screenshots are the repository's existing README assets, sequenced editorially; this is not a newly captured service run.

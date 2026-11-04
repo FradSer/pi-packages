@@ -18,7 +18,7 @@ Show this to the user, then immediately proceed to Step 2. The user reads and th
 
 ### 2. Produce distinct designs
 
-Produce 3+ **radically different** interfaces for the deepened module. If the teammate facility is available, delegate the independent briefs to separate teammates and compare their reports; otherwise produce the designs sequentially in the current context.
+Produce 3+ **radically different** interfaces for the deepened module. If the teammate facility is available, delegate the independent briefs to separate teammates, each with a fresh context window, and compare their reports; otherwise produce the designs sequentially in the current context.
 
 Give each design brief the file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), and what sits behind the seam. Keep it independent of the user-facing problem-space explanation in Step 1. Use a different constraint for each design:
 

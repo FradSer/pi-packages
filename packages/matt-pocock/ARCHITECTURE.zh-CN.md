@@ -177,9 +177,9 @@ head 单独成行，一个空行分隔，随后是用户自己的任务原文（
 
 ```bash
 node packages/matt-pocock/upstream/check-upstream-sync.mjs
-python3 -m pytest packages/matt-pocock/tests/ -q
-pnpm typecheck
-pnpm --dir packages/matt-pocock pack --dry-run
+uv run pytest packages/matt-pocock/tests/ -q
+bun run typecheck
+bun pm pack --destination /tmp --quiet --cwd packages/matt-pocock
 ```
 
 需要核对上游 checkout 时再运行：
