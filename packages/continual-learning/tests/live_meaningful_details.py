@@ -6,7 +6,7 @@ No user authentication, remote model, built-in tools or project configuration is
 
 from __future__ import annotations
 
-from live_acceptance_support import workspace_pi
+from live_acceptance_support import workspace_pi, write_learning_config
 
 from collections.abc import Callable
 import errno
@@ -40,10 +40,16 @@ def verify_expanded(row: dict) -> None:
     text = "".join("".join(lines).split())
     data = row["data"]
     if row["customType"] == "continual-learning-result":
+        # Learning shows only its final outcome, never the receipt's usage,
+        # cost, source, calls or per-attempt details. Those remain in the
+        # stored receipt and the model context.
         assert lines[0].startswith("[learning]"), lines
         assert "1AGENTS.mdchangeapplied" in text, lines
-        assert "agents" in text and "automatic" in text, lines
-        assert "jev-1.13.0" in text and "uncertain" in text and "test-command.md" in text, lines
+        assert not any(marker in text for marker in (
+            "mode·", "source·", "operations·", "calls·", "usage·", "cost·",
+            "directions·", "selectedMemory·", "jev-1.13.0", "uncertain",
+            "test-command.md", "toexpand",
+        )), lines
         return
     # Every lifecycle row in this package is delivered by the Harness surface.
     assert lines[0].startswith("[harness]"), lines
@@ -110,6 +116,8 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
             assert all("\n" not in line and len(line) <= row["width"] for line in row["lines"]), row
             if row["expanded"]:
                 verify_expanded(row)
+            elif row["customType"] == "continual-learning-result":
+                assert "to expand" not in " ".join(row["lines"]), row
             else:
                 assert "to expand" in " ".join(row["lines"]), row
         resize(120)
@@ -191,8 +199,9 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
         os.write(master, b"\x1b[B" * root["options"].index("Learning settings") + b"\r")
         wait_for(lambda: menu_count() == settings_menu_before + 1)
         settings_menu = latest_menu()
-        assert settings_menu["options"][:3] == [
-            "Select learning model", "Toggle automatic learning", "Advanced phase policies"
+        assert settings_menu["options"][:4] == [
+            "Select learning model", "Toggle settled-task learning",
+            "Toggle agent-triggered learning", "Advanced phase policies",
         ], settings_menu
         phase_menu_before = menu_count()
         os.write(master, b"\x1b[B" * settings_menu["options"].index("Advanced phase policies") + b"\r")
@@ -253,7 +262,7 @@ def main() -> None:
         agent.mkdir()
         (agent / "settings.json").write_text(json.dumps({"theme": "dark", "quietStartup": True, "packages": []}))
         (agent / "memory").mkdir()
-        (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False}))
+        write_learning_config(agent, {"autoSettledLearning": False, "autoContinualLearning": False})
         canonical = str(cwd.resolve())
         scope = "--" + canonical.lstrip("/").replace("/", "-").replace("\\", "-").replace(":", "-") + "--"
         registry = agent / "memory" / "scopes"; registry.mkdir()

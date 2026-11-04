@@ -95,7 +95,7 @@ def run(output: Path, case: str = 'applied', *, pi_version: str = '1.3.0') -> di
     if is_knowledge_citation:
         source.write_text(source.read_text()+'export type Queue = {\n// '+1200*'x'+'\n// '+1200*'y'+'\n  pending: number;\n};\nexport declare function createQueue(): Queue;\n')
     expected_edited_source=source.read_text().replace('export const mode = "old";', 'export const mode = "new";')
-    tracked = [REPO/'packages/continual-learning/extensions'/name for name in ('incremental-learning.ts','memory-maintenance-audit.ts','inject-memory.ts','learning-history.ts','jev-learning.ts','memory-review-consent.ts','consolidation-run.ts','independent-memory-partition.ts','jev-memory-predecessors.ts','jev-memory-relations.ts','jev-memory-readiness.ts','planner-prompts.ts','memory-body-review.ts','memory-knowledge-coverage.ts','learning-replay-feedback.ts','learning-replay.ts','learning-backlog.ts','learning-input.ts','learning-efficiency.ts','planner-json-output.ts','planner-output-schema.ts','source-excerpt-memory.ts')] + [Path(__file__),Path(__file__).with_name('memory-origin-harness.ts'),Path(__file__).with_name('live_learning_loop.py')]
+    tracked = [REPO/'packages/continual-learning/extensions'/name for name in ('incremental-learning.ts','memory-maintenance-audit.ts','inject-memory.ts','learning-history.ts','jev-learning.ts','consolidation-run.ts','independent-memory-partition.ts','jev-memory-predecessors.ts','jev-memory-relations.ts','jev-memory-readiness.ts','planner-prompts.ts','memory-body-review.ts','memory-knowledge-coverage.ts','learning-replay-feedback.ts','learning-replay.ts','learning-backlog.ts','learning-input.ts','learning-efficiency.ts','planner-json-output.ts','planner-output-schema.ts','source-excerpt-memory.ts')] + [Path(__file__),Path(__file__).with_name('memory-origin-harness.ts'),Path(__file__).with_name('live_learning_loop.py')]
     tracked.extend([Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('continuous_failure_retention.py')])
     if is_initialization:tracked.extend([Path(__file__).with_name('continuous-command-proof.ts'),Path(__file__).with_name('continuous-dossier-proof.mjs'),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('recovery_integrity.py')])
     if is_initialization:
@@ -550,7 +550,7 @@ def run(output: Path, case: str = 'applied', *, pi_version: str = '1.3.0') -> di
     (agent/'continual-learning.json').write_text(json.dumps({
       'model':'fixture/scripted','autoSettledLearning': not is_manual, 'autoContinualLearning': False,
       'automaticPhases':{'memory':'off' if is_manual else 'apply','harness':'apply' if case in ('legacy','held-later','mixed-noop') else 'off','agents':'off'},
-      'jev':{'enabled':case!='legacy','model':'jev-1.13.0','allowPrivateMemory':True,'requestConcurrency':1,**({'scopes':['memory']} if case=='read-review' else {})}}))
+      'jev':{'enabled':case!='legacy','model':'jev-1.13.0','requestConcurrency':1,**({'scopes':['memory']} if case=='read-review' else {})}}))
 
     (agent/'models.json').write_text(json.dumps({'providers':{'fixture':{'baseUrl':f'http://127.0.0.1:{server.server_port}/v1','api':'openai-completions','apiKey':'offline-fixture','models':[{'id':'scripted','reasoning':False,'input':['text'],'contextWindow':200000,'maxTokens':4096,'cost':{'input':0,'output':0,'cacheRead':0,'cacheWrite':0}}]}}}))
     code='import {resolveMemoryPaths} from '+json.dumps(str(REPO/'packages/continual-learning/extensions/memory-paths.ts'))+';console.log(JSON.stringify(resolveMemoryPaths(process.argv[1])));'
@@ -1293,7 +1293,7 @@ console.log(JSON.stringify({proof:check(original.input,original.prior,original.c
             ends={e['toolCallId']:e for e in events if e.get('type')=='tool_execution_end'}
             assert set(ends)=={'owned-npm-block','pnpm-allowed'},ends
             assert ends['owned-npm-block']['isError'] and not ends['pnpm-allowed']['isError'],ends
-            pnpm_version=json.loads((REPO/'package.json').read_text())['packageManager'].split('@',1)[1].split('+',1)[0]
+            pnpm_version=json.loads((Path(cli).parent.parent/'package.json').read_text())['version']
             pnpm_output=''.join(item.get('text','') for item in ends['pnpm-allowed']['result'].get('content',[]) if item.get('type')=='text')
             assert pnpm_output.strip()==pnpm_version,ends['pnpm-allowed']
             rows=[json.loads(line) for line in probe_session.read_text().splitlines() if line.strip()]

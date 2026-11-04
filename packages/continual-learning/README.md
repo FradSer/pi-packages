@@ -275,23 +275,35 @@ actual trigger verification, and unverified behavior separately.
 
 ### Transcript display
 
-Harness authoring starts with one `[harness] started · <request>` row; the full
-procedure stays in model context. Failed and incomplete events use error and warning
-tones. Learning receipts retain failed/rejected/cancelled phases beside applied
-changes, so a partial success never appears as an unqualified success.
-Each learning batch retains its receipt under `runs/<project-scope>/receipts/<batch-id>/`.
-The flat `learning-pipeline-receipt.json` is the latest-result compatibility view.
+`/learning` is the single user-facing entry: it opens one menu, or accepts an
+explicit request that the parent handles without a model-facing learning tool.
+Its rule-management option points at `/harness`, whose guarded authoring gate
+owns exact candidate bytes, fixture validation and the native confirmation.
+The advanced `/memory`, `/consolidate` and `/harness` command forms remain
+available for scripts and recovery in this layer. Each run shows two transcript rows: one
+`[learning] started · <subject>` line and one final `[learning]` outcome line.
+There is no progress widget or phase progress notice. The final row has no
+expandable details: usage, cost, source, calls, per-phase attempts and
+diagnostics stay in the stored receipt and the message's model context, not in
+the terminal. Errors and safety holds remain warning/error notices. Learning receipts retain failed/rejected/cancelled phases
+beside applied changes, so a partial success never appears as an unqualified
+success. Each learning batch retains its receipt under
+`runs/<project-scope>/receipts/<batch-id>/`. The flat
+`learning-pipeline-receipt.json` is the latest-result compatibility view.
 Later learning does not replace earlier batches. Cancellation updates the same
 batch's terminal receipt. Cost collection deduplicates equal batch views and
 rejects conflicting views; missing historical usage stays unknown.
 
-Expanded policy rows keep the policy, action, outcome, tool, source and file;
-check rows keep their phase, policy and artifact path. Reasons already shown in
-the title and check statuses already shown in its label are not repeated as
-fields. Guidance rows likewise carry the `[harness]` tag and show the skill or rule as
-their title subject, with source, file and the complete prompt below, including prompts longer than 50
-lines. Clipped titles wrap when expanded. This display-only cleanup does not
-change enforcement, guidance delivery or stored event data.
+Harness authoring starts with one `[harness] started · <request>` inline
+procedure row; the full procedure stays in model context. Failed and incomplete
+events use error and warning tones. Expanded policy rows keep the policy,
+action, outcome, tool, source and file; check rows keep their phase, policy and
+artifact path. Reasons already shown in the title and check statuses already
+shown in its label are not repeated as fields. Guidance rows likewise carry the
+`[harness]` tag and show the skill or rule as their title subject, with source,
+file and the complete prompt below, including prompts longer than 50 lines.
+Clipped titles wrap when expanded. This display-only cleanup does not change
+enforcement, guidance delivery or stored event data.
 
 ### Existing configuration and safe upgrades
 
@@ -322,6 +334,16 @@ remains. A weaker Bash/text rule is never presented as an equivalent replacement
 for an installed file or artifact policy. See the upgrade decision in
 `docs/adr/0005-preserve-installed-harness-protections.md` in the source repository.
 
+The deletion gate is path-scoped, not a blanket ban. It blocks generated shell
+commands that delete either Memory folder or anything inside it. Deleting an
+ordinary file outside those folders — including a retired `memory.json`, a
+`.memoryrc`, or unrelated scratch cleanup — is unaffected. Deleting a Memory
+entry is also supported, but only inside the parent-owned `/consolidate`
+transaction: a `delete` needs an explicit `CONTRADICTED`, `SUPERSEDED` or
+`SUBSUMED` verdict plus a non-empty `preservedIn` pointing at an existing file
+or a rewrite in the same plan, with preservation, privacy, rollback and receipts
+verified (`extensions/incremental-memory-plan.ts`).
+
 ## Learning pipeline
 
 All user-level configuration lives in one file,
@@ -350,6 +372,54 @@ review, and `off` refuses to run.
 file and preserve every other section. The retired `<agent-dir>/memory.json`
 pair and `<agent-dir>/memory/settings.json` learning fields are neither read
 nor written; they are dead files and can be deleted.
+
+All Memory is reviewable by default, including private (`harness only`)
+entries: there is no authorization prompt, no per-run consent and no
+`allowPrivateMemory` setting anywhere in the runtime. The retired key is not a
+valid configuration field (an older file containing it is diagnosed as
+invalid). Enabling a Jev scope means both shared and private bodies may be sent
+to the external reviewer.
+
+The metadata-only selector runs with `--thinking off` by default (an explicit
+`plannerThinkingLevel` overrides it) so its output budget reaches the JSON
+decision. If a selector worker still returns no decision, the parent records a
+bounded `parent-routed minimal selection` diagnostic, selects no existing
+entry and requests no phase from the model, then lets its own evidence screen
+decide routing; the validated pipeline still runs. A nonempty but undecidable
+selector response remains a reported failure, never a silent success. An agent
+tool result reports a failure in any phase instead of only the last Memory
+attempt.
+
+Review workers may return their single JSON decision inside a single
+fenced JSON code block. The parent accepts exactly one complete fence around
+response for both coverage and body reviews; trailing prose, an inner fence or
+a second object stays rejected. Response digests still bind the original text.
+
+An explicit organize request with no new durable knowledge completes inside
+the parent. The parent verifies mirror drift, rebuilds both indexes and removes
+empty learning scope directories; it starts no selector, planner or review
+worker, writes no proposal and leaves nothing for an external actor to do. The
+tool result says the organization is complete and the receipt records
+`organized-in-process` as a routing decision. When the frozen task does contain
+user-stated durable knowledge, the same tool still runs the validated learning
+pipeline and can really write Memory and Harness changes. Credential-shaped
+evidence and an invalid learning model keep their fail-closed paths; the
+in-process branch never bypasses them.
+
+The receipt separates evidence from routing. `screen.reasons` describes only
+the frozen current-task slice, while `screen.routing` names policies and
+explicit requests that enable or disable a phase regardless of that evidence.
+A phase turned off by policy is not described as "no evidence". `input.entryCount`
+is the size of the session or replay input; `input.screenedEntryCount` is the
+number of frozen entries the evidence screen actually examined. A proposed
+attempt with zero operations is not reported as a proposal saved for review.
+
+An agent-requested run does not depend on the replay backlog: a malformed
+history, a full queue, an already-acknowledged task reference or a session with
+no persisted file still runs the validated Memory pipeline. Only a verified
+reference binds the receipt for `/consolidate backfill`; otherwise the tool
+result explicitly says no replay reference exists while reporting the real
+learning outcome.
 
 Planner children run without extensions, so the learning model must resolve from
 the static model catalog or the user's custom-provider config. Before any worker
@@ -676,6 +746,21 @@ learning work from verified original evidence and does not replay task tools. Fu
 checks validate settings, backlog limits, scope binding, malformed references,
 and cursor updates before status is shown.
 
+The scope key is a readable flat identity: it strips the leading slash, replaces
+path separators and colons with dashes and folds every run of whitespace or
+control characters into one dash. A project such as `~/Documents/Home Lab/1984`
+therefore stores under `--Users-FradSer-Documents-Home-Lab-1984--`, never under a
+path containing a literal space, tab or newline. Paths without whitespace keep
+their existing name. Pi core's `sessions/` directory and the goal package's
+`goals/` directory use their own naming and are not owned by this package.
+
+The `learning/` root keeps only cross-session state: the backlog index, its
+scoped cursor and completion acknowledgments, and attempt ledgers that retain
+receipts for crash recovery and cost accounting. Read-only backlog and replay
+probes never create a project scope directory, a released replay lease removes
+an empty scope directory, and lock/lease files are deleted on release. A scope
+directory holding a completion record or attempt ledger is never removed.
+
 Applied mutations and proposals are recorded privately under
 `<agent-dir>/memory/history/<escaped-canonical-cwd>/`. History includes exact
 before/after bytes, including indexes and mirror repairs. New pipelines attach an
@@ -796,9 +881,16 @@ explicitly; no hash fallback exists. Paths with the same escaped name share the
 root, lock and run storage. Obsolete roots are neither discovered nor migrated.
 
 Before planning, newer-mtime-wins drift normalization synchronizes safe entries;
-ties prefer the private copy. First adoption can import committed shared Memory
-when the private root is absent. Privacy leaks and public orphans are removed
-under the existing parent-owned validation contract.
+ties prefer the private copy. A tracked project-shared entry with no private copy
+is new knowledge arriving through the git-tracked mirror: it is imported
+byte-identically into the private root and reported as a repair, never deleted.
+Only harness-only files leaked into the shared mirror are removed. Pre-run
+normalization never deletes user Memory outside the parent-owned `/consolidate`
+transaction, whose delete operations require a verified staleness verdict,
+preservation, rollback, receipts and privacy checks. Deleting a shared Memory
+entry during normalization cannot appear in a learning receipt, so it is
+forbidden rather than merely reported. Normalization also runs when the private
+root is absent, importing every committed shared entry.
 
 ### Retrieval and descriptions
 
@@ -962,7 +1054,7 @@ Real-provider cold-start and repeat verification: `python3 packages/continual-le
 Jev is optional. It is enabled by a `jev` section in `~/.pi/agent/continual-learning.json` (or your configured agent directory), **or** by `TYPESAFE_API_KEY` in the parent Pi environment. A key alone uses pinned `jev-1.13.0` and all three semantic stages. No separate `jev.json` is required. Example unified configuration:
 
 ```json
-{"jev":{"model":"jev-1.13.0","scopes":["selection","memory","harness"],"allowPrivateMemory":false}}
+{"jev":{"model":"jev-1.13.0","scopes":["selection","memory","harness"]}}
 ```
 
 The model and scopes are optional overrides; `"jev": true` or `"jev": {}` opts in with defaults. Authentication uses `TYPESAFE_API_KEY` or the section's optional `apiKey`; prefer the environment so credentials stay out of configuration files. `"jev": false` or `"jev":{"enabled":false}` explicitly disables Jev even when the environment key is present. Other unified configuration sections are ignored by this reader and never modified. Invalid, oversized or symlinked configuration disables the feature with a diagnosis.
@@ -977,7 +1069,7 @@ Memory generation and the existing single semantic-repair attempt now ask for re
 
 Scopes grant participation in semantic stages, never file-write permission. Omit a stage from `scopes` to retain its legacy behavior. Pin a version for reproducibility; `jev-latest` and `jev-preview` are accepted, with the actual returned version recorded. `/memory status` reports effective model, scopes and credential availability without revealing the key. There is no `/jev` command, and command syntax and phase permissions are unchanged.
 
-Enabling a scope sends bounded frozen task evidence and permitted Memory content to TypeSafe. Private Memory metadata, bodies and candidates require the separate `allowPrivateMemory` permission; absent permission falls back in selection and preserves candidates as proposals. This never changes storage classification. Recognized credentials prevent a request. Existing privacy checks still govern every write.
+Enabling a scope sends bounded frozen task evidence and all selected Memory content, including private metadata, bodies and candidates, to TypeSafe. There is no per-run consent and no private-review gate; the retired key is rejected as an unknown field. This never changes storage classification. Recognized credentials prevent a request. Existing privacy checks still govern every write.
 
 The integration uses `@typesafe-ai/sdk` 0.6.0. Independent Noul questions detect durable knowledge and lasting behavioral constraints; both can apply. Score questions rank metadata in the same request; selection uses the probability mass across both relevant levels, so ambiguity between two acceptable levels does not itself force fallback. Memory bodies are read only after selection. Empty-index explicit evidence keeps its local route with no semantic selector request. Disabled, missing-key, uncertain or failed selection uses the existing selector; explicit `/memory <request>` always retains Memory processing and excludes Harness and AGENTS.md.
 

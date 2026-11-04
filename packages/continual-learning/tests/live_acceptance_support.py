@@ -14,6 +14,14 @@ from urllib.parse import urlparse
 ENV_KEYS = frozenset({'PATH', 'LANG', 'LC_ALL', 'HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'PI_CODING_AGENT_DIR', 'PI_TELEMETRY', 'TERM', 'PI_OFFLINE'})
 
 
+def write_learning_config(agent: Path, settings: dict) -> None:
+    """Merge learning settings into the single continual-learning.json."""
+    config = agent / "continual-learning.json"
+    current = json.loads(config.read_text()) if config.is_file() else {}
+    current.update(settings)
+    config.write_text(json.dumps(current))
+
+
 def isolated_environment(base: Path, agent: Path) -> dict[str, str]:
     return {**{key: value for key, value in os.environ.items() if key in {'PATH', 'LANG', 'LC_ALL'}},
             'HOME': str(base), 'XDG_CONFIG_HOME': str(base / 'xdg-config'),
@@ -156,10 +164,13 @@ def workspace_pi(repo: Path) -> str:
 
 
 def workspace_pnpm(repo: Path) -> str:
-    """Find the already installed pinned CLI without executing Corepack."""
-    manager = json.loads((repo / 'package.json').read_text()).get('packageManager', '')
-    assert manager.startswith('pnpm@'), 'Workspace does not pin pnpm'
-    version = manager[len('pnpm@'):].split('+', 1)[0]
+    """Find the already installed pinned CLI without executing Corepack.
+
+    The workspace uses bun, but the historical Docker study images pin pnpm
+    11.21.0 and the Harness positive fixture runs `pnpm --version`. Keep that
+    frozen version here; never download a package manager.
+    """
+    version = "11.21.0"
     candidates = [repo / 'node_modules/pnpm/package.json']
     command = shutil.which('pnpm')
     if command:

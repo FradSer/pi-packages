@@ -10,10 +10,24 @@ Feature: Readable and truthful learning management
     When the user closes its details
     Then the previous list retains its position
 
+  Scenario: Final learning result is one unexpandable row
+    Given a completed learning run with usage, cost and several phase attempts
+    When the learning result is rendered collapsed and expanded
+    Then the user sees one final outcome line in both states
+    And no usage, cost, source, calls, status, summary or attempt details are shown
+    And the complete receipt remains available to the model and stored on disk
+
+  Scenario: No intermediate learning progress feedback
+    Given an automatic or manual learning run is active
+    When its phases select sources, plan, review and write changes
+    Then no live activity widget or learning phase progress notification is rendered
+    And errors and safety holds are still reported as warning or error notices
+    And the Harness authoring procedure remains an inline message for the model
+
   Scenario: Partial learning failure
     Given Memory applied a change and Harness failed
-    When the learning result is collapsed
-    Then it reports both the applied change and the failed phase
+    When the final learning result is rendered
+    Then its one line reports both the applied change and the failed phase
 
   Scenario: Model search and width
     Given long model names and a 48 column terminal
@@ -30,7 +44,8 @@ Feature: Readable and truthful learning management
     Given failed, blocked or incomplete outcomes
     When the row renders
     Then its colors match its status
-    And Harness authoring starts with one compact procedure row
+    And Harness authoring starts with one compact inline procedure row
+    And the complete procedure remains available to the model
 
   Scenario: Reflow preserves reading intent
     Given a reader scrolled to the middle of a document

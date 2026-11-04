@@ -90,14 +90,12 @@ Feature: Memory management with automatic learning and manual consolidation
     And extension, skill, prompt-template, context-file, and theme discovery are disabled
     And only parent-scoped learning_read is available in the disposable child session
 
-  Scenario: Shows a dreaming widget immediately for the complete pipeline
+  Scenario: A complete pipeline reports only its final outcome
     Given the user invokes /consolidate in the TUI
-    When incremental selection starts before any planner child is spawned
-    Then ctx.ui.setWidget immediately renders a "dreaming" indicator above the editor
-    And its activity identifies selection, Memory, Harness, or AGENTS.md as the pipeline advances
-    And the widget uses shared Pi-kit spinner cadence, theme style callbacks, and native-row geometry
-    And it remains visible across phase transitions
-    And the pipeline clears it exactly once when the complete run exits
+    When incremental selection, planning, review and writes complete
+    Then no live activity widget or phase progress row is rendered
+    And errors and safety holds remain visible as warning or error notices
+    And one final learning result row reports the outcome after the run exits
 
   Scenario: Only one dreaming consolidation runs at a time
     Given a consolidation run is still running
@@ -276,12 +274,11 @@ Feature: Memory management with automatic learning and manual consolidation
     But a plan-phase failure with child stderr output stays classified as missing-plan and keeps the retry
     And a successful model retry attempt clears the earlier execution error so a later structured plan still passes
 
-  Scenario: Dreaming status uses the shared live activity widget
+  Scenario: An active pipeline shows no progress widget
     Given the consolidation pipeline is active in the TUI
-    When the Dreaming status row is rendered
-    Then pi-kit's live activity widget appears above the editor
-    And it displays the shared spinner followed by "Dreaming... ·" and the latest consolidation activity
-    And the spinner starts in the first column without a leading space
+    When its phases advance through selection, planning and review
+    Then no live activity widget or progress row is rendered above the editor
+    And the user sees the final outcome only when the run ends
 
   Scenario: Dreaming timeout is labeled as the budget it exceeded
     Given the consolidation child outlives the dreaming budget and is terminated by the parent timer
@@ -322,11 +319,12 @@ Feature: Memory management with automatic learning and manual consolidation
     When a project consolidation lock is acquired
     Then acquisition fails without writing any lock outside Memory
 
-  Scenario: Official Pi escaping preserves whitespace and replaces slashes
-    Given a canonical project path containing whitespace or special characters
+  Scenario: Private storage names fold whitespace and replace slashes
+    Given a canonical project path containing whitespace or control characters
     When memory paths are resolved
     Then leading slashes are stripped and slashes and colons become single dashes
-    And the safe path is wrapped in leading and trailing double dashes matching Pi sessions
+    And every run of whitespace or control characters becomes one dash
+    And the safe path is wrapped in leading and trailing double dashes
     And paths with the same sanitized name share their private root and lock
 
   Scenario: An overlong flat identity is rejected rather than truncated
@@ -382,8 +380,15 @@ Feature: Memory management with automatic learning and manual consolidation
     Given the private and project-shared copies of a safe memory file differ before the run
     When a consolidation run is created
     Then the parent overwrites the older copy with the newer side's bytes first
-    And private-marked or orphan project-shared files are removed
+    And only harness-only files leaked into the project-shared mirror are removed
     And both indexes are regenerated before planning
+
+  Scenario: Pre-run mirror normalization imports project-shared memories
+    Given the project .memory mirror has tracked entries with no private-root copy
+    When pre-run mirror normalization runs
+    Then each project-shared entry is imported byte-identically into the private root
+    And no project-shared entry is deleted or recorded with an empty successor
+    And the learner reports the imports instead of a no-change result
 
   Scenario: A missing project mirror is created before private Memory is shared
     Given the private Memory root contains a safe entry and the project .memory root is absent
@@ -426,7 +431,7 @@ Feature: Memory management with automatic learning and manual consolidation
     Given a consolidation child is still running
     When the session shuts down
     Then the child is terminated with close observed
-    And the lock, run directory, and dreaming widget are cleaned up
+    And the lock and run directory are cleaned up
     And a late child event cannot notify or mutate the replacement session
 
   Scenario: Shutdown invalidates completion after an asynchronous boundary

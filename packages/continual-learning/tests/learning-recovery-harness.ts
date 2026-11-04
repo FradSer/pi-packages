@@ -52,7 +52,7 @@ try {
     registerEntryRenderer: () => {},
     appendEntry: () => {},
     getCommands: () => [], registerMessageRenderer: () => {},
-    sendMessage: message => receipts.push(message.details),
+    sendMessage: message => { if (message.customType === "continual-learning-result") receipts.push(message.details); },
   } as Parameters<typeof register>[0]);
   const entries = [
     { message: { role: "user", content: scenario === "noop" ? "修复这个构建错误。" : "Never use the retired compiler." } },

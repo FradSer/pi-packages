@@ -44,7 +44,7 @@ def test_registered_early_review_uses_only_current_user_and_never_acknowledges_u
         plans++;captured=ctx.sessionManager.getBranch();bound=opts.timeoutMs;return {ok:false,detail:'Controlled held plan',durationMs:1,run:opts.run,attempts:[{phase:'harness',attempt:0,outcome:'failed',durationMs:1,operations:0,modelCalls:0}]};
       }}));
       const {default:register}=await import('./packages/continual-learning/extensions/inject-memory.ts');
-      const hooks=new Map(),receipts=[];register({on:(name,fn)=>hooks.set(name,[...(hooks.get(name)??[]),fn]),registerCommand:()=>{},registerEntryRenderer:()=>{},getCommands:()=>[],appendEntry:()=>{},sendMessage:m=>receipts.push(m.details)});
+      const hooks=new Map(),receipts=[];register({on:(name,fn)=>hooks.set(name,[...(hooks.get(name)??[]),fn]),registerCommand:()=>{},registerEntryRenderer:()=>{},getCommands:()=>[],appendEntry:()=>{},sendMessage:m=>{if(m.customType==='continual-learning-result')receipts.push(m.details)}});
       const text='Correction of the prior permanent project constraint: npm --version is now allowed; only Bash commands starting npm test must be blocked. Replace the old broad npm restriction permanently.';
       const entry={id:'actual-user',type:'message',message:{role:'user',content:[{type:'text',text}]}};
       const entries=[{id:'older-user',type:'message',message:{role:'user',content:'Permanently block npm.'}},entry];

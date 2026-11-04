@@ -1,6 +1,6 @@
 Feature: Simple continual-learning command surface
-  The everyday interface exposes six focused command forms while preserving
-  advanced and compatibility commands for scripts and recovery.
+  /learning is the single everyday entry. It reuses the six focused advanced
+  command forms, which remain available for scripts and recovery in this layer.
 
   Background:
     Given the pi-continual-learning package is installed

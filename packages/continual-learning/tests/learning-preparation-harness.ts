@@ -44,7 +44,7 @@ try {
   const hooks = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>(), commands = new Map();
   const notices: string[] = [];
   let reported = 0;
-  register({on:(name,fn)=>hooks.set(name,[...(hooks.get(name)??[]),fn]),registerCommand:(name,command)=>commands.set(name,command),getCommands:()=>[],registerMessageRenderer:()=>{},sendMessage:()=>{reported += 1;},appendEntry:()=>{},registerEntryRenderer:()=>{},registerTool:()=>{},getActiveTools:()=>[],setActiveTools:()=>{}} as Parameters<typeof register>[0]);
+  register({on:(name,fn)=>hooks.set(name,[...(hooks.get(name)??[]),fn]),registerCommand:(name,command)=>commands.set(name,command),getCommands:()=>[],registerMessageRenderer:()=>{},sendMessage:(message:{customType?:string})=>{if(message.customType==="continual-learning-result")reported += 1;},appendEntry:()=>{},registerEntryRenderer:()=>{},registerTool:()=>{},getActiveTools:()=>[],setActiveTools:()=>{}} as Parameters<typeof register>[0]);
   const ctx={cwd,mode:"json",hasUI:false,ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{}},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries,getSessionFile:()=>session}};
   const emit=async(name:string,event:unknown={})=>{for(const fn of hooks.get(name)??[])await fn(event,ctx)};
   await emit("session_start");

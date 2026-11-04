@@ -13,26 +13,76 @@ def source() -> str:
 
 def test_extension_registers_memory_and_consolidate_commands() -> None:
     content = source()
+    assert 'registerCommand("learning"' in content
     assert 'registerCommand("memory"' in content
     assert 'registerCommand("consolidate"' in content
     assert "before_agent_start" in content
     assert "loadAndDeduplicateMemories" in content
 
 
-def test_dreaming_widget_starts_before_selector_and_survives_memory_phase_completion() -> None:
+def test_learning_command_routes_every_action_through_the_parent() -> None:
+    # Given one /learning entry, When a menu action is chosen, Then the parent
+    # invokes the existing validated pipeline or management handler. No custom
+    # user-interaction tool and no second write-preview step is introduced.
+    content = source()
+    assert 'registerCommand("learning"' in content
+    assert 'openLearningMenu' in content
+    assert 'Learn from this task' in content
+    assert 'Maintain all knowledge' in content
+    assert 'Manage Harness rules' in content
+    assert 'Settings / history / undo' in content
+    assert 'registerTool' not in content[content.index('registerCommand("learning"'):]
+
+
+def test_learning_command_menu_routes_to_parent_owned_handlers() -> None:
+    # Given the /learning menu, When an action is selected, Then it calls an
+    # existing command handler rather than registering a new model tool.
+    result = run_bun(r"""
+      import { initTheme } from '@earendil-works/pi-coding-agent';
+      import register from './packages/continual-learning/extensions/inject-memory.ts';
+      initTheme('dark');
+      const commands = new Map(), tools = [];
+      const pi = {
+        on() {}, registerCommand: (name, command) => commands.set(name, command),
+        registerMessageRenderer() {}, registerEntryRenderer() {}, appendEntry() {}, sendMessage() {},
+        registerTool: tool => tools.push(tool.name), getCommands: () => [...commands.keys()].map(name => ({ name, source: 'extension' })),
+      };
+      register(pi);
+      const handler = commands.get('learning')?.handler;
+      console.log(JSON.stringify({ hasLearning: !!handler, commands: [...commands.keys()], tools }));
+    """)
+    assert result["hasLearning"] is True
+    assert {"learning", "memory", "consolidate"} <= set(result["commands"])
+    assert not any(name.startswith("learning_") for name in result["tools"])
+
+
+
+def test_learning_start_has_a_user_transcript_row_without_progress_details() -> None:
+    content = source()
+    assert 'learning-procedure' in content
+    assert '"started"' in content
+    assert 'display: true' in content
+    assert 'createLiveActivityWidget' not in content
+
+
+
+def test_pipeline_renders_no_progress_widget() -> None:
+    # Given a running consolidation, When its phases advance, Then no live
+    # activity widget or phase progress row is shown to the user. Receipts,
+    # warning/error notices and the model context are unchanged.
     content = source()
     pipeline = content[content.index('async function startConsolidationPipeline'):content.index('const LEARNING_RESULT_MESSAGE')]
     command = content[content.index('pi.registerCommand("consolidate"'):content.index('pi.registerCommand("memory"')]
     assert 'await resolvePackageDir()' not in command
-    assert pipeline.index('setDreamingWidget(ctx') < pipeline.index('selectIncrementalLearning({')
-    assert 'setDreamingActivity("selecting related memory")' in pipeline
-    assert 'setDreamingActivity(fullMode ? "full memory" : "memory delta")' in pipeline
-    assert 'setDreamingActivity("harness delta")' in pipeline
-    assert 'setDreamingActivity("AGENTS.md delta")' in pipeline
-    finish = content[content.index('const finish = async'):content.index('child.on("error"')]
-    assert 'cleanup?.()' not in finish
-    assert 'state.cleanup = undefined' not in finish
-    assert 'cleanup?.();' in pipeline[pipeline.index('}).finally(async () => {'):]
+    assert 'createLiveActivityWidget' not in content
+    assert 'setDreamingWidget(' not in content
+    assert 'setDreamingActivity(' not in content
+    assert 'clearDreamingWidget(' not in content
+    assert 'memory-dreaming' not in content
+    assert 'selectIncrementalLearning({' in pipeline
+    assert 'cleanup?: () => void' not in content
+    assert 'state.cleanup' not in content
+    assert 'dreamState.cleanup' not in content
 
 
 def test_dreaming_activity_labels_a_search_by_its_pattern() -> None:
@@ -63,44 +113,14 @@ def test_dreaming_activity_labels_a_search_by_its_pattern() -> None:
     assert result["bare"] == {"line": "grep", "detail": ""}
 
 
-def test_dreaming_widget_and_notifications_use_shared_pi_kit_tui_primitives() -> None:
+def test_notifications_use_shared_pi_kit_primitive_without_a_progress_widget() -> None:
     content = source()
-    assert "createLiveActivityWidget" in content
-    assert 'key: "memory-dreaming"' in content
-    assert 'identity: "Dreaming..."' in content
-    assert 'placement: "aboveEditor"' in content
-    assert "leadingSpaces: 1" in content
-    assert "dreamingWidget.update(ctx" in content
-    assert "dreamingWidget.clear(ctx)" in content
     assert "notifyPi(ctx.ui" in content
     assert "ctx.ui.notify" not in content
-
-
-def test_dreaming_activity_updates_tui_widget_live() -> None:
-    result = run_bun(
-        """
-        import { setDreamingWidget, setDreamingActivity, clearDreamingWidget } from './packages/continual-learning/extensions/inject-memory.ts';
-        const updates = [];
-        const mockUi = {
-          setWidget: (key, factory) => {
-            if (!factory) return;
-            const component = factory({ requestRender: () => {} }, { fg: (_c, t) => t, bold: t => t });
-            updates.push({ key, rendered: component.render(80) });
-          }
-        };
-        const ctx = { mode: 'tui', ui: mockUi };
-        setDreamingWidget(ctx, 'preparing full maintenance');
-        setDreamingActivity('full memory');
-        setDreamingActivity('harness delta');
-        clearDreamingWidget(ctx);
-        console.log(JSON.stringify({
-          called: updates.length > 0,
-          key: updates[0]?.key,
-        }));
-        """
-    )
-    assert result["called"] is True
-    assert result["key"] == "memory-dreaming"
+    assert "createLiveActivityWidget" not in content
+    assert 'key: "memory-dreaming"' not in content
+    assert "Learning model: using" not in content
+    assert "Automatic learning skipped: this session's history exceeds" not in content
 
 
 def test_consolidation_contract_is_parent_owned() -> None:
@@ -864,7 +884,7 @@ def test_consolidate_command_has_exactly_two_learning_modes_plus_an_explicit_dra
     assert "noContext" not in content
     assert "buildIncrementalMemoryConsolidatorPrompt" in content
     assert "buildMemoryConsolidatorPrompt" in content
-    assert 'minimalPiWorkerArgs(["learning_read"])' in content
+    assert 'workerCliArgs("memoryPlanner")' in content
     assert "plannerReadArgs" in content
 
 
@@ -893,11 +913,10 @@ def test_child_output_limits_terminate_before_more_jsonl_work() -> None:
     assert "isIgnorableOversizedJsonlEvent" in content
 
 
-def test_stale_finish_cannot_clear_replacement_state_or_cleanup() -> None:
+def test_stale_finish_cannot_clear_replacement_state() -> None:
     content = source()
     assert "const ownsCurrentRun" in content
     assert "if (ownsCurrentRun())" in content
-    assert "const cleanup = state.cleanup" in content
     assert "if (!ownsCurrentRun()) return" in content
 
 

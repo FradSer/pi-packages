@@ -54,7 +54,7 @@ def test_installed_workspace_pnpm_runs_offline_with_isolated_home(tmp_path,monke
     from support import REPO
     actual=support.workspace_pnpm(REPO)
     package=Path(actual).parent.parent
-    expected=json.loads((REPO/'package.json').read_text())['packageManager'].split('@',1)[1].split('+',1)[0]
+    expected=json.loads((package/'package.json').read_text())['version']
     cache=tmp_path/'corepack';(cache/'v1/pnpm').mkdir(parents=True)
     (cache/'v1/pnpm'/expected).symlink_to(package,target_is_directory=True)
     monkeypatch.setenv('COREPACK_HOME',str(cache))
