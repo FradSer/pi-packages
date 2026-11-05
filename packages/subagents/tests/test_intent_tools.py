@@ -203,12 +203,12 @@ def test_start_requires_a_prompt_even_when_an_identity_is_named(tmp_path: Path) 
     assert result == {"ok": False, "code": "invalid-parameters", "spawns": 0}
 
 
-def test_startup_receipt_shows_child_model_and_tools_at_a_glance(tmp_path: Path) -> None:
-    """features/intent-tools.feature: the three facts open the receipt, one per line.
+def test_startup_receipt_is_one_title_plus_compact_facts(tmp_path: Path) -> None:
+    """features/intent-tools.feature: a short receipt says each fact once.
 
-    A long line that crams the label, model, tools, session and input together
-    is not scannable. The opening lines give each of the three facts its own
-    labeled row; the exact handles and guardrail stay in their own sections.
+    One Title: line names the child; model and tools are two labeled rows; the
+    exact handles share one compact line; one line closes with the async guard.
+    No blank section, no fact repeated.
     """
     result = run("""
       const started=await call('agent_start',{label:'reader',prompt:'FIRST',model:'p/m',tools:['read']});
@@ -216,18 +216,16 @@ def test_startup_receipt_shows_child_model_and_tools_at_a_glance(tmp_path: Path)
     """, tmp_path)
     text = result["text"]
     lines = text.split("\n")
-    # No stray carriage returns: line breaks are plain newlines, and every
-    # line is whole (safeDisplayText must not have eaten the separators).
     assert "\r" not in text, text
-    assert len(lines) >= 3, text
-    opening = lines[:3]
-    assert any("Started:" in line and "reader" in line for line in opening), opening
-    assert any("Model: p/m" in line for line in opening), opening
-    assert any("Tools:" in line and "read" in line for line in opening), opening
-    # The three headline lines never carry the machine-only handles.
-    assert not any("session:" in line or "Input:" in line for line in opening), opening
-    for token in ("Label: reader.", "arrives asynchronously", "session:"):
-        assert token in text, (token, text)
+    assert len(lines) == 5, lines
+    assert lines[0].startswith("Title: ") and "reader" in lines[0], lines[0]
+    assert lines[1] == "Model: p/m", lines[1]
+    assert lines[2] == "Tools: read", lines[2]
+    assert all(line.strip() for line in lines), lines
+    # The exact handles and role share one line below the three headline facts.
+    assert "session:" in lines[3] and "Input:" in lines[3] and "Label: reader." in lines[3], lines[3]
+    assert text.count("reader") == 2, text  # once in Title, once in Label
+    assert "arrives asynchronously" in lines[4], lines[4]
 
 
 def test_the_guardrail_reaches_the_model_and_has_one_wording(tmp_path: Path) -> None:
@@ -251,8 +249,8 @@ def test_the_guardrail_reaches_the_model_and_has_one_wording(tmp_path: Path) -> 
         namespaceHasRule:rule.test(instruction),
         otherDescriptionsRepeat:['agent_input','agent_stop','agent_list'].filter(n=>rule.test(descriptions[n])),
         startMentionsAsync:/asynchronously|later turn/i.test(descriptions.agent_start),
-        sharedWording:descriptions.agent_start.includes('The result arrives asynchronously in a later turn')
-          && instruction.includes('The result arrives asynchronously in a later turn'),
+        sharedWording:descriptions.agent_start.includes('The result arrives asynchronously')
+          && instruction.includes('The result arrives asynchronously'),
         noAutomatically:!names.some(n=>/automatically/.test(descriptions[n])) && !/automatically/.test(instruction),
       }));
     """, tmp_path)

@@ -271,13 +271,11 @@ function project(operation: IntentToolName, result: ReturnType<typeof createAgen
     : raw.controlOutcome === "uncertain" || raw.controlOutcome === "unconfirmed" ? "uncertain" : "rejected";
   const data: IntentToolData = { ...fields, version: 1, operation, disposition, ...extras };
   const content = raw.ok && operation === "agent_start" ? [{ type: "text" as const, text: [
-    `Started: ${data.label ?? data.identity ?? "child"}`,
+    `Title: started · @${data.label ?? data.identity ?? "child"}`,
     `Model: ${raw.model ? safeDisplayText(raw.model) : "inherited"}`,
     `Tools: ${raw.grant?.join(", ") || "none"}`,
-    "",
-    `Session: ${data.session}. Input: ${data.inputId}.`,
-    `Role: ${data.identity ?? "temporary"}. Label: ${data.label ?? "child"}.`,
-    "The result arrives asynchronously in a later turn; this receipt is not the answer.",
+    `Session: ${data.session}. Input: ${data.inputId}. Role: ${data.identity ?? "temporary"}. Label: ${data.label ?? "child"}.`,
+    "The result arrives asynchronously; this receipt is not the answer.",
   ].map(safeDisplayText).join("\n") }]
     : result.content;
   return { ...result, content, details: data, structuredContent: data };
@@ -410,7 +408,7 @@ export async function executeIntentTool(operation: IntentToolName, params: unkno
         ...(promptPreview.truncation ? { truncation: { fields: [{ field: "prompt", ...promptPreview.truncation }], omittedFields: [] } } : {}),
       } : {}),
       ...(uncertain ? { code: "cancelled", error: "Caller wait cancelled. The reserved input can still settle; do not repeat it." } : {}) };
-    const message = uncertain ? data.error! : `Input ${data.disposition}. Session: ${session}. Input: ${reserved.inputId}. The result arrives asynchronously in a later turn.`;
+    const message = uncertain ? data.error! : `Input ${data.disposition}. Session: ${session}. Input: ${reserved.inputId}. The result arrives asynchronously.`;
     return { content: [{ type: "text", text: message }], details: data, structuredContent: data, ...(uncertain ? { isError: true } : {}) };
   };
   const confirmation = reserved.confirmation;
@@ -435,11 +433,11 @@ export async function executeIntentTool(operation: IntentToolName, params: unkno
 // A direct tool's description is injected to the model; namespace.instructions
 // is not (it returns only to codemode's describeNamespace). Keep the rule visible
 // and short here, with the longer form available on demand.
-const VISIBLE_GUARDRAIL = "The result arrives asynchronously in a later turn; a receipt is not the answer. Never poll, sleep, start a duplicate child, or repeat uncertain input.";
+const VISIBLE_GUARDRAIL = "The result arrives asynchronously; a receipt is not the answer. Never poll, sleep, start a duplicate child, or repeat uncertain input.";
 const NAMESPACE_INSTRUCTIONS = "Delegate only under an explicit user request or the instructions that apply. Reuse a child for dependent follow-ups. " + VISIBLE_GUARDRAIL + " Continue independent work or end the turn for automatic resumption; a running child is answered by its own Session Result and `agent_list` asks what exists.";
 const DESCRIPTIONS: Record<IntentToolName, string> = {
   agent_start: "Start one child with work. identity selects an existing disk role; label only names the display. Temporary instructions cannot replace a saved role. " + VISIBLE_GUARDRAIL,
-  agent_input: "Continue or guide the same exact child. delivery next starts after current work and can queue bounded input; delivery steer changes active work without abort or a new sequence. The result arrives asynchronously in a later turn; a receipt is not the final answer.",
+  agent_input: "Continue or guide the same exact child. delivery next starts after current work and can queue bounded input; delivery steer changes active work without abort or a new sequence. The result arrives asynchronously; a receipt is not the final answer.",
   agent_stop: "Close one exact child. Pending inputs receive cancellation notices. Confirmed closure does not undo file changes or establish task completion, and caller cancellation ends waiting, not the close operation. A closed child's answer is still delivered when it settles.",
   agent_list: "List bounded session summaries and offline saved identities when you need the roster or an exact handle. Follow page.nextOffset for more entries. Discovery creates no identity, storage, or process; use returned exact session handles for controls.",
 };

@@ -108,14 +108,15 @@ Feature: Intent-based child controls
 
   Rule: The model-facing guidance has one visible home
 
-    Scenario: The startup receipt shows the child, model and tools at a glance
+    Scenario: The startup receipt is one title plus compact labeled facts
       Given an accepted agent_start with a label, model and tool grant
       When the caller reads the model-facing receipt
-      Then its opening lines name the started child, its model and its tools
-      And each of those three facts occupies its own line as a labeled value
-      And no line crams them together with the exact session or input handles
+      Then its first line is a single Title: line naming the started child
+      And the model and tools follow as separate Key: value lines
+      And the exact handles sit on one compact line rather than their own section
       And it still names the session, label, model and tools somewhere in the receipt
       And it states that the result arrives asynchronously and that a receipt is not the answer
+      And no fact appears twice
 
     Scenario: The delegation guardrail stays visible to the model
       Given the tool descriptions and the namespace instructions

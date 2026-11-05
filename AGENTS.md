@@ -134,6 +134,17 @@ audit, Harness run, or learning study.
   pi-kit lifecycle renderers in `renderResult`. Full content stays in LLM
   context; the transcript shows only the line. Reference:
   @packages/impeccable/src/index.ts, @packages/matt-pocock/src/index.ts.
+- Model-facing tool result `content` text uses one `Title: <subject>` line
+  followed by `Key: value` facts, one per line, with machine-only handles kept
+  compact and one closing guidance line. This is the canonical receipt pattern:
+  a single scannable headline instead of several crammed lines, with `Model:`,
+  `Tools:`, `Session:` and `Input:` as labeled values, and no fact stated twice.
+  Packages that already lead with a headline plus detail lines
+  (`Monitor started:` in `packages/monitor`, `Route:/Phase:` in
+  `packages/matt-pocock`) converge on this one shape rather than keeping a
+  separate wording each. The TUI lifecycle row stays the collapsed one-line
+  view; `content` is the model's projection, so the two never have to repeat
+  each other. Reference: @packages/subagents/src/intent-tools.ts.
 
 ## Task Records
 
