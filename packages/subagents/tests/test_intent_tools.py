@@ -11,7 +11,7 @@ PREAMBLE = f"""
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {{ executeIntentTool, INTENT_TOOL_NAMES, INTENT_OUTPUT_SCHEMA }} from {json.dumps((SRC / 'intent-tools.ts').as_uri())};
+import {{ executeIntentTool, registerIntentTools, INTENT_TOOL_NAMES, INTENT_OUTPUT_SCHEMA }} from {json.dumps((SRC / 'intent-tools.ts').as_uri())};
 import * as roster from {json.dumps((SRC / 'roster.ts').as_uri())};
 roster.resetRoster();
 const spawns=[],prompts=[],steers=[],notices=[];
@@ -31,6 +31,7 @@ const call=async(name,args,extra={{}})=>{{
 }};
 const tick=async()=>{{for(let i=0;i<15;i++)await Promise.resolve();}};
 const final=(text)=>spawns[0].onUpdate({{text,turns:1,finalResponse:true,answerComplete:true,stopReason:'stop'}});
+const capture=()=>{{const defs={{}};registerIntentTools({{registerTool:t=>defs[t.name]=t}},options);return defs;}};
 """
 
 
@@ -200,3 +201,64 @@ def test_start_requires_a_prompt_even_when_an_identity_is_named(tmp_path: Path) 
       console.log(JSON.stringify({ok:missing.structuredContent.ok,code:missing.structuredContent.code,spawns:spawns.length}));
     """, tmp_path)
     assert result == {"ok": False, "code": "invalid-parameters", "spawns": 0}
+
+
+def test_startup_receipt_shows_child_model_and_tools_at_a_glance(tmp_path: Path) -> None:
+    """features/intent-tools.feature: the three facts open the receipt, one per line.
+
+    A long line that crams the label, model, tools, session and input together
+    is not scannable. The opening lines give each of the three facts its own
+    labeled row; the exact handles and guardrail stay in their own sections.
+    """
+    result = run("""
+      const started=await call('agent_start',{label:'reader',prompt:'FIRST',model:'p/m',tools:['read']});
+      console.log(JSON.stringify({text:started.content.map(part=>part.text).join('\\n')}));
+    """, tmp_path)
+    text = result["text"]
+    lines = text.split("\n")
+    # No stray carriage returns: line breaks are plain newlines, and every
+    # line is whole (safeDisplayText must not have eaten the separators).
+    assert "\r" not in text, text
+    assert len(lines) >= 3, text
+    opening = lines[:3]
+    assert any("Started:" in line and "reader" in line for line in opening), opening
+    assert any("Model: p/m" in line for line in opening), opening
+    assert any("Tools:" in line and "read" in line for line in opening), opening
+    # The three headline lines never carry the machine-only handles.
+    assert not any("session:" in line or "Input:" in line for line in opening), opening
+    for token in ("Label: reader.", "arrives asynchronously", "session:"):
+        assert token in text, (token, text)
+
+
+def test_the_guardrail_reaches_the_model_and_has_one_wording(tmp_path: Path) -> None:
+    """features/intent-tools.feature: the delegation rule is model-visible.
+
+    Pi injects a direct tool's `description` into the model's tool listing on
+    every call, but `namespace.instructions` is NOT part of tool listings (it is
+    returned only to codemode's describeNamespace). Moving the no-poll rule
+    solely into namespace.instructions would hide it from the model. Keep one
+    authoritative guardrail, reachable through the visible agent_start
+    description, with the namespace copy sourced from the same string.
+    """
+    result = run("""
+      const defs=capture();
+      const names=['agent_start','agent_input','agent_stop','agent_list'];
+      const rule=/never poll|do not poll|never sleep|duplicate child|repeat uncertain input/i;
+      const descriptions=Object.fromEntries(names.map(name=>[name,defs[name].description]));
+      const instruction=defs.agent_start.namespace.instructions;
+      console.log(JSON.stringify({
+        startVisibleRule:rule.test(descriptions.agent_start),
+        namespaceHasRule:rule.test(instruction),
+        otherDescriptionsRepeat:['agent_input','agent_stop','agent_list'].filter(n=>rule.test(descriptions[n])),
+        startMentionsAsync:/asynchronously|later turn/i.test(descriptions.agent_start),
+        sharedWording:descriptions.agent_start.includes('The result arrives asynchronously in a later turn')
+          && instruction.includes('The result arrives asynchronously in a later turn'),
+        noAutomatically:!names.some(n=>/automatically/.test(descriptions[n])) && !/automatically/.test(instruction),
+      }));
+    """, tmp_path)
+    assert result["startVisibleRule"] is True, result
+    assert result["namespaceHasRule"] is True, result
+    assert result["otherDescriptionsRepeat"] == [], result
+    assert result["startMentionsAsync"] is True, result
+    assert result["sharedWording"] is True, result
+    assert result["noAutomatically"] is True, result

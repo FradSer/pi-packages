@@ -106,6 +106,25 @@ Feature: Intent-based child controls
       Then only that intent selection is restored
       And unavailable or excluded tools never become active
 
+  Rule: The model-facing guidance has one visible home
+
+    Scenario: The startup receipt shows the child, model and tools at a glance
+      Given an accepted agent_start with a label, model and tool grant
+      When the caller reads the model-facing receipt
+      Then its opening lines name the started child, its model and its tools
+      And each of those three facts occupies its own line as a labeled value
+      And no line crams them together with the exact session or input handles
+      And it still names the session, label, model and tools somewhere in the receipt
+      And it states that the result arrives asynchronously and that a receipt is not the answer
+
+    Scenario: The delegation guardrail stays visible to the model
+      Given the tool descriptions and the namespace instructions
+      When a direct tool is listed to the model
+      Then the no-poll, no-sleep and no-duplicate-start rule reaches the model through the agent_start description
+      And the namespace instructions hold the same wording for on-demand consumers
+      And no other per-tool description repeats the whole rule
+      And no surface uses a second wording for the asynchronous result
+
   Rule: The startup contract states what a child can be given
     Scenario: An empty identity is a temporary role, not an empty name
       Given a startup that carries an identity field with no value

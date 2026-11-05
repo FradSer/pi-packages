@@ -35,7 +35,7 @@ def test_native_print_returns_once_and_parent_shutdown_closes_temporary_child(na
     receipts = [event for event in events if event['kind'] == 'receipt']
     answers = [event for event in events if event['kind'] == 'result']
     assert len(receipts) == len(answers) == len(requests) == 1, events
-    assert 'arrives automatically' in receipts[0]['content'][0]['text']
+    assert 'arrives asynchronously' in receipts[0]['content'][0]['text']
     assert receipts[0]['details']['session'].startswith('session:')
     assert answers[0]['options'] == {'deliverAs': 'followUp', 'triggerTurn': True}
     assert answers[0]['content'].endswith(env['PI_AGENT_RESULT_TEXT'] + '\n</agent-result>')
