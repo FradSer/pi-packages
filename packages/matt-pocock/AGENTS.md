@@ -15,6 +15,11 @@ bun run typecheck
 bun pm pack --destination /tmp --quiet --cwd packages/matt-pocock
 ```
 
+For an explicitly requested low-token real-model Docker smoke with
+`hunyuan-eval/hy4-dev`, see `packages/matt-pocock/tests/docker-study/README.md`.
+It runs one native invocation per functional path plus one parent-model turn;
+the historical 29-case real-model quality suite is separate.
+
 When validating against an already-cloned upstream checkout, also run:
 
 ```bash
