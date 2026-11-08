@@ -10,6 +10,8 @@
 
 import type { BoundaryResult, CustomMessageEntryDraft, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { runCompletionCheck, type CheckVerdict } from "./check.ts";
+import { hasInFlightDelegatedWork } from "./inflight.ts";
+import { checkpointBody } from "./prompt.ts";
 import { emitGoalMessage } from "./procedure.ts";
 import { createHash } from "node:crypto";
 import { collectGoalEvidence } from "./evidence.ts";
@@ -57,6 +59,7 @@ export class GoalCore {
   constructor(pi: ExtensionAPI, projectRoot: string, options: GoalCoreOptions = {}) {
     this.pi = pi;
     this.store = new GoalStore({ projectRoot });
+    this.projectRoot = projectRoot;
     this.runCheck = options.runCheck ?? runCompletionCheck;
     this.scheduler = new GoalScheduler({
       readFocused: () => this.goal,
@@ -100,6 +103,7 @@ export class GoalCore {
   }
 
   private lastSessionId: string | undefined;
+  private readonly projectRoot: string;
 
   // ── focus ──────────────────────────────────────────────────────────
 
@@ -114,8 +118,10 @@ export class GoalCore {
     return goal;
   }
 
-  settings(ctx: ExtensionContext): GoalSettings {
-    return loadGoalSettings(ctx.cwd);
+  /** The background continuation timer can fire before any run has bound a
+   * context, so settings fall back to the project root this core was built for. */
+  settings(ctx?: ExtensionContext): GoalSettings {
+    return loadGoalSettings(ctx?.cwd ?? this.projectRoot);
   }
 
   /** Reload state at a session boundary: reread from disk and rebuild focus
@@ -123,8 +129,8 @@ export class GoalCore {
    * session's focus is not inherited from anywhere else. */
   restore(ctx: ExtensionContext): void {
     this.cancelGoalActivation();
-    this.cancelContinuation(this.focusedGoalId ?? "");
-    this.scheduler.shutdown();
+    this.cancelAllContinuations();
+    this.scheduler.resetLoopState();
     this.abortCheck(ctx);
     this.lastSessionId = ctx.sessionManager.getSessionId();
     this.bindUi(ctx);
@@ -213,17 +219,28 @@ export class GoalCore {
   }
 
   cancelContinuation(goalId: string): void {
+    this.cancelAllContinuations(goalId);
+  }
+
+  /** Clear the pending timer regardless of which goal id it was queued for.
+   * A session boundary can arrive with no focused goal, and a timer keyed to
+   * the old goal must not keep a later decision from being delivered. */
+  private cancelAllContinuations(matchingGoalId?: string): void {
     if (this.continuationTimer !== undefined) clearTimeout(this.continuationTimer);
     this.continuationTimer = undefined;
-    if (this.continuationPendingFor === goalId) this.continuationPendingFor = undefined;
+    if (matchingGoalId === undefined || this.continuationPendingFor === matchingGoalId) {
+      this.continuationPendingFor = undefined;
+    }
   }
 
   /** Deliver one authorized continuation. The claim is what authorizes it, and
    * the claim is re-validated at this moment rather than at arming time. */
   private deliver(goalId: string): void {
+    // The timer belongs to this delivery. Clear it whether or not the goal is
+    // still focused, so a stale id cannot leave queueContinuation deduped out.
+    this.continuationPendingFor = undefined;
     if (this.focusedGoalId !== goalId) return;
     const authorization = this.scheduler.claim();
-    this.continuationPendingFor = undefined;
     if (!authorization) return;
     // Delivery happens on a timer, so anything thrown here escapes as an
     // unhandled rejection. A session replacement or rebind makes the captured
@@ -241,6 +258,20 @@ export class GoalCore {
     }
   }
 
+  /** The body of one authorized continuation, built from the goal this
+   * decision belongs to. A checkpoint starts its own run, so the run's system
+   * prompt can be the one from before the goal existed; carrying the objective
+   * and policy here keeps that run from starting with an empty instruction. */
+  private continuationContent(goalId: string): string {
+    const goal = this.goal;
+    if (!goal || goal.id !== goalId) return "";
+    return checkpointBody(goal, this.settings(this.lastCtx), {
+      unmet: this.currentUnmet(),
+      noNewWorkRuns: this.scheduler.noNewWorkStreak(),
+      waitingOnDelegatedWork: hasInFlightDelegatedWork(this.lastCtx?.cwd ?? this.projectRoot),
+    });
+  }
+
   private sendContinuation(authorization: { goalId: string; generation: string; dispatchId: string }): void {
     this.checkpointSeq += 1;
     const details = {
@@ -253,7 +284,7 @@ export class GoalCore {
       timestamp: Date.now(),
     };
     this.pi.sendMessage(
-      { customType: "pi-goal-checkpoint", content: "", display: false, details },
+      { customType: "pi-goal-checkpoint", content: this.continuationContent(authorization.goalId), display: false, details },
       { deliverAs: "followUp", triggerTurn: true },
     );
   }
@@ -262,7 +293,15 @@ export class GoalCore {
   boundaryContinuation(): BoundaryResult | undefined {
     const goal = this.goal;
     if (!goal || !this.scheduler.isArmed()) return;
-    if (this.lastCtx?.hasPendingMessages()) { this.cancelContinuation(goal.id); this.scheduler.takeover(goal); return; }
+    // A queued message (a steer, a delegated result, a user's words) owns the
+    // next turn. Keep the armed decision and let the idle timer deliver it after
+    // that message settles instead of discarding it: cancelling here stranded
+    // goals whose only remaining work was the message that just arrived. If no
+    // timer is pending, re-queue one; it re-checks idleness before delivery.
+    if (this.lastCtx?.hasPendingMessages()) {
+      if (this.continuationTimer === undefined) this.queueContinuation(goal);
+      return;
+    }
     this.cancelContinuation(goal.id);
     const authorization = this.scheduler.claim();
     if (!authorization) return;
@@ -270,7 +309,7 @@ export class GoalCore {
     if (!accepted.ok) return;
     this.checkpointSeq += 1;
     const entry: CustomMessageEntryDraft = {
-      type: "custom_message", customType: "pi-goal-checkpoint", content: "", display: false,
+      type: "custom_message", customType: "pi-goal-checkpoint", content: this.continuationContent(goal.id), display: false,
       details: { version: 1, kind: "checkpoint", ...authorization, checkpointSeq: this.checkpointSeq, timestamp: Date.now() },
     };
     this.beginRun();
@@ -651,10 +690,9 @@ export class GoalCore {
 
   shutdown(): void {
     this.cancelGoalActivation();
-    this.scheduler.shutdown();
+    this.scheduler.resetLoopState();
     this.abortCheck();
-    if (this.continuationTimer !== undefined) clearTimeout(this.continuationTimer);
-    this.continuationTimer = undefined;
+    this.cancelAllContinuations();
   }
 
   newId(): string {

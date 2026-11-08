@@ -22,19 +22,32 @@ independent user history, or Goal archive. Use ordinary tools for investigation.
   continuation, live checks and revision activation. Restore is not authorization.
 - A timer, settled turn or queued message is an opportunity, never authorization.
   Arm and claim separately; recheck identity, owner, generation, phase and dispatch.
-  Accept a checkpoint once. Never replay unknown delivery.
+  Accept a checkpoint once. A checkpoint starts its own run, so carry the objective
+  (as untrusted data), the work policy and the live window streak in its body:
+  the run's system prompt can predate the goal's creation. Never replay unknown
+  delivery.
 - Continue only after a successful run and without pending user input. Progress
   means something new: a receipt this session has not already produced resets the
   window, whatever the tool, so exploration, gate runs and delegated child work
   count when they add something. Three consecutive runs that produce nothing new
   stop the loop and name the window; repeated receipts, an answer with no tool
-  call, and an empty run are what fill it. Only a failed or interrupted run stops
-  it at once. Goal introspection and unfinished monitors are not work. A
-  requirement revision must not clear that memory, and a user's own turn is always
-  new work; `/goal <text>` is that user's turn even though the command delivers it
-  as a custom message, so it keeps the full window. Unrelated background activity
-  is not progress. Resume preserves lifetime usage, continuation count and a fresh
-  window.
+  call, and an empty run are what fill it. A failed run stops it at once; an
+  aborted run closes itself at `agent_settled` and keeps its authorization, because
+  Pi skips the settle boundary on abort; the runtime closes the run there but an
+  explicit abort does not silently start another model turn. A quiet turn honestly
+  waiting on a child of this project (live pid, matching cwd, observed by this
+  thread) holds the window for a bounded wait, so a stale, foreign or hung child
+  cannot spin the loop past three quiet turns; that thread's terminal result is
+  new work and re-arms a stop the runtime itself wrote. Restore and shutdown
+  reset the armed
+  decision, denial, window streak, wait and pending timer. A user's own turn with
+  new work does the same, so a stalled goal no longer needs a manual `/goal resume`
+  before progress can continue. Goal introspection and unfinished monitors are not
+  work. A requirement revision must not clear that memory, and a user's own turn is
+  always new work; `/goal <text>` is that user's turn even though the command
+  delivers it as a custom message, so it keeps the full window. Unrelated
+  background activity is not progress. Resume preserves lifetime usage,
+  continuation count and a fresh window.
 - A recurring blocker requires three consecutive model turns. The same-turn
   report counts once; effective work, changed requirements and restore reset it.
 - Only an explicit completion request runs one fresh tool-less completion check.
@@ -76,7 +89,10 @@ claim that work already started.
 
 Pi persists `display` with the entry, so a session replayed without this renderer
 falls back to Pi's default custom-message rendering, which prints the whole body.
-That residual case is accepted, and the send-time check does not cover it.
+That residual case applies to the visible `/goal` request row and is accepted;
+the send-time check does not cover it. A checkpoint is always `display: false`
+and registers no renderer, so its body stays hidden on live append and replay
+alike; only the model and machine-readable session/events see that body.
 
 The passive below-editor footer is the explicit exception to transcript framing:
 `Pursuing goal · 2h 25m` during actual work or authorized continuation; accurate
@@ -101,10 +117,14 @@ uv run --no-project --with pyte python packages/goal/tests/goal_native_request_r
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_continuation.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
 sh packages/goal/tests/goal_docker.sh
+uv run --python 3.13 --no-project packages/goal/tests/goal_real_model_e2e.py --output /tmp/goal-real-model-hy4
 ```
 
 The Docker acceptance packs this tree, installs it into an isolated Pi that resolves to the
-latest published version, and mounts no host credentials and no other extension.
+latest published version, and mounts no host credentials and no other extension. The optional
+real-model Goal E2E uses `hunyuan-eval/hy4-dev` through Magpie and a host-only inference
+proxy; it needs explicit opt-in, `MAGPIE_BASE_URL` and `MAGPIE_API_KEY`, and runs separately
+from the scripted acceptance.
 
 Use isolated native CLI/TUI sessions. Decode terminal frames, not occurrences in
 repaint bytes. Separate scripted-provider acceptance from real-model evidence.

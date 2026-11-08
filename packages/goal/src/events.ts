@@ -9,6 +9,7 @@
  */
 
 import { detailField } from "@fradser/pi-kit";
+import { hasInFlightDelegatedWork, isDelegatedWorkResult } from "./inflight.ts";
 import { GOAL_PROCEDURE_ENTRY } from "./procedure.ts";
 import type { GoalCore } from "./core.ts";
 import { clearDashboard, refreshDashboard } from "./dashboard.ts";
@@ -40,8 +41,19 @@ export function registerGoalEvents(core: GoalCore): void {
    * bounds autonomous work, so a user's own turn is a fresh opportunity rather
    * than another run that changes nothing. */
   let userRun = false;
+  /** A run that reaches its settle boundary has already judged failure and
+   * progress. `agent_settled` closes only runs that skipped that boundary, and
+   * must never turn a provider error into another automatic model turn. */
+  let settleBoundaryReached = false;
+  /** The roster is process-global. Remember that THIS thread saw a child of its
+   * own project in flight, and which Goal owned that wait, so only that wait's
+   * terminal result can count as its work. A cleared or replaced Goal cannot
+   * inherit an unrelated session's result. */
+  let observedOwnDelegatedWait: string | undefined;
 
   pi.on("session_start", async (_event, ctx) => {
+    observedOwnDelegatedWait = undefined;
+    settleBoundaryReached = false;
     core.restore(ctx);
     refreshGoalToolSurface(core, ctx);
     refreshDashboard(core, ctx);
@@ -50,13 +62,16 @@ export function registerGoalEvents(core: GoalCore): void {
   pi.on("session_tree", async (_event, ctx) => {
     // Branch navigation changes what this session has focused, so anything read
     // from disk and any armed continuation both belong to the branch we left.
-    core.scheduler.shutdown();
+    observedOwnDelegatedWait = undefined;
+    settleBoundaryReached = false;
     core.restore(ctx);
     refreshGoalToolSurface(core, ctx);
     refreshDashboard(core, ctx);
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
+    observedOwnDelegatedWait = undefined;
+    settleBoundaryReached = false;
     core.shutdown();
     clearDashboard(ctx);
   });
@@ -72,7 +87,11 @@ export function registerGoalEvents(core: GoalCore): void {
     const sections = event.systemPromptOptions.sections;
     sections.goal_capability = goalCapabilityNote(Boolean(goal));
     if (goal) {
-      const { state, counters } = goalPromptParts(goal, core.settings(ctx), { unmet: core.currentUnmet() });
+      const { state, counters } = goalPromptParts(goal, core.settings(ctx), {
+        unmet: core.currentUnmet(),
+        noNewWorkRuns: typeof core.scheduler.noNewWorkStreak === "function" ? core.scheduler.noNewWorkStreak() : 0,
+        waitingOnDelegatedWork: hasInFlightDelegatedWork(ctx.cwd, ctx.sessionManager?.getBranch?.() ?? []),
+      });
       sections.goal_runtime = `${state}\n\n${counters}`;
     } else {
       delete sections.goal_runtime;
@@ -82,6 +101,11 @@ export function registerGoalEvents(core: GoalCore): void {
   pi.on("agent_start", async (_event, ctx) => {
     core.bindUi(ctx);
     core.beginRun();
+    settleBoundaryReached = false;
+    // A run's mutable credit belongs to that run alone. Resetting it here as
+    // well as after settlement keeps a run that never reached its settle
+    // boundary from leaking a user's credit into the next autonomous run.
+    userRun = false;
     const goal = core.goal;
     runGoals.set(ctx.sessionManager.getSessionId(), goal && core.canChargeGoal(goal) ? goal.id : undefined);
     core.scheduler.begin();
@@ -125,6 +149,22 @@ export function registerGoalEvents(core: GoalCore): void {
     const requestBody = typeof message.content === "string" ? message.content : undefined;
     const goalRequest = message.customType === GOAL_PROCEDURE_ENTRY && requestBody !== undefined;
     if (goalRequest) core.acceptGoalSetting(requestBody);
+    // A completed delegated result arrives as a custom message, not a tool
+    // receipt. Treat it as new work so the quiet turns spent waiting for it do
+    // not end the loop: re-arm only a goal whose continuation was lost, through
+    // the scheduler's ordinary store write and claim checks.
+    const waitingGoalId = observedOwnDelegatedWait;
+    if (!goalRequest && !isCheckpointMessage(message) && isDelegatedWorkResult(message) && waitingGoalId) {
+      observedOwnDelegatedWait = undefined;
+      const waitingGoal = core.store.readGoal(waitingGoalId);
+      const goal = core.goal;
+      if (goal?.id === waitingGoalId && waitingGoal?.status === "active") {
+        core.noteWork("delegated-result", true, message.details, message.content);
+        if (!goal.autoContinue && !hasInFlightDelegatedWork(ctx.cwd, ctx.sessionManager?.getBranch?.() ?? [])) {
+          core.scheduler.rearmAfterResult(goal, core.settings(ctx));
+        }
+      }
+    }
     if (!isCheckpointMessage(message)) {
       // The `/goal <text>` request is the user's own turn. The command delivers
       // it as a custom message, so its role is not `user`, but the words are the
@@ -172,6 +212,7 @@ export function registerGoalEvents(core: GoalCore): void {
     core.bindUi(ctx);
     // Unconsumed setting intent must not activate an unrelated later edit.
     core.cancelGoalActivation();
+    settleBoundaryReached = true;
     const failed = event.outcome !== "completed";
     const userInitiated = userRun;
     userRun = false;
@@ -180,7 +221,23 @@ export function registerGoalEvents(core: GoalCore): void {
       refreshDashboard(core, ctx);
       return;
     }
-    core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork() || userInitiated);
+    // A report-only turn that is honestly waiting on a living child is not a
+    // no-op: it holds the window instead of spending a chance. It still earns no
+    // completion check and no run of its own; the result's arrival re-arms.
+    const waitingOnWork = !failed && hasInFlightDelegatedWork(ctx.cwd, ctx.sessionManager?.getBranch?.() ?? []);
+    if (waitingOnWork) observedOwnDelegatedWait = goal.id;
+    const wasStopped = goal.autoContinue === false;
+    core.scheduler.settled(core.goal, core.settings(ctx), !failed,
+      core.performedWork() || userInitiated, waitingOnWork);
+    // A user's own turn is always new work. When it also produced a new receipt,
+    // lift a stop the runtime itself wrote for a quiet window: progress resumed,
+    // so requiring a separate /goal resume would leave the goal stranded. Run
+    // after settled(), which closes the run and lets a fresh decision be armed.
+    // The scheduler's guarded write preserves usage, run count and ownership,
+    // and never lifts a user pause, a blocker, a spent allowance or completion.
+    if (!failed && userInitiated && core.performedWork() && wasStopped) {
+      core.scheduler.rearmAfterResult(goal, core.settings(ctx));
+    }
     if (failed) {
       refreshGoalToolSurface(core, ctx);
       refreshDashboard(core, ctx);
@@ -192,7 +249,39 @@ export function registerGoalEvents(core: GoalCore): void {
     return continuation;
   });
 
-  pi.on("agent_settled", async (_event, ctx) => {
+  pi.on("agent_settled", async (event, ctx) => {
+    // Pi fires this from a finally block on every run, including an aborted run
+    // whose agent_before_settle is skipped. Close the run and drop its credit
+    // here, so a transient interruption cannot strand the scheduler in a run or
+    // make the next autonomous run look like a user's own turn. A real failed
+    // run still stops the loop at its settle boundary; this only recovers the
+    // state an aborted run left behind.
+    if (core.scheduler.isRunning()) {
+      // A normal run already closed itself in settled(); only a run that skipped
+      // its settle boundary reaches here. Drop its credit and close it.
+      userRun = false;
+      const aborted = event.aborted === true;
+      core.scheduler.abandonRun();
+      const goal = core.goal;
+      // An explicit abort (Escape or an extension's ctx.abort) is the user's
+      // decision to stop this run. Keep the goal open but do not quietly start
+      // another model turn: the next user turn or /goal resume drives that.
+      // A skipped settle boundary after an otherwise completed run is a host
+      // anomaly; only that case may re-arm through the ordinary store write.
+      // A provider error also skips the boundary and must stop the loop at once.
+      if (!settleBoundaryReached && !aborted && goal && goal.autoContinue && !core.scheduler.isArmed()) {
+        const messages = (ctx.sessionManager?.getBranch?.() ?? []).flatMap(entry => entry.type === "message" ? [entry.message] : []);
+        const error = messages.some(message => message.role === "assistant"
+          && (message.stopReason === "error" || message.errorMessage !== undefined));
+        if (error) {
+          core.scheduler.settled(goal, core.settings(ctx), false, false);
+        } else {
+          core.scheduler.rearm(goal, core.settings(ctx));
+        }
+      }
+    } else {
+      userRun = false;
+    }
     refreshGoalToolSurface(core, ctx);
     refreshDashboard(core, ctx);
   });

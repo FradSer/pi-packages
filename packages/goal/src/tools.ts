@@ -15,7 +15,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import {
   defineTool,

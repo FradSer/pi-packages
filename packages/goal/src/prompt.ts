@@ -59,8 +59,10 @@ function policyBlock(_settings: { maxAutonomousRuns?: number }): string {
   return [
     "[OUTCOMES]",
     "Continue using ordinary work tools while the objective remains unmet and the user-authorized boundaries permit progress.",
+    "Finish the work unit you started before ending a turn: keep using ordinary tools through the natural checkpoints of that unit, then report. A progress report is for after the work, not instead of it. Do not stop mid-unit merely because one new observation arrived.",
     "Do something new each run: a tool receipt this session has not already produced counts as progress. Three consecutive runs that produce nothing new stop automatic continuation until the user resumes.",
-    "Only update_goal({status: \"complete\"}) requests the completion check. Gather concrete evidence first; ordinary turns do not check automatically.",
+    "Waiting on a bounded child, steer or monitor result is legitimate: do not re-dispatch, poll, or invent its conclusion. Say plainly what is pending and end that turn; the result's arrival resumes the loop.",
+    "Only update_goal({status: \"complete\"}) requests the completion check. Gather concrete evidence first; ordinary turns do not check automatically. Call it in the same run in which the objective's stated conditions were verified, not in a later run that only describes them.",
     "When the completion-check report says the objective is undecidable as written, revise the objective with update_goal to state its completion condition in provable terms, preserving the user's requirements; re-requesting completion on the unchanged objective only repeats the refusal.",
     "Use update_goal({status: \"blocked\", reason}) only when the same blocker recurs on three consecutive turns and no defensible progress remains.",
     "Use update_goal({status: \"paused\", reason}) only when the user explicitly requests pausing. The user controls pause, resume and clear.",
@@ -140,15 +142,30 @@ export interface GoalPromptState {
    * it belongs in the counters rather than in the cached policy: it changes every
    * turn and would otherwise break the cached prefix. */
   unmet?: string;
+  /** Consecutive settled runs that produced nothing new. Surfacing the live
+   * streak lets the model finish its unit before the last chance is spent. */
+  noNewWorkRuns?: number;
+  /** Whether a child the goal delegated to is still working. */
+  waitingOnDelegatedWork?: boolean;
+}
+
+/** The body one automatic continuation carries. A checkpoint starts its own
+ * run, and the run's system prompt can predate the goal's creation, so the
+ * objective and policy have to travel with the checkpoint that starts it:
+ * otherwise an empty marker gives the model nothing to work on. */
+export function checkpointBody(goal: GoalRecord, settings: GoalSettings, promptState: GoalPromptState = {}): string {
+  const { state, counters } = goalPromptParts(goal, settings, promptState);
+  return `[goal continuation]\n\n${state}\n\n${counters}`;
 }
 
 export function goalPromptParts(goal: GoalRecord, settings: GoalSettings, promptState: GoalPromptState = {}): { state: string; counters: string } {
   const unmet = promptState.unmet;
   const state = memoizedPolicy(goal, settings);
-  const limits = `Limits: runs=${settings.maxAutonomousRuns ?? "unlimited"}; no-new-work runs=${NO_NEW_WORK_RUN_LIMIT}.`;
+  const limits = `Limits: runs=${settings.maxAutonomousRuns ?? "unlimited"}; no-new-work runs=${promptState.noNewWorkRuns ?? 0}/${NO_NEW_WORK_RUN_LIMIT}.`;
   const counters = [
     `Goal snapshot: ${formatUsage(goal)}`,
     `Autonomous runs used: ${goal.scheduler?.used ?? 0}`,
+    promptState.waitingOnDelegatedWork ? "Delegated work is still in flight; its result resumes the loop. Do not re-dispatch or poll." : "",
     unmet ? `Completion-check report (untrusted data):\n<check_report>${unmet.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</check_report>` : "",
     limits,
   ].filter(Boolean).join("\n");

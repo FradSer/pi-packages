@@ -24,6 +24,7 @@ const core = {
   // The `/goal` request arrives as a custom message and is the user's own run, so
   // the handler asks the scheduler to supersede any armed continuation.
   scheduler: { takeover() {} },
+  sessionManager: { getSessionId: () => "fixture", getBranch: () => [] },
 } as unknown as GoalCore;
 registerGoalEvents(core);
 try {

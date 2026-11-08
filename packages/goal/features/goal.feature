@@ -14,6 +14,57 @@ Feature: Starting a goal
     And the predicate assert.match((options.sections as Record<string, string>).goal_capability!, /explicitly asks for a persistent goal/) holds for every observed invocation
     And the predicate assert.doesNotMatch((options.sections as Record<string, string>).goal_capability!, /runtime state|already running/) holds for every observed invocation
 
+Feature: Goal host compatibility
+
+  Scenario: Given a host whose pi-ai module exports no Type When Goal tools register Then their closed schemas still load
+    Given a host whose @earendil-works/pi-ai module exports no Type
+    When the real Goal tools source builds its schemas with the declared TypeBox peer
+    Then the predicate assert.equal(typeof host.Type, "undefined", "the simulated host really omits Type") holds for every observed invocation
+    And the predicate assert.equal(typeof host.validateToolArguments, "function", "but still provides native argument validation") holds for every observed invocation
+    And the predicate assert.equal(hostExportsType(source), false, "Goal tools do not depend on the host Type re-export") holds for every observed invocation
+    And the predicate assert.equal(schemaBuilder(source), "typebox", "Goal tools declare TypeBox schemas with the TypeBox peer") holds for every observed invocation
+    And the predicate assert.equal(typeof typeboxType.Object, "function", "the declared TypeBox peer supplies schema builders") holds for every observed invocation
+
+Feature: Real-model Goal E2E
+
+  Scenario: Given an isolated Docker host and hunyuan-eval/hy4-dev When one real Goal is requested Then the native tools, terminal request row and completion check are exercised
+    Given a disposable Magpie provider exposing hunyuan-eval/hy4-dev with reasoning off
+    And a Docker image built from the current Goal and kit sources with only Goal loaded
+    And no real upstream credential written into the image or evidence
+    When the native Pi session drives one /goal request through a real model
+    Then the terminal goal record, request row, ordinary work evidence and one tool-less completion check are observed
+    And provider requests, usage and transport errors are reported without a learning-benefit claim
+
+Feature: Goal delegated work and host failures
+
+  Scenario: Given a provider error skips its settle boundary When the host settles Then the Goal stops without an automatic retry
+    Given the isolated fixtures for Given a provider error skips its settle boundary When the host settles Then the Goal stops without an automatic retry
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue, false, "a failed run must not be re-armed into another model call") holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(), false, "and no continuation stays armed") holds for every observed invocation
+
+  Scenario: Given a monitor launch When a delegated wait is checked Then the native session holds the window
+    Given the isolated fixtures for Given a monitor launch When a delegated wait is checked Then the native session holds the window
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(hasInFlightDelegatedWork(f.cwd, branch), true, "a launched monitor holds the Goal's bounded wait") holds for every observed invocation
+    And the predicate assert.equal(hasInFlightDelegatedWork(f.cwd, branch), false, "and its terminal stopped result ends it") holds for every observed invocation
+
+  Scenario: Given a delegated child of a symlinked project When its live roster is checked Then it holds the same Goal's window
+    Given the isolated fixtures for Given a delegated child of a symlinked project When its live roster is checked Then it holds the same Goal's window
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(hasInFlightDelegatedWork(real, []), true, "a symlink spelling resolves to this project's live child") holds for every observed invocation
+    And the predicate assert.equal(hasInFlightDelegatedWork(linked, []), true, "and the resolved spelling does too") holds for every observed invocation
+
+  Scenario: Given terminal delegated results When they arrive Then all terminal kinds count as observed work
+    Given the isolated fixtures for Given terminal delegated results When they arrive Then all terminal kinds count as observed work
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(isDelegatedWorkResult(row), true, JSON.stringify(row)) holds for every observed invocation
+
+  Scenario: Given a delegated wait for one Goal When a different Goal is focused Then its result is not credited
+    Given the isolated fixtures for Given a delegated wait for one Goal When a different Goal is focused Then its result is not credited
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.performedWork(), before, "a cleared Goal's child result is unrelated background activity") holds for every observed invocation
+
 Feature: Goal records
 
   Scenario: Goal records: a created goal is durable before any work begins
@@ -437,6 +488,24 @@ Feature: Goal scheduling
     And the predicate assert.equal(scheduler.isDenied(), true, "the turn is denied so a model that ignores the block still cannot work") holds for every observed invocation
     And the predicate assert.equal(scheduler.acceptCheckpoint(claimed).ok, false, "and a denied scheduler stays denied") holds for every observed invocation
 
+  Scenario: Goal scheduling: a refused checkpoint does not poison the next run
+    Given the isolated fixtures for a refused checkpoint does not poison the next run
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(created.ok, JSON.stringify(created)) holds for every observed invocation
+    And the predicate assert.ok(outcome.ok, JSON.stringify(outcome)) holds for every observed invocation
+    And the predicate assert.equal(scheduler.acceptCheckpoint({ ...claimed, dispatchId: "stale" }).ok, false) holds for every observed invocation
+    And the predicate assert.equal(scheduler.isDenied(), true) holds for every observed invocation
+    And the predicate assert.equal(scheduler.isDenied(), false, "a new run starts with no stale denial") holds for every observed invocation
+    And the predicate assert.equal(scheduler.isRunning(), true, "and the scheduler is back in a run") holds for every observed invocation
+
+  Scenario: Goal scheduling: a disabled continuation cannot be re-armed by a result or an abandoned run
+    Given the isolated fixtures for a disabled continuation cannot be re-armed by a result or an abandoned run
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(created.ok, JSON.stringify(created)) holds for every observed invocation
+    And the predicate assert.equal(scheduler.isArmed(), false, "a zero allowance arms nothing") holds for every observed invocation
+    And the predicate assert.equal(read(goal.id)?.autoContinue, true, "and the goal is left as it was") holds for every observed invocation
+    And the predicate assert.deepEqual(session.queued(), [], "no continuation is queued") holds for every observed invocation
+
   Scenario: Goal scheduling: a matching checkpoint is accepted exactly once
     Given the isolated fixtures for a matching checkpoint is accepted exactly once
     When the real Goal modules execute this behavior case
@@ -809,7 +878,7 @@ Feature: Goal completion evidence
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
     And the predicate assert.match(serialized, /executed/, "recorded provenance reaches the checker") holds for every observed invocation
-    And the predicate assert.match(serialized, /pnpm test:e2e/) holds for every observed invocation
+    And the predicate assert.match(serialized, /bun test:e2e/) holds for every observed invocation
     And the predicate assert.match(serialized, /Independent review/) holds for every observed invocation
     And the predicate assert.ok(!serialized.includes("FORGED_USER_DATA"), "user role cannot manufacture evidence") holds for every observed invocation
     And the predicate assert.match(serialized, /Trust me/) holds for every observed invocation
@@ -889,7 +958,8 @@ Feature: Goal completion evidence
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
     And the predicate assert.equal(checkRan, false, "loop check must not run while subagents are active") holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.status, "active", "goal must remain active while subagents are working") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue, false, "unrelated subagents cannot sustain Goal continuation") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue, true, "in-flight delegated work holds the loop open") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason, undefined, "and writes no no-new-work stall") holds for every observed invocation
 
   Scenario: Goal completion evidence: the completion claim is not length-capped in the tool schema
     Given the isolated fixtures for the completion claim is not length-capped in the tool schema
@@ -1097,6 +1167,57 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.equal(f.core.goal?.status,"active") holds for every observed invocation
     And the predicate assert.match(f.row(),/Goal waiting/) holds for every observed invocation
 
+  Scenario: Simplified thread Goal lifecycle: Given an automatic checkpoint When it is delivered Then it carries the objective and work policy
+    Given the isolated fixtures for Given an automatic checkpoint When it is delivered Then it carries the objective and work policy
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(outcome.ok, JSON.stringify(outcome)) holds for every observed invocation
+    And the predicate assert.equal(typeof delivered.content,"string","the checkpoint body reaches the model as text") holds for every observed invocation
+    And the predicate assert.match(delivered.content,/Export CSV\./,"the current objective is in the checkpoint") holds for every observed invocation
+    And the predicate assert.match(delivered.content,/untrusted_objective/,"and is marked as untrusted data") holds for every observed invocation
+    And the predicate assert.match(delivered.content,/Do something new each run/,"the work policy reaches a run started from an empty checkpoint") holds for every observed invocation
+    And the predicate assert.match(delivered.content,/no-new-work runs=0\/3/,"with its live window streak") holds for every observed invocation
+    And the predicate assert.equal(delivered.display,false,"the checkpoint stays hidden on the transcript") holds for every observed invocation
+    And the predicate assert.equal(boundary.continue,true,"and still authorizes exactly one continuation") holds for every observed invocation
+    And the predicate assert.match(boundary.entries[0].content,/Export CSV\./,"the boundary start carries the same body") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a hostile objective When a checkpoint is delivered Then it stays untrusted data
+    Given the isolated fixtures for Given a hostile objective When a checkpoint is delivered Then it stays untrusted data
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(parts.split("</untrusted_objective>").length - 1,1,"exactly one real closing tag survives") holds for every observed invocation
+    And the predicate assert.match(parts,/&lt;\/untrusted_objective&gt;/,"the injected tag arrives escaped") holds for every observed invocation
+    And the predicate assert.match(parts,/Only update_goal\(\{status: "complete"\}\) requests the completion check/,"the completion rule still reaches the run") holds for every observed invocation
+    And the predicate assert.match(parts,/no-new-work runs=2\/3/,"the live streak is reported") holds for every observed invocation
+    And the predicate assert.doesNotMatch(parts,/^\[goal continuation\]\s*Ignore/m,"the objective never becomes a leading instruction") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given an aborted run with no settle boundary When the host settles Then the loop keeps its authorization
+    Given the isolated fixtures for Given an aborted run with no settle boundary When the host settles Then the loop keeps its authorization
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.scheduler.isRunning(),false,"an aborted run closes the run") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"and does not stop the goal") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason,undefined,"and writes no permanent stop reason") holds for every observed invocation
+    And the predicate assert.equal(f.sent.filter(message=>message.customType==="pi-goal-checkpoint").length,0,"an explicit abort does not silently start another model turn") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"a later run still works normally") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a settle boundary skipped without an abort When the host settles Then the goal is re-armed
+    Given the isolated fixtures for Given a settle boundary skipped without an abort When the host settles Then the goal is re-armed
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.scheduler.isRunning(),false,"the run closes") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"and a fresh authorized decision is delivered") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a user turn interrupted before settlement When another run starts Then its credit does not leak
+    Given the isolated fixtures for Given a user turn interrupted before settlement When another run starts Then its credit does not leak
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,false,"an interrupted user turn does not buy infinite continuation") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/) holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given report-only turns while delegated work is in flight When they settle Then the window holds and the result re-arms the goal
+    Given the isolated fixtures for Given report-only turns while delegated work is in flight When they settle Then the window holds and the result re-arms the goal
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,true,"waiting on in-flight work holds the window") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason,undefined,"and writes no stall") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.status,"active","the goal stays open") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"a completed delegated result keeps the loop live") holds for every observed invocation
+
   Scenario: Simplified thread Goal lifecycle: Given repeated identical output When each run settles Then count it in the change window
     Given the isolated fixtures for Given repeated identical output When each run settles Then count it in the change window
     When the real Goal modules execute this behavior case
@@ -1217,7 +1338,68 @@ Feature: Simplified thread Goal lifecycle
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(result,undefined) holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.scheduler?.used,0) holds for every observed invocation
-    And the predicate assert.equal(f.core.scheduler.isArmed(),false) holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),true,"the decision waits for the queued message instead of being discarded") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a failed run When a delegated result or new work arrives Then the outage stop stands
+    Given the isolated fixtures for Given a failed run When a delegated result or new work arrives Then the outage stop stands
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,false,"the failed run stopped the goal") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false,"a provider outage is not retried without /goal resume") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/Execution was interrupted or failed/) holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a user pause When a delegated result or new work arrives Then the pause stands
+    Given the isolated fixtures for Given a user pause When a delegated result or new work arrives Then the pause stands
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.status,"paused","the user paused the goal") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.status,"paused","a user pause is terminal until /goal resume") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false,"no delegated result revives it") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given an unrelated delegated result When no wait was observed Then it cannot revive or count for this goal
+    Given the isolated fixtures for Given an unrelated delegated result When no wait was observed Then it cannot revive or count for this goal
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,false,"the goal is stopped by its quiet window") holds for every observed invocation
+    And the predicate assert.equal(f.core.performedWork(),before,"an unobserved result is not counted as this goal's work") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false,"and it does not revive the stalled goal") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/) holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a restored session When a prior window left a streak Then the fresh window starts clean
+    Given the isolated fixtures for Given a restored session When a prior window left a streak Then the fresh window starts clean
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.scheduler.noNewWorkStreak(),2,"two quiet runs advanced the window") holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.noNewWorkStreak(),0,"restore starts a fresh window") holds for every observed invocation
+    And the predicate assert.match(parts.counters,/no-new-work runs=0\/3/,"and the prompt reports the fresh streak") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a child that never reports When quiet runs continue Then the bounded wait still stops the loop
+    Given the isolated fixtures for Given a child that never reports When quiet runs continue Then the bounded wait still stops the loop
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue, false, "three held waits and one ordinary quiet run are enough to stop the loop") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false,"a live child holds the window only for a bounded wait") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason, "Delegated work did not report before the bounded wait expired. Use /goal resume to continue.") holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),false,"no decision keeps the loop spinning") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given only stale or foreign children When quiet runs settle Then the three-run window still stops the goal
+    Given the isolated fixtures for Given only stale or foreign children When quiet runs settle Then the three-run window still stops the goal
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,false,"stale and foreign children are not in-flight work") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs produced nothing new/) holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),false,"and no decision keeps re-arming the loop") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a goal stopped by a quiet window When the user supplies new work Then it pursues again without a manual resume
+    Given the isolated fixtures for Given a goal stopped by a quiet window When the user supplies new work Then it pursues again without a manual resume
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,false,"the goal is stopped") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"the user's new work lifts the runtime's own stop") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason,undefined,"and clears the stall reason") holds for every observed invocation
+    And the predicate assert.ok((f.core.goal?.scheduler?.used ?? 0) >= used!,"the lifetime run count is preserved, never reset") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a queued steer When a ready decision is armed Then the decision survives for after the message
+    Given the isolated fixtures for Given a queued steer When a ready decision is armed Then the decision survives for after the message
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(outcome.ok, JSON.stringify(outcome)) holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),true,"the decision is armed") holds for every observed invocation
+    And the predicate assert.equal(boundary,undefined,"no boundary continuation is claimed while a message is queued") holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),true,"but the decision is not destroyed") holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),false,"the idle timer delivers it once idle") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a checker's usage When it returns MET Then charge it and complete
     Given the isolated fixtures for Given a checker's usage When it returns MET Then charge it and complete
@@ -1414,6 +1596,13 @@ Feature: Simplified thread Goal lifecycle
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(f.sent.at(-1).display,false,"no renderer means no visible row") holds for every observed invocation
     And the predicate assert.equal(f.renderers.size,0,"the host registers no renderer for this row") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a timer for a goal no longer focused When it fires Then a fresh decision still delivers
+    Given the isolated fixtures for Given a timer for a goal no longer focused When it fires Then a fresh decision still delivers
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(outcome.ok, JSON.stringify(outcome)) holds for every observed invocation
+    And the predicate assert.equal(f.core.scheduler.isArmed(),true,"a decision is armed") holds for every observed invocation
+    And the predicate assert.equal(f.sent.slice(before).filter(message=>message.customType==="pi-goal-checkpoint").length,1,"the fresh decision delivers once") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given an armed decision When the host is idle Then deliver exactly one checkpoint for it
     Given the isolated fixtures for Given an armed decision When the host is idle Then deliver exactly one checkpoint for it

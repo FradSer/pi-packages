@@ -61,7 +61,13 @@ investigation or verification stretch is not interrupted; repeating the same cal
 with the same output, answering without calling a tool, and producing nothing at
 all are what fill the window. Three consecutive runs with nothing new stop
 automatic continuation and say so; `/goal resume` starts the window again. A
-failed or interrupted turn stops the goal at once, so an outage is not retried. A
+failed turn stops the goal at once, so an outage is not retried. An aborted run
+has no settle boundary in Pi, so the runtime closes it at `agent_settled` and
+keeps its authorization instead of stranding the loop. A quiet turn waiting on a
+living delegated child holds the window without spending a chance; the child's
+completed result is new work and re-arms a stop the runtime itself wrote. A
+user's own turn with new work does the same, so a stalled goal does not need a
+manual resume before progress continues. A
 requirement revision does not clear that memory, so re-wording the objective
 cannot make the same receipt count twice. A user's own turn is always new work,
 and `/goal <text>` is that user's turn even though the command delivers it as a
@@ -69,6 +75,12 @@ custom message, so a request keeps the full window for the work that follows.
 Goal introspection (`create_goal`, `get_goal`, `update_goal`) and a monitor that
 has not reached a terminal status are not work. Unrelated background agents do not
 count as Goal progress.
+
+Each automatic continuation carries the objective, its untrusted-data boundary,
+the work policy and the live no-new-work streak inside the checkpoint message,
+so a run started from a checkpoint is never an empty instruction even if the
+goal was created after that run's system prompt was assembled. The checkpoint
+stays hidden from the transcript.
 
 Generation and dispatch checks authorize each continuation exactly once. User
 input invalidates a queued continuation. Failed and interrupted runs wait for
@@ -159,10 +171,15 @@ uv run --no-project --with pyte python packages/goal/tests/goal_native_completio
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_continuation.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
+sh packages/goal/tests/goal_docker.sh
+uv run --python 3.13 --no-project packages/goal/tests/goal_real_model_e2e.py --output /tmp/goal-real-model-hy4
 ```
 
 Native acceptance uses a scripted provider inside a real Pi CLI/TUI and decodes
 complete terminal frames, including resizing and interactive management. It makes
 no remote model calls. Docker acceptance installs the packed Goal and its required
-kit dependency into an isolated Pi environment; test fixtures inject the scripted
-provider/checker, without other production extensions or host credentials.
+kit and TypeBox dependencies into an isolated Pi environment; test fixtures inject the
+scripted provider/checker, without other production extensions or host credentials.
+The optional real-model command is separate: it needs `MAGPIE_BASE_URL` and
+`MAGPIE_API_KEY`, sends requests through a host-only proxy, and exercises one native
+`hunyuan-eval/hy4-dev` Goal session. It proves native integration, not learning benefit.

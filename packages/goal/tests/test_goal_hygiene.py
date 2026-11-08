@@ -25,7 +25,7 @@ def test_package_typecheck_covers_tests_and_harnesses() -> None:
     config = (PACKAGE / "tsconfig.tests.json").read_text(encoding="utf-8")
     assert "tests/**/*.mts" in config, "test harnesses must be part of a type check"
     result = subprocess.run(
-        ["pnpm", "exec", "tsc", "--noEmit", "-p", "packages/goal/tsconfig.tests.json"],
+        ["bun", "x", "tsc", "--noEmit", "-p", "packages/goal/tsconfig.tests.json"],
         cwd=REPO, capture_output=True, text=True, timeout=300,
     )
     assert result.returncode == 0, result.stdout + result.stderr

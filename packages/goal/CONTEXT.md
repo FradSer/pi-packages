@@ -40,13 +40,33 @@ nothing at all are what fill it. That is a deliberate reversal: an earlier versi
 on an unseen `edit` or `write`, so a verification-heavy stretch — a run that runs the whole gate suite
 and reads its output, then another, then another — filled the window and stopped a goal that was
 working. Novelty is the cheaper and more honest signal, and the cost is that a model can keep a loop
-alive with novel no-ops, which is what `maxAutonomousRuns` is for. The only immediate stop is a failed
-or interrupted run, which is what keeps a provider outage from becoming a retry storm. The receipt
-memory lives in `GoalCore.seenWork` and `GoalScheduler.noNewWorkRuns`; it is session-scoped,
-deliberately not cleared by a requirements revision (a re-worded objective must not reset the loop's
-only bound), and reset by a user resume. Goal introspection (`create_goal`, `get_goal`,
-`update_goal`, `monitor_stop`) and a `monitor_start` that has not reached a terminal status are not
-work. There is no budget
+alive with novel no-ops, which is what `maxAutonomousRuns` is for. A failed run still stops at once,
+which keeps a provider outage from becoming a retry storm. An aborted run is different: Pi skips
+`agent_before_settle` on abort, so `events.ts` now closes it at `agent_settled`, drops that run's
+`userRun` credit, and re-arms a live goal only for a non-abort boundary anomaly (an explicit
+abort starts no new model turn). A quiet turn waiting on a living delegated child holds the window
+for a bounded wait (`inflight.ts`); only that thread's completed result is new work and
+`rearmAfterResult` lifts only a stop the runtime itself wrote. A user's own turn with new work does
+the same. A queued message no longer discards the armed decision in `boundaryContinuation`, a
+refused checkpoint's `denied` flag no longer poisons the next run, and restore/shutdown reset the
+armed decision, denial, streak, wait and pending timer.
+An authorized continuation now carries its own instructions. The archived
+2026-11-04 jev-next stall showed three empty checkpoint runs: a goal created
+mid-run left that run's system prompt without `goal_runtime`, and the checkpoint
+body was `""`, so the model had no objective or policy and burned the window.
+`checkpointBody` (prompt.ts) renders the same cached policy, untrusted objective
+block and live counters the run-start section uses; `GoalCore.sendContinuation`
+and `boundaryContinuation` put that body into every checkpoint, timer-delivered
+or boundary-delivered. The checkpoint stays hidden. Regressions in
+`goal_simplified.mts` pin the body, the live streak, hidden display, boundary
+start and escaping of a hostile objective. No new authorization path: the claim,
+dispatch counters and acceptance checks are unchanged.
+
+The receipt memory lives in `GoalCore.seenWork` and `GoalScheduler.noNewWorkRuns`; it is
+session-scoped, deliberately not cleared by a requirements revision (a re-worded objective must not
+reset the loop's only bound), and reset by a user resume. Goal introspection (`create_goal`,
+`get_goal`, `update_goal`, `monitor_stop`) and a `monitor_start` that has not reached a terminal
+status are not work. There is no budget
 concept at all. `GoalStatus` has no capped state, `GoalRecord` has no `tokenBudget`, and no path
 stops, refuses or resumes on a number: usage is recorded and reported, and the no-new-work window is
 what stops a stalled loop with `maxAutonomousRuns` as the only optional ceiling. A cap-era record is
@@ -97,11 +117,13 @@ produces them. Fixed items are named in place.
 - `evidence.ts` — bounded, redacted observations. `research_goal` stays excluded as a retired
   tool, now with a comment. No defect.
 - `inflight.ts` — observation-only reader of the `packages/subagents` roster symbol and the
-  completed delegated-result custom messages. A living child holds the no-new-work window (it
-  neither spends a chance nor earns one); a completed result counts as new work and re-arms only
-  a stop the runtime itself wrote. It grants no run, verdict or mutation: arm/claim and the
-  completion check still own those. Pinned by the rewritten `goal_completion.mts` subagent
-  scenario and two `goal_simplified.mts` regressions. No defect.
+  completed delegated-result custom messages. A child counts as in-flight only with a live pid
+  and this project's cwd, so a stale, foreign or crashed entry cannot hold the window; the
+  hold is also bounded, so a hung child cannot spin the loop. A completed result counts as new
+  work and re-arms only a stop the runtime itself wrote. It grants no run, verdict or mutation:
+  arm/claim and the completion check still own those. Pinned by the rewritten
+  `goal_completion.mts` subagent scenario and the `goal_simplified.mts` bounded-wait,
+  stale/foreign-child and user-pause/outage regressions. No defect.
 - `core.ts` — focus and owner rules, activation handshake, usage accounting, stop guard, and the
   receipt memory the loop's bound reads. `performedWork` is now the one progress fact — a receipt new
   to this session — and the same set still resets a blocker streak. Fixed: `currentTurnSeq` and

@@ -64,6 +64,11 @@ export class GoalScheduler {
   /** Runs since the last run that produced something new. The loop's bound: a goal
    * that keeps doing the same thing, or nothing, stops itself. */
   private noNewWorkRuns = 0;
+  /** Consecutive quiet turns spent waiting on in-flight delegated work. A
+   * genuine wait is bounded: a stale or orphaned roster entry must never hold
+   * the window forever. This is a patience bound on one wait, not a goal
+   * allowance, a budget or a spending cap. */
+  private waitingRuns = 0;
 
   constructor(host: SchedulerHost) {
     this.host = host;
@@ -125,6 +130,70 @@ export class GoalScheduler {
     this.denied = false;
   }
 
+  /** A run ended without reaching its settlement boundary. Pi emits
+   * `agent_settled` for aborted runs but skips `agent_before_settle`, so this is
+   * the only place that can close `inRun`. It spends no run and decides no
+   * progress: the interrupted turn simply never judged the window. */
+  abandonRun(): void {
+    this.inRun = false;
+    this.denied = false;
+  }
+
+  /** Re-arm a live goal whose continuation was lost when a run was interrupted.
+   * This records a fresh decision through the same store write `settled` uses,
+   * so its claim still re-checks owner, generation, phase and dispatch. */
+  rearm(goal: GoalRecord, settings: GoalSettings): void {
+    if (this.inRun) return;
+    this.lastSettings = settings;
+    const current = this.focused();
+    if (!current || current.id !== goal.id) return;
+    if (this.blocker(current, settings)) return;
+    this.implicitReady(current, current.revision);
+  }
+
+  /** A completed delegated result ends the honest wait. Lift only a stop the
+   * runtime itself wrote for a lost dispatch or a quiet window; a user pause, a
+   * blocker, a spent allowance and a finished goal all keep their disposition.
+   * The result is new work, so the window starts fresh through this write. */
+  rearmAfterResult(goal: GoalRecord, settings: GoalSettings): void {
+    if (this.inRun) return;
+    this.lastSettings = settings;
+    if (goal.status !== "active" || goal.stopReason === "user") return;
+    if (!this.runsRemaining(goal, settings) || !this.owned(goal)) return;
+    // Only a lost decision or a quiet window is recoverable from new work. A
+    // failed run (provider outage, error) keeps its immediate stop: retrying it
+    // without the user is exactly the storm the rule forbids.
+    const quietStop = /consecutive runs produced nothing new|checkpoint could not be delivered/.test(goal.pauseReason ?? "");
+    if (!quietStop) return;
+    // Reset only after the guarded write succeeds; a lost race must leave the
+    // in-memory window as it was, matching the record that is still stopped.
+    const outcome = this.host.apply({
+      expectedGoalId: goal.id,
+      expectedRevision: goal.revision,
+      mutate: (draft) => {
+        if (draft.status !== "active" || draft.stopReason === "user" ||
+            draft.scheduler?.owner !== this.host.readOwner()) return undefined;
+        return {
+          ...draft,
+          autoContinue: true,
+          stopReason: undefined,
+          pauseReason: undefined,
+          scheduler: draft.scheduler
+            ? { ...draft.scheduler, phase: "ready", dispatch: undefined, generation: randomToken() }
+            : { owner: this.host.readOwner(), phase: "ready", used: 0, generation: randomToken() },
+        };
+      },
+    });
+    if (outcome.ok) {
+      // Only after the guarded write lands may the in-memory window and denial
+      // reset: a lost race leaves the record stopped, so its state must match.
+      this.noNewWorkRuns = 0;
+      this.waitingRuns = 0;
+      this.denied = false;
+      this.schedule(outcome.goal, settings);
+    }
+  }
+
   /**
    * The turn ended. Decide what, if anything, authorizes another one.
    *
@@ -142,10 +211,36 @@ export class GoalScheduler {
    * only records the objective spends no run and the work that follows keeps the
    * full window.
    */
-  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, didWork = true): void {
+  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, didWork = true, waitingOnWork = false): void {
     this.inRun = false;
     this.lastSettings = settings;
     if (this.denied || !goal || goal.status !== "active" || !goal.autoContinue) return;
+    // Waiting on observable in-flight delegated work is only a hold: it neither
+    // spends a chance nor earns one. The hold is bounded, so a crashed child or
+    // a stale roster entry cannot keep the loop alive forever; once the wait
+    // runs out, the ordinary no-new-work rules apply. A completed result resets
+    // the wait, so a real child that took longer still recovers on arrival.
+    if (waitingOnWork) {
+      if (didWork) {
+        // A waiting turn that also produced a new receipt is still new work:
+        // the window resets even though the child has not reported yet.
+        this.noNewWorkRuns = 0;
+        this.waitingRuns = 0;
+      } else {
+        this.waitingRuns += 1;
+      }
+      if (this.waitingRuns <= NO_NEW_WORK_RUN_LIMIT) {
+        this.implicitReady(goal, goal.revision);
+        return;
+      }
+      // The bounded wait has expired. A child that never reports must not
+      // receive a fresh three-run window; stop with the wait's own reason.
+      this.waitingRuns = 0;
+      this.noNewWorkRuns = 0;
+      const reason = "Delegated work did not report before the bounded wait expired. Use /goal resume to continue.";
+      if (this.pause(goal, reason, "agent", { requireRevision: goal.revision })) this.host.notify(reason, "warning");
+      return;
+    }
     const reason = this.blocker(goal, this.lastSettings);
     if (reason) {
       this.pause(goal, reason, "agent", { requireRevision: goal.revision });
@@ -165,6 +260,7 @@ export class GoalScheduler {
       }
     } else {
       this.noNewWorkRuns = 0;
+      this.waitingRuns = 0;
     }
     this.implicitReady(goal, goal.revision);
 
@@ -438,6 +534,7 @@ export class GoalScheduler {
     // A user resume is a fresh opportunity: the window starts again, or a goal
     // stopped by it could never be resumed more than once.
     this.noNewWorkRuns = 0;
+    this.waitingRuns = 0;
     if (settings.maxAutonomousRuns === 0) {
       this.host.notify(this.allowanceReason(settings), "warning");
       return false;
@@ -485,6 +582,15 @@ export class GoalScheduler {
     });
   }
 
+  /** A session boundary starts fresh: no armed decision, no run, no denial and
+   * no window streak from the goal this thread was looking at before. */
+  resetLoopState(): void {
+    this.shutdown();
+    this.denied = false;
+    this.noNewWorkRuns = 0;
+    this.waitingRuns = 0;
+  }
+
   shutdown(): void {
     this.armedGeneration = undefined;
     this.armedGoalId = undefined;
@@ -501,6 +607,12 @@ export class GoalScheduler {
 
   isArmed(): boolean {
     return this.armedGeneration !== undefined;
+  }
+
+  /** Consecutive runs that added nothing new. Reported to the model so its last
+   * chance cannot be spent on a report it could have written after the work. */
+  noNewWorkStreak(): number {
+    return this.noNewWorkRuns;
   }
 }
 

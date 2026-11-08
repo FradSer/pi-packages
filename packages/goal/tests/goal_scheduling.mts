@@ -656,6 +656,36 @@ await scenario("a denied scheduler stays denied", () => {
   assert.equal(scheduler.acceptCheckpoint(claimed).ok, false, "and a denied scheduler stays denied");
 });
 
+await scenario("a refused checkpoint does not poison the next run", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim()!;
+  // A stale checkpoint is refused and the whole turn is denied. That is correct
+  // within the turn, but the refusal must not survive into the next run: an
+  // aborted run has no settlement, and a fresh run starts with a fresh claim.
+  assert.equal(scheduler.acceptCheckpoint({ ...claimed, dispatchId: "stale" }).ok, false);
+  assert.equal(scheduler.isDenied(), true);
+  scheduler.settled(read(goal.id), noSettings, true, true);
+  scheduler.abandonRun();
+  scheduler.begin();
+  assert.equal(scheduler.isDenied(), false, "a new run starts with no stale denial");
+  assert.equal(scheduler.isRunning(), true, "and the scheduler is back in a run");
+});
+
+await scenario("a disabled continuation cannot be re-armed by a result or an abandoned run", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  const disabled: GoalSettings = { maxAutonomousRuns: 0 };
+  scheduler.rearm(goal, disabled);
+  scheduler.rearmAfterResult(goal, disabled);
+  assert.equal(scheduler.isArmed(), false, "a zero allowance arms nothing");
+  assert.equal(read(goal.id)?.autoContinue, true, "and the goal is left as it was");
+  assert.deepEqual(session.queued(), [], "no continuation is queued");
+});
+
 await scenario("a matching checkpoint is accepted exactly once", () => {
   const session = makeHost("session-a");
   const scheduler = new GoalScheduler(session.host);

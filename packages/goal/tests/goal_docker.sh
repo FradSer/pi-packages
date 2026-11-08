@@ -53,7 +53,7 @@ writeFileSync(1, JSON.stringify({
     "@fradser/pi-kit": `file:/receipts/${kit}`,
     "@fradser/pi-goal": `file:/receipts/${goal}`,
     tsx: "^4.19.0", "@babel/parser": "^7.29.9",
-    typescript: "^5.9.0", "@types/node": "^22.0.0",
+    typescript: "^5.9.0", "@types/node": "^22.0.0", typebox: "^1.3.27",
   },
   overrides,
 }, null, 2) + "\n");
@@ -68,8 +68,16 @@ cp /receipts/isolated-package.json package.json
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv >/dev/null
 apt-get install -y -qq curl unzip >/dev/null
-curl -fsSL --retry 3 --retry-delay 2 --max-time 300 https://bun.sh/install -o /tmp/bun-install.sh
-BUN_INSTALL=/usr/local bash /tmp/bun-install.sh bun-v1.4.1 >/dev/null
+for attempt in 1 2 3 4 5; do
+  curl -fsSL --retry 3 --retry-delay 2 --max-time 300 https://bun.sh/install -o /tmp/bun-install.sh && break
+  [ "$attempt" -lt 5 ] || { echo "cannot download the Bun installer" >&2; exit 1; }
+  sleep 2
+done
+for attempt in 1 2 3 4 5; do
+  BUN_INSTALL=/usr/local bash /tmp/bun-install.sh bun-v1.4.1 >/dev/null && break
+  [ "$attempt" -lt 5 ] || { echo "cannot install Bun 1.4.1" >&2; exit 1; }
+  sleep 2
+done
 bun --version | tee /receipts/bun-version.txt
 bun install
 python3 -m venv /verify/venv

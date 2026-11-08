@@ -344,17 +344,17 @@ await scenario("legacy attributed review reports reach the check without promoti
 
 await scenario("active subagents prevent no-work pause and defer premature loop checks", async () => {
   const rosterKey = Symbol.for("fradser.pi-subagents.roster");
-  const carrier = globalThis as Record<symbol, Record<string, { status: string }>>;
-  carrier[rosterKey] = {
-    reviewer: { status: "working" },
-  };
+  const carrier = globalThis as Record<symbol, Record<string, { status: string; pid?: number; cwd?: string }>>;
   let checkRan = false;
   const f = fixture(async () => {
     checkRan = true;
     return { met: false, report: "premature check" };
   });
+  carrier[rosterKey] = {
+    reviewer: { status: "working", pid: process.pid, cwd: f.cwd },
+  };
   try {
-    for (let run = 0; run < 5; run += 1) {
+    for (let run = 0; run < 3; run += 1) {
       await f.events.get("agent_start")!({}, f.ctx);
       await f.events.get("turn_start")!({}, f.ctx);
       // Turn finishes with no tools called (waiting for subagent)

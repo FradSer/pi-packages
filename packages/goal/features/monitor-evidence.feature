@@ -42,6 +42,12 @@ Feature: Monitor outcomes in goal completion evidence
     Then the bounded evidence includes that latest failure as its last observation
     And only fifteen earlier successful observations remain
 
+  Scenario: Delegated waits cover all terminal child reports
+    Given a monitor launch or subagent child observed in this session
+    When its terminal result is stopped, failed, unanswered or ended
+    Then the Goal's bounded wait ends and the terminal report is counted as observed work
+    And a result from a cleared or replaced Goal is never credited to the current Goal
+
   Scenario: Append-only context edits preserve evidence provenance
     Given monitor custom or direct terminal observations and their recorded calls
     When a later context edit omits an observation or its assistant call
