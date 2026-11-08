@@ -12,10 +12,15 @@ SRC = PACKAGE / "src"
 
 
 def run_typescript(script: str) -> subprocess.CompletedProcess[str]:
+    # Pi 1.5 requires an initialized global theme before highlightCode paints a
+    # stored command. Direct renderer harnesses do not boot Pi, so establish the
+    # offline theme once in the generated script; run_harness does it itself.
+    preamble = ('const { initTheme: __piInitTheme } = await import("@earendil-works/pi-coding-agent");'
+        '__piInitTheme("dark");\n')
     result = subprocess.run(
         ["node", "--import", "tsx", "--input-type=module"],
         cwd=REPO,
-        input=textwrap.dedent(script),
+        input=preamble + textwrap.dedent(script),
         text=True,
         capture_output=True,
         check=False,
@@ -272,6 +277,7 @@ def test_monitor_start_derives_a_bounded_label_from_the_command() -> None:
 
         const required = start.parameters?.required ?? [];
         if (required.includes("description")) {
+
           throw new Error("description must be optional: " + JSON.stringify(required));
         }
         if (!required.includes("result_pattern") || !required.includes("command")) {
@@ -488,6 +494,7 @@ def test_monitor_start_renderer_uses_the_shared_lifecycle_band() -> None:
     run_typescript(
         r'''
         import * as extensionModule from "./packages/monitor/index.ts";
+        import { keyHint } from "@earendil-works/pi-coding-agent";
 
         const tools = new Map();
         extensionModule.default({
@@ -515,7 +522,8 @@ def test_monitor_start_renderer_uses_the_shared_lifecycle_band() -> None:
           { args: { description: "Google availability", command: "curl example.com", result_pattern: "OK" }, isError: false },
         ).render(120);
         const content = row.find((line) => line.includes("[monitor] started ·"));
-        if (row.length !== 3 || content?.trim() !== "<warning><bold>[monitor] started ·</bold></warning> Google availability<dim> · to expand</dim>") {
+        const hint = keyHint("app.tools.expand", "to expand");
+        if (row.length !== 3 || content?.trim() !== `<warning><bold>[monitor] started ·</bold></warning> Google availability<dim> · ${hint}</dim>`) {
           throw new Error(JSON.stringify(row));
         }
         const expanded = start.renderResult(
