@@ -273,6 +273,7 @@ def test_incremental_harness_task_uses_authoritative_dossier_without_broad_disco
       import fs from 'node:fs';
       import path from 'node:path';
       import {{ EventEmitter }} from 'node:events';
+      import {{ createHash }} from 'node:crypto';
       const tasks = [];
       const kit = await import('./packages/kit/src/index.ts');
       mock.module('./packages/kit/src/index.ts', () => ({{
@@ -294,7 +295,7 @@ def test_incremental_harness_task_uses_authoritative_dossier_without_broad_disco
       const ctx = {{ cwd, ui: {{ notify() {{}} }}, sessionManager: {{ getBranch: () => entries, buildContextEntries: () => entries }} }};
       const run = await createConsolidationRun(ctx, cwd, false);
       const dossier = path.join(run.manifest.runDir, 'incremental-learning-dossier.json'); fs.writeFileSync(dossier, '{{}}\n');
-      const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: 'dossier-digest', resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
+      const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: createHash('sha256').update(fs.readFileSync(dossier)).digest('hex'), resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
       await releaseConsolidationRun(run);
       console.log(JSON.stringify({{ ok: outcome.ok, task: tasks[0], runDir: run.manifest.runDir }}));
     ''')
@@ -445,12 +446,14 @@ def test_planner_timeout_output_limit_and_post_spawn_cancel_await_child_close() 
         const runDir = path.join(temp, name);
         fs.mkdirSync(runDir, { recursive: true });
         const snapshotPath = path.join(runDir, 'snapshot.json');
-        fs.writeFileSync(snapshotPath, JSON.stringify({ entries: [] }));
+        const snapshotBytes = JSON.stringify({ entries: [] });
+        fs.writeFileSync(snapshotPath, snapshotBytes);
+        const { sha256Digest } = await import('./packages/continual-learning/extensions/consolidation-run.ts');
         const run = {
           manifest: {
             runId: `run-${name}`,
             scopeDigest: 'scope-digest',
-            snapshotDigest: 'snapshot-digest',
+            snapshotDigest: sha256Digest(snapshotBytes),
             snapshotPath,
             cwd: temp,
             runDir,
@@ -544,14 +547,18 @@ def test_phase_writes_pre_receipt_before_apply_and_post_after(tmp_path: Path) ->
 def test_harness_planner_uses_package_prompt_and_minimal_readonly_args() -> None:
     src = (PKG_DIR / "extensions" / "harness-consolidation.ts").read_text(encoding="utf-8")
     assert "buildHarnessConsolidatorPrompt" in src
-    assert 'minimalPiWorkerArgs(["learning_read", "harness_check_cases"])' in src
-    assert 'harnessPlannerPreviewArgs(path.dirname(taskFile))' in src
-    assert "plannerReadArgs" in src
+    assert "plannerNoToolArgs()" in src
+    assert "workerCliArgs" not in src
+    assert "plannerReadArgs" not in src
+    assert "harnessPlannerPreviewArgs" not in src
+    assert "TOOL_NAMES.harnessCheckCases" not in src
+    assert "inlineDossierBlock" in src
 
 
 def test_procedure_declares_readonly_boundary_and_bounds() -> None:
     proc = (PKG_DIR / "prompts" / "harness-consolidator.md").read_text(encoding="utf-8")
-    assert "Do not write, edit, delete, rename, or copy any file." in proc
+    assert "Do not write, edit, delete, rename, or copy" in proc
+    assert "no file reads are possible or permitted" in proc
     assert "At most 12 operations total." in proc
     assert '"harness-consolidation-plan"' in proc
 
@@ -563,6 +570,7 @@ def test_rejected_harness_transport_retains_bound_evidence_without_retry(tmp_pat
       import fs from 'node:fs';
       import path from 'node:path';
       import {{ EventEmitter }} from 'node:events';
+      import {{ createHash }} from 'node:crypto';
       const tasks = [];
       const kit = await import('./packages/kit/src/index.ts');
       mock.module('./packages/kit/src/index.ts', () => ({{
@@ -586,7 +594,7 @@ def test_rejected_harness_transport_retains_bound_evidence_without_retry(tmp_pat
       const ctx = {{ cwd, ui: {{ notify() {{}} }}, sessionManager: {{ getBranch: () => entries, buildContextEntries: () => entries }} }};
       const run = await createConsolidationRun(ctx, cwd, false);
       const dossier = path.join(run.manifest.runDir, 'incremental-learning-dossier.json'); fs.writeFileSync(dossier, '{{}}\n');
-      const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: 'dossier-digest', resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
+      const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: createHash('sha256').update(fs.readFileSync(dossier)).digest('hex'), resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
       await releaseConsolidationRun(run, {{keepArtifacts:true}});
       console.log(JSON.stringify({{ ok: outcome.ok, attempts: outcome.attempts, calls: tasks.length, runDir: run.manifest.runDir }}));
     ''')
@@ -611,3 +619,49 @@ def test_rejected_harness_transport_retains_bound_evidence_without_retry(tmp_pat
     import hashlib
     assert hashlib.sha256(archive["stdout"].encode()).hexdigest() == archive["originalTransportSha256"]
     assert archive["originalTransportBytes"] == len(archive["stdout"].encode())
+
+
+@pytest.mark.parametrize("defect", ["snapshot-race", "dossier-mismatch", "sensitive-snapshot"])
+def test_inline_dossier_holds_without_spawning_on_digest_or_content_defect(tmp_path: Path, defect: str) -> None:
+    # Given a parent-owned immutable snapshot and selector dossier, When any
+    # file drifts, its digest mismatches, or it holds sensitive text, Then the
+    # Harness planner child must NOT spawn and the phase must report the hold.
+    import hashlib
+    result = run_bun(rf'''
+      process.env.PI_CODING_AGENT_DIR = {json.dumps(str(tmp_path / 'agent'))};
+      import {{ mock }} from 'bun:test';
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import {{ EventEmitter }} from 'node:events';
+      import {{ createHash }} from 'node:crypto';
+      let spawns = 0;
+      const kit = await import('./packages/kit/src/index.ts');
+      mock.module('./packages/kit/src/index.ts', () => ({{
+        ...kit,
+        spawnPiChild: () => {{
+          spawns += 1;
+          const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.exitCode = null; child.signalCode = null;
+          queueMicrotask(() => child.emit('close', 0));
+          return child;
+        }},
+      }}));
+      const {{ createConsolidationRun, releaseConsolidationRun }} = await import('./packages/continual-learning/extensions/consolidation-run.ts');
+      const {{ planHarnessConsolidationPhase }} = await import('./packages/continual-learning/extensions/harness-consolidation.ts');
+      const cwd = {json.dumps(str(tmp_path))};
+      const entries = [{{ message: {{ role: 'user', content: 'Never write generated files.' }} }}];
+      const ctx = {{ cwd, ui: {{ notify() {{}} }}, sessionManager: {{ getBranch: () => entries, buildContextEntries: () => entries }} }};
+      const run = await createConsolidationRun(ctx, cwd, false);
+      const dossier = path.join(run.manifest.runDir, 'incremental-learning-dossier.json');
+      const dossierText = '{{"observed":"project evidence"}}\n';
+      fs.writeFileSync(dossier, dossierText);
+      const defect = {json.dumps(defect)};
+      if (defect === 'snapshot-race') fs.appendFileSync(run.manifest.snapshotPath, ' ');
+      if (defect === 'sensitive-snapshot') fs.writeFileSync(run.manifest.snapshotPath, 'api_key: abcdefghijklmnop\n');
+      const dossierDigest = defect === 'dossier-mismatch' ? '0'.repeat(64) : createHash('sha256').update(dossierText).digest('hex');
+      const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: dossierDigest, resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
+      await releaseConsolidationRun(run);
+      console.log(JSON.stringify({{ ok: outcome.ok, detail: outcome.detail, spawns }}));
+    ''')
+    assert result['ok'] is False, result
+    assert result['spawns'] == 0, result
+    assert 'dossier unavailable' in result['detail'], result

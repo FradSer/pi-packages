@@ -11,27 +11,33 @@ def test_agents_child_can_read_supplied_dossier_but_not_its_sibling():
       fs.writeFileSync(path.join(cwd,'AGENTS.md'),'# Rules\n');
       const snapshotPath=path.join(runDir,'snapshot.json');const snapshot=JSON.stringify({entries:[]});fs.writeFileSync(snapshotPath,snapshot);
       const digest=createHash('sha256').update(snapshot).digest('hex');
-      const dossier=path.join(runDir,'dossier.json');fs.writeFileSync(dossier,'{"verified":"project evidence"}');
+      const dossier=path.join(runDir,'dossier.json');const dossierText='{"verified":"project evidence"}';fs.writeFileSync(dossier,dossierText);
       const sibling=path.join(runDir,'unapproved.json');fs.writeFileSync(sibling,'not authorized');
       const {readPlannerFile}=await import('./packages/continual-learning/extensions/planner-read-scope.ts');
-      const kit=await import('./packages/kit/src/index.ts');let readable=false,blocked=false;
+      const kit=await import('./packages/kit/src/index.ts');let readable=false,blocked=false,noTools=false;
       mock.module('./packages/kit/src/index.ts',()=>({...kit,spawnPiChild:(_command,args)=>{
         const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr=new EventEmitter();
+        noTools=args.includes('--no-tools')&&!args.includes('--tools');
         setTimeout(async()=>{
-          const scopeFile=args.find(a=>typeof a==='string'&&a.includes('planner-read-')&&a.endsWith('.mjs'));
-          const code=fs.readFileSync(scopeFile,'utf8');const scope=JSON.parse(code.match(/registerPlannerRead\(pi, (.+)\);/)[1]);
-          try{readable=(await readPlannerFile(dossier,scope)).includes('project evidence');}catch{}
-          try{await readPlannerFile(sibling,scope);}catch{blocked=true;}
-          const text=readable?JSON.stringify({kind:'agents-md-consolidation-plan',version:1,schemaVersion:1,runId:'run',scopeDigest:'scope',artifactHash:digest,operations:[]}):'Cannot produce a plan: the required dossier read was refused';
+          const taskFile=args.find(a=>a.startsWith('@')).slice(1);
+          const task=fs.readFileSync(taskFile,'utf8');
+          const block=task.split('<<<IMMUTABLE DOSSIER>>>')[1]?.split('<<<END IMMUTABLE DOSSIER>>>')[0]?.trim();
+          let parsed={};try{parsed=block?JSON.parse(block):{};}catch{}
+          const files=Array.isArray(parsed.files)?parsed.files.map(f=>f.path):[];
+          const embedded=Array.isArray(parsed.files)?parsed.files.map(f=>f.bytes).join('\n'):'';
+          const scope={cwd,files,roots:[]};
+          readable=embedded.includes('project evidence');
+          try{await readPlannerFile(sibling,scope);}catch(e){blocked=/outside the parent-approved scope|not approved/i.test(String(e));}
+          const text=readable&&blocked?JSON.stringify({kind:'agents-md-consolidation-plan',version:1,schemaVersion:1,runId:'run',scopeDigest:'scope',artifactHash:digest,operations:[]}):'Cannot produce a plan: the required dossier read was refused';
           child.stdout.emit('data',Buffer.from(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:'stop',content:[{type:'text',text}]}})+'\n'));child.emit('close',0);
         },0);return child;
       }}));
       const {planAgentsMdConsolidationPhase}=await import('./packages/continual-learning/extensions/agents-md-consolidation.ts');
       const run={manifest:{runId:'run',scopeDigest:'scope',snapshotDigest:digest,snapshotPath,cwd,runDir},paths:{snapshotFile:snapshotPath}};
       const planned=await planAgentsMdConsolidationPhase({cwd,ui:{notify(){}}},{active:true,generation:1,cancelled:false},{pkgDir:process.cwd(),cwd,reason:'test',budgetBytes:16384,disabled:false,explorationPath:dossier},run,1);
-      fs.rmSync(base,{recursive:true,force:true});console.log(JSON.stringify({readable,blocked,outcome:planned.outcome}));
+      fs.rmSync(base,{recursive:true,force:true});console.log(JSON.stringify({readable,blocked,noTools,outcome:planned.outcome}));
     ''')
-    assert result == {'readable':True,'blocked':True,'outcome':'noop'}
+    assert result == {'readable':True,'blocked':True,'noTools':True,'outcome':'noop'}
 
 
 def test_agents_diagnostics_are_bounded_filtered_and_wired_into_receipts():

@@ -931,8 +931,10 @@ def test_changed_snapshot_bytes_are_rejected_before_agents_planning() -> None:
 def test_agents_planner_uses_package_prompt_and_minimal_readonly_args() -> None:
     source = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
     assert "buildAgentsMdConsolidatorPrompt" in source
-    assert 'minimalPiWorkerArgs(["learning_read"])' in source
-    assert "plannerReadArgs" in source
+    assert "plannerNoToolArgs()" in source
+    assert "workerCliArgs" not in source
+    assert "plannerReadArgs" not in source
+    assert "inlineDossierBlock" in source
     header = source.split("const taskText = [", 1)[1].split('].join("\\n");', 1)[0]
     for duplicate in ("Run ID:", "Scope digest:", "Artifact/snapshot digest:", "Immutable task-slice snapshot:", "Authoritative Learning Dossier:"):
         assert duplicate not in header

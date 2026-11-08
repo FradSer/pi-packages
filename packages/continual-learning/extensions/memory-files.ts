@@ -73,7 +73,10 @@ const MIN_DESCRIPTION_CUE = 16;
  * DESCRIPTION_TRUNCATED; repeating that notice on every bounded row costs more
  * characters than the descriptions it announces. */
 const PROMPT_DESCRIPTION_MARKER = "…";
-const MEMORY_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*\.md$/;
+/** Dotted version-style names (88.1-topic.md) are ordinary Markdown children.
+ * A dot must be followed by another name character, so path components,
+ * leading/trailing dots and consecutive dots stay out. */
+const MEMORY_NAME = /^(?!.*\.md.)[A-Za-z0-9](?:[A-Za-z0-9_-]|\.(?=[A-Za-z0-9_-]))*\.md$/;
 
 function nonNegativeLimit(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : fallback;

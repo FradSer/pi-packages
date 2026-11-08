@@ -739,3 +739,26 @@ class TestValidatorContract:
         ])
         assert result.returncode == 1
         assert "does not match plan" in result.stdout
+
+
+def test_dotted_version_memory_filename_is_valid_in_both_guards() -> None:
+    # Given an existing safe Memory file whose name uses dotted versioning,
+    # When the Python artifact validator and the TypeScript filename guard
+    # classify it, Then both accept it, while path/dot-escape shapes stay out.
+    spec = importlib.util.spec_from_file_location("validate_consolidate_name", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    valid = ["88.1-dual-wan-loadbalance-research.md", "v2.3-api-contract.md", "a.b.c.md", "release-1.0.md"]
+    invalid = [".hidden.md", "a..md", "a.md.md", "pnpm_test_node20_skip.md_keep_note.md", "nested/a.md", "../a.md", "a.", "a/b.md", "..md", "a. .md"]
+    assert all(module.MEMORY_NAME_RE.fullmatch(name) for name in valid), valid
+    assert all(module.MEMORY_NAME_RE.fullmatch(name) is None for name in invalid), invalid
+
+    from support import run_bun
+
+    result = run_bun("""
+      import {isMemoryFilename} from './packages/continual-learning/extensions/memory-files.ts';
+      const valid = ["88.1-dual-wan-loadbalance-research.md", "v2.3-api-contract.md", "a.b.c.md", "release-1.0.md"];
+      const invalid = [".hidden.md", "a..md", "a.md.md", "pnpm_test_node20_skip.md_keep_note.md", "nested/a.md", "../a.md", "a.", "a/b.md", "..md", "a. .md"];
+      console.log(JSON.stringify({valid: valid.map(isMemoryFilename), invalid: invalid.map(isMemoryFilename)}));
+    """)
+    assert result == {"valid": [True] * len(valid), "invalid": [False] * len(invalid)}, result

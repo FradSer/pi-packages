@@ -119,7 +119,7 @@ def test_readable_private_path_uses_canonical_project_path_and_shared_scope_lock
         assert result["alias"]["harnessDir"] == result["physical"]["harnessDir"]
 
 
-def test_readable_private_root_preserves_whitespace() -> None:
+def test_readable_private_root_folds_whitespace() -> None:
     result = run_bun(
         """
         import { escapedProjectPath, resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
@@ -131,7 +131,8 @@ def test_readable_private_root_preserves_whitespace() -> None:
         }));
         """
     )
-    assert result["prefix"] == "--Users-FradSer-Documents-Home Lab--"
+    assert result["prefix"] == "--Users-FradSer-Documents-Home-Lab--"
+    assert " " not in result["prefix"]
     assert result["name"] == result["prefix"] == result["scopeKey"]
 
 
@@ -518,8 +519,8 @@ def test_mirror_drift_is_normalized_before_the_run() -> None:
             writeFileSync(memory.harnessDir + '/MEMORY.md', '# Memory Index\\n\\n- [a.md](a.md)\\n- [secret.md](secret.md) (harness only)\\n');
             writeFileSync(memory.publicDir + '/secret.md', 'private\\n');
             writeFileSync(memory.publicDir + '/MEMORY.md', '# Memory Index\\n');
-            // Orphan public file with no harness copy.
-            writeFileSync(memory.publicDir + '/orphan.md', 'orphan\\n');
+            // Tracked public-only file with no harness copy: imported, not deleted.
+            writeFileSync(memory.publicDir + '/tracked-only.md', 'tracked knowledge\\n');
             // Safe file missing from public entirely.
             writeFileSync(memory.harnessDir + '/d.md', 'd\\n');
 
@@ -531,7 +532,8 @@ def test_mirror_drift_is_normalized_before_the_run() -> None:
               bHarnessUpdated: readFileSync(memory.harnessDir + '/b.md', 'utf8'),
               dMirrored: readFileSync(memory.publicDir + '/d.md', 'utf8'),
               secretGone: !existsSync(memory.publicDir + '/secret.md'),
-              orphanGone: !existsSync(memory.publicDir + '/orphan.md'),
+              trackedImported: readFileSync(memory.harnessDir + '/tracked-only.md', 'utf8'),
+              trackedKept: readFileSync(memory.publicDir + '/tracked-only.md', 'utf8'),
               publicIndex: readFileSync(memory.publicDir + '/MEMORY.md', 'utf8'),
             }}));
             """,
@@ -541,13 +543,14 @@ def test_mirror_drift_is_normalized_before_the_run() -> None:
             {"name": "a.md", "direction": "harness-to-public"},
             {"name": "b.md", "direction": "public-to-harness"},
             {"name": "d.md", "direction": "harness-to-public"},
+            {"name": "tracked-only.md", "direction": "public-to-harness"},
         ]
-        assert result["removed"] == ["orphan.md", "secret.md"]
+        assert result["removed"] == ["secret.md"]
         assert result["aMatches"] is True
         assert result["bHarnessUpdated"] == "new\n"
         assert result["dMirrored"] == "d\n"
         assert result["secretGone"] is True
-        assert result["orphanGone"] is True
+        assert result["trackedImported"] == result["trackedKept"] == "tracked knowledge\n"
         assert "- [a.md](a.md)" in result["publicIndex"]
         assert "(harness only)" not in result["publicIndex"]
 

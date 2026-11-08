@@ -37,6 +37,14 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     When the delta operation labels it safe or uses an invalid classification
     Then expansion is rejected
 
+  Scenario: A selected Memory without a public mirror is private in both projections
+    Given a project outside any Git repository whose private MEMORY.md lists a selected file without a "(harness only)" marker
+    And no public mirror of that file exists
+    When the parent builds the learning dossier and expands the delta
+    Then both projections classify that selected file as private
+    And a delta operation using the dossier's private classification is accepted
+    But a delta operation labeling it safe is still rejected
+
   Scenario: Incremental operations cannot create an already selected Memory
     Given the parent selected an existing Memory file
     When the delta operation uses the create kind for that file

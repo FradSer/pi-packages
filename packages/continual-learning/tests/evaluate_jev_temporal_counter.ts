@@ -22,7 +22,7 @@ let privacyPreflightMockRequests=0,variantPreflightMockRequests=0;
 for(const row of samples){
  privacyPreflightMockRequests+=await ensureMemoryPairResearchPreflight(row.snapshot,row.candidates);
  const beforeVariantRequests=variantPreflightMockRequests;
- const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:m.model,scopes:['memory'],allowPrivateMemory:false,fetch:async(_u,init)=>{
+ const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:m.model,scopes:['memory'],fetch:async(_u,init)=>{
   const body=temporalCounterRequest(String(init?.body),row.candidates);if(Buffer.byteLength(body)>64000)throw Error('Temporal bounds');variantPreflightMockRequests++;throw Error('Offline variant preflight');
  }});await judge.validate('memory',row.snapshot,row.candidates,[]);
  if(variantPreflightMockRequests===beforeVariantRequests)throw Error('Variant input denied before transport');
@@ -38,7 +38,7 @@ for(const [sampleIndex,sample] of samples.entries()){
  const row:Row={id:sample.id,language:sample.language,expectedAllow:sample.expectedAllow,arms:{}};
  const order:('before'|'after')[]=sampleIndex%2?['after','before']:['before','after'];
  for(const arm of order){
-  const judge=createJevJudge({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture',defaultModel:m.model,scopes:['memory'],allowPrivateMemory:false,timeout:5000,fetch:async(url,init)=>{
+  const judge=createJevJudge({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture',defaultModel:m.model,scopes:['memory'],timeout:5000,fetch:async(url,init)=>{
    const body=arm==='after'?temporalCounterRequest(String(init?.body),sample.candidates):String(init?.body);
    if(requests>=m.requestBudget||Buffer.byteLength(body)>64000)throw Error('Temporal research budget exceeded');requests++;
    if(live)return fetch(url,{...init,body});

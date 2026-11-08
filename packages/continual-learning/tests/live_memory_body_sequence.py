@@ -232,7 +232,7 @@ def run(output: Path, *, pi_version: str = '1.3.0') -> dict:
     (agent / 'continual-learning.json').write_text(json.dumps({'autoSettledLearning': False, 'autoContinualLearning': False,
         'automaticPhases': {'memory': 'off', 'harness': 'off', 'agents': 'off'}}))
     (agent / 'settings.json').write_text(json.dumps({'packages': [], 'quietStartup': True, 'retry': {'enabled': False}}))
-    (agent / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/scripted', 'jev': {'model': 'jev-1.13.0', 'allowPrivateMemory': True, 'requestConcurrency': 1}}))
+    (agent / 'continual-learning.json').write_text(json.dumps({'model': 'fixture/scripted', 'jev': {'model': 'jev-1.13.0', 'requestConcurrency': 1}}))
     (agent / 'models.json').write_text(json.dumps({'providers': {'fixture': {
         'baseUrl': f'http://127.0.0.1:{server.server_port}/v1', 'api': 'openai-completions', 'apiKey': 'offline-fixture',
         'models': [{'id': 'scripted', 'reasoning': False, 'input': ['text'], 'contextWindow': 200000,

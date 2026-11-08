@@ -19,6 +19,11 @@ import { isDeepStrictEqual } from "node:util";
 import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { bindLifecycleRenderers, eventToolLifecycle, fieldLine, notifyPi, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
+import { createParentToolSurface, TOOL_NAMES } from "./tool-surface";
+import { writeFileAtomic } from "./consolidation-run";
+import { currentLearningBatch, recordLearningMutation, withLearningBatch } from "./learning-history";
+import { buildLearningReceipt, writeLearningReceipt } from "./learning-efficiency";
+import { resolveMemoryPaths } from "./memory-paths";
 
 /** Geometry bound once: every guardrail row shares hint and wrapping. */
 const guardrailRows = bindLifecycleRenderers({
@@ -48,6 +53,21 @@ import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-
 import { evaluateLegacyTools, LEGACY_FIELDS } from "./legacy-harness.ts";
 import type { LayerReadIssue, RuleLayer } from "./guardrail-types.ts";
 import { runHarnessMenu, type HarnessMenuScope } from "./harness-menu.ts";
+
+/** Declared schema for the parent-owned one-step Harness write. Cases are
+ * REQUIRED (not Type.Optional): under strict sampling an optional object field
+ * becomes anyOf[array,null] and a provider may drop the fixtures. This is a
+ * declaration only; the two-step authoring flow still owns the write until the
+ * Phase-2 implementation replaces it. */
+export const HARNESS_WRITE_PARAMETERS = Type.Object({
+  path: Type.String({ description: "Exact .pi/harness.json target path" }),
+  content: Type.String({ description: "Complete Harness JSON, with no case fields" }),
+  cases: Type.Array(Type.Object({
+    ruleId: Type.String({ description: "Rule the fixture evaluates" }),
+    input: Type.String({ description: "Plain future command or text" }),
+    matches: Type.Boolean({ description: "Whether the rule should match" }),
+  }), { description: "Passing positive and negative fixtures" }),
+});
 
 interface HarnessPolicyEvent {
   kind: "policy-matched";
@@ -268,8 +288,8 @@ export function buildHarnessRulePrompt(request: string, targetFile: string, scop
     `1. Read the exact target ${accessPath}. If it returns ENOENT, treat the predecessor as absent in memory; no preliminary empty file or parent directory creation.`,
     "2. Assess expressibility before mutation. Preserve the user's semantic boundary; clarify rather than add restrictions or narrow a project-wide request to one skill. Unsupported or ambiguous means no file writes. Recommending AGENTS.md, skills or verification does not authorize editing them. Report the limitation; preserve existing rules.",
     "3. Construct one complete candidate. Preserve every existing rule outside the requested change. Compatible legacy policies/disabled/skillPrompts/learnedPolicies remain active read-only: flat additions must preserve every legacy container value unchanged. Never author or modify legacy entries or translate them into weaker flat rules. Removing legacy containers requires native before/after protection-loss preview and explicit user authorization. Invalid entries require authorized repair; otherwise leave original bytes unchanged. Validate every declaration, regex, registered skill and the effective merge; preview same-id replacement, changed execution conditions and nearer-layer shadowing. If only unchanged other layers have remaining diagnostics, submit the valid target-only replacement via write for native confirmation; report incomplete activation and leave other layers unchanged. This exception requires an invalid target and explicit approval, never a malformed candidate or headless repair. Keep parent-owned learnedRules metadata unchanged.",
-    `4. Call harness_preview with content (the entire JSON text) and cases:[{ruleId,input,matches}]. Use plain future text/command/skill strings, not regex literals or authoring discussion; every changed enabled rule needs positive and negative cases. Include another resource with the same action as a negative when scope is resource-specific. Never broaden a resource-specific rule with a standalone incident phrase. Repair failures before mutation. Write once: after validation and passing preview, use write at ${accessPath} with the entire JSON including the requested rule. Write creates missing parents; never use edit or preliminary initialization.`,
-    `5. Read back ${accessPath} and compare the complete structure. Persistence is not trigger verification. The non-executing evaluator is harness_preview. Do not create verification scripts or scratch files or rewrite the saved candidate. If no non-executing evaluator is available, report trigger verification as unverified and do not write. Never execute dangerous or side-effecting example commands merely to test a rule.`,
+    `4. Write once: call harness_write at ${accessPath} with {path:"${accessPath}", content: <entire JSON>, cases:[{ruleId,input,matches}]}; use write at ${accessPath} only via this tool, never edit. Use plain future text/command/skill strings, not regex literals; every changed enabled rule needs positive and negative cases. Include another resource with the same action as a negative when scope is resource-specific. Never broaden a resource-specific rule with a standalone incident phrase. The parent validates the candidate and every case without executing commands, confirms, and writes once atomically.`,
+    `5. Read back ${accessPath} and compare the complete structure. Persistence is not trigger verification; the non-executing evaluator is the parent's cases evaluation inside harness_write. Do not create verification scripts or scratch files. If no non-executing evaluator is available, report trigger verification as unverified and do not write. Never execute dangerous or side-effecting example commands merely to test a rule.`,
     'Schema: a flat "rules" array; each rule has a stable non-empty "id", optional boolean "enabled", and exactly one selector. A minimal disable is {"id":"existing-id","enabled":false}. Same id in a nearer layer replaces the whole definition.',
     `Registered skill values (exact keys only): ${availableSkills.length ? availableSkills.join(", ") : "(none registered in this session)"}. A skill rule uses id, skill, instructions; it applies only on that expanded skill invocation, not a plain read of SKILL.md. It is contextual guidance, not global interception or guaranteed compliance.`,
     'New bash positive fixtures must be exact backtick-quoted user commands or successful Bash calls from this session; otherwise use text guidance or ask for an example. A bash rule uses id, bash (JavaScript regex over the raw command), message, and optional action:"confirm"|"block". Omit "action" to execute the command and deliver the message with its real result. Confirm requires approval for that call; block keeps it unexecuted with corrective guidance.',
@@ -339,11 +359,30 @@ export function harnessCommandExamples(request: string, ctx: Pick<ExtensionConte
   return examples;
 }
 
+/** Narrow parent-owned bridge used by the single learn tool. The guarded
+ * write itself still runs only through the tool_call/tool_result hooks below;
+ * this starter merely opens the same procedure /harness opens. The bridge is
+ * keyed by the ExtensionAPI so two hosts in one process cannot cross-wire. */
+export interface HarnessProcedureOutcome { started: boolean; reason: string }
+type HarnessProcedureStarter = (request: string, ctx: ExtensionContext) => Promise<HarnessProcedureOutcome>;
+const harnessProcedureBridges = new WeakMap<object, HarnessProcedureStarter>();
+
+export function registerHarnessProcedureBridge(pi: ExtensionAPI, starter: HarnessProcedureStarter): void {
+  harnessProcedureBridges.set(pi as object, starter);
+}
+
+export async function startHarnessProcedureForLearn(pi: ExtensionAPI, request: string, ctx: ExtensionContext): Promise<HarnessProcedureOutcome> {
+  const bridge = harnessProcedureBridges.get(pi as object);
+  if (!bridge) return { started: false, reason: "Harness authoring is unavailable in this session." };
+  return bridge(request, ctx);
+}
+
 export default function registerGuardrails(pi: ExtensionAPI) {
+  const parentToolSurface = createParentToolSurface(pi);
   let authoring: {cwd: string; target: string; previewed?: string; predecessor?: Buffer | null; commandExamples: Set<string>} | undefined;
   const finishAuthoring = () => {
     authoring = undefined;
-    if (pi.getActiveTools && pi.setActiveTools) pi.setActiveTools(pi.getActiveTools().filter(name => name !== "harness_preview"));
+    parentToolSurface.resetSession();
   };
   // An authoring request outlives one agent turn: the model may need a user
   // answer, a second target, or a later follow-up before it can preview and
@@ -352,7 +391,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   // turn without its only non-executing evaluator, so a legitimate authoring
   // reply could neither verify nor write anything.
   pi.registerTool?.({
-    name: "harness_preview", label: "Preview Harness rule", description: "Read-only parent evaluator for the active /harness candidate. Executes plain positive/negative string fixtures without commands, network calls or file writes. Every changed enabled rule needs both outcomes. This does not authorize mutation.",
+    name: TOOL_NAMES.harnessPreview, label: "Preview Harness rule", description: "Read-only parent evaluator for the active /harness candidate. Executes plain positive/negative string fixtures without commands, network calls or file writes. Every changed enabled rule needs both outcomes. This does not authorize mutation.",
     renderShell: "self",
     renderCall: () => guardrailRows.emptyCall(),
     renderResult(result, options, theme, context) {
@@ -381,6 +420,118 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       return {content:[{type:"text", text:JSON.stringify(result)}], details:result, isError:!result.passed};
     },
   });
+
+  // Declared one-step authoring write. Cases are a REQUIRED declared field, so
+  // strict sampling advertises them (unlike an undeclared sibling on native
+  // write). The parent owns every gate; the native write tool is not involved.
+  pi.registerTool?.({
+    name: TOOL_NAMES.harnessWrite,
+    label: "Write Harness rule",
+    description: "Parent-owned one-step Harness authoring write. Provide the complete target JSON, the exact target path, and passing positive and negative case fixtures. The parent validates the candidate and fixtures, confirms with the user, writes atomically with readback, and records an undoable change. This is the only admissible write during an active /harness procedure.",
+    renderShell: "self",
+    renderCall: () => guardrailRows.emptyCall(),
+    renderResult(result, options, theme, context) {
+      const details = result.details as { passed?: boolean; applied?: boolean } | undefined;
+      const label = details?.applied ? "applied" : "held";
+      return guardrailRows.result<{ content: unknown; details?: unknown }>(() => eventToolLifecycle("harness", "rule write", {
+        label, tone: details?.applied ? "success" : "warning",
+      }))(result, options, theme, context);
+    },
+    parameters: HARNESS_WRITE_PARAMETERS,
+    defaultActive: false,
+    async execute(_id, params, signal, _update, ctx) {
+      const current = authoring;
+      const cwd = ctx.cwd || process.cwd();
+      const generation = sessionGeneration;
+      const inert = (text: string, applied = false) => ({ content: [{ type: "text" as const, text }], details: { passed: applied, applied }, isError: !applied });
+      // Reclaim only this call's own procedure, and never across a session end.
+      const reject = (text: string) => {
+        if (generation === sessionGeneration && authoring === undefined) {
+          authoring = current;
+          parentToolSurface.beginHarnessAuthoring();
+        }
+        return inert(text);
+      };
+      const stillCurrent = (): boolean => generation === sessionGeneration && !signal?.aborted
+        && authoring === undefined && JSON.stringify(params) === inputSnapshot;
+      const inputSnapshot = JSON.stringify(params);
+      if (!current || current.cwd !== cwd || signal?.aborted) return inert("No active Harness authoring request. Report this and continue.");
+      if (!ctx.hasUI) return inert("Harness authoring requires an interactive confirmation. No file was written.");
+      const target = harnessTargetPath(params.path, cwd);
+      const paths = configPaths(cwd);
+      if (path.resolve(target) !== path.resolve(current.target)) return inert("Harness write target does not match the active authoring target. No file was written.");
+      // Undo history accepts only the project .pi/harness.json target. Other
+      // scopes keep the complete two-step native write path; never fake a retry.
+      if (path.resolve(target) !== path.resolve(paths.project)) {
+        return inert("This scope uses the two-step native write with its own validation and confirmation; harness_write targets only the project shared .pi/harness.json. No file was written.");
+      }
+      // Consume synchronously before the first await: concurrent calls admit one.
+      authoring = undefined;
+      const skills = new Set(pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")));
+      try {
+        await assertHarnessTargetContained(target, cwd);
+        const priorBytes = await readHarnessTarget(target);
+        let previous: unknown;
+        if (priorBytes) { try { previous = JSON.parse(priorBytes.toString("utf8")); } catch { return reject("Existing Harness target is not valid JSON; use the native repair path. No file was written."); } }
+        const errors = validateHarnessWrite({ content: params.content }, skills, previous);
+        const candidate = errors.length ? undefined : JSON.parse(params.content) as Record<string, unknown>;
+        const priorConfig = previous && typeof previous === "object" && !Array.isArray(previous) ? previous as Record<string, unknown> : {};
+        const removedLegacy = candidate ? LEGACY_FIELDS.filter(field => Object.hasOwn(priorConfig, field) && !Object.hasOwn(candidate, field)) : [];
+        // validateHarnessWrite rejects changed legacy values, not silent removal.
+        if (removedLegacy.length) return reject(`Removing legacy protection containers (${removedLegacy.join(", ")}) requires the two-step native protection-loss confirmation; use the native write path. No file was written.`);
+        if (errors.length) return reject(`Invalid Harness candidate: ${errors.join("; ")}. No file was written.`);
+        const preview = previewHarnessCandidate(params.content, params.cases, skills, previous, current.commandExamples);
+        if (!preview.passed) return reject(`Harness case validation failed: ${preview.errors.join("; ")}. No file was written.`);
+        if (!stillCurrent()) return reject("Harness write arguments changed or were cancelled during validation. No file was written.");
+        const approved = await ctx.ui.confirm("Apply the validated Harness rule?", target, { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS, signal });
+        if (!approved || !stillCurrent()) return reject("Harness write was not authorized or the session changed. No file was written.");
+        const bytes = await readHarnessTarget(target);
+        if (!isDeepStrictEqual(bytes, priorBytes) || !stillCurrent()) return reject("Harness predecessor or session changed during confirmation. No file was written.");
+        // Restore exact predecessor BEFORE recordLearningMutation's finally runs,
+        // so a failed write leaves no net change and its pending row is unlinked
+        // instead of blocking all later learning runs.
+        const priorMode = priorBytes === null ? undefined : Number((await fs.promises.lstat(target, { bigint: true })).mode & 0o777n);
+        const restore = async () => {
+          if (priorBytes === null) await fs.promises.unlink(target).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; });
+          else {
+            await writeFileAtomic(target, priorBytes, priorMode ?? 0o600);
+            await fs.promises.chmod(target, priorMode ?? 0o600);
+          }
+        };
+        await withLearningBatch(async () => {
+          await recordLearningMutation(cwd, "harness", [target], async () => {
+            try {
+              await writeFileAtomic(target, params.content, 0o600);
+              const readback = await readHarnessTarget(target);
+              if (!readback || readback.toString("utf8") !== params.content) throw new Error("Harness write readback mismatch");
+            } catch (error) {
+              await restore();
+              throw error;
+            }
+            return { outcome: "applied" as const };
+          });
+          const batchId = currentLearningBatch();
+          const receipt = buildLearningReceipt("manual",
+            { memory: false, harness: true, agents: false, reasons: ["explicit-harness-authoring"] },
+            [{ phase: "harness", attempt: 0, outcome: "applied", durationMs: 0, operations: 1 }],
+            { source: "current-session", entryCount: 0 }, batchId);
+          // A receipt failure after a committed write is reported honestly as
+          // applied-with-missing-receipt, never as "failed, do not retry".
+          await writeLearningReceipt(resolveMemoryPaths(cwd).runsDir, receipt).catch(() => undefined);
+        });
+        if (!stillCurrent()) {
+          await restore();
+          return reject("Harness session changed before the write completed. No file was written.");
+        }
+        finishAuthoring();
+        return inert(`Harness rule written to ${target}; readback verified, receipt and undo recorded.`, true);
+      } catch (error) {
+        finishAuthoring();
+        return inert(`Harness write failed and the original bytes were restored: ${(error as Error).message}. No change was applied.`);
+      }
+    },
+  });
+
   const pendingBashMessages = new Map<string, Array<{ id: string; message: string }>>();
   // Session-owned observation only: no mutation of history, Memory, or rules.
   const pendingBehavior = new Map<string, {sessionId: string; decisionEntryId: string; inputDigest: string}>();
@@ -443,9 +594,28 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   pi.registerMessageRenderer?.("harness-procedure", guardrailRows.message(message => startedToolLifecycle("harness", String((message.details as { subject?: string } | undefined)?.subject ?? "rule request"), { label: "started" })));
   const startRuleProcedure = (request: string, target: string, scope: string, skills: readonly string[], targetState: "absent" | "existing", cwd: string, commandExamples: Set<string>): void => {
     authoring = {cwd, target:path.resolve(target), commandExamples};
-    if (pi.getActiveTools && pi.setActiveTools) pi.setActiveTools([...new Set([...pi.getActiveTools(), "harness_preview"])]);
+    parentToolSurface.beginHarnessAuthoring();
     pi.sendMessage({ customType: "harness-procedure", content: buildHarnessRulePrompt(request, target, scope, skills, targetState, cwd), display: true, details: { subject: safeDisplayText(request) } }, { deliverAs: "followUp", triggerTurn: true });
   };
+
+  // The learn tool's Harness route starts the identical guarded procedure that
+  // /harness uses. It never writes itself: preview, exact bytes, positive and
+  // negative cases, option confirmation, no-UI fail-closed and readback remain
+  // owned by the tool_call/tool_result hooks in this module.
+  registerHarnessProcedureBridge(pi, async (request, ctx) => {
+    const cwd = ctx.cwd || process.cwd();
+    const { targetFile, scopeLabel } = resolveHarnessTarget("", cwd);
+    let targetState: "absent" | "existing";
+    try {
+      await assertHarnessTargetContained(targetFile, cwd);
+      targetState = await readHarnessTarget(targetFile) === null ? "absent" : "existing";
+    } catch (error) {
+      return { started: false, reason: `Cannot prepare harness target: ${(error as Error).message}` };
+    }
+    const skills = pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, ""));
+    startRuleProcedure(request, targetFile, scopeLabel, skills, targetState, cwd, harnessCommandExamples(request, ctx));
+    return { started: true, reason: "Harness authoring started; the guarded write runs in the follow-up turn." };
+  });
 
   pi.on("tool_call", async (event, ctx) => {
     const requestGeneration = sessionGeneration;
@@ -633,7 +803,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         matchedRules: matches,
         messages: matches.filter(match => match.action !== "observe").map(match => match.message),
         incompleteRuleIds: [...(flat?.incompleteRuleIds ?? []), ...legacy.incomplete],
-        reason: legacy.incomplete.length ? `Harness evaluation is incomplete for ${event.toolName}: ${legacy.incomplete.join(", ")}${readIssueLines.length ? ` — ${readIssueLines.join("; ")}` : ""}. Use /harness to inspect diagnostics, read the affected config, and submit a complete validated native write for authorized repair; no protection needs to be disabled.` : flat?.reason,
+        reason: legacy.incomplete.length ? `Harness evaluation is incomplete for ${event.toolName}: ${legacy.incomplete.join(", ")}${readIssueLines.length ? ` — ${readIssueLines.join("; ")}` : ""}. Use /learning to inspect diagnostics, read the affected config, and submit a complete validated native write for authorized repair; no protection needs to be disabled.` : flat?.reason,
       };
 
       if (bashEval.decision === "incomplete") {

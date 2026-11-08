@@ -86,7 +86,7 @@ def configuration(c: str, proxy: InferenceProxy) -> None:
         for f in root.iterdir(): put(c,AGENT+'/'+f.name,f.read_bytes())
     # Only public source is present. Malformed-plan recovery stores private by default;
     # explicitly allow its Jev review in this isolated study, never in user settings.
-    put(c,AGENT+'/continual-learning.json',b'{"jev":{"model":"jev-1.13.0","allowPrivateMemory":true}}')
+    put(c,AGENT+'/continual-learning.json',b'{"jev":{"model":"jev-1.13.0"}}')
 
 
 def policy(c: str, learn: bool) -> None:

@@ -9,6 +9,21 @@ import type {NativeMemoryCoverageBinding} from "./planner-output-schema";
 
 const digest = (value: string): string => createHash("sha256").update(value).digest("hex");
 
+/** Reviewer workers sometimes wrap their single JSON decision in a Markdown
+ * fence. Accept exactly one complete fence around the whole response; any
+ * trailing prose, a second object or an inner fence still fails JSON.parse.
+ * The original text is never rewritten, so response digests stay bound to it. */
+const REVIEW_FENCE = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/i;
+export function parseReviewResponse(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = REVIEW_FENCE.exec(trimmed);
+  if (fenced) {
+    if (fenced[1].includes("```")) throw new Error("review response has an inner fence");
+    return JSON.parse(fenced[1]);
+  }
+  return JSON.parse(trimmed);
+}
+
 /** Recorded Memory correction worker budget. Independent body review and
  * semantic Memory repair both run `--thinking xhigh` over complete frozen
  * evidence. The observed body review used 184004 ms of the previous 230000 ms
@@ -188,7 +203,7 @@ export async function reviewMemoryBodies(input: {
       const batch: NonNullable<MemoryBodyReview["batches"]>[number] = {...usage, judgments: []};
       batches.push(batch);
       if (batch.status === "reviewed") {
-        try { batch.judgments = bindMemoryBodySelections(group, JSON.parse(text!)); }
+        try { batch.judgments = bindMemoryBodySelections(group, parseReviewResponse(text!)); }
         catch { batch.status = "invalid-response"; }
       }
       if (batch.status !== "reviewed") { status = batch.status; break; }
@@ -250,7 +265,7 @@ export async function runMemoryReviewBatch(input: {
           });
           let sensitive = containsSensitiveMemoryMaterial(result.text) || containsSensitiveMemoryMaterial(decoded);
           const pending: unknown[] = [];
-          try { pending.push(JSON.parse(result.text)); } catch { /* Raw and escape-decoded text are still checked. */ }
+          try { pending.push(parseReviewResponse(result.text)); } catch { /* Raw and escape-decoded text are still checked. */ }
           while (!sensitive && pending.length) {
             const value = pending.pop();
             if (typeof value === "string") sensitive = containsSensitiveMemoryMaterial(value);

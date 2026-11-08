@@ -262,7 +262,7 @@ export async function openMemoryMenu(ctx: ExtensionCommandContext, dependencies:
     for (;;) {
       const status = await dependencies.status(cwd);
       if (!ctx.hasUI) {
-        notifyPi(ctx.ui, `${statusTitle(status)}. Use /memory with a requirement to add a memory.`, "info");
+        notifyPi(ctx.ui, `${statusTitle(status)}. Use /learning with a requirement to add a memory.`, "info");
         return;
       }
       const choice = await ctx.ui.select(statusTitle(status), [...FIRST_LEVEL, "Close"]);

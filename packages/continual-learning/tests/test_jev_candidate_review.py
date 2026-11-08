@@ -47,9 +47,9 @@ def test_candidate_review_absent_for_incomplete_or_ineligible_inputs() -> None:
     rows = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const rows=[],quote='This project uses pnpm.';
-      for(const mode of ['disabled','private','cancelled','legacy','rewrite','evidence-mutation','existing-mutation','model-mismatch']){
+      for(const mode of ['disabled','cancelled','legacy','rewrite','evidence-mutation','existing-mutation','model-mismatch']){
        const snapshot={contextEnabled:mode!=='legacy',entries:[{role:'user',content:quote}]};const existing=[];
-       const candidate={name:'fact.md',kind:'project',classification:mode==='private'?'private':'safe',content:`---\nname: fact\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}],...(mode==='rewrite'?{op:'rewrite'}:{})};
+       const candidate={name:'fact.md',kind:'project',classification:'safe',content:`---\nname: fact\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}],...(mode==='rewrite'?{op:'rewrite'}:{})};
        const controller=new AbortController();if(mode==='cancelled')controller.abort();let calls=0;
        const judge=createJevJudge({maxRequestBytes:64_000,enabled:mode!=='disabled',apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
         calls++;const r=JSON.parse(String(init.body));const answers={};

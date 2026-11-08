@@ -9,13 +9,13 @@
 - `dossierPath`: `{{DOSSIER_PATH}}`
 - `repoRoot`: `{{REPO_ROOT}}`
 
-Read the authoritative Learning Dossier (when supplied) and immutable task-slice
-snapshot first. Do not rediscover a session or independently explore the
-repository. Read a specific repository file only to verify a dossier claim
-naming it. Do not write, edit, delete, rename, or copy any file. No mutating
-commands. The parent alone validates, atomically writes project
-`.pi/harness.json`, verifies readback, and records receipts. Other layers and
-already-applied Memory are outside your mutation scope.
+The authoritative Learning Dossier (when supplied) and immutable task-slice
+snapshot are embedded inline below; no file reads are possible or permitted.
+Do not rediscover a session or independently explore the repository, and do
+not request other paths or files. Do not write, edit, delete, rename, or copy
+any file. No mutating commands. The parent alone validates, atomically writes
+project `.pi/harness.json`, verifies readback, and records receipts. Other
+layers and already-applied Memory are outside your mutation scope.
 
 ## Evidence and scope
 

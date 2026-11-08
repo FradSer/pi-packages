@@ -565,3 +565,44 @@ def test_receipt_distinguishes_assistant_context_from_primary_evidence_omissions
     assert 'proposals only' not in result['context']
     assert '2 evidence entries omitted; proposals only' in result['evidence']
     assert '34 omitted; proposals only' in result['legacy']
+
+
+def test_zero_worker_preflight_receipt_names_its_stage_and_calls() -> None:
+    # Given a preflight failure before any attempt existed, When the parent
+    # builds the terminal receipt, Then the stage is "preflight" (not selector)
+    # and the summary says no model calls instead of unavailable usage/cost.
+    result = run_bun(r"""
+      import {buildLearningReceipt,formatLearningSummary,isLearningPipelineReceipt,learningSummarySubject} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const attempt={phase:'preflight',attempt:0,outcome:'failed',durationMs:0,operations:0,diagnostic:'Parent preflight failed before any worker started.'};
+      const receipt=buildLearningReceipt('automatic',{memory:false,harness:false,agents:false,reasons:['Parent preflight failed']},[attempt]);
+      console.log(JSON.stringify({valid:isLearningPipelineReceipt(receipt),phase:receipt.attempts[0].phase,
+        subject:learningSummarySubject(receipt),summary:formatLearningSummary(receipt),
+        usageAvailable:receipt.usageAvailable,costAvailable:receipt.costAvailable,totals:receipt.totals}));
+    """)
+    assert result["valid"] is True
+    assert result["phase"] == "preflight"
+    assert "preflight failed" in result["subject"], result
+    assert "no model calls" in result["summary"], result
+    assert "unavailable" not in result["summary"], result
+    assert result["totals"]["totalTokens"] == 0
+
+
+def test_sensitive_evidence_startup_hold_design_is_removed() -> None:
+    # Given the user directive to remove the startup privacy hold design, When
+    # the receipt module is inspected, Then no hold constants remain and an
+    # ordinary screen reason reads as an ordinary outcome.
+    value = run_bun(r"""
+      import * as efficiency from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const legacy = {kind:'learning-pipeline-receipt',version:1,mode:'automatic',
+        screen:{memory:true,harness:false,agents:false,reasons:['ordinary-evidence']},
+        attempts:[],totals:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:0},
+        usageAvailable:true,costAvailable:true,operations:0,retries:0};
+      console.log(JSON.stringify({
+        exports: Object.keys(efficiency).filter(key => key.includes('SENSITIVE') || key.includes('EVIDENCE_HOLD')),
+        subject: efficiency.learningSummarySubject(legacy),
+        tone: efficiency.learningSummaryTone(legacy),
+      }));
+    """)
+    assert value["exports"] == [], value
+    assert value["subject"] == "no durable changes", value
+    assert value["tone"] == "success", value

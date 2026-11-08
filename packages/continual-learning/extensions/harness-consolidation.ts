@@ -1,5 +1,4 @@
-import { plannerReadArgs } from "./planner-read-scope";
-import { harnessPlannerPreviewArgs } from "./harness-planner-preview";
+import { plannerNoToolArgs, buildInlineDossier, inlineDossierBlock } from "./planner-inline-dossier";
 import { ownedCorrectionPlan } from "./current-user-harness-correction";
 /**
  * Harness consolidation phase — the second half of the /consolidate pipeline.
@@ -21,7 +20,6 @@ import type { ChildProcess } from "node:child_process";
 import { withFileMutationQueue, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { recordLearningMutation, recordLearningProposal } from "./learning-history";
 import {
-  minimalPiWorkerArgs,
   notifyPi,
   parsePiWorkerUsageLedger,
   resolvePiCli,
@@ -893,12 +891,10 @@ async function runHarnessPlannerChild(
 ): Promise<{ ok: true; stdout: string } | { ok: false; detail: string }> {
   const child = spawnPiChild(cli.command, [
     ...cli.args,
-    ...minimalPiWorkerArgs(["learning_read", "harness_check_cases"]),
-    ...await plannerReadArgs(path.dirname(taskFile), { cwd, files: options.files, roots: [cwd] }),
-    ...await harnessPlannerPreviewArgs(path.dirname(taskFile)),
+    ...plannerNoToolArgs(),
     ...learningPlannerArgs(),
     ...(options.model ? ["--model", options.model] : []),
-    "Check each proposed rule and its exact positive/negative cases with harness_check_cases before final JSON. Correct evaluator mismatches in this worker. Passing cases do not approve evidence, scope, semantics, ownership or mutation.",
+    "Check each proposed rule and its exact positive/negative cases before final JSON. The parent evaluates them after the plan arrives; passing cases do not approve evidence, scope, semantics, ownership or mutation.",
     `@${taskFile}`,
   ], { cwd, stdio: ["ignore", "pipe", "pipe"] });
   options.onChild?.(child);
@@ -1182,19 +1178,31 @@ export async function planHarnessConsolidationPhase(
     });
     const surface = await harnessSurfaceSummary(opts.cwd, undefined, new Set(opts.availableSkills ?? []));
     if (!current()) return fail("harness planner cancelled");
+    let inlineDossierText: string;
+    try {
+      const dossierFiles = [
+        { path: run.manifest.snapshotPath, digest: run.manifest.snapshotDigest },
+        ...(opts.explorationPath
+          ? [{ path: opts.explorationPath, ...(opts.explorationDigest ? { digest: opts.explorationDigest } : {}) }]
+          : []),
+      ];
+      const dossier = await buildInlineDossier(dossierFiles);
+      inlineDossierText = inlineDossierBlock(dossier.text);
+    } catch (err: unknown) {
+      return fail("harness planner dossier unavailable: " + (err as Error).message);
+    }
     const taskText = [
       `Task: produce a read-only structured harness consolidation plan for the project at ${opts.cwd}.`,
       `- Reason: ${opts.reason}`,
-      ...(opts.explorationPath ? [
-        "- Authoritative Learning Dossier and immutable task-slice snapshot paths are bound in the protocol below.",
-        `- Dossier digest: ${opts.explorationDigest}`,
-        "- Use the dossier and task-slice snapshot; do not perform independent repository-wide exploration.",
-      ] : []),
+      "- Authoritative Learning Dossier and immutable task-slice snapshot are supplied inline below.",
+      ...(opts.explorationDigest ? [`- Dossier digest: ${opts.explorationDigest}`] : []),
+      "- Use the dossier and task-slice snapshot; do not perform independent repository-wide exploration.",
       "- Current harness surface summary:",
       surface,
       "- Target layer for every change: <project>/.pi/harness.json only.",
       "- Your final assistant message must be exactly one JSON object with kind \"harness-consolidation-plan\".",
       "",
+      inlineDossierText,
       procedure,
     ].join("\n");
     const taskFile = path.join(run.manifest.runDir, "harness-task.md");

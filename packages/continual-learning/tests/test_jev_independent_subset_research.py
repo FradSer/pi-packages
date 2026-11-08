@@ -19,7 +19,7 @@ const review={version:1,purpose:'diagnostic-only',complete:true,sameBatchIndepen
 const answer=label=>({type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(['independent','duplicate','conflict','dependent','unclear'].map(k=>[k,k===label?1:0]))});
 const pair={a:0,b:1,model:'jev-1.13.0',evidenceDigest:digest(evidence),existingDigest:digest(existing),
  candidatesDigest:digest(candidates),candidateDigests:[digest(candidates[0]),digest(candidates[1])],answer:answer('independent')};
-const input={evidence,candidates,existing,operations:[],review,pairs:[pair],windows:1,allowPrivateMemory:true};
+const input={evidence,candidates,existing,operations:[],review,pairs:[pair],windows:1};
 '''
 
 
@@ -124,7 +124,6 @@ def test_complete_original_evidence_privacy_bounds_and_windows_use_production_pr
        // This fits bounds but requires two original windows; rebinding hashes
        // alone must not legitimize a caller-supplied one-window checklist.
        {...input,evidence:{...evidence,entries:[...evidence.entries,{role:'toolResult',content:'Verified fixture observation. '.repeat(1000)}]}},
-       {...input,allowPrivateMemory:false},
        {...input,existing:[{name:'prior.md',classification:'safe',type:'project',description:'prior',content:'api_key: "synthetic-secret-only"'}]}
       ];
       const results=await Promise.all(variants.map(v=>{

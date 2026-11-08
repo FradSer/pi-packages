@@ -118,6 +118,22 @@ export function readBoundedBacklogFile(file: string, limit: number): string {
 }
 const readBounded = readBoundedBacklogFile;
 
+/** Remove a project scope directory only while it is empty. Read-only probes
+ * never create one, and a released lease must not leave an empty intermediate
+ * directory behind. rmdir rejects a non-empty directory, so completion records,
+ * cursors and attempt ledgers are never removed by this cleanup. */
+export function pruneEmptyLearningScope(agentDir: string, scopeKey: string): void {
+  try {
+    const root = path.resolve(agentDir);
+    const directory = path.join(root, "learning", scopeKey);
+    const relative = path.relative(root, directory);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return;
+    const stat = fs.lstatSync(directory);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return;
+    fs.rmdirSync(directory);
+  } catch { /* Missing, non-empty or concurrently owned: leave it untouched. */ }
+}
+
 /** Serialize the shared capacity check and all scoped cursor updates. */
 export function withBacklogLock<T>(cwd: string, agentDir: string | undefined, operation: () => T): T {
   const paths = resolveMemoryPaths(cwd, agentDir);
@@ -247,6 +263,9 @@ export interface BacklogRead {
   entries: BacklogEntry[];
   unlearnable: BacklogEntry[];
   malformed: number;
+  /** Historical rows retained as evidence but never replayed. Diagnostic only:
+   * they do not enter pendingEntries and do not fail replay admission. */
+  quarantined: number;
   /** Cursor addresses the original record order, including missing sessions. */
   consumed: number;
   pending: number;
@@ -255,8 +274,20 @@ export interface BacklogRead {
   pendingEntries: Array<{ entry: BacklogEntry; position: number }>;
 }
 
+/** Rows written before "settled-learning-off" was renamed. Learning was
+ * deliberately off when they were skipped, so they are evidence, not retry
+ * candidates. Quarantining them keeps the file intact without re-queuing old
+ * tasks or teaching every future scope that its history is malformed. */
+function legacyQuarantine(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return row.version === 1 && row.reason === "auto-memory-off"
+    && typeof row.sessionFile === "string" && path.isAbsolute(row.sessionFile)
+    && typeof row.scopeKey === "string" && Buffer.byteLength(row.scopeKey) <= 240;
+}
+
 export function readBacklog(cwd: string, agentDir = getAgentDir()): BacklogRead {
-  const result: BacklogRead = { entries: [], unlearnable: [], malformed: 0, consumed: 0, pending: 0, unscoped: 0, pendingEntries: [] };
+  const result: BacklogRead = { entries: [], unlearnable: [], malformed: 0, quarantined: 0, consumed: 0, pending: 0, unscoped: 0, pendingEntries: [] };
   try {
     const paths = resolveMemoryPaths(cwd, agentDir), file = backlogFile(cwd, agentDir);
     safeStorage(file, paths.agentDir);
@@ -268,10 +299,21 @@ export function readBacklog(cwd: string, agentDir = getAgentDir()): BacklogRead 
     for (const line of raw.split("\n")) {
       if (!line) continue;
       const position = ordinal++;
+      let parsed: unknown;
       try {
         if (Buffer.byteLength(line) > MAX_BACKLOG_RECORD_BYTES) throw new Error("Oversized record");
-        const entry: unknown = JSON.parse(line);
-        if (!validEntry(entry)) throw new Error("Invalid reference");
+        parsed = JSON.parse(line);
+      } catch { result.malformed += 1; continue; }
+      // Old rows are retained as evidence regardless of their scope, but are
+      // never replay candidates. A damaged row has no trustworthy scope, so
+      // it still fails closed; rows explicitly belonging to another scope are
+      // not this scope's integrity problem, whether or not they validate.
+      if (legacyQuarantine(parsed)) { result.quarantined += 1; continue; }
+      const declaredScope = (parsed as Record<string, unknown>).scopeKey;
+      if (typeof declaredScope === "string" && declaredScope !== paths.scopeKey) continue;
+      try {
+        if (!validEntry(parsed)) throw new Error("Invalid reference");
+        const entry = parsed as BacklogEntry;
         const scope = entry.scopeKey ?? legacyScope(entry);
         if (!scope) { result.unscoped += 1; continue; }
         if (scope !== paths.scopeKey) continue;

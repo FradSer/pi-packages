@@ -21,7 +21,7 @@ const candidate = {
   evidence: [{ index: 0, quote: "Remember that I prefer concise updates.", role: "user" }],
 };
 const judge = createJevJudge({ enabled: true, apiKey: "fixture-absent-sdk", defaultModel: "jev-1.13.0",
-  scopes: ["memory", "harness"], allowPrivateMemory: true });
+  scopes: ["memory", "harness"]});
 const memory = await judge.validate("memory", evidence, [candidate], []);
 const harness = await judge.validate("harness", evidence, [candidate], []);
 console.log(JSON.stringify({

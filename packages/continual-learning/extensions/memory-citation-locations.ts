@@ -1,4 +1,5 @@
 import path from "node:path";
+import { TOOL_NAMES } from "./tool-surface";
 import {memoryDeclarationViews} from "./memory-declaration-view";
 import { memoryReferenceResults } from "./memory-evidence-provenance";
 import { MAX_MEMORY_DESCRIPTION_CHARS, MAX_NEW_MEMORY_EVIDENCE, normalizeSnapshotEvidence, snapshotEditPatchText } from "./consolidation-run";
@@ -108,7 +109,7 @@ export function locatedMemoryEvidence(value: unknown, options: {declarationViews
  * checked by the source resolver; observed tool output is not file authority. */
 function fileObservation(entries: unknown[], index: number, cwd: string): boolean {
   const result = message(entries[index]);
-  if (result?.role !== "toolResult" || result.isError !== false || !["read", "edit", "learning_read"].includes(String(result.toolName)) || typeof result.toolCallId !== "string") return false;
+  if (result?.role !== "toolResult" || result.isError !== false || !["read", "edit", TOOL_NAMES.learningRead].includes(String(result.toolName)) || typeof result.toolCallId !== "string") return false;
   const calls = entries.flatMap((entry, at) => {
     const row = message(entry);return row?.role === "assistant" && Array.isArray(row.content)
       ? row.content.flatMap(value => {const call = record(value);return call?.type === "toolCall" && call.id === result.toolCallId ? [{call, at}] : [];}) : [];
@@ -120,7 +121,7 @@ function fileObservation(entries: unknown[], index: number, cwd: string): boolea
   const relative = path.relative(path.resolve(cwd), path.resolve(cwd, args.path));
   if (!relative || path.isAbsolute(relative) || relative.split(path.sep).some(part => ["..", ".pi", ".memory", ".git"].includes(part.toLowerCase()))) return false;
   if (["offset", "limit"].some(key => args[key] !== undefined && (!Number.isSafeInteger(args[key]) || Number(args[key]) < 1))) return false;
-  if (result.toolName === "learning_read") {
+  if (result.toolName === TOOL_NAMES.learningRead) {
     const details = record(result.details);
     if (details?.readOnlyMaintenanceAudit !== true || details.sourcePath !== args.path || typeof details.sourceSha256 !== "string" || !/^[a-f0-9]{64}$/.test(details.sourceSha256)) return false;
   }

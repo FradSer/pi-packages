@@ -39,7 +39,10 @@ def test_generation_prompts_require_claim_specific_original_citations() -> None:
     for relation in ('whose resource or result is involved', 'which event changes its state',
                      'what stays unchanged', 'material default or selected branch'):
         assert value['knowledge'].count(relation) == 1
-    assert len(value['knowledge']) <= 5768
+    # The knowledge contract grew with the single-learn-tool generation rules;
+    # keep a bounded ceiling (current text plus headroom) so it still guards
+    # against unbounded prompt growth without pinning an obsolete byte count.
+    assert len(value['knowledge']) <= 6200
     assert 'source-scoped observation' in value['knowledge']
     assert 'unsupported or obsolete draft claims' in value['knowledge']
     assert '**Conditions**' in value['knowledge'] and '**Revisit**' in value['knowledge']
@@ -62,7 +65,7 @@ def test_generation_prompts_require_claim_specific_original_citations() -> None:
     assert all(value['knowledge'] in prompt for prompt in value['prompts'])
     assert 'Within a new record body, state each supported fact once' in value['knowledge']
     assert 'Keep independent named-type requirements' in value['knowledge']
-    assert 'an index description may repeat one supported body fact for discovery' in value['knowledge']
+    assert 'an index description may repeat supported body facts for discovery' in value['knowledge']
     assert 'not a hard length limit' in value['knowledge']
     assert 'does not authorize compressing an already correct record' in value['knowledge']
     # Given a maintenance fact or failure observation, When choosing its format,

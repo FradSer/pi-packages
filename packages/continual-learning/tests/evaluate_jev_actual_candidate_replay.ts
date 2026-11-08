@@ -12,7 +12,7 @@ const inputs=await Promise.all(m.inputs.map(loadActualCandidateReplay));
 // All original snapshots/candidates undergo production guard before ANY paid call.
 let mockPreflightRequests=0;
 for(const [i,input]of inputs.entries()){
- let calls=0;const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:m.model,scopes:['memory','harness'],allowPrivateMemory:true,fetch:async()=>{calls++;throw new Error('Offline actual replay preflight');}});
+ let calls=0;const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:m.model,scopes:['memory','harness'],fetch:async()=>{calls++;throw new Error('Offline actual replay preflight');}});
  await judge.validate(m.inputs[i].stage,input.snapshot,input.candidates,[],undefined,input.citations);
  if(!calls)throw new Error('Actual replay original input denied before transport');mockPreflightRequests+=calls;
 }
@@ -21,7 +21,7 @@ const output=new URL(`jev-actual-candidate-paired-${live?'real-results':'preflig
 await fs.writeFile(new URL(output.href+'.reservation'),JSON.stringify({startedAt:new Date().toISOString(),requestBudget:m.requestBudget})+'\n',{flag:'wx'});
 let requests=0;
 const off=createJevJudge({enabled:false,fetch:async()=>{throw new Error('Disabled gate cannot transport');}});
-const on=createJevJudge({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture-only',defaultModel:m.model,scopes:['memory','harness'],allowPrivateMemory:true,fetch:async(url,init)=>{
+const on=createJevJudge({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture-only',defaultModel:m.model,scopes:['memory','harness'],fetch:async(url,init)=>{
  if(requests>=m.requestBudget||Buffer.byteLength(String(init?.body))>64000)throw new Error('Actual replay request bound');requests++;
  if(live)return fetch(url,init);
  const body=JSON.parse(String(init?.body));const answers=Object.fromEntries(Object.entries(body.questions).map(([k,q])=>{const question=q as {type:string;criteria:Record<string,unknown>};const label=k.startsWith('supported')?'grounded':k.startsWith('relation')?'unrelated':k.startsWith('counter')?'compatible':k.startsWith('expands')?'same':k.startsWith('explanation')?'faithful':k.startsWith('authority')?'lasting':'authorized';return [k,question.type==='noul'?{type:'noul',noul:.99}:{type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(question.criteria).map(key=>[key,key===label?1:0]))}];}));

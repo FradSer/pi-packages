@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { TOOL_NAMES } from "./tool-surface";
 import {constants} from "node:fs";
 import path from "node:path";
 import {isMemoryFilename} from "./memory-files";
@@ -95,8 +96,8 @@ async function resolveSourceSelection(run: Run, selection: unknown, rawEvidence:
   const evidence = normalizeSnapshotEvidence((resolved.newMemories as Row[])[0].evidence, snapshot);
   if (!citation || !evidence.some(e => e.index === citation.index && e.quote.includes(citation.quote))) invalid();
   const result = message(entries[citation.index]);
-  if (result?.role !== "toolResult" || !["read", "edit", "learning_read"].includes(String(result.toolName)) || result.isError !== false || typeof result.toolCallId !== "string") invalid();
-  if (audit?.requireAudit && result.toolName !== "learning_read") invalid();
+  if (result?.role !== "toolResult" || !["read", "edit", TOOL_NAMES.learningRead].includes(String(result.toolName)) || result.isError !== false || typeof result.toolCallId !== "string") invalid();
+  if (audit?.requireAudit && result.toolName !== TOOL_NAMES.learningRead) invalid();
   const calls = entries.flatMap((entry, entryIndex) => {
     const row = message(entry);
     return row?.role === "assistant" && Array.isArray(row.content)
@@ -105,7 +106,7 @@ async function resolveSourceSelection(run: Run, selection: unknown, rawEvidence:
   const invocation = calls[0], args = record(invocation?.call.arguments);
   if (calls.length !== 1 || invocation.entryIndex >= citation.index || invocation.call.name !== result.toolName || typeof args?.path !== "string") invalid();
   if (entries.filter(entry => message(entry)?.role === "toolResult" && message(entry)?.toolCallId === result.toolCallId).length !== 1) invalid();
-  if (result.toolName === "learning_read") {
+  if (result.toolName === TOOL_NAMES.learningRead) {
     const details = record(result.details);
     if (!audit || audit.evidenceDigest !== sha256Digest(JSON.stringify(snapshot))
       || !audit.entryDigests.length || new Set(audit.entryDigests).size !== audit.entryDigests.length
@@ -131,7 +132,7 @@ async function resolveSourceSelection(run: Run, selection: unknown, rawEvidence:
   const root = path.resolve(run.manifest.cwd), relative = path.relative(root, path.resolve(root, args!.path as string));
   if (!relative || path.isAbsolute(relative) || relative.split(path.sep).some(part => ["..", ".memory", ".pi", ".git"].includes(part.toLowerCase())) || /[\x00-\x1f\x7f`]/.test(relative)) invalid();
   const source = await readSource(path.join(await fs.realpath(root), relative));
-  if (!source.text.includes(quote) || result.toolName === "learning_read"
+  if (!source.text.includes(quote) || result.toolName === TOOL_NAMES.learningRead
     && record(result.details)?.sourceSha256 !== source.binding.digest) invalid();
   if (completeDeclaration) {
     const start = /^e\d+\.b0\.l(\d+)$/.exec(ref.ref);

@@ -51,7 +51,7 @@ async function main() {
   const inputs = await loadKnownArtifacts(root);
   if (process.argv.includes("--preflight-only")) { console.log(JSON.stringify({ checked: inputs.length, outboundCalls: 0 })); return; }
   if (!process.env.TYPESAFE_API_KEY) throw new Error("TYPESAFE_API_KEY required; no mock substitute");
-  const judge = createJevJudge({ enabled: true, defaultModel: "jev-1.13.0", allowPrivateMemory: true, scopes: ["memory"] });
+  const judge = createJevJudge({ enabled: true, defaultModel: "jev-1.13.0", scopes: ["memory"] });
   if (!judge.enabled) throw new Error("Jev disabled; no real inference evidence");
   const rows = [];
   for (const { project, snapshotText, planText } of inputs) {

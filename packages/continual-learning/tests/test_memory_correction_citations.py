@@ -9,10 +9,12 @@ def test_cited_rewrite_survives_expansion_and_parent_citation_validation():
       const root=await fs.mkdtemp(path.join(os.tmpdir(),'cl-cited-update-'));
       await fs.writeFile(path.join(root,'MEMORY.md'),'# Memory\\n- [fact.md](fact.md)\\n');
       await fs.writeFile(path.join(root,'fact.md'),'The old value.');
+      const publicDir=path.join(root,'public');await fs.mkdir(publicDir);
+      await fs.writeFile(path.join(publicDir,'fact.md'),'The old value.');
       const snapshot={schemaVersion:1,runId:'run_update',scopeKey:'k',entries:[{message:{role:'user',content:'Correction: the current value is new.'}}]};
       const text=JSON.stringify(snapshot);const digest=new Bun.CryptoHasher('sha256').update(text).digest('hex');
       const snapshotFile=path.join(root,'snapshot.json');await fs.writeFile(snapshotFile,text);
-      const manifest={runId:'run_update',scopeKey:'k',scopeDigest:'d',snapshotDigest:digest,harnessDir:root,cwd:root};
+      const manifest={runId:'run_update',scopeKey:'k',scopeDigest:'d',snapshotDigest:digest,harnessDir:root,publicDir,cwd:root};
       const evidence=[{index:0,quote:'Correction: the current value is new.',role:'user'}];
       const delta={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'run_update',scopeKey:'k',scopeDigest:'d',artifactHash:manifest.snapshotDigest,snapshotDigest:manifest.snapshotDigest,
         operations:[{name:'fact.md',kind:'rewrite',classification:'safe',content:'The current value is new.',evidence}],newMemories:[]};

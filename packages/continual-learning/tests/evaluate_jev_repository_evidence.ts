@@ -39,7 +39,7 @@ const judge = createJevJudge({ fetch: async (url, init) => {
     }])));
   }
   return response;
-}, enabled: true, defaultModel: "jev-1.13.0", allowPrivateMemory: true, scopes: ["memory"] });
+}, enabled: true, defaultModel: "jev-1.13.0", scopes: ["memory"] });
 const result = await judge.validate("memory", snapshot, candidates, []);
 console.log(JSON.stringify({ evidence: "real-jev-inference-frozen-public-repository-replay",
   snapshotDigest: createHash("sha256").update(snapshotText).digest("hex"),

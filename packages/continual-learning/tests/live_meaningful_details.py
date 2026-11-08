@@ -40,12 +40,15 @@ def verify_expanded(row: dict) -> None:
     text = "".join("".join(lines).split())
     data = row["data"]
     if row["customType"] == "continual-learning-result":
-        # Learning shows only its final outcome, never the receipt's usage,
-        # cost, source, calls or per-attempt details. Those remain in the
-        # stored receipt and the model context.
+        # Learning shows its final outcome; expanding reveals the applied
+        # Memory description and body as Markdown, never frontmatter, filenames
+        # or receipt usage/cost/source/calls/per-attempt details.
         assert lines[0].startswith("[learning]"), lines
         assert "1AGENTS.mdchangeapplied" in text, lines
+        assert "Releasecheckscope" in text, lines
+        assert "Keepreleasechecksseparatefromlocalbuilds." in text, lines
         assert not any(marker in text for marker in (
+            "release-notes.md", "name:release-notes", "type:project", "---",
             "mode·", "source·", "operations·", "calls·", "usage·", "cost·",
             "directions·", "selectedMemory·", "jev-1.13.0", "uncertain",
             "test-command.md", "toexpand",
@@ -116,8 +119,6 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
             assert all("\n" not in line and len(line) <= row["width"] for line in row["lines"]), row
             if row["expanded"]:
                 verify_expanded(row)
-            elif row["customType"] == "continual-learning-result":
-                assert "to expand" not in " ".join(row["lines"]), row
             else:
                 assert "to expand" in " ".join(row["lines"]), row
         resize(120)

@@ -80,3 +80,16 @@ Feature: Learning state remains bound to its task and project
     When memory status is requested
     Then it reports knowledge, automatic policies, pending references and pipeline state
     And no learner starts
+
+  Scenario: Project paths with whitespace yield whitespace-free scope names
+    Given a canonical project path contains interior, leading or trailing whitespace
+    When the parent derives its private Memory, history, runs and learning paths
+    Then every derived path component is free of whitespace and control characters
+    And a path without whitespace keeps its existing readable identity
+
+  Scenario: Learning state inspection leaves no empty intermediate scope directory
+    Given a project has no persisted completion or attempt state
+    When the parent inspects its backlog, replays an empty queue and releases its lease
+    Then no empty project scope directory remains under the learning root
+    And a retained completion or attempt ledger is never removed
+    And the global backlog, completion records and cursors are preserved

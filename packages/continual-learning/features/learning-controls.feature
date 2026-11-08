@@ -75,3 +75,37 @@ Feature: Control and inspect learned changes without changing existing defaults
     And the report contains each arm's task success, regressions, latency and observed token usage
     And configured authentication is copied privately without modifying the source
     And zero reported price with nonzero usage is marked unavailable
+
+  Scenario: Mirror normalization in a non-Git project does not ingest the whole corpus
+    Given a project outside any Git repository with many private Memory files
+    When mirror normalization runs before any planner or selector worker
+    Then only targets that will actually change enter the pending history record
+    And existing file bodies are never written into the history record
+    And a pre-existing sensitive body cannot block an otherwise no-change run
+
+  Scenario: Existing credential-shaped evidence is ordinary learning input
+    Given frozen task evidence or private Memory contains credential-shaped text
+    When a learning run starts
+    Then the parent starts the normal workers so the model can handle the evidence
+    And the receipt reports the ordinary pipeline outcome with no screening reason
+    But storage, display and semantic-review guards still refuse credential-shaped writes
+
+  Scenario: A preflight exception is attributed to its real phase
+    Given createConsolidationRun fails before any attempt exists
+    When the pipeline catch builds a terminal attempt
+    Then the attempt names the preflight stage and keeps the bounded diagnostic
+    And a zero-worker receipt says no model calls rather than usage unavailable
+
+  Scenario: Credential guarding separates mode labels from real secrets
+    Given a diagnostic line "Auth: provider=antigravity, oauth" and a placeholder JSON value
+    When the sensitive-material guard scans both
+    Then neither is classified as a credential
+    But a realistic controller secret and both "*_WEB_KEY" assignment shapes are classified
+    And the sanitized samples stay in the sensitive corpus with no false positives
+
+  Scenario: Legacy backlog rows do not disable replay for other scopes
+    Given a global backlog file contains old "auto-memory-off" rows
+    When the current scope has no malformed rows
+    Then replay binding is allowed for that scope
+    And a current learning run can be retried through backfill
+    And a genuinely malformed row in the same scope still fails closed

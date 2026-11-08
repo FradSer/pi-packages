@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from continuous_failure_retention import deduplicate_receipt_views
 
-from live_acceptance_support import workspace_pi
+from live_acceptance_support import workspace_pi, write_learning_config
 
 
 def _model_pair(config: dict) -> dict:
@@ -88,16 +88,16 @@ def prepare(base: Path, auto_memory: bool, *, seed_memory: bool = False, agents_
             shutil.copyfile(source / name, agent / name)
             (agent / name).chmod(0o600)
     model = _model_pair(json.loads((source / "continual-learning.json").read_text()))
-    (agent / "continual-learning.json").write_text(json.dumps({"model": f"{model['provider']}/{model['model']}"}))
+    config = {"model": f"{model['provider']}/{model['model']}",
+              "autoSettledLearning": auto_memory, "autoContinualLearning": False,
+              "agentsMd": {"disabled": not agents_md}}
+    if jev_enabled is not None:
+        config["jev"] = jev_enabled
+    write_learning_config(agent, config)
     (agent / "settings.json").write_text(json.dumps({
         "defaultProvider": model["provider"], "defaultModel": model["model"], "packages": [],
     }))
-    if jev_enabled is not None:
-        (agent / "continual-learning.json").write_text(json.dumps({"jev": jev_enabled}))
     (agent / "memory").mkdir()
-    (agent / "memory" / "settings.json").write_text(json.dumps({
-        "autoSettledLearning": auto_memory, "autoContinualLearning": False, "agentsMd": {"disabled": not agents_md},
-    }))
     # This fixture deliberately owns its legacy-shaped seed. Bind before any
     # entries exist so the runtime need not guess the owner during upgrade.
     canonical = os.path.realpath(project)
@@ -461,7 +461,7 @@ def verify_learning() -> dict:
         )
         assert agents_receipt.get("applied"), agents_receipt
 
-        (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
+        write_learning_config(agent, {"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}})
         fresh = run_pi(
             project, agent, probe,
             "This is a fresh Pi session. Use the read tool to read both "

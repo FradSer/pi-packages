@@ -18,6 +18,7 @@ import {
   type NewMemoryProposal,
 } from "./consolidation-run";
 import { isMemoryFilename } from "./memory-files";
+import { resolveMemoryPaths } from "./memory-paths";
 
 const PRIVATE_MARKER_RE = /\(\s*harness[\s_-]+only\s*\)/i;
 
@@ -124,7 +125,7 @@ async function readBoundedRegularFile(file: string, maxBytes: number, label: str
   }
 }
 
-async function readPrivateClassifications(root: string, selected: readonly string[]): Promise<Map<string, IncrementalMemoryClassification>> {
+async function readPrivateClassifications(root: string, selected: readonly string[], publicDir?: string): Promise<Map<string, IncrementalMemoryClassification>> {
   if (selected.length === 0) return new Map();
   const rootStat = await fs.lstat(root).catch((error: unknown) => {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
@@ -135,14 +136,26 @@ async function readPrivateClassifications(root: string, selected: readonly strin
   }
   const indexPath = path.join(root, "MEMORY.md");
   const index = (await readBoundedRegularFile(indexPath, MAX_MEMORY_BYTES, "Private Memory index")).toString("utf8");
-  const indexed = new Map<string, { name: string; classification: IncrementalMemoryClassification }>();
+  const indexed = new Map<string, { name: string; marker: boolean }>();
   for (const line of index.split(/\r?\n/)) {
     const name = parseMemoryIndexLine(line);
     if (!name || !isMemoryFilename(name)) continue;
     const key = name.toLowerCase();
     if (indexed.has(key)) throw new Error(`Private Memory index contains duplicate name: ${name}`);
-    indexed.set(key, { name, classification: PRIVATE_MARKER_RE.test(line) ? "private" : "safe" });
+    indexed.set(key, { name, marker: PRIVATE_MARKER_RE.test(line) });
   }
+  // The learning dossier classifies a selected file as private when it has no
+  // public mirror, even without a "(harness only)" marker. This is the only
+  // privacy signal in a non-Git project. The validator must derive the same
+  // classifications or a correct private delta is rejected as a mismatch.
+  const mirrored = async (name: string): Promise<boolean> => {
+    if (!publicDir) return false;
+    const stat = await fs.lstat(path.join(publicDir, name)).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    });
+    return Boolean(stat && !stat.isSymbolicLink() && stat.isFile());
+  };
   const classifications = new Map<string, IncrementalMemoryClassification>();
   for (const name of selected) {
     const entry = indexed.get(name.toLowerCase());
@@ -150,7 +163,7 @@ async function readPrivateClassifications(root: string, selected: readonly strin
     const memoryPath = path.join(root, name);
     const memoryStat = await fs.lstat(memoryPath);
     if (memoryStat.isSymbolicLink() || !memoryStat.isFile()) throw new Error(`Selected Memory is not a regular file: ${name}`);
-    classifications.set(name.toLowerCase(), entry.classification);
+    classifications.set(name.toLowerCase(), entry.marker || !(await mirrored(name)) ? "private" : "safe");
   }
   return classifications;
 }
@@ -418,7 +431,8 @@ export async function expandIncrementalMemoryPlan(
 ): Promise<FullIncrementalMemoryPlan> {
   const selected = assertSelectedNames(selectedNames);
   let delta = validateDeltaIdentity(run, deltaPlan);
-  const classifications = await readPrivateClassifications(run.manifest.harnessDir, selected);
+  const classifications = await readPrivateClassifications(run.manifest.harnessDir, selected,
+    run.manifest.publicDir ?? resolveMemoryPaths(run.manifest.cwd).publicDir);
   const snapshot = hasMemoryCitationLocations(delta) || Array.isArray(delta.operations) && delta.operations.some(value => value && typeof value === "object" && "evidence" in value)
     ? await incrementalSnapshot(run) : undefined;
   const resolved = resolveMemoryPlanCitations(delta, snapshot);

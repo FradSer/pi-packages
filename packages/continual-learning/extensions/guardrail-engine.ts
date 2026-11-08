@@ -4,12 +4,38 @@ import { createHash } from "node:crypto";
 import { LEGACY_FIELDS, legacyContainerErrors, resolveLegacy } from "./legacy-harness.ts";
 import type { BashEvaluationResult, BashRule, InvalidRuleInfo, LayerReadIssue, ResolvedHarnessConfig, Rule, RuleLayer, SkillRule, TextRule } from "./guardrail-types.ts";
 
+/**
+ * A Bash rule reads one shell segment. An unquoted `&&`, `;`, `|` or newline
+ * ends the deletion command, so a later `.memory` grep filter or search pattern
+ * in a compound command cannot inherit an earlier unrelated `rm`. Script
+ * one-liners may contain `;` inside quoted code, so their prefix keeps a
+ * newline-bounded gap while `&&`, `||` and pipes still end the segment.
+ *
+ * The gate covers exactly the two Memory folders and what is inside them. A
+ * folder must be a complete path segment: only filename characters (letters,
+ * digits, `_`, `.`, `-`) can extend a prefix into an ordinary filename, so
+ * `.memory.json`, `.memoryrc`, `memory.json` and `.memory-notes` are deletable
+ * plain files, while `.memory/`, `.memory&&` and `~/.pi/agent/memory/<scope>/`
+ * name a Memory folder or something inside it. The private `agent/memory/`
+ * container also holds plain JSON configuration; Memory entries live in its
+ * `<scope>/` subfolders, so a bare `.json` directly under the container is
+ * configuration, not an entry. Removing an entry remains owned by
+ * /consolidate (verdict + preservedIn + rollback + receipts + privacy checks),
+ * never by a generated shell command.
+ */
+const SHELL_SEGMENT = String.raw`[^;&|\n]*`;
+const SCRIPT_PREFIX = String.raw`[^\n&|]*`;
+const ROOT_BOUNDARY = String.raw`(?![A-Za-z0-9_.-])`;
+const NOT_PRIVATE_CONFIG = String.raw`(?!/[^/\s"'\\]*\.json(?=[\s"'\\]|$))`;
+const MEMORY_TARGET = String.raw`(?:\.memory${ROOT_BOUNDARY}|\.pi[/\\]agent[/\\]memory${ROOT_BOUNDARY}${NOT_PRIVATE_CONFIG})`;
+const NO_BULK_MEMORY_DELETION = String.raw`(?:\brm\b|\bgit\s+rm\b|\bunlink\b|\brsync\b${SHELL_SEGMENT}--delete|\b(?:python|python3|node|bun)\b${SCRIPT_PREFIX}(?:rmtree|rmSync|unlinkSync))${SHELL_SEGMENT}${MEMORY_TARGET}|\bfind\b${SHELL_SEGMENT}${MEMORY_TARGET}${SHELL_SEGMENT}-delete`;
+
 export const DEFAULT_RULES: Rule[] = [
   {
     id: "no-bulk-memory-deletion",
-    bash: "(?:\\brm\\b|\\bgit\\s+rm\\b|\\bunlink\\b|\\brsync\\b[^\\n]*--delete|\\b(?:python|python3|node|bun)\\b[^\\n]*(?:rmtree|rmSync|unlinkSync))[^\\n]*(?:\\.memory|\\.pi[/\\\\]agent[/\\\\]memory)|\\bfind\\b[^\\n]*(?:\\.memory|\\.pi[/\\\\]agent[/\\\\]memory)[^\\n]*-delete",
+    bash: NO_BULK_MEMORY_DELETION,
     action: "block",
-    message: "Project memory must not be bulk-deleted through generated shell commands. Use the parent-owned /consolidate flow so preservation, privacy, rollback, and receipts are verified.",
+    message: "Memory entries must not be deleted through generated shell commands. Use the parent-owned /consolidate flow, whose delete operation requires a verified staleness verdict and non-empty preservedIn with preservation, privacy, rollback, and receipts. Ordinary files outside the two Memory folders remain deletable.",
   },
   {
     id: "no-interactive-auth-automation",

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from continuous_failure_retention import deduplicate_receipt_views
 
-from live_acceptance_support import workspace_pi
+from live_acceptance_support import workspace_pi, write_learning_config
 
 import json
 import hashlib
@@ -277,10 +277,10 @@ def run() -> dict[str, object]:
                     "models": [{"id": MODEL, "reasoning": False, "input": ["text"], "contextWindow": 200000, "maxTokens": 4096,
                                 "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]},
             }}))
-            (agent / "memory" / "settings.json").write_text(json.dumps({
+            write_learning_config(agent, {
                 "autoSettledLearning": False, "autoContinualLearning": False, "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"},
                 "agentsMd": {"disabled": True},
-            }))
+            })
             subprocess.run(["git", "init", "-q", str(project)], check=True)
             fixture = root / "full-fixture.ts"
             log = root / "notifications.jsonl"

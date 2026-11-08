@@ -185,6 +185,7 @@ def test_semantic_repair_can_read_its_required_original_snapshot_and_dossier_onl
     value = run(scenario)
     assert value['ok'], value
     assert value['recoveryRead'] == {'dossier': True, 'snapshot': True, 'unrelatedRefused': True}
+    assert value['noTools'] is True, (scenario, value.get('noTools'))
     assert value['spawned'] == 2
     if scenario == 'semantic-dossier':
         assert value['semanticDecision'] == 'allow' and value['semanticCalls'] == 2

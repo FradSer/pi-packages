@@ -1,4 +1,5 @@
 import {parse} from "@babel/parser";
+import { TOOL_NAMES } from "./tool-surface";
 import {createHash} from "node:crypto";
 
 type Row = Record<string, unknown>;
@@ -14,7 +15,7 @@ export interface DeclarationBlock {block: number; text: string; lines: readonly 
  * runtime behavior, complete-file claim or Memory/citation mutation belongs here. */
 export function memoryDeclarationViews(entries: readonly unknown[], index: number, blocks: readonly DeclarationBlock[]): Row[] | undefined {
   const result = message(entries[index]);
-  if (result?.role !== "toolResult" || result.isError !== false || !["read", "learning_read"].includes(String(result.toolName))
+  if (result?.role !== "toolResult" || result.isError !== false || !["read", TOOL_NAMES.learningRead].includes(String(result.toolName))
     || typeof result.toolCallId !== "string") return;
   const calls = entries.flatMap((entry, position) => {
     const m = message(entry);
@@ -47,7 +48,7 @@ function declarationView(block: DeclarationBlock, index: number, tool: string, a
   // This suffix belongs to the existing scoped reader. Removing only its footer
   // preserves every source character and its original result-block coordinates.
   const footer = /\n\[lines (\d+)-(\d+) of (\d+)(; byte limit reached)?\]$/.exec(text);
-  if (tool === "learning_read" && footer) {
+  if (tool === TOOL_NAMES.learningRead && footer) {
     if (footer[4]) return omitted("truncated-region");
     if (Number(footer[1]) !== (args.offset ?? 1) || Number(footer[2]) < Number(footer[1])
       || Number(footer[2]) > Number(footer[3])) return omitted("invalid-read-envelope");

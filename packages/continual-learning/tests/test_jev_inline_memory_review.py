@@ -13,7 +13,7 @@ def test_normal_project_reviews_keep_complete_actual_memory_values_inline():
       const before=JSON.stringify(input),runs=[];
       for(const bounded of [false,true]){
         let requests=[];
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,...(bounded?{maxRequestBytes:64_000}:{}),fetch:async(_u,init)=>{
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,...(bounded?{maxRequestBytes:64_000}:{}),fetch:async(_u,init)=>{
           const text=String(init.body),r=JSON.parse(text);requests.push({hash:createHash('sha256').update(text).digest('hex'),payload:r});
           const answers=Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
             const labels=Object.keys(q.criteria),label=['compatible','grounded','consistent','independent','unrelated'].find(x=>labels.includes(x))??labels[0];
@@ -67,7 +67,7 @@ def test_inline_values_do_not_relax_uncertainty_late_conflict_or_source_binding(
       for(const mode of ['positive','uncertain','tail-conflict','changed-source','source-uncertain']){
         const input=structuredClone(original);let calls=0,seen=[];
         if(mode==='changed-source')input.evidence.entries.push({role:'user',content:'Final instruction revokes permission to change this record.'});
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,fetch:async(_u,init)=>{
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{
           calls++;const r=JSON.parse(init.body),state=typeof r.state==='string'?JSON.parse(r.state):r.state;
           seen.push(...(state.reviewEvidence?.entries.map(e=>e.index)??[]));
           const tail=state.reviewEvidence?.entries.some(e=>e.index===original.evidence.entries.length-1);
@@ -128,7 +128,7 @@ def test_exact_rewrite_text_comparison_preserves_duplicates_order_warnings_and_l
 def test_complete_source_observations_retain_the_original_questions_and_windows():
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
-      const questions={};const judge=createJevJudge({enabled:true,apiKey:'controlled-fixture',allowPrivateMemory:true,independentMemoryApplication:true,requestConcurrency:1,fetch:async(_u,init)=>{
+      const questions={};const judge=createJevJudge({enabled:true,apiKey:'controlled-fixture',independentMemoryApplication:true,requestConcurrency:1,fetch:async(_u,init)=>{
         const r=JSON.parse(String(init.body));Object.assign(questions,r.questions);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(r.questions).map(([k,q])=>{
           const labels=Object.keys(q.criteria),positive=['compatible','grounded','unrelated'].find(x=>labels.includes(x))??labels[0];return [k,{type:'choice',choice:positive,confidence:1,probabilities:Object.fromEntries(labels.map(x=>[x,+(x===positive)]))}];
@@ -164,7 +164,7 @@ def test_unbounded_support_keeps_original_execution_context_without_adding_citat
         if(mode==='false-invocation')item.content+=' The returned callable was invoked.';
         if(mode==='late')evidence.entries.push({role:'user',content:'Later unrelated audit context '+'.'.repeat(24000)});
         const requests=[];
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,...(bounded?{maxRequestBytes:64000}:{}),fetch:async(_url,init)=>{
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,...(bounded?{maxRequestBytes:64000}:{}),fetch:async(_url,init)=>{
           const text=String(init.body),r=JSON.parse(text);requests.push({text,payload:r,state:typeof r.state==='string'?JSON.parse(r.state):r.state});
           return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
             const labels=Object.keys(q.criteria);let label=['grounded','compatible','independent','unrelated'].find(x=>labels.includes(x))??labels[0];

@@ -93,9 +93,9 @@ def verify_preference_artifacts(agent: Path, preferences: list[str], facts: list
 def trial() -> dict:
     with tempfile.TemporaryDirectory(prefix="cl-private-preference-") as raw:
         project, agent, probe = prepare(Path(raw), True, seed_memory=True)
-        settings = agent / "memory" / "settings.json"
-        settings.write_text(json.dumps({"autoSettledLearning": True, "autoContinualLearning": False, "agentsMd": {"disabled": True},
-                                      "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"}}))
+        write_learning_config(agent, {"autoSettledLearning": True, "autoContinualLearning": False,
+                                     "agentsMd": {"disabled": True},
+                                     "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"}})
         run_pi(project, agent, probe,
                f"For my personal replies, I prefer the sign-off marker {PRIVATE}; this is private "
                "preference data and must never become a project Memory entry. Also record this project "

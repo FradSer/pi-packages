@@ -8,14 +8,49 @@ import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
 import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-guidance-planner.ts";
 
 export type LearningMode = "automatic" | "manual" | "full";
-export type LearningPhase = "selector" | "memory" | "harness" | "agents";
+export type LearningPhase = "preflight" | "selector" | "memory" | "harness" | "agents";
 export type LearningOutcome = "screened" | "skipped" | "noop" | "applied" | "proposed" | "declined" | "rejected" | "failed" | "cancelled";
+
+/** Parent-owned deterministic organization, with no planner or review worker. */
+export const ORGANIZED_IN_PROCESS = "organized-in-process";
+
+/** A zero-write Memory review that cannot decide is a policy hold: no
+ * validation gate is relaxed, no file is written, and the original diagnostic
+ * stays in the receipt. It differs from a worker/transport failure, which
+ * remains a real pipeline failure. */
+export const MEMORY_REVIEW_HOLD = "memory-review-hold";
+export const MEMORY_REVIEW_HOLD_SUMMARY = "held by Memory review";
+/** Parent-written diagnostics for zero-write Memory review holds. The producer
+ * and the receipt classifier share these exact strings so a wording change
+ * cannot silently stop a hold from being recognized. */
+export function coverageReviewDiagnostic(status: string): string {
+  return `Independent Memory coverage account: ${status}; diagnostic only.`;
+}
+export function jevDiagnostic(status: string, reason: string): string {
+  return `Jev ${status}: ${reason}`;
+}
+export const MEMORY_REVIEW_HOLD_DIAGNOSTICS = {
+  JEV_UNCERTAIN: jevDiagnostic("propose", "uncertain"),
+  COVERAGE_INVALID_RESPONSE: coverageReviewDiagnostic("invalid-response"),
+  RETAINED_UNRESOLVED: "Retained Memory review remains unresolved; no corrective operation was proposed. No files changed.",
+  PROTECTED_INTENT_CHANGED: "Semantic Memory repair changed protected intent.",
+} as const;
+const ZERO_WRITE_REVIEW_HOLDS: readonly string[] = Object.values(MEMORY_REVIEW_HOLD_DIAGNOSTICS);
+export function isZeroWriteReviewHold(attempt: Pick<LearningAttempt, "phase" | "outcome" | "operations" | "diagnostic">): boolean {
+  return attempt.phase === "memory" && attempt.operations === 0
+    && (attempt.outcome === "failed" || attempt.outcome === "rejected")
+    && typeof attempt.diagnostic === "string" && ZERO_WRITE_REVIEW_HOLDS.includes(attempt.diagnostic);
+}
 
 export interface LearningScreen {
   memory: boolean;
   harness: boolean;
   agents: boolean;
+  /** Evidence signals for the frozen task slice only. */
   reasons: string[];
+  /** Parent routing decisions: policies and explicit requests that change a
+   * phase regardless of what the evidence screen found. */
+  routing?: string[];
 }
 
 export interface LearningAttempt {
@@ -405,7 +440,10 @@ export interface LearningPipelineReceipt {
 
 export interface LearningInputSource {
   source: "current-session" | "recent-project-session" | "backlog-session" | "existing-memory" | "none";
+  /** Size of the session or replay input, not the evidence actually screened. */
   entryCount: number;
+  /** Frozen current-task entries the evidence screen examined. */
+  screenedEntryCount?: number;
   omittedEntries?: number;
   omittedEvidenceEntries?: number;
   sessionId?: string;
@@ -424,23 +462,35 @@ function allLearningUsageAvailable(attempts: readonly LearningAttempt[]): boolea
 }
 
 export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[], input?: LearningInputSource, batchId?: string): LearningPipelineReceipt {
+  // Normalize a zero-write Memory review hold at the single receipt boundary.
+  // Applied, proposed and real failures keep their recorded outcome; the hold
+  // stays in the backlog because `skipped` is not a complete phase outcome.
+  const hasAppliedMemory = attempts.some(a => a.phase === "memory" && a.outcome === "applied");
+  const memoryFailures = attempts.filter(a => a.phase === "memory" && (a.outcome === "failed" || a.outcome === "rejected"));
+  // Only a receipt whose every Memory failure is an undecidable zero-write
+  // review is a hold. An explicit verification refusal (unsupported, invalid
+  // plan, tampering) keeps its failure outcome and its original diagnostics.
+  const holds = !hasAppliedMemory && memoryFailures.length > 0 && memoryFailures.every(isZeroWriteReviewHold);
+  const normalized = holds ? attempts.map(a => isZeroWriteReviewHold(a) ? { ...a, outcome: "skipped" as const } : a) : attempts;
+  const receiptScreen = holds && !screen.reasons.includes(MEMORY_REVIEW_HOLD)
+    ? { ...screen, reasons: [...screen.reasons, MEMORY_REVIEW_HOLD] } : screen;
   return {
     kind: "learning-pipeline-receipt",
     version: 1,
     mode,
     ...(batchId ? {batchId} : {}),
-    screen,
-    attempts,
-    totals: totalLearningUsage(attempts),
-    usageAvailable: allLearningUsageAvailable(attempts),
-    costAvailable: attempts.every((attempt) => {
+    screen: receiptScreen,
+    attempts: normalized,
+    totals: totalLearningUsage(normalized),
+    usageAvailable: allLearningUsageAvailable(normalized),
+    costAvailable: normalized.every((attempt) => {
       if (attempt.usageComplete === false) return false;
       if (!attempt.usage) return (attempt.outcome === "skipped" || attempt.outcome === "screened") && attempt.costAvailable !== false;
       const hasUsage = attempt.usage.input > 0 || attempt.usage.output > 0 || attempt.usage.cacheRead > 0 || attempt.usage.cacheWrite > 0 || attempt.usage.totalTokens > 0;
       return attempt.costAvailable ?? !(hasUsage && attempt.usage.cost === 0);
     }),
-    operations: attempts.reduce((total, attempt) => total + attempt.operations, 0),
-    retries: attempts.filter((attempt) => attempt.attempt > 0).length,
+    operations: normalized.reduce((total, attempt) => total + attempt.operations, 0),
+    retries: normalized.filter((attempt) => attempt.attempt > 0).length,
     ...(input ? { input } : {}),
   };
 }
@@ -493,7 +543,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const receipt = value as Partial<LearningPipelineReceipt>;
   const modes: LearningMode[] = ["automatic", "manual", "full"];
-  const phases: LearningPhase[] = ["selector", "memory", "harness", "agents"];
+  const phases: LearningPhase[] = ["preflight", "selector", "memory", "harness", "agents"];
   const outcomes: LearningOutcome[] = ["screened", "skipped", "noop", "applied", "proposed", "declined", "rejected", "failed", "cancelled"];
   const screen = receipt.screen as Partial<LearningScreen> | undefined;
   const input = receipt.input;
@@ -519,6 +569,8 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
       && new Set(input.backlogCoverage.map(item => item.id)).size === input.backlogCoverage.length
       && input.backlogCoverage.some(item => item.id === input.backlogId))
     && Number.isSafeInteger(input.entryCount) && input.entryCount >= 0
+    && (input.screenedEntryCount === undefined || Number.isSafeInteger(input.screenedEntryCount) && input.screenedEntryCount >= 0
+      && input.screenedEntryCount <= input.entryCount)
     && (input.omittedEntries === undefined || Number.isSafeInteger(input.omittedEntries) && input.omittedEntries >= 0)
     && (input.omittedEvidenceEntries === undefined || Number.isSafeInteger(input.omittedEvidenceEntries) && input.omittedEvidenceEntries >= 0
       && input.omittedEntries !== undefined && input.omittedEvidenceEntries <= input.omittedEntries)
@@ -526,7 +578,8 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
     && (input.sourceDigest === undefined || (typeof input.sourceDigest === "string" && /^[a-f0-9]{64}$/.test(input.sourceDigest))));
   return (receipt.batchId === undefined || typeof receipt.batchId === "string" && /^batch_[a-f0-9]{32}$/.test(receipt.batchId)) && validInput && receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
-    Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
+    Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")
+      && (screen.routing === undefined || Array.isArray(screen.routing) && screen.routing.every((reason) => typeof reason === "string"))) &&
     Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
       Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.modelCalls === undefined || attempt.modelCalls === 0) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.declinedOperations === undefined || attempt.phase === "memory" && Number.isSafeInteger(attempt.declinedOperations) && attempt.declinedOperations > 0) && (attempt.outcome !== "declined" || attempt.phase === "memory" && attempt.operations === 0 && (attempt.declinedOperations ?? 0) > 0) && (attempt.usageComplete === undefined || typeof attempt.usageComplete === "boolean") && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
     (receipt.usageAvailable === undefined || typeof receipt.usageAvailable === "boolean") &&
@@ -568,17 +621,22 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
   const notLearned = declined ? `${surfaceLabel(declined, "new memory proposal", "new memory proposals")} not learned` : "";
   const final = new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome]));
   const issues = [...final].filter(([, outcome]) => ["failed", "rejected", "cancelled"].includes(outcome)).map(([phase, outcome]) => `${phase} ${outcome}`);
+  if (receipt.screen.reasons.includes(MEMORY_REVIEW_HOLD) && issues.length === 0 && surfaces.length === 0) return MEMORY_REVIEW_HOLD_SUMMARY;
   if (surfaces.length > 0 && issues.length) return `${surfaces.join(" and ")} applied; ${issues.join(", ")}${pending ? `; ${pending} pending review` : ""}${notLearned ? `; ${notLearned}` : ""}`;
   if (surfaces.length > 0) return `${surfaces.join(" and ")} applied${pending ? `; ${pending} pending review` : ""}${notLearned ? `; ${notLearned}` : ""}`;
   if (issues.length) return `finished with issues: ${issues.join(", ")}${notLearned ? `; ${notLearned}` : ""}`;
   if (notLearned) return notLearned;
-  if ([...final.values()].some(outcome => outcome === "proposed")) return "proposals saved for review";
+  if (receipt.screen.routing?.includes(ORGANIZED_IN_PROCESS)) return "organized in-process";
+  if ([...final.values()].some(outcome => outcome === "proposed")
+      && receipt.attempts.some(attempt => attempt.outcome === "proposed" && (attempt.operations > 0 || (attempt.pendingOperations ?? 0) > 0))) return "proposals saved for review";
   if (receipt.attempts.length === 0 && receipt.screen.reasons.includes("no-learning-inputs")) return "no learning input";
   return `no durable changes${pending ? `; ${pending} pending review` : ""}`;
 }
 
 export function learningSummaryTone(receipt: LearningPipelineReceipt): "success" | "warning" | "error" {
   const outcomes = [...new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome])).values()];
+  if (receipt.screen.reasons.includes(MEMORY_REVIEW_HOLD)
+      && !outcomes.some(outcome => outcome === "failed" || outcome === "rejected")) return "warning";
   return outcomes.some(outcome => outcome === "failed" || outcome === "rejected") ? "error"
     : pendingLearningOperations(receipt) > 0 || declinedLearningOperations(receipt) > 0 || outcomes.some(outcome => outcome === "cancelled" || outcome === "proposed") ? "warning" : "success";
 }
@@ -587,12 +645,29 @@ function receiptUsageAvailable(receipt: LearningPipelineReceipt): boolean {
   return receipt.usageAvailable !== false && allLearningUsageAvailable(receipt.attempts);
 }
 
+/** No worker ran: the honest statement is "no model calls", not "usage
+ * unavailable", which implies a partly observed bill. A failed/cancelled
+ * attempt can also have zero recorded usage, so zero totals alone are not
+ * enough: only receipts whose usage accounting is complete, or whose only
+ * attempts are preflight/screen records that never spawn a worker, qualify. */
+function receiptHasNoModelCalls(receipt: LearningPipelineReceipt): boolean {
+  if (receipt.totals.totalTokens !== 0 || receipt.totals.cost !== 0
+    || !receipt.attempts.every(attempt => attempt.usage === undefined)) return false;
+  // An ordinary empty receipt still reports its complete $0.0000 ledger; only
+  // a receipt that actually records a preflight/screen attempt (or a fully
+  // available accounting with such an attempt) names the absence of calls.
+  return receipt.attempts.length > 0 && receipt.attempts.every(attempt =>
+    attempt.phase === "preflight" || attempt.outcome === "skipped" || attempt.outcome === "screened");
+}
+
 function receiptUsageText(receipt: LearningPipelineReceipt): string {
+  if (receiptHasNoModelCalls(receipt)) return "no model calls";
   if (receiptUsageAvailable(receipt)) return formatLearningUsage(receipt.totals);
   return receipt.totals.totalTokens > 0 ? `${formatLearningUsage(receipt.totals)} · known subtotal; total unavailable` : "usage unavailable";
 }
 
 function receiptCostText(receipt: LearningPipelineReceipt): string {
+  if (receiptHasNoModelCalls(receipt)) return "no model calls";
   if (receiptUsageAvailable(receipt)) return formatLearningCost(receipt.totals, receipt.costAvailable);
   return receipt.totals.cost > 0 ? `cost unavailable · known subtotal ${formatLearningCost(receipt.totals)}` : "cost unavailable";
 }
@@ -666,7 +741,8 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
 
   return [
     fieldLine("mode", receipt.mode),
-    ...(input ? [fieldLine("source", `${input.source} · ${input.entryCount} entries${omission ? ` · ${omission}` : ""}${input.sessionId ? ` · ${input.sessionId}` : ""}`)] : []),
+    ...(input ? [fieldLine("source", `${input.source} · ${input.entryCount} entries${input.screenedEntryCount !== undefined ? ` · ${input.screenedEntryCount} screened` : ""}${omission ? ` · ${omission}` : ""}${input.sessionId ? ` · ${input.sessionId}` : ""}`)] : []),
+    ...(receipt.screen.routing?.length ? [fieldLine("routing", receipt.screen.routing.join(", "))] : []),
     ...(receipt.screen.reasons.includes("no-learning-inputs") ? ["No session evidence or existing Memory. Resume a task session or use /memory <request>."] : []),
     fieldLine("operations", receipt.operations),
     fieldLine("calls", receipt.attempts.reduce((count, attempt) => count + (attempt.modelCalls ?? 1), 0)),
@@ -686,7 +762,9 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
 }
 
 export function formatLearningSummary(receipt: LearningPipelineReceipt): string {
-  return `Learning ${learningSummarySubject(receipt)} · ${receiptUsageText(receipt)} · ${receiptCostText(receipt)}`;
+  const subject = learningSummarySubject(receipt);
+  if (receiptHasNoModelCalls(receipt)) return `Learning ${subject} · no model calls`;
+  return `Learning ${subject} · ${receiptUsageText(receipt)} · ${receiptCostText(receipt)}`;
 }
 
 export function totalLearningUsage(attempts: readonly LearningAttempt[]): PiWorkerUsage {

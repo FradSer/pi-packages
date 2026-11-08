@@ -361,9 +361,9 @@ function reportIncomplete(pi: ExtensionAPI, resolved: ReturnType<typeof resolveH
   for (const invalid of resolved.config.legacy.invalidPolicies) {
     if (!invalidLegacyAffects(invalid, phase, toolName)) continue;
     appendCheck(pi, { kind: "harness-check", phase, status: "unsupported", policy: invalid.name, source: invalid.source,
-      file: sourceFile(invalid.source, resolved.paths), detail: `Check incomplete: invalid persisted policy: ${invalid.errors.join("; ")}. Use /harness and authorized config repair; no successful check is claimed.` });
+      file: sourceFile(invalid.source, resolved.paths), detail: `Check incomplete: invalid persisted policy: ${invalid.errors.join("; ")}. Use /learning and authorized config repair; no successful check is claimed.` });
   }
-  if (resolved.config.configReadIncomplete) appendUnsupported(pi, phase, undefined, "Check incomplete: current configuration is unreadable or stale; retained checks do not prove current coverage. Use /harness for diagnostics.", resolved.paths);
+  if (resolved.config.configReadIncomplete) appendUnsupported(pi, phase, undefined, "Check incomplete: current configuration is unreadable or stale; retained checks do not prove current coverage. Use /learning for diagnostics.", resolved.paths);
 }
 
 async function checkArtifactResult(pi: ExtensionAPI, event: ToolResultEvent, ctx: ExtensionContext, state: RepairState): Promise<void> {

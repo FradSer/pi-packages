@@ -1,40 +1,45 @@
 Feature: Simple continual-learning command surface
-  /learning is the single everyday entry. It reuses the six focused advanced
-  command forms, which remain available for scripts and recovery in this layer.
+
+  /learning is the single documented user entry. Its menu delegates to the
+  parent-owned handlers; the parent keeps every validation, write and receipt.
+  Frozen research protocols retain their internal command bindings, but those
+  are provenance fixtures, not documented user commands.
 
   Background:
     Given the pi-continual-learning package is installed
 
-  Scenario: Memory opens three top-level management areas
-    When the user opens `/memory`
-    Then the panel offers `Browse memories`, `Learning settings`, and `Recent learning`
-    And phase policies are nested under `Advanced`
-    And a history item offers `Undo`
+  Scenario: The learning menu covers every everyday action
+    When the user opens /learning
+    Then the panel offers remember, learn from task, maintain all knowledge,
+        manage Harness rules, and settings / history / undo
+    And phase policies are nested under Advanced
+    And a history item offers Undo
+    And no old command is offered as an entry point
 
   Scenario: An explicit Memory request remains manual when automatic learning is off
     Given automatic learning is off
-    When the user enters `/memory Remember that this project uses pnpm`
+    When the user enters /learning remember this request
     Then the parent validates a bounded Memory-only proposal
     And the request does not write Harness or AGENTS.md
     And the request may produce no write when validation finds no durable safe lesson
     And a parent-owned receipt reports the outcome
 
-  Scenario: Harness scope is chosen in the panel
-    When the user opens `/harness`
-    Then the panel shows active rules and lets the user choose the write scope
-    And a rule submitted from the panel uses the selected scope
-    When the user enters `/harness Require pnpm test before publishing`
-    Then the parent-validated command form targets project shared configuration by default
+  Scenario: Harness authoring keeps its guarded scope
+    When the user opens /learning and selects Manage Harness rules
+    Then the parent opens the same guarded Harness authoring procedure
+    And a submitted rule uses the selected scope and the parent's
+        positive/negative case evaluation, confirmation and atomic write
+    And no registered /harness command is required
 
-  Scenario: The six primary commands stay compact
-    Then `/memory` is the Memory management panel
-    And `/memory <request>` is an explicit Memory request
-    And `/consolidate` learns from the current task
-    And `/consolidate full` performs full maintenance
-    And `/harness` is the Harness rules panel
-    And `/harness <request>` authors a rule through the selected scope
+  Scenario: One everyday command is compact
+    Then /learning is the single documented command entry
+    And /learning <request> is an explicit Memory or rule request
+    And /learning without arguments opens the management menu
+    And /memory, /consolidate and /harness are not documented or suggested
 
-  Scenario: Compatibility commands retain their safety boundaries
-    Then `/memory undo <change-id> --yes` is required for headless undo
-    And `/consolidate backfill` reports reference status only
-    And legacy model, status, policy, history, evaluate, and Harness scope forms remain accepted
+  Scenario: Headless and recovery behavior stay honest
+    Given no interactive UI is available
+    When the user enters /learning without arguments
+    Then the parent prints the bounded learning status instead of a native menu
+    And headless undo still requires an explicit change id and --yes
+    And an explicit backfill reports reference status only

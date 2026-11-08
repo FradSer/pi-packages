@@ -10,17 +10,30 @@ Feature: Readable and truthful learning management
     When the user closes its details
     Then the previous list retains its position
 
-  Scenario: Final learning result is one unexpandable row
-    Given a completed learning run with usage, cost and several phase attempts
+  Scenario: Final learning result expands to the generated Memory content
+    Given a completed learning run that applied safe Memory entries
+    When the learning result is rendered collapsed
+    Then the user sees one final outcome line with an expand affordance
+    And no usage, cost, source, calls, status, summary or attempt details are shown
+    When the user expands the result
+    Then the generated Memory filenames and bodies are readable
+    And private or sensitive entries are never shown in the terminal
+    And the complete receipt remains available to the model and stored on disk
+    And no usage, cost, source, calls, status or attempt details are shown expanded
+
+  Scenario: A result without applied safe Memory stays one unexpandable row
+    Given a completed learning run that applied no safe Memory entries
     When the learning result is rendered collapsed and expanded
     Then the user sees one final outcome line in both states
-    And no usage, cost, source, calls, status, summary or attempt details are shown
+    And no expand affordance or Memory body is shown
     And the complete receipt remains available to the model and stored on disk
 
-  Scenario: No intermediate learning progress feedback
-    Given an automatic or manual learning run is active
+  Scenario: A running learning pipeline shows one live activity row
+    Given an automatic or manual learning run is active in the TUI
     When its phases select sources, plan, review and write changes
-    Then no live activity widget or learning phase progress notification is rendered
+    Then one spinner activity row is shown above the editor for the run
+    And the row names the run without usage, cost or receipt metadata
+    And the row is cleared when the run ends, is cancelled or fails
     And errors and safety holds are still reported as warning or error notices
     And the Harness authoring procedure remains an inline message for the model
 

@@ -320,6 +320,14 @@ def run_pi(project: Path, agent: Path, session: Path, prompt: str, port: int) ->
         ) from error
 
 
+def write_learning_config(agent: Path, settings: dict) -> None:
+    """All learning settings live in the single continual-learning.json."""
+    config = agent / "continual-learning.json"
+    current = json.loads(config.read_text()) if config.is_file() else {}
+    current.update(settings)
+    config.write_text(json.dumps(current))
+
+
 def run() -> dict[str, object]:
     LoopbackProvider.requests = []
     LoopbackProvider.responses = []
@@ -339,17 +347,17 @@ def run() -> dict[str, object]:
             (project / ".pi").mkdir()
             (agent / "memory").mkdir()
             (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "packages": []}))
-            (agent / "continual-learning.json").write_text(json.dumps({"model": f"{PROVIDER}/{MODEL}", "jev": False}))
+            write_learning_config(agent, {
+                "model": f"{PROVIDER}/{MODEL}", "jev": False,
+                "autoSettledLearning": True, "autoContinualLearning": False,
+                "automaticPhases": {"memory": "apply", "harness": "apply", "agents": "off"},
+                "agentsMd": {"disabled": True},
+            })
             (agent / "models.json").write_text(json.dumps({"providers": {
                 PROVIDER: {"baseUrl": f"http://127.0.0.1:{server.server_port}/v1", "api": "openai-completions", "apiKey": API_KEY,
                     "models": [{"id": MODEL, "reasoning": False, "input": ["text"], "contextWindow": 200000, "maxTokens": 4096,
                                 "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]},
             }}))
-            (agent / "memory" / "settings.json").write_text(json.dumps({
-                "autoSettledLearning": True, "autoContinualLearning": False,
-                "automaticPhases": {"memory": "apply", "harness": "apply", "agents": "off"},
-                "agentsMd": {"disabled": True},
-            }))
             subprocess.run(["git", "init", "-q", str(project)], check=True)
             session = root / "session.jsonl"
             prompt = (
@@ -406,7 +414,7 @@ def run() -> dict[str, object]:
                 raise AssertionError(f"parent evaluator produced unexpected decisions: {decisions}")
 
             first_response_count = len(LoopbackProvider.responses)
-            (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
+            write_learning_config(agent, {"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}})
             second_session = root / "second-session.jsonl"
             second = run_pi(project, agent, second_session, "LOOPBACK_RUNTIME: run the blocked marker and then the safe marker.", server.server_port)
             if second.returncode != 0:
@@ -447,11 +455,11 @@ def run() -> dict[str, object]:
                 raise AssertionError("safe Bash command did not produce its execution result")
 
             # --- Stage 3: 新证据纠正同一条正文 (New evidence correcting SAME body) ---
-            (agent / "memory" / "settings.json").write_text(json.dumps({
+            write_learning_config(agent, {
                 "autoSettledLearning": True, "autoContinualLearning": False,
                 "automaticPhases": {"memory": "apply", "harness": "off", "agents": "off"},
                 "agentsMd": {"disabled": True},
-            }))
+            })
             third_session = root / "third-session.jsonl"
             third = run_pi(project, agent, third_session, UPDATE_PROMPT, server.server_port)
             if third.returncode != 0:
@@ -477,7 +485,7 @@ def run() -> dict[str, object]:
                 raise AssertionError("history did not record both initial create and rewrite for loopback_memory_fact.md")
 
             # --- Stage 4: 纠正后使用 (Downstream task uses corrected knowledge) ---
-            (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
+            write_learning_config(agent, {"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}})
             fourth_session = root / "fourth-session.jsonl"
             fourth = run_pi(project, agent, fourth_session, "LOOPBACK_RUNTIME_V2: read updated memory and verify.", server.server_port)
             if fourth.returncode != 0:

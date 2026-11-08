@@ -76,7 +76,7 @@ if (mode === '--preflight-only') {
   let verdict: Awaited<ReturnType<ReturnType<typeof createJevJudge>['validate']>> | undefined;
   if (checked.category === 'ready') {
     verdict = await createJevJudge({enabled:true,apiKey:process.env.TYPESAFE_API_KEY,scopes:['memory'],
-      defaultModel:'jev-1.13.0',timeout:5000,allowPrivateMemory:true})
+      defaultModel:'jev-1.13.0',timeout:5000})
       .validate('memory',item.snapshot,checked.candidates,item.existingMemories);
   }
   await verify();

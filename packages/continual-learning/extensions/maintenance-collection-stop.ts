@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { TOOL_NAMES } from "./tool-surface";
 import path from "node:path";
 import {createHash} from "node:crypto";
 import type {ExtensionAPI, TurnEndEvent} from "@earendil-works/pi-coding-agent";
@@ -37,10 +38,10 @@ function deliveredReads(turns: readonly DeliveredReadTurn[], observations: reado
       const matches = calls.filter(call => call?.id === result.toolCallId);
       const call = matches[0];
       const args = record(call?.arguments);
-      if (!read || delivered.has(result.toolCallId) || matches.length !== 1 || call?.name !== "learning_read"
+      if (!read || delivered.has(result.toolCallId) || matches.length !== 1 || call?.name !== TOOL_NAMES.learningRead
         || typeof args?.path !== "string" || path.resolve(read.path) !== path.resolve(scope.cwd, args.path)
         || (args.offset ?? 1) !== read.offset || (args.limit ?? 200) !== read.limit
-        || result.toolName !== "learning_read" || Boolean(result.isError) !== (read.error === "Scoped source path missing") || result.content.length !== 1
+        || result.toolName !== TOOL_NAMES.learningRead || Boolean(result.isError) !== (read.error === "Scoped source path missing") || result.content.length !== 1
         || result.content[0].type !== "text" || result.content[0].text !== (read.error ?? read.result)) return false;
       delivered.add(result.toolCallId);
     }

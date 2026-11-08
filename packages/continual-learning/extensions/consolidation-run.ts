@@ -857,7 +857,7 @@ export interface MirrorRepair {
 export interface MirrorNormalization {
   /** Safe files whose drifted or missing copy was rewritten from the newer side. */
   repaired: MirrorRepair[];
-  /** Public files removed: private-marked, or orphaned without a harness copy. */
+  /** Public files removed: harness-only entries leaked into the shared mirror. */
   removed: string[];
 }
 
@@ -954,9 +954,19 @@ export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorN
   };
   for (const [key, publicName] of [...publicFiles].sort(([a], [b]) => a.localeCompare(b))) {
     const harnessName = harnessFiles.get(key);
-    if (!harnessName || privateNames.has(key)) {
+    if (privateNames.has(key)) {
+      // A harness-only entry must never appear in the shared mirror.
       await fsp.rm(path.join(publicDir, publicName), { force: true });
       removed.add(publicName);
+      continue;
+    }
+    if (!harnessName) {
+      // The git-tracked mirror is an authoritative arrival side: a tracked
+      // entry with no canonical copy is new project knowledge, not an orphan.
+      // Import it byte-identically instead of deleting user Memory before any
+      // learning plan, receipt or rollback can account for the deletion.
+      await copyBytes("public-to-harness", publicName,
+        path.join(publicDir, publicName), path.join(memory.harnessDir, publicName));
       continue;
     }
     const harnessHash = await sha256File(path.join(memory.harnessDir, harnessName), MAX_MEMORY_BYTES);
@@ -1689,7 +1699,7 @@ const SENSITIVE_MEMORY_PATTERNS: readonly RegExp[] = [
 /** An assigned value must be long enough to be a credential: prose ("token is
  * short-lived") assigns nothing. A credential-named assignment has no URL
  * exemption: a URL under such a key can itself be the credential. */
-const ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)["']?)\s*(?::|=)\s*(?<value>[^\s,;]{8,})/gi;
+const ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token|web[_ -]?key)["']?)\s*(?::|=)\s*(?<value>[^\s,;]{8,})/gi;
 
 /** A delimited value hides punctuation the plain pattern stops at, so a quoted
  * value under either a quoted or an unquoted credential key is matched here
@@ -1697,7 +1707,7 @@ const ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key
  * value admits the other quote type and backslash escapes, so a secret containing
  * `,`, `;`, `?`, `'` or `//` cannot stop matching early and be allowed. There is
  * no URL exemption; the placeholder rule is the only exemption. */
-const QUOTED_ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)["']?)\s*(?::|=)\s*(?<value>"(?:[^"\\\r\n]|\\.){7,}"|'(?:[^'\\\r\n]|\\.){7,}')/gi;
+const QUOTED_ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token|web[_ -]?key)["']?)\s*(?::|=)\s*(?<value>"(?:[^"\\\r\n]|\\.){7,}"|'(?:[^'\\\r\n]|\\.){7,}')/gi;
 
 /** A credential-named key with an assigned value has no URL exemption. A URL
  * under such a key can itself be the credential (a webhook, a connection string,
@@ -1711,16 +1721,18 @@ const QUOTED_ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]
  * object member is not a tracked-source sample, and it is exactly where an
  * assigned secret travels. Shared by the Memory guard and the Jev preflight so
  * both detectors classify one object identically. */
-const CREDENTIAL_KEY_PATTERN = /^(?:api(?:key|token|secret)|accesstoken|auth(?:orization)?|bearer|clientsecret|credentials?|password|passwd|secret|token)$/i;
+const CREDENTIAL_KEY_PATTERN = /^(?:api(?:key|token|secret)|accesstoken|auth(?:orization)?|bearer|clientsecret|credentials?|password|passwd|secret|token|webkey)$/i;
 export function credentialNamedKeyAssignsValue(key: string, assigned: string): boolean {
   const text = assigned.trim();
-  // A placeholder value under a credential-named key is documentation, not a
-  // credential. Without this exemption a session that merely read a config
-  // sample (apiKey: "sk-dummy" in a local-proxy models.json) is refused by the
-  // structured path, even though the same text passes on the plain-string path
-  // through placeholderCredentialValue. Both paths must agree.
-  if (text.length >= 8 && !placeholderCredentialValue(key, text) && CREDENTIAL_KEY_PATTERN.test(key.replace(/[_ -]/g, ""))) return true;
-  return false;
+  if (text.length < 8 || !CREDENTIAL_KEY_PATTERN.test(key.replace(/[_ -]/g, ""))) return false;
+  // A structured member is not ordinary tracked-source prose: only a code/env
+  // reference or an exact `sk-*` config placeholder is documentation there.
+  // Bracketed placeholders and sample-prefixed random tokens are refused, so
+  // both detectors classify the same parsed record identically. Text paths
+  // keep the broader placeholderCredentialValue documentation exemption.
+  if (CODE_OR_ENV_PATTERN.test(text)) return false;
+  const value = text.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return !/^sk(?:dummy|test|local|dev)$/.test(value);
 }
 
 /** Documentation-style placeholders, so a tracked source sample or doc snippet
@@ -1748,12 +1760,21 @@ export function placeholderCredentialValue(key: string, assigned: string): boole
   const trimmed = assigned.trim();
   if (CODE_OR_ENV_PATTERN.test(trimmed)) return true;
   const unquoted = trimmed.replace(/^["'`\\]+|["'`\\]+$/g, "");
+  // A bracketed documentation placeholder in tracked-source text is not an
+  // assigned secret, whether or not the JSON value is quoted. Parsed object
+  // members use credentialNamedKeyAssignsValue, which stays strict here.
+  if (/^(?:<[^<>]{1,96}>|\{\{[^{}]{1,96}\}\})$/.test(unquoted)) return true;
   const value = unquoted.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!value) return true;
   if (PLACEHOLDER_CREDENTIAL_VALUES.has(value)) return true;
   if (new Set(value).size === 1) return true;
-  if (/^(?:fixture|mock|fake|stub|test|dummy|example|sample|skdummy|sktest|sklocal|skdev)[0-9a-z_]*$/.test(value)) return true;
-  if (value.includes("dummy") || value.includes("test") || value.includes("local") || value.includes("dev") || value.includes("dummykey")) return true;
+  // A documentation sample starts with a placeholder word and has only a
+  // bounded, recognizable suffix. A random token that merely begins with one
+  // of those words stays sensitive. The `sk*` placeholders are exact:
+  // `sk-test-secret` normalizes to `sktestsecret` and must stay sensitive.
+  // Including the words anywhere made the guard both over-broad and
+  // under-inclusive.
+  if (/^(?:(?:fixture|mock|fake|stub|test|dummy|example|sample)(?:[0-9_]*|password[0-9_]*|(?:only|value|string|key|token|secret|here|placeholder|absentsdk)?)|sk(?:dummy|test|local|dev))$/.test(value)) return true;
   const keyWord = key.toLowerCase().replace(/[^a-z0-9]/g, "");
   return value.startsWith(keyWord) && /^[0-9]*(?:value|string|here|example|placeholder)?$/.test(value.slice(keyWord.length));
 }
@@ -1771,9 +1792,18 @@ function snippetOf(text: string, start: number): string {
   return text.slice(start, start + MAX_CREDENTIAL_LITERAL_CHARS);
 }
 
+/** "Auth: provider=antigravity, oauth" is a diagnostic mode label: the value
+ * is another short key=value tag, not an assigned secret. A real credential
+ * under `auth` has no second assignment and keeps its strict path. */
+function isAuthModeLabel(key: string, assigned: string): boolean {
+  return key.replace(/[^a-z]/gi, "").toLowerCase() === "auth"
+    && /^[a-z][a-z0-9_.-]*=[a-z0-9_.-]+$/i.test(assigned);
+}
+
 function containsAssignedCredentialMaterial(value: string, depth = 0): boolean {
   for (const match of value.matchAll(ASSIGNED_CREDENTIAL_PATTERN)) {
     const assigned = match.groups?.value ?? "";
+    if (isAuthModeLabel(match.groups?.key ?? "", assigned)) continue;
     if (STRUCTURED_LITERAL_OPENERS.has(assigned.charAt(0))) {
       const start = (match.index ?? 0) + match[0].length - assigned.length;
       if (depth < MAX_CREDENTIAL_LITERAL_DEPTH && containsAssignedCredentialMaterial(snippetOf(value, start), depth + 1)) return true;

@@ -8,6 +8,7 @@ import { readBoundedBacklogFile, safeBacklogStorage } from "./learning-backlog";
 import { readLearningHistory, type LearningHistory } from "./learning-history";
 import { resolveMemoryPaths } from "./memory-paths";
 import type { LearningAttempt, LearningPipelineReceipt } from "./learning-efficiency";
+import { TOOL_NAMES } from "./tool-surface";
 
 const MAX_REPLAY_FEEDBACK_BYTES = 128_000;
 const MAX_REPLAY_HISTORY_BYTES = 32 * 1024 * 1024;
@@ -221,7 +222,7 @@ export function reviewedSourceExtension(snapshot: Record<string, unknown>, plan:
     const callRow = message(extension[index]), result = message(extension[index + 1]);
     if (callRow?.role !== "assistant" || !Array.isArray(callRow.content) || callRow.content.length !== 1) return false;
     const call = callRow.content[0];
-    if (!record(call) || call.type !== "toolCall" || call.name !== "learning_read" || typeof call.id !== "string"
+    if (!record(call) || call.type !== "toolCall" || call.name !== TOOL_NAMES.learningRead || typeof call.id !== "string"
       || !/^maintenance-source-(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}-)?[0-9]+$/.test(call.id)
       || ids.has(call.id) || !record(call.arguments) || typeof call.arguments.path !== "string"
       || !path.isAbsolute(call.arguments.path) || !Number.isSafeInteger(call.arguments.offset)
@@ -237,7 +238,7 @@ export function reviewedSourceExtension(snapshot: Record<string, unknown>, plan:
     const relative = path.relative(manifest.cwd, call.arguments.path);
     if (!relative || path.isAbsolute(relative) || relative.split(/[\\/]/).some(part =>
       part === ".." || [".memory", ".pi", ".git", "node_modules"].includes(part.toLowerCase()))) return false;
-    if (result?.role !== "toolResult" || result.toolName !== "learning_read" || result.toolCallId !== call.id
+    if (result?.role !== "toolResult" || result.toolName !== TOOL_NAMES.learningRead || result.toolCallId !== call.id
       || result.isError !== false || !record(result.details) || result.details.readOnlyMaintenanceAudit !== true
       || result.details.sourcePath !== call.arguments.path || typeof result.details.sourceSha256 !== "string"
       || !/^[a-f0-9]{64}$/.test(result.details.sourceSha256) || !Array.isArray(result.content)

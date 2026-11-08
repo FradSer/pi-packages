@@ -55,6 +55,13 @@ Feature: Flat layered Harness rules with installed-policy compatibility
     And ordinary commands and unrelated cleanup remain available
     And fixtures verify decisions without executing destructive commands
 
+  Scenario: An ordinary file sharing a Memory root prefix remains deletable
+    Given the built-in bulk-deletion gate
+    When a generated shell command deletes a plain config or scratch file whose name merely starts with a Memory root
+    Then the command executes instead of being blocked
+    And deleting the Memory root, a Memory scope, or a Memory entry stays blocked
+    And parent-owned delete still requires a verdict, preservedIn, and a transaction
+
   Scenario: Configuration writes remain an internal integrity gate
     Given a native write or edit targets one of the canonical harness files through any native path alias
     When the complete JSON is malformed or names an unknown skill

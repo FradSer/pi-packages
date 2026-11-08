@@ -1,4 +1,5 @@
 import type {MemoryCoverageContext, PreparedMemoryCoverage} from "./memory-knowledge-coverage";
+import { TOOL_NAMES } from "./tool-surface";
 import { memoryReferenceResults } from "./memory-evidence-provenance";
 import type {MemoryOriginContext, LearningPendingMutation} from "./learning-history";
 import {independentMemoryRoles, compactMemoryPredecessors, memoryRewriteTextComparisons, predecessorReferenceInstruction, compactMemorySupportCitations, citationReferenceInstruction} from "./jev-memory-predecessors";
@@ -46,7 +47,7 @@ export const JEV_RETRY_BACKOFF_MS = 500;
 export interface JevTelemetry {
   stage: "selection" | "memory" | "harness";
   status: "disabled" | "decided" | "fallback" | "propose";
-  reason: "disabled" | "missing-key" | "bounds" | "sensitive" | "uncertain" | "unavailable" | "timeout" | "cancelled" | "invalid-response" | "supported" | "unsupported" | "duplicate" | "conflict" | "scope-expansion" | "missing-config" | "invalid-config" | "scope-denied" | "private-memory-denied";
+  reason: "disabled" | "missing-key" | "bounds" | "sensitive" | "uncertain" | "unavailable" | "timeout" | "cancelled" | "invalid-response" | "supported" | "unsupported" | "duplicate" | "conflict" | "scope-expansion" | "missing-config" | "invalid-config" | "scope-denied";
   durationMs: number;
   /** First failed request HTTP status only; never SDK error text/body/headers. */
   httpStatus?: number;
@@ -257,7 +258,6 @@ export interface BoundMemorySourceContext {
 /** Private historical interpretation data. Only the parent supplies this value;
  * it grants no current citations, source facts, permissions or read access. */
 export interface BoundMemoryOriginContext {
-  privateReviewAuthorized: true;
   evidenceDigest: string;
   originsDigest: string;
   origins: readonly MemoryOriginContext[];
@@ -270,7 +270,7 @@ export async function assertMemoryOriginReviewContext(bound: BoundMemoryOriginCo
   const capturedDigest = bound.originsDigest;
   const check = () => {
     signal?.throwIfAborted();
-    if (bound.privateReviewAuthorized !== true || bound.evidenceDigest !== reviewDigest(evidence)
+    if (bound.evidenceDigest !== reviewDigest(evidence)
       || !Array.isArray(bound.origins) || !bound.origins.length
       || bound.originsDigest !== capturedDigest || bound.originsDigest !== reviewDigest(bound.origins)
       || new Set(bound.origins.map(origin => origin.name)).size !== bound.origins.length
@@ -375,12 +375,8 @@ export interface JevJudge {
   readonly enabled: boolean;
   readonly selectionEnabled: boolean;
   readonly memoryReviewEnabled?: boolean;
-  /** Parent can request per-run consent before paying for a doomed planner. */
-  readonly privateMemoryReviewBlocked?: boolean;
-  /** Positive private authorization, active Memory scope and normal transport. */
+  /** Active Memory scope and normal transport enable bounded origin review. */
   readonly historicalMemoryReviewEnabled?: boolean;
-  /** Same frozen service/model/scopes; caller must obtain explicit human consent. */
-  withPrivateMemoryReview?(): JevJudge;
   /** Parent pipeline opt-in for bounded independent Memory proofs; not a user configuration field. */
   readonly independentMemoryApplicationEnabled?: boolean;
   readonly composedMemoryApplicationEnabled?: boolean;
@@ -564,9 +560,9 @@ function retainedSourceComparison(evidence: unknown, candidates: readonly unknow
     if (!record(message)) return "invalid-response";
     if (message.role === "assistant" && Array.isArray(message.content)
       && message.content.length === 1 && record(message.content[0])
-      && message.content[0].type === "toolCall" && message.content[0].name === "learning_read") continue;
+      && message.content[0].type === "toolCall" && message.content[0].name === TOOL_NAMES.learningRead) continue;
     const details = message.details;
-    if (message.role !== "toolResult" || message.toolName !== "learning_read" || message.isError !== false
+    if (message.role !== "toolResult" || message.toolName !== TOOL_NAMES.learningRead || message.isError !== false
       || !record(details) || details.readOnlyMaintenanceAudit !== true || typeof details.sourcePath !== "string"
       || typeof details.sourceSha256 !== "string" || !/^[a-f0-9]{64}$/.test(details.sourceSha256)) return "invalid-response";
     const calls = citationToolCalls(entries, new Set([index])) as Array<{callIndex: number; toolCall: Record<string, unknown>}>;
@@ -586,7 +582,7 @@ function retainedSourceComparison(evidence: unknown, candidates: readonly unknow
       if (index >= resultIndex || bound.has(index)) return [];
       const message = record(value) && record(value.message) ? value.message : value;
       if (!record(message) || message.role !== "toolResult" || message.isError !== false
-        || !["read", "learning_read"].includes(String(message.toolName))) return [];
+        || !["read", TOOL_NAMES.learningRead].includes(String(message.toolName))) return [];
       const calls = citationToolCalls(entries, new Set([index])) as Array<{callIndex: number; toolCall: Record<string, unknown>}>;
       return calls.length === 1 && record(calls[0].toolCall.arguments)
         && calls[0].toolCall.arguments.path === sourcePath
@@ -614,7 +610,7 @@ function retainedSourceComparison(evidence: unknown, candidates: readonly unknow
           const entry = entries[citation.index];
           const message = record(entry) && record(entry.message) ? entry.message : entry;
           if (!record(message) || message.role !== "toolResult" || message.isError !== false
-            || !["read", "learning_read"].includes(String(message.toolName))
+            || !["read", TOOL_NAMES.learningRead].includes(String(message.toolName))
             || !containsExactQuote(entry, citation.quote)) continue;
           const calls = citationToolCalls(entries, new Set([citation.index])) as Array<{callIndex: number; toolCall: Record<string, unknown>}>;
           if (calls.length !== 1 || !record(calls[0].toolCall.arguments)) continue;
@@ -936,7 +932,7 @@ function jevRetryBackoff(signal?: AbortSignal): Promise<boolean> {
   });
 }
 
-type JevJudgeOptions = TypeSafeClientConfig & { enabled?: boolean; scopes?: readonly JevStage[]; allowPrivateMemory?: boolean; independentMemoryApplication?: boolean; composedMemoryApplication?: boolean; maxRequestBytes?: number; requestConcurrency?: number; longContext?: boolean };
+type JevJudgeOptions = TypeSafeClientConfig & { enabled?: boolean; scopes?: readonly JevStage[]; independentMemoryApplication?: boolean; composedMemoryApplication?: boolean; maxRequestBytes?: number; requestConcurrency?: number; longContext?: boolean };
 export function createJevJudge(config: JevJudgeOptions = {}): JevJudge & Required<Pick<JevJudge, "reviewMemoryRelations">> {
   return instantiateJevJudge({...config}, readJevConfigState());
 }
@@ -960,7 +956,6 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
     && (config.enabled === true || configured.config !== undefined || Boolean(apiKey));
   const disabledReason = (): JevTelemetry["reason"] => config.enabled === false || configured.disabled ? "disabled"
     : configured.invalid ? "invalid-config" : "missing-config";
-  const allowPrivateMemory = config.allowPrivateMemory ?? configured.config?.allowPrivateMemory ?? false;
   // Explicitly silence SDK logging: debug bodies can contain private evidence.
   // The client is built on first use, after the SDK resolves, so an absent SDK
   // cannot fail the extension load and stays service unavailability.
@@ -1115,10 +1110,7 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
     requestedModel: model,
     selectionEnabled: enabled && scopes.includes("selection"),
     memoryReviewEnabled: enabled && scopes.includes("memory"),
-    privateMemoryReviewBlocked: enabled && scopes.includes("memory") && !allowPrivateMemory,
-    historicalMemoryReviewEnabled: enabled && scopes.includes("memory") && allowPrivateMemory && !Number.isFinite(maxRequestBytes),
-    withPrivateMemoryReview: () => instantiateJevJudge({...config, enabled, scopes: [...scopes], defaultModel: model,
-      apiKey: apiKey ?? "", allowPrivateMemory: true}, configured),
+    historicalMemoryReviewEnabled: enabled && scopes.includes("memory") && !Number.isFinite(maxRequestBytes),
     independentMemoryApplicationEnabled: enabled && scopes.includes("memory") && config.independentMemoryApplication === true,
     composedMemoryApplicationEnabled: enabled && scopes.includes("memory") && config.independentMemoryApplication === true && config.composedMemoryApplication === true,
     independentMemoryBodyReviewEnabled: enabled && scopes.includes("memory"),
@@ -1132,9 +1124,6 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
       if (Number.isFinite(maxRequestBytes)) return denied("bounds");
       if (signal?.aborted) return denied("cancelled");
       if (sensitiveValue(evidence) || sensitiveValue(candidates) || sensitiveValue(existing) || sensitiveValue(effectiveCandidates)) return denied("sensitive");
-      if (!allowPrivateMemory && (existing.some(item => item.classification === "private")
-        || candidates.some(item => record(item) && item.classification === "private")
-        || effectiveCandidates?.some(item => record(item) && item.classification === "private"))) return denied("private-memory-denied");
       if (!indices.length || indices.length > 32 || new Set(indices).size !== indices.length
         || !review || review.version !== 1 || review.purpose !== "diagnostic-only" || review.complete !== true
         || review.sameBatchIndependenceReviewed !== false || !jevModelMatchesRequest(model, review.model)
@@ -1200,8 +1189,6 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
       // Eligibility covers ALL original material, including records not sent
       // in a particular pair. No projection may bypass privacy or citations.
       if (sensitiveValue(evidence) || sensitiveValue(candidates) || sensitiveValue(existing)) return denied("sensitive");
-      if (!allowPrivateMemory && (existing.some(item => item.classification === "private")
-        || candidates.some(item => record(item) && item.classification === "private"))) return denied("private-memory-denied");
       const count = candidates.length * (candidates.length - 1) / 2;
       if (candidates.length < 2 || count > MAX_RELATION_REQUESTS) return denied("bounds", "propose", { boundsKind: "pairs", boundsCount: count });
       const roles = independentMemoryRoles(candidates, existing, config.independentMemoryApplication === true && config.composedMemoryApplication === true);
@@ -1357,9 +1344,6 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
       if (!await loadJevSdk()) return { selection: null, telemetry: { stage: "selection",
         status: enabled && scopes.includes("selection") ? "fallback" : "disabled",
         reason: enabled && scopes.includes("selection") ? "unavailable" : disabledReason(), durationMs: 0 } };
-      if (enabled && scopes.includes("selection") && !allowPrivateMemory && metadata.some(item => item.classification === "private")) {
-        return { selection: null, telemetry: { stage: "selection", status: "fallback", reason: "private-memory-denied", durationMs: 0 } };
-      }
       const questions: Questions = {
         memory: jevSdk.noul("Does the evidence contain established durable knowledge or a lasting user preference?", {
           true: "Explicit durable fact or preference grounded in the user's statement or verified tool observation.",
@@ -1458,8 +1442,6 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
         if (stage !== "memory" || !enabled || !scopes.includes("memory")) return denyCoverage("scope-denied");
         if (Number.isFinite(maxRequestBytes)) return denyCoverage("bounds");
         if (signal?.aborted) return denyCoverage("cancelled");
-        if (!allowPrivateMemory && (existing.some(item => item.classification === "private")
-          || candidates.some(item => record(item) && item.classification === "private"))) return denyCoverage("private-memory-denied");
         if (sensitiveValue({evidence, candidates, existing, coverageContext})) return denyCoverage("sensitive");
         try {
           const {prepareMemoryCoverageJudgment} = await import("./memory-knowledge-coverage");
@@ -1516,8 +1498,8 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
         ? memoryOrigins : undefined;
       const historicalDigest = historical?.originsDigest;
       if (historical) {
-        if (!enabled || !scopes.includes("memory") || !allowPrivateMemory || historical.privateReviewAuthorized !== true) return {
-          decision: "propose", telemetry: {stage, status: "propose", reason: "private-memory-denied", durationMs: 0},
+        if (!enabled || !scopes.includes("memory")) return {
+          decision: "propose", telemetry: {stage, status: "propose", reason: "scope-denied", durationMs: 0},
         };
         // Screen the complete collection before selecting names or windows.
         if (sensitiveValue(historical.origins)) return {decision: "propose",
@@ -1535,10 +1517,6 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
         return {decision: allowed ? "allow" : "propose", ...(proof ? {coverageReview: proof} : {}),
           telemetry: {...evaluated.telemetry, status: allowed ? "decided" : "propose",
             reason: allowed ? "supported" : evaluated.result ? "uncertain" : evaluated.telemetry.reason}};
-      }
-      if (enabled && scopes.includes(stage) && !allowPrivateMemory && (existing.some(item => item.classification === "private")
-        || candidates.some(candidate => record(candidate) && candidate.classification === "private"))) {
-        return { decision: "propose", telemetry: { stage, status: "propose", reason: "private-memory-denied", durationMs: 0 } };
       }
       if (enabled && scopes.includes(stage) && sensitiveValue(candidates)) {
         return { decision: "propose", telemetry: { stage, status: "propose", reason: "sensitive", durationMs: 0 } };

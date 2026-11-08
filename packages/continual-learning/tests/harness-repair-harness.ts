@@ -106,6 +106,7 @@ const taskTexts: string[] = [];
 const modelArgs: string[] = [];
 let cancelled = false;
 let semanticCalls = 0;
+let noTools = false;
 const judgedOperations: unknown[] = [];
 
 const kit = await import("../../kit/src/index.ts");
@@ -130,20 +131,28 @@ mock.module("../../kit/src/index.ts", () => ({
     child.kill = () => true;
     child.unref = () => child;
     if (["missing-dossier", "semantic-dossier", "structural-dossier", "coverage-dossier"].includes(scenario) && spawned === 2) {
-      const extension = args.find(arg => arg.includes("/planner-read-") && arg.endsWith(".mjs"))!;
-      const source = fs.readFileSync(extension, "utf8");
-      const scope = JSON.parse(/registerPlannerRead\(pi, (.*)\);/.exec(source)![1]);
-      void import("../extensions/planner-read-scope.ts").then(async ({readPlannerFileSnapshot}) => {
-        const reads = await Promise.allSettled([
-          readPlannerFileSnapshot(originalDossier, scope),
-          readPlannerFileSnapshot(path.join(agentDir, "unapproved.json"), scope),
-          readPlannerFileSnapshot(path.join(path.dirname(taskFile!.slice(1)), "snapshot.json"), scope),
-        ]);
-        recoveryRead = {dossier:reads[0].status === "fulfilled" && reads[0].value.text.includes("original selector evidence"), snapshot:reads[2].status === "fulfilled" && reads[2].value.text.includes(QUOTE), unrelatedRefused:reads[1].status === "rejected" && String(reads[1].reason).includes("outside the parent-approved scope")};
-        const identity = identityFrom(fs.readFileSync(taskFile!.slice(1), "utf8"));
+      const task = fs.readFileSync(taskFile!.slice(1), "utf8");
+      // Parse the parent-built inline dossier instead of a generated worker
+      // extension. The scope is derived from the embedded, parent-owned file
+      // list so the negative read below remains a real refusal check.
+      const block = task.split("<<<IMMUTABLE DOSSIER>>>")[1]?.split("<<<END IMMUTABLE DOSSIER>>>")[0]?.trim();
+      noTools = args.includes("--no-tools") && !args.includes("--tools");
+      void (async () => {
+        let parsed: {files?: Array<{path:string; bytes:string}>} = {};
+        try { parsed = block ? JSON.parse(block) : {}; } catch { parsed = {}; }
+        const files = Array.isArray(parsed.files) ? parsed.files.map(f => f.path) : [];
+        const scope = {cwd, files, roots: []};
+        const embedded = Array.isArray(parsed.files) ? parsed.files.map(f => f.bytes).join("\n") : "";
+        const dossierReadable = embedded.includes("original selector evidence");
+        const snapshotReadable = embedded.includes(QUOTE);
+        let unrelatedRefused = false;
+        try { await (await import("../extensions/planner-read-scope.ts")).readPlannerFile(path.join(agentDir, "unapproved.json"), scope); }
+        catch (error) { unrelatedRefused = /outside the parent-approved scope|not approved/i.test(String(error)); }
+        recoveryRead = {dossier: dossierReadable, snapshot: snapshotReadable, unrelatedRefused};
+        const identity = identityFrom(task);
         stdout.emit("data", Buffer.from((recoveryRead.dossier ? jsonlPlan(goodPlan(identity), identity, usageFor(2)) : jsonlNoPlan(usageFor(2))) + "\n"));
         child.emit("close", 0);
-      }).catch(error => { stderr.emit("data", Buffer.from(String(error))); child.emit("close", 1); });
+      })().catch(error => { stderr.emit("data", Buffer.from(String(error))); child.emit("close", 1); });
       return child;
     }
     setTimeout(() => {
@@ -271,6 +280,7 @@ try {
     JSON.stringify({
       scenario,
       recoveryRead,
+      noTools,
       spawned,
       semanticCalls,
       boundScopeChecks,

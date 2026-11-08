@@ -160,9 +160,10 @@ Feature: AGENTS.md consolidation as the third pipeline phase
 
   Scenario: The supplied dossier is readable without granting its directory
     Given the parent supplies a dossier outside the project working directory
-    When the AGENTS planner reads its frozen evidence through learning_read
-    Then the exact dossier and snapshot files are approved
-    And sibling agent files remain outside the approved scope
+    When the AGENTS planner receives the complete digest-bound evidence inline
+    Then the exact dossier and snapshot bytes are present in its task dossier
+    And it runs with --no-tools and no tool allowlist
+    And sibling agent files remain outside the parent-owned inline file list
 
   Scenario: Failed AGENTS attempts retain a safe diagnostic
     Given planning or application returns a failure detail

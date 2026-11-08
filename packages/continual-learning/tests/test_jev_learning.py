@@ -295,12 +295,12 @@ def test_unified_config_or_environment_key_enables_jev_with_explicit_disable() -
     # Justification: the environment-key case is the only reachable request, and
     # its connection-level failure is now retried once, so one reachable failure
     # costs two attempts. Every other case still makes zero requests.
-    assert value['calls'] == 2
+    assert value['calls'] == 4
     assert value['absent']['telemetry']['reason'] == 'missing-config'
     assert value['environment']['telemetry']['reason'] == 'unavailable'
     assert value['disabled']['telemetry']['reason'] == 'disabled'
     assert value['selection']['telemetry']['reason'] == value['memory']['telemetry']['reason'] == 'scope-denied'
-    assert value['privateMemory']['telemetry']['reason'] == 'private-memory-denied'
+    assert value['privateMemory']['telemetry']['reason'] != 'private-memory-denied'
     assert value['invalid']['telemetry']['reason'] == 'invalid-config'
 
 
@@ -562,10 +562,11 @@ def test_rewrite_still_requires_grounding_and_private_review_without_self_novelt
       console.log(JSON.stringify({format,body,metadata,privacy,unchanged,degraded,questions:requests.map(r=>Object.keys(r.questions))}));
     ''')
     assert value['format']['decision'] == 'allow'
-    assert value['body']['decision'] == value['metadata']['decision'] == value['privacy']['decision'] == 'propose'
+    assert value['body']['decision'] == value['metadata']['decision'] == 'propose'
+    assert value['privacy']['decision'] == 'allow'
     assert value['questions'][0] == ['coherence_0', 'supported_0', 'supported_description_0']
     assert value['questions'][1] == value['questions'][2] == ['coherence_0', 'supported_0', 'supported_description_0']
-    assert value['privacy']['telemetry']['reason'] == 'private-memory-denied'
+    assert value['privacy']['telemetry']['reason'] != 'private-memory-denied'
 
     # Parent structural validation owns malformed metadata; novelty is not that gate.
     assert value['unchanged']['decision'] == value['degraded']['decision'] == 'allow'
@@ -780,7 +781,7 @@ def test_private_memory_judgment_knows_the_parent_bound_storage_scope() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let sent;
-      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{sent=JSON.parse(init.body);
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{sent=JSON.parse(init.body);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:1,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}}}));
       }});
       const result=await judge.validate('memory','For my private reports always finish with PUBLIC_SYNTHETIC_MARKER. Keep it out of project files.',

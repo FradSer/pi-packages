@@ -1149,3 +1149,36 @@ def test_model_retry_after_reaches_http_client_without_proxy_retry(
         upstream.shutdown()
         upstream.server_close()
         thread.join(timeout=5)
+
+
+def test_container_runner_reads_the_written_model_selection_shape(tmp_path: Path) -> None:
+    # Given the config InferenceProxy.write_agent_config actually writes,
+    # When the in-container runner builds its --model argument, Then it reads
+    # the unified model string. A legacy {provider,model} object still works,
+    # and settings.json remains the documented fallback.
+    from live_docker_projects import selected_model_ref
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    written = {"model": "magpie-hy4/hunyuan-eval/hy4-dev"}
+    (agent / "continual-learning.json").write_text(json.dumps(written))
+    (agent / "settings.json").write_text(json.dumps(
+        {"defaultProvider": "magpie-hy4", "defaultModel": "hunyuan-eval/hy4-dev"}))
+    assert selected_model_ref(agent) == "magpie-hy4/hunyuan-eval/hy4-dev"
+    (agent / "continual-learning.json").write_text(json.dumps(
+        {"provider": "legacy", "model": "model-x"}))
+    assert selected_model_ref(agent) == "legacy/model-x"
+    (agent / "continual-learning.json").write_text(json.dumps({"jev": False}))
+    assert selected_model_ref(agent) == "magpie-hy4/hunyuan-eval/hy4-dev"
+
+
+def test_jev_arm_config_preserves_the_selected_learning_model() -> None:
+    # Given the config write_agent_config produced (which names the selected
+    # model), When an arm overrides only the Jev switch, Then the model survives.
+    # Dropping it makes the planner child fall back to a provider/model pair
+    # the gateway cannot route, so learning fails with "planner model error".
+    from docker_experiment import jev_arm_learning_config
+    written = {"model": "magpie-hy4/hunyuan-eval/hy4-dev"}
+    off = jev_arm_learning_config(written, False, "jev-1.13.0")
+    assert off == {"model": "magpie-hy4/hunyuan-eval/hy4-dev", "jev": False}
+    on = jev_arm_learning_config(written, True, "jev-1.13.0")
+    assert on == {"model": "magpie-hy4/hunyuan-eval/hy4-dev", "jev": {"model": "jev-1.13.0"}}

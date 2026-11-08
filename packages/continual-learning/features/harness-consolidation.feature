@@ -27,7 +27,8 @@ Feature: Harness consolidation alongside memory consolidation
     Then its instructions come from the package-owned prompts/harness-consolidator.md resource
     And its typed builder binds every required identity value
     And the child disables extension, skill, prompt-template, context-file, and theme discovery
-    And the child receives only read, grep, find, and ls tools
+    And the child runs with the literal --no-tools flag and no tool allowlist
+    And the parent supplies the immutable snapshot and dossier inline
     And the parent remains the only process allowed to apply harness changes
 
   Scenario: The harness planner consumes the authoritative task dossier
@@ -41,9 +42,9 @@ Feature: Harness consolidation alongside memory consolidation
 
   Scenario: A semantic repair retains mandatory frozen artifact reads
     Given the snapshot and original selector dossier are outside the project root
-    When the one bounded semantic repair follows the original read protocol
-    Then its learning_read tool permits those exact original artifact paths
-    And unrelated agent artifacts remain outside its read grant
+    When the one bounded semantic repair receives the parent-built inline dossier
+    Then the exact original snapshot and dossier bytes are embedded and digest-bound
+    And unrelated agent artifacts remain outside the parent-owned inline file list
     And complete original snapshot and dossier checks still precede application
 
   Scenario: Harness evidence is bound to an observed actor and quote

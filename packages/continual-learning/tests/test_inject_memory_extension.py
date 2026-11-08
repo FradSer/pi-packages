@@ -57,24 +57,30 @@ def test_learning_command_menu_routes_to_parent_owned_handlers() -> None:
 
 
 
-def test_learning_start_has_a_user_transcript_row_without_progress_details() -> None:
+def test_learning_start_has_a_user_transcript_row_and_a_shared_activity_widget() -> None:
+    # The started row stays in the user transcript, while the running state
+    # uses pi-kit's shared live activity widget (the same primitive subagents
+    # use) rather than any package-private widget implementation.
     content = source()
     assert 'learning-procedure' in content
     assert '"started"' in content
     assert 'display: true' in content
-    assert 'createLiveActivityWidget' not in content
+    assert 'createLiveActivityWidget' in content
+    assert 'key: "continual-learning-activity"' in content
+    assert 'placement: "aboveEditor"' in content
 
 
-
-def test_pipeline_renders_no_progress_widget() -> None:
-    # Given a running consolidation, When its phases advance, Then no live
-    # activity widget or phase progress row is shown to the user. Receipts,
-    # warning/error notices and the model context are unchanged.
+def test_pipeline_mounts_one_shared_live_activity_row() -> None:
+    # Given a running consolidation, When its phases advance, Then exactly one
+    # shared live activity row is mounted above the editor and cleared at the
+    # single terminal finally; no private dreaming widget is reintroduced.
     content = source()
     pipeline = content[content.index('async function startConsolidationPipeline'):content.index('const LEARNING_RESULT_MESSAGE')]
     command = content[content.index('pi.registerCommand("consolidate"'):content.index('pi.registerCommand("memory"')]
     assert 'await resolvePackageDir()' not in command
-    assert 'createLiveActivityWidget' not in content
+    assert 'createLiveActivityWidget' in content
+    assert 'state.activityWidget?.update(' in pipeline
+    assert 'state.activityWidget?.clear(' in pipeline
     assert 'setDreamingWidget(' not in content
     assert 'setDreamingActivity(' not in content
     assert 'clearDreamingWidget(' not in content
@@ -113,11 +119,13 @@ def test_dreaming_activity_labels_a_search_by_its_pattern() -> None:
     assert result["bare"] == {"line": "grep", "detail": ""}
 
 
-def test_notifications_use_shared_pi_kit_primitive_without_a_progress_widget() -> None:
+def test_notifications_use_shared_pi_kit_primitives() -> None:
+    # Notices go through notifyPi and the live row through pi-kit's shared
+    # widget; no package-private dreaming widget or legacy notice text remains.
     content = source()
     assert "notifyPi(ctx.ui" in content
     assert "ctx.ui.notify" not in content
-    assert "createLiveActivityWidget" not in content
+    assert "createLiveActivityWidget" in content
     assert 'key: "memory-dreaming"' not in content
     assert "Learning model: using" not in content
     assert "Automatic learning skipped: this session's history exceeds" not in content
@@ -884,8 +892,13 @@ def test_consolidate_command_has_exactly_two_learning_modes_plus_an_explicit_dra
     assert "noContext" not in content
     assert "buildIncrementalMemoryConsolidatorPrompt" in content
     assert "buildMemoryConsolidatorPrompt" in content
-    assert 'workerCliArgs("memoryPlanner")' in content
-    assert "plannerReadArgs" in content
+    # Planner children now run with the literal no-tools flag and a bounded
+    # inline dossier; the tool allowlist and generated planner-read helper are
+    # retired. Behavioral argv coverage lives in test_inline_memory_dossier.py.
+    assert "plannerNoToolArgs()" in content
+    assert "workerCliArgs" not in content
+    assert "plannerReadArgs" not in content
+    assert "inlineDossierBlock" in content
 
 
 def test_child_output_uses_streaming_utf8_and_byte_bounded_diagnostics() -> None:

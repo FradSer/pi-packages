@@ -144,7 +144,7 @@ def test_real_rewrite_receives_bound_current_source_in_every_counter_window(mode
       const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
       input.memorySources.evidenceDigest=digest(input.evidence);
       const before=JSON.stringify(input),requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,fetch:async(_u,init)=>{
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{
         const r=JSON.parse(init.body),state=typeof r.state==='string'?JSON.parse(r.state):r.state;
         if(state.reviewEvidence)requests.push({state,questions:r.questions});
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
@@ -307,7 +307,7 @@ def test_exact_source_quotes_are_candidate_scoped_and_cannot_override_a_semantic
       const second=structuredClone(f.candidates[0]);second.name='second-contract.md';second.content=second.content.replaceAll(f.candidates[0].name,second.name);
       const predecessor=structuredClone(f.existing[0]);predecessor.name=second.name;predecessor.content=predecessor.content.replaceAll(f.existing[0].name,second.name);
       const candidates=[f.candidates[0],second],existing=[...f.existing,predecessor],contexts=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,fetch:async(_u,init)=>{
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{
         const r=JSON.parse(init.body),s=typeof r.state==='string'?JSON.parse(r.state):r.state;
         if(s.reviewEvidence)contexts.push({reviewed:s.mutationComparison.reviewedCandidateIndexes,facts:s.sourceComparisonEvidence.exactQuoteComparisons});
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:0},answers:Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
@@ -341,7 +341,7 @@ def test_exact_source_quote_comparison_does_not_join_separate_text_blocks():
       result.content=[{type:'text',text:text.slice(0,split)},{type:'text',text:text.slice(split+1)}];
       if(result.content.map(b=>b.text).join('\n')!==text)throw Error('Original source text changed');
       f.memorySources={evidenceDigest:digest(f.evidence),entryDigests:boundIndexes.map(i=>digest(f.evidence.entries[i]))};
-      const contexts=[];const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,fetch:async(_u,init)=>{
+      const contexts=[];const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{
         const r=JSON.parse(init.body),s=typeof r.state==='string'?JSON.parse(r.state):r.state;if(s.reviewEvidence)contexts.push(s.sourceComparisonEvidence);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:0},answers:Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
           const labels=Object.keys(q.criteria),choice=['compatible','grounded','consistent','independent','unrelated'].find(x=>labels.includes(x))??labels[0];return[key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(labels.map(x=>[x,+(x===choice)]))}];

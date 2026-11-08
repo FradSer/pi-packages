@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 import {containsSensitiveMemoryMaterial, normalizeSnapshotEvidence, readCurrentMemoryCommandPhase, snapshotEntryRole, MEMORY_COMMAND_PHASE_CONTEXT, type NewMemoryEvidence} from "./consolidation-run";
 import {locatedMemoryEvidence, memoryCitationDomain, resolveMemoryPlanCitations} from "./memory-citation-locations";
-import {prepareMemoryBodyTargets, runMemoryReviewBatch, MEMORY_CORRECTION_WORKER_DEADLINE_MS, type MemoryBodyReview, type MemoryBodyTarget} from "./memory-body-review";
+import {prepareMemoryBodyTargets, runMemoryReviewBatch, parseReviewResponse, MEMORY_CORRECTION_WORKER_DEADLINE_MS, type MemoryBodyReview, type MemoryBodyTarget} from "./memory-body-review";
 import {parseModelRef, type PiWorkerUsage} from "@fradser/pi-kit";
 import {plannerStructuredOutputEnabled} from "./config";
 import {nativeMemoryCoverageSchema, type NativeMemoryCoverageBinding} from "./planner-output-schema";
@@ -362,7 +362,7 @@ export async function reviewMemoryCoverage(input: {
         priorAccounts: input.priorAccounts ?? [], priorTargets: input.priorTargets ?? [], priorPlan: input.priorPlan,
         priorEffectivePlan: input.priorEffectivePlan, expectedPriorDigest: input.expectedPriorDigest})).digest("hex");
       if (current !== digestBefore) invalid();
-      const response: unknown = JSON.parse(text!);
+      const response: unknown = parseReviewResponse(text!);
       const framed = record(response) && Object.keys(response).length === 2
         && Object.hasOwn(response, "plan") && Object.hasOwn(response, "reviews")
         && record(response.plan) && record(response.reviews);

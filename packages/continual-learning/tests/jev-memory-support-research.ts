@@ -33,7 +33,7 @@ export async function loadMemorySupportNoulJudge():Promise<{createJevJudge:Facto
 /** Complete every required mock batch before any live transport can start. */
 export async function completeMemoryResearchPreflight(factory:Factory,evidence:unknown,candidates:readonly unknown[],transform:(body:string)=>string=body=>body):Promise<{requests:number;windows:number}> {
  let requests=0,invalid=false;
- const judge=factory({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],allowPrivateMemory:false,fetch:async(_url,init)=>{
+ const judge=factory({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],fetch:async(_url,init)=>{
   const body=transform(String(init?.body));if(Buffer.byteLength(body)>64000){invalid=true;throw Error('Research transformed request bounds');}
   requests++;const request=JSON.parse(body),answers=Object.fromEntries(Object.entries(request.questions).map(([key,value])=>{
    const q=value as {type:string;criteria:Record<string,unknown>};if(q.type==='noul')return[key,{type:'noul',noul:.99}];

@@ -9,7 +9,7 @@ import registerGuardrails from "../extensions/guardrails.ts";
 import registerOutputChecks from "../extensions/output-checks.ts";
 import registerHarnessGuidance from "../extensions/harness-guidance.ts";
 import { HARNESS_GUIDANCE_ENTRY_TYPE } from "../extensions/harness-guidance-planner.ts";
-import registerMemory from "../extensions/inject-memory.ts";
+import registerMemory, { learningResultContent } from "../extensions/inject-memory.ts";
 import { buildLearningReceipt } from "../extensions/learning-efficiency.ts";
 
 export default function (pi: ExtensionAPI): void {
@@ -91,7 +91,10 @@ export default function (pi: ExtensionAPI): void {
         selectedMemory: ["test-command.md"], diagnostic: "Jev fallback: uncertain; legacy selector",
         jev: {stage:"selection",status:"fallback",reason:"uncertain",durationMs:3,model:"jev-1.13.0",inputTokens:100,outputTokens:20,estimatedCostUsd:0.0000042} },
         { phase: "agents", attempt: 0, outcome: "applied", durationMs: 10, operations: 1 }]);
-    pi.sendMessage({ customType: "continual-learning-result", content: "Learning result", display: true, details: receipt });
+    pi.sendMessage({ customType: "continual-learning-result", display: true, details: receipt,
+      content: learningResultContent("Learning result", [{ name: "release-notes.md",
+        content: "---\nname: release-notes\ndescription: Release check scope\ntype: project\n---\nKeep release checks separate from local builds.",
+        classification: "safe" }]) });
     appendFileSync(snapshots, JSON.stringify({ kind: "entry", customType: "continual-learning-result", data: receipt }) + "\n");
     const entries = [
       { customType: "harness-event", data: {

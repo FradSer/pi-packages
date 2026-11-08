@@ -107,10 +107,21 @@ Feature: Outcome-based harness authoring without speculative writes
     And a near-name resource remains unmatched
     And standalone incident phrases must not broaden the named-resource scope
 
-  Scenario: Automatic planners check real fixture mismatches before final proposals
+  Scenario: The parent checks real fixture mismatches before final proposals
     Given retained real automatic plans whose regex disagrees with their own positive or negative cases
-    When an automatic planner calls its read-only harness_check_cases tool
-    Then it receives the same case rejection as the parent evaluator without executing any command
-    And the tool grants no evidence, semantic approval or mutation authorization
-    And at most eight previews are admitted per worker, retaining scoped evidence reads
+    When the parent evaluates cases with previewHarnessRuleCases after the plan arrives
+    Then it applies the same case rejection without executing any command
+    And the evaluation grants no evidence, semantic approval or mutation authorization
+    And the planner child runs with --no-tools and has no case-preview tool
     And final proposals still pass every original parent validation and semantic gate
+
+  Scenario: A declared one-step Harness write respects the real provider wire
+    Given Pi's native write tool advertises only path and content under strict sampling
+    When an active /harness procedure activates the declared harness_write tool
+    Then its schema requires path, content and cases, so strict sampling emits the cases
+    And the parent validates positive and negative cases, exact candidate and predecessor
+        bytes, no-UI fail-closed, confirmation, atomic write and readback
+    And cases never enter the persisted rules
+    And the applied write produces a receipt and an undoable history record
+    And the tool is deactivated on session reset and consumed once on success
+    And the existing two-step harness_preview path remains available and unchanged

@@ -86,14 +86,16 @@ Feature: Memory management with automatic learning and manual consolidation
   Scenario: Background consolidation disables unrelated discovery
     Given memory consolidation is manually started
     When the child Pi process is launched in JSON print mode
-    Then it uses the shared minimal Pi worker arguments
+    Then it uses the literal --no-tools flag with no tool allowlist
     And extension, skill, prompt-template, context-file, and theme discovery are disabled
-    And only parent-scoped learning_read is available in the disposable child session
+    And the parent supplies the complete digest-bound evidence inline in the task dossier
+    And no planner-read generated extension is loaded in the disposable child session
 
-  Scenario: A complete pipeline reports only its final outcome
+  Scenario: A complete pipeline shows one live activity row then its final outcome
     Given the user invokes /consolidate in the TUI
     When incremental selection, planning, review and writes complete
-    Then no live activity widget or phase progress row is rendered
+    Then one spinner activity row is shown above the editor while the run is active
+    And it is cleared before the final result row appears
     And errors and safety holds remain visible as warning or error notices
     And one final learning result row reports the outcome after the run exits
 
@@ -274,11 +276,12 @@ Feature: Memory management with automatic learning and manual consolidation
     But a plan-phase failure with child stderr output stays classified as missing-plan and keeps the retry
     And a successful model retry attempt clears the earlier execution error so a later structured plan still passes
 
-  Scenario: An active pipeline shows no progress widget
+  Scenario: An active pipeline shows one progress row above the editor
     Given the consolidation pipeline is active in the TUI
     When its phases advance through selection, planning and review
-    Then no live activity widget or progress row is rendered above the editor
-    And the user sees the final outcome only when the run ends
+    Then exactly one live activity row is rendered above the editor
+    And the row carries a native spinner and the run identity
+    And the user sees it cleared when the final outcome appears
 
   Scenario: Dreaming timeout is labeled as the budget it exceeded
     Given the consolidation child outlives the dreaming budget and is terminated by the parent timer

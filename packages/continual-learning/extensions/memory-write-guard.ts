@@ -26,7 +26,7 @@ export function memoryWriteBlock(cwd: string, toolName: string, input: unknown):
   const file = resolveToolTargetPath(input.path, cwd);
   for (const root of [paths.harnessDir, paths.publicDir]) {
     if (root && (within(file, root) || within(physicalPath(file), physicalPath(root)))) {
-      return "Memory entries and indexes are read-only references for ordinary task tools. Write task output in the project working directory. Use /memory <request> or /consolidate for parent-validated Memory changes with history and undo.";
+      return "Memory entries and indexes are read-only references for ordinary task tools. Write task output in the project working directory. Use /learning for parent-validated Memory changes with history and undo.";
     }
   }
 }

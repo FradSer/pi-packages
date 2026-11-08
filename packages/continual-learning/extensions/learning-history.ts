@@ -333,7 +333,15 @@ export async function normalizeTrackedMemory(memory: MemoryPaths) {
   let index = "";
   if (canonical["MEMORY.md"]) index = (await readLearningFile(path.join(memory.harnessDir, "MEMORY.md"), MAX_FILE_BYTES)).toString("utf8");
   const privateNames = parsePrivateIndexNames(index);
-  const names = new Set(["MEMORY.md", ...Object.keys({ ...canonical, ...shared }).filter(name => canonical[name] !== shared[name]), ...Object.keys(shared).filter(name => privateNames.has(name.toLowerCase()))]);
+  // A harness-only file is not mirror drift: there is no shared counterpart to
+  // reconcile. Only pairs that exist on both sides with different bytes, and
+  // shared copies of harness-only entries, can actually change. Recording the
+  // whole corpus as "pending" copied every existing body into the WAL, where
+  // the sensitive guard scanned old text that this run never wrote.
+  const drifted = Object.keys(canonical).filter(name => shared[name] !== undefined && canonical[name] !== shared[name]);
+  const leaked = Object.keys(shared).filter(name => privateNames.has(name.toLowerCase()));
+  const names = new Set([...drifted, ...leaked, ...(canonical["MEMORY.md"] && shared["MEMORY.md"] !== undefined && canonical["MEMORY.md"] !== shared["MEMORY.md"] ? ["MEMORY.md"] : [])]);
+  if (names.size === 0) return normalizeMirrorDrift(memory);
   const files = [...names].flatMap(name => [path.join(memory.harnessDir, name), ...(memory.publicDir ? [path.join(memory.publicDir, name)] : [])]);
   return recordLearningMutation(memory.cwd, "memory", files, () => normalizeMirrorDrift(memory));
 }

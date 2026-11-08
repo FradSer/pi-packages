@@ -45,7 +45,7 @@ export async function preflightHarnessCitationAnchor(
 ):Promise<{requests:number;windows:number}> {
   const {createJevJudge}=await import('../extensions/jev-learning');
   let requests=0,familyQuestions=0;
-  const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['harness'],allowPrivateMemory:false,fetch:async(_url,init)=>{
+  const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
     const sent=after?anchorHarnessScopeCitation(init,input.snapshot,input.plan.evidence):init;
     const body=String(sent?.body);if(Buffer.byteLength(body)>64000)throw Error('Unchanged research wire bound');
     const request=JSON.parse(body) as {questions:Record<string,{type:string;criteria:Record<string,unknown>}>};requests++;

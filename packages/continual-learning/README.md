@@ -35,12 +35,14 @@ pi install npm:pi-continual-learning
 
 | Command | Purpose |
 | --- | --- |
-| `/memory` | Open the Memory management panel |
-| `/memory <request>` | Record an explicit natural-language Memory request; the parent validates a Memory-only change |
-| `/consolidate` | Learn from the current task |
-| `/consolidate full` | Perform full Memory, Harness and AGENTS.md maintenance |
-| `/harness` | Open the Harness rules panel and choose its write scope |
-| `/harness <request>` | Create or update a rule in project shared configuration by default |
+| `/learning` | The single user entry: open one menu, or pass an explicit request that the parent handles through the `learn` tool |
+| `/learning` (menu) | Remember this request, learn from this task, maintain all knowledge, manage Harness rules, or inspect settings/history/undo |
+
+`/learning` is the only documented user command. Planner children run with
+`--no-tools` and a bounded inline dossier; the model sees one zero-argument
+`learn` tool. Frozen research and recovery scripts keep internal
+`/memory`- and `/consolidate`-shaped command bindings for provenance only;
+those are not user entry points and are not offered in any menu or guidance.
 
 ## Docker Isolation and Real Model Acceptance
 
@@ -48,28 +50,29 @@ pi install npm:pi-continual-learning
 
 End-to-end container acceptance establishes:
 1. **Real Model Task Execution**: The agent processes project source files and instructions under Pi 1.4 with `group/smart-split`.
-2. **Consolidation**: Executing `/consolidate full` prompts the model worker to extract durable project facts and safety rules, which are validated via `validate-consolidate.py`.
+2. **Consolidation**: The whole-corpus maintenance option in `/learning` prompts the model worker to extract durable project facts and safety rules, which are validated via `validate-consolidate.py`.
 3. **Memory & Harness Persistence**: Safe memories are written to `.memory/` and refreshed in `MEMORY.md`, while executable validation rules are committed to `.pi/harness.json`.
 4. **Subsequent Usability**: A fresh session in the same project automatically indexes and retrieves the learned memory and enforces the active harness rules.
 
 
-The `/memory` panel has three top-level entries: **Browse memories**, **Learning
-settings**, and **Recent learning**. Phase policies are under **Advanced** in
-Learning settings. Lists scroll with keyboard focus; history targets precede
+The `/learning` menu is the single user entry. It opens one panel covering
+remembers, settings/history/undo and rule management. Phase policies are under
+the settings/policy view. Lists scroll with keyboard focus; history targets precede
 compact dates. Readers preserve the logical text position when resized and
 default to Close. Settings and policies return to their direct parent with
-selection retained; closing a detail returns to
-its previous list position. The native reader supports Up/Down and Page Up/Down
-without copying document bodies into the chat. History lists show numbered dates,
-phases, targets and outcomes. A history item opens its preview and its **Undo** action;
-headless undo still requires the exact id and `--yes`. Policy menus show effective
-values and explain that they control automatic phases; explicit consolidation uses
-validated plans and still honors AGENTS.md disablement. Existing Memory retrieval
-continues when automatic learning is off. RPC hosts retain native select dialogs.
+selection retained; closing a detail returns to its previous list position. The
+native reader supports Up/Down and Page Up/Down without copying document bodies
+into the chat. History lists show numbered dates, phases, targets and outcomes.
+A history item opens its preview and its **Undo** action; headless undo still
+requires the exact id and `--yes`. Policy views show effective values and explain
+that they control automatic phases; explicit consolidation uses validated plans
+and still honors AGENTS.md disablement. Existing Memory retrieval continues when
+automatic learning is off. RPC hosts retain native select dialogs.
 
-An explicit `/memory <request>` asks the parent to retain the user's request as
-Memory. It can be used while automatic learning is off, and it changes only the
-Memory surface. The request is evidence for a bounded proposal; validation,
+An explicit request through `/learning` (or the `learn` tool) asks the parent to
+retain the user's request. It can be used while automatic learning is off, and
+the parent decides from the frozen evidence whether only Memory, only Harness,
+or both apply. The request is evidence for a bounded proposal; validation,
 privacy checks, mutation and the receipt remain parent-owned. A request can
 correctly produce no write when it is not durable, safe, or sufficiently
 grounded.
@@ -95,32 +98,45 @@ session-model default. The metadata index is deterministic and bounded; it does
 not rank entries against each new request. The complete indexes remain available
 for discovery when the injected list omits entries.
 
-The Harness panel lets the user choose the target layer before submitting a
-rule request. Project shared configuration remains the default authoring target
-for `/harness <request>`; personal and user-shared scopes require an explicit
-choice in the panel. A missing target is a normal first-use state: a supported request creates one complete validated configuration without an empty placeholder. Broad operational safeguards can use scoped contextual guidance when no exact command gate is established; guidance does not enforce a traffic rate limit. Essential unknowns lead to an actionable clarification, not a missing-file dead end. Project tool access uses the relative target path. Authoring activates a read-only `harness_preview` tool: each changed enabled rule needs passing plain positive/negative fixtures before the exact candidate can be written. A preview is bound to predecessor bytes and consumed once; it never bypasses effective configuration or native replacement authorization. Verification never requires scratch files or a second write. The tool remains available for follow-up turns. A new request replaces its scope; session changes, branch switches and shutdown remove it. Every write still needs an exact, single-use preview. Pending authoring does not block ordinary source writes or grant authority over another Harness target.
+The rule-management option in `/learning` opens the Harness authoring
+procedure. Project shared configuration remains the default authoring target;
+personal and user-shared scopes require an explicit choice in the panel. A
+missing target is a normal first-use state: a supported request creates one
+complete validated configuration without an empty placeholder. Broad operational
+safeguards can use scoped contextual guidance when no exact command gate is
+established; guidance does not enforce a traffic rate limit. Essential unknowns
+lead to an actionable clarification, not a missing-file dead end. Project tool
+access uses the relative target path. Authoring activates a read-only
+`harness_preview` tool: each changed enabled rule needs passing plain
+positive/negative fixtures before the exact candidate can be written. A preview
+is bound to predecessor bytes and consumed once; it never bypasses effective
+configuration or native replacement authorization. Verification never requires
+scratch files or a second write. The tool remains available for follow-up turns.
+A new request replaces its scope; session changes, branch switches and shutdown
+remove it. Every write still needs an exact, single-use preview. Pending
+authoring does not block ordinary source writes or grant authority over another
+Harness target.
 
-### Advanced and compatibility commands
+An active authoring procedure also activates `harness_write`, a declared
+one-step authoring tool. Its `cases` field is required in the tool schema, so
+strict provider sampling advertises it; the parent validates the positive and
+negative fixtures, the exact candidate and predecessor bytes, obtains
+confirmation, writes atomically with readback, and records a learning receipt
+plus an undoable history row. Cases are never persisted into rules. The tool is
+inactive outside an authoring procedure and consumed on success. The two-step
+`harness_preview` path above remains available; both paths keep their gates.
 
-The compact panel and six primary command forms are the supported everyday
-surface. Older forms remain available for scripts and recovery:
+### Internal frozen-provenance bindings
 
-| Compatible command | Purpose |
-| --- | --- |
-| `/memory model [provider/model]` | Select a configured Memory worker model or set one directly |
-| `/memory show` or `/memory status` | Inspect effective controls, storage, pipeline and backlog diagnostics |
-| `/memory policy [memory\|harness\|agents] [apply\|propose\|off]` | Inspect or set one automatic phase policy |
-| `/memory history [change-id]` | List private learning history or inspect one record |
-| `/memory undo <change-id> [--yes]` | Restore one applied change after preview and conflict checks; headless use requires `--yes` |
-| `/memory evaluate <suite.json>` | Compare supplied baseline and candidate rules without model calls |
-| `/consolidate backfill` | Retry up to three eligible source-verified learning references; retain failures and costs without repeating task tools |
-
-`/harness` compatibility flags remain accepted: `--local`/`-l` and
-`--project-local` select project personal configuration; `--shared`,
-`--project`, `--repo` and `-p` select project shared configuration; and
-`--global`, `--user`, `--global-shared`, `--user-shared` and `-g` select user
-shared configuration. The panel is preferred when a user needs to choose the
-scope interactively.
+`/learning` is the only user command. Settings, phase policies, model choice,
+history, undo, evaluation and backlog diagnostics are reached through the menu,
+not through separate typed commands. Three internal slash-command bindings
+(`/memory`, `/consolidate`, `/harness`) survive solely because frozen research
+proofs drive `/memory 整理记忆` and `/consolidate backfill` through a real
+`pi --print` argv, and offline E2E drives `/harness` through its command handler.
+They are never offered in any menu, never named by model guidance and never
+documented as user input; see `tests/continuous-command-proof.ts` and
+`tests/live_harness_first_run.py`.
 
 ## Harness layers
 
@@ -276,16 +292,21 @@ actual trigger verification, and unverified behavior separately.
 ### Transcript display
 
 `/learning` is the single user-facing entry: it opens one menu, or accepts an
-explicit request that the parent handles without a model-facing learning tool.
-Its rule-management option points at `/harness`, whose guarded authoring gate
-owns exact candidate bytes, fixture validation and the native confirmation.
-The advanced `/memory`, `/consolidate` and `/harness` command forms remain
-available for scripts and recovery in this layer. Each run shows two transcript rows: one
+explicit request that the parent handles through the `learn` tool. Its
+rule-management option opens the same guarded Harness procedure directly,
+owning exact candidate bytes, fixture validation and the native confirmation.
+No advanced command form is offered to users; internal frozen-protocol
+bindings remain for research and recovery scripts only. Each run shows two transcript rows: one
 `[learning] started · <subject>` line and one final `[learning]` outcome line.
-There is no progress widget or phase progress notice. The final row has no
-expandable details: usage, cost, source, calls, per-phase attempts and
-diagnostics stay in the stored receipt and the message's model context, not in
-the terminal. Errors and safety holds remain warning/error notices. Learning receipts retain failed/rejected/cancelled phases
+While a run is active, one spinner activity row sits above the editor (the
+same live widget language as subagents); it is cleared when the run ends, is
+cancelled or fails. The final row collapses
+to one outcome line; when the run applied safe Memory, expanding it shows each
+entry's description and body as Markdown. Frontmatter, filenames and receipt
+metadata (usage, cost, source, calls, per-phase attempts and diagnostics) are
+not displayed in either state — the receipt stays in the stored message's
+model context. Private and credential-shaped entries are never shown. A run
+with no applied safe Memory stays one unexpandable line. Errors and safety holds remain warning/error notices. Learning receipts retain failed/rejected/cancelled phases
 beside applied changes, so a partial success never appears as an unqualified
 success. Each learning batch retains its receipt under
 `runs/<project-scope>/receipts/<batch-id>/`. The flat
@@ -351,7 +372,7 @@ All user-level configuration lives in one file,
 triggers, phase policies, AGENTS.md budget, Jev, and the capability flags.
 Both triggers are disabled by default: `autoSettledLearning` runs the
 settled-task learner after a user task settles, and `autoContinualLearning`
-exposes the parent `learn_current_memory` tool so the agent can request
+exposes the parent `learn` tool so the agent can request
 current-task Memory learning once before its final answer. The retired
 `autoMemory` field is ignored. Both triggers share the `automaticPhases`
 Memory policy: `apply` writes validated changes, `propose` saves them for
@@ -368,7 +389,7 @@ review, and `off` refuses to run.
 }
 ```
 
-`/memory model` and the `/memory` settings menu merge their fields into that
+The model and settings options in `/learning` merge their fields into that
 file and preserve every other section. The retired `<agent-dir>/memory.json`
 pair and `<agent-dir>/memory/settings.json` learning fields are neither read
 nor written; they are dead files and can be deleted.
@@ -425,8 +446,8 @@ Planner children run without extensions, so the learning model must resolve from
 the static model catalog or the user's custom-provider config. Before any worker
 spawns, the parent resolves the configured or session model the same way a
 no-extensions child would; a model registered by a session extension (for example
-a proxy or routing extension) blocks learning immediately with the fix
-(`/memory model`), instead of failing the selector mid-pipeline. An unavailable
+a proxy or routing extension) blocks learning immediately with the fix (choose a static-catalog model in
+the `/learning` settings), instead of failing the selector mid-pipeline. An unavailable
 preflight does not block: the selector's own diagnostic still reports it.
 
 With `autoSettledLearning` enabled, `agent_settled` runs a deterministic
@@ -509,10 +530,10 @@ Already materialized, legacy and semantic-correction formats keep their contract
 
 An empty Memory index plus explicit human facts or preferences lets automatic
 learning route its already evidenced phases locally, without a selector model
-call. An initial `/memory <request>` likewise goes straight to Memory planning.
-The receipt marks this parent routing; planners and all validation still run.
-Nonempty indexes and ambiguous inputs retain the metadata selector, and ordinary
-manual `/consolidate` retains its reviewed routing.
+call. An initial explicit request through `/learning` likewise goes straight to
+Memory planning. The receipt marks this parent routing; planners and all
+validation still run. Nonempty indexes and ambiguous inputs retain the metadata
+selector, and ordinary maintenance retains its reviewed routing.
 With Jev enabled, normal parent Memory application requires a separate knowledge
 coverage review. New parent-selected question contract 2 separates each record's
 own completeness criteria from the unchanged whole-plan criteria. A local pass
@@ -551,7 +572,7 @@ older SDKs decline sources containing context edits. The receipt identifies the
 source session and SHA-256 digest. This does not replay the backlog or change
 automatic/incremental learning's current-task scope. With no usable evidence or
 existing Memory, full maintenance makes zero model calls and reports
-`no learning input`; use `/memory <request>` to supply knowledge directly.
+`no learning input`; use an explicit request through `/learning` to supply knowledge directly.
 
 Package-owned `prompts/*.md` protocols are bound through typed builders. Planners
 are read-only, have resource discovery disabled, and return bounded deltas or a
@@ -620,7 +641,7 @@ one-line descriptions. An unchanged index stays in place across user turns;
 changed indexes replace stale references and missing context restores discovery.
 Entry bodies are read on demand, never automatically injected. Metadata exposure
 is not proof of use or benefit; current evidence and instructions take precedence.
-Use the native `read` tool to consult relevant entries. Automatic correction revisits Memory actually read through unique successful read calls; failed or ambiguous reads do not nominate entries. Revisit is not factual evidence or permission to mutate. Explicit `/memory` requests retain their selected maintenance scope.
+Use the native `read` tool to consult relevant entries. Automatic correction revisits Memory actually read through unique successful read calls; failed or ambiguous reads do not nominate entries. Revisit is not factual evidence or permission to mutate. An explicit request through `/learning` retains its selected maintenance scope.
 
 Local non-context `memory-use-observation` entries distinguish section preparation
 from a complete body result. Complete file revisions come from the existing
@@ -657,10 +678,10 @@ available. This is a tool boundary, not a shell or filesystem sandbox.
 
 All three automatic phases default to `apply`, preserving existing behavior.
 `propose` validates and saves a private plan without changing learned files;
-`off` skips that phase. For example, `/memory policy harness propose` leaves
-automatic Memory and AGENTS.md behavior unchanged. Policies are stored in
+`off` skips that phase. For example, setting the Harness phase to `propose` from the `/learning`
+policy view leaves automatic Memory and AGENTS.md behavior unchanged. Policies are stored in
 `<agent-dir>/memory/settings.json` under `automaticPhases`, keyed by `memory`,
-`harness` and `agents`. Explicit `/consolidate` and full maintenance still apply
+`harness` and `agents`. An explicit request through `/learning` and full maintenance still apply
 validated current plans; the existing `agentsMd.disabled` setting remains
 authoritative. AGENTS extraction is saved as a proposal if it would write to
 a Memory or Harness phase configured to propose or off.
@@ -1067,11 +1088,11 @@ Complete new-Memory reviews can expose an internal `candidateReview` observation
 
 Memory generation and the existing single semantic-repair attempt now ask for relevant original citations for each body and description claim. Future-task intent alone does not establish verified current state; verification/configuration claims need their actual supporting observations. Later corrections and exceptions remain relevant, and unrelated entries are not attached automatically. Original quote, privacy, retained-identity and full-plan Jev checks still decide application. A read-only original-judge citation study improved known development from 15/16 to 16/16 and fresh heldout from 15/24 to 23/24, with zero unsafe accepts in either arm; these public synthetic results do not prove the production prompt or full workflow improves. The six real isolated Pi/Docker follow-ups finished: Jev off passed 2/3 and on passed 1/3. This did not establish workflow improvement: one on plan contained an unsupported extra claim, valid knowledge and canonical Harness rules were also held, and one off run lacked a real prohibited-command attempt. See @tests/jev-citation-guidance-r14-final-results.json. See @tests/jev-citation-repair-adoption-decision.json and @tests/jev-citation-guidance-r14-docker-manifest.json.
 
-Scopes grant participation in semantic stages, never file-write permission. Omit a stage from `scopes` to retain its legacy behavior. Pin a version for reproducibility; `jev-latest` and `jev-preview` are accepted, with the actual returned version recorded. `/memory status` reports effective model, scopes and credential availability without revealing the key. There is no `/jev` command, and command syntax and phase permissions are unchanged.
+Scopes grant participation in semantic stages, never file-write permission. Omit a stage from `scopes` to retain its legacy behavior. Pin a version for reproducibility; `jev-latest` and `jev-preview` are accepted, with the actual returned version recorded. The `/learning` settings view reports effective model, scopes and credential availability without revealing the key. There is no `/jev` command, and phase permissions are unchanged.
 
 Enabling a scope sends bounded frozen task evidence and all selected Memory content, including private metadata, bodies and candidates, to TypeSafe. There is no per-run consent and no private-review gate; the retired key is rejected as an unknown field. This never changes storage classification. Recognized credentials prevent a request. Existing privacy checks still govern every write.
 
-The integration uses `@typesafe-ai/sdk` 0.6.0. Independent Noul questions detect durable knowledge and lasting behavioral constraints; both can apply. Score questions rank metadata in the same request; selection uses the probability mass across both relevant levels, so ambiguity between two acceptable levels does not itself force fallback. Memory bodies are read only after selection. Empty-index explicit evidence keeps its local route with no semantic selector request. Disabled, missing-key, uncertain or failed selection uses the existing selector; explicit `/memory <request>` always retains Memory processing and excludes Harness and AGENTS.md.
+The integration uses `@typesafe-ai/sdk` 0.6.0. Independent Noul questions detect durable knowledge and lasting behavioral constraints; both can apply. Score questions rank metadata in the same request; selection uses the probability mass across both relevant levels, so ambiguity between two acceptable levels does not itself force fallback. Memory bodies are read only after selection. Empty-index explicit evidence keeps its local route with no semantic selector request. Disabled, missing-key, uncertain or failed selection uses the existing selector; an explicit Memory request through `/learning` always retains Memory processing and excludes Harness and AGENTS.md.
 
 After parent structure, identity and frozen-quote validation, another batch checks candidate support using the knowledge body or rule rather than administrative frontmatter/evidence bookkeeping (while scanning the full original candidate for credentials). For fully cited new Memory, the support question includes only the complete knowledge body; filenames and write/storage metadata cannot become claims requiring user evidence. Rewrite/delete/mixed batches retain the complete preservation context. This batch also checks Memory grounding and relationships against already-read bodies (Choice), and general Harness scope (Choice). For an absolute-end anchored literal block or confirmation rule, parent code proves the exact command matcher and Jev separately checks lasting user authorization and message fidelity. A confirmation rule requires the real native Allow once or Block decision for each invocation; a one-time grant cannot revoke future confirmation, and confirmation cannot weaken an unconditional ban. Plain `$`, whitespace classes and operators never qualify for that proof. Duplicates, conflicts, unsupported or uncertain candidates become proposals; an unavailable candidate judge also produces proposals. For a proved literal/family rule whose message is byte-identical to its validated original user quote, code proves wording equality and omits only the paraphrase judgment. Authorization, matcher scope, complete counterevidence and parent write checks remain mandatory; changed messages still require semantic verification. In the proved ASCII command-family grammar, literal TAB and its regex escape have identical meaning. Counterevidence review receives the exact code-proved command range, block action and original explanation; unproved regexes retain full matching review. Generated fixtures and rule identifiers do not establish user permission. No Jev answer permits a write by itself or disables existing Harness rules. Normal requests have at most 32 questions and four concurrent requests; byte capacity is delegated to the configured service. Explicit historical experiments can retain a 64,000-byte bound. For quoted new Memory candidates and parent-validated Harness citations, support uses the complete cited entries and existing bodies; a separate counterevidence review covers **every** indexed original entry. Normal requests preserve preferred 20,000-byte whole-entry windows without a local request-byte cap; explicitly bounded experiments additionally preflight every encoded request. The configured service token limits still apply. Entries are never truncated or summarized. Every review also receives the original cited support to interpret meaning and scope; later corrections still override that support. There are at most sixteen windows. The legacy and non-mutation path has at most 68 prepared logical requests, including split support requests (up to four batches per job); normal mutation review has the separate 576-request bound described below. Coverage jobs fit the applicable existing prepared bound before any transport; the existing connection-only retry permits at most 136 transport attempts. Windows are never merged based only on raw entry bytes. If a cited support entry is also in the current review window, supportEvidence.reviewEntryIndexes points to that exact original entry instead of transmitting it twice; the complete cited context remains present across both fields. All original evidence and all planned requests are checked for sensitive material and bounds and copied before the first transport. Only fully successful windows count toward coverage, and any failed, uncertain or conflicting judgment holds the entire plan. Rewrite/delete/mixed Memory plans and uncited legacy inputs retain full-evidence transport with at most four batches. Any explicit experimental wire-byte cap is not a token count; API context failures remain proposals rather than discarding possible later contradictions. A batch is atomic for this policy: one questionable candidate holds the whole plan for review. Supported supplements can be applied only under the existing apply policy. Full maintenance also checks its validated candidates; too much evidence falls back to proposals.
 
@@ -1350,7 +1371,7 @@ plugin learning net benefit. See @tests/jev-focused-requirement-manifest.json,
 
 ### Audit safety and upgrade ownership
 
-Learning workers use only the package's parent-scoped `learning_read` tool, not native read/grep/find/ls or shell tools. Incremental Memory is dossier-only; broader maintenance still checks project containment, symlinks, sensitive paths/content and read bounds. Variable Memory metadata occupies a replaceable, escaped structured prompt section beside fixed retrieval instructions. No reference message is appended for each user turn.
+Planner children receive an immutable bounded dossier inline and run with no tools. The dynamic current-source maintenance collector remains a separate parent-scoped read-only path. Incremental Memory is dossier-only; broader maintenance still checks project containment, symlinks, sensitive paths/content and read bounds. Variable Memory metadata occupies a replaceable, escaped structured prompt section beside fixed retrieval instructions. No reference message is appended for each user turn.
 
 Readable private paths remain compatible, with canonical project ownership recorded outside Memory entry roots. The first canonical project accessing an unbound legacy scope is bound automatically, preserving upgrade compatibility. This only adds an ownership binding; it never moves, rewrites or merges existing Memory or scoped Harness. Another project's binding cannot be overwritten. First-access binding cannot retrospectively prove historical legacy ownership. A colliding or malformed scoped Harness binding is diagnosed as unavailable rather than reusing another project's cached policy; global/project layers remain loaded.
 
@@ -1390,7 +1411,7 @@ Each run creates a new directory containing the frozen corpus, source hashes,
 per-case learning plans/receipts, fresh sessions, task artifacts and report.
 Do not merge exploratory, source-drifted or failed runs into the final results.
 Ordinary model `write`/`edit` calls cannot modify the current private or shared
-Memory roots; maintain knowledge through `/memory` or `/consolidate` so the parent
+Memory roots; maintain knowledge through `/learning` so the parent
 can validate it and preserve history/undo. This tool boundary is not an OS or
 shell sandbox.
 Empty scoped discovery is also explicit, including when automatic learning is

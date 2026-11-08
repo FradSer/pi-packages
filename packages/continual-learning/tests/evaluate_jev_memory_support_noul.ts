@@ -36,7 +36,7 @@ try{
   const order:('before'|'after')[]=sampleIndex%2?['after','before']:['before','after'];
   for(const arm of order){
    const observations:Observation[]=[];
-   const judge=factories[arm]({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture',defaultModel:m.model,scopes:['memory'],allowPrivateMemory:false,timeout:5000,fetch:async(url,init)=>{
+   const judge=factories[arm]({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture',defaultModel:m.model,scopes:['memory'],timeout:5000,fetch:async(url,init)=>{
     const body=String(init?.body);if(requests>=m.requestBudget||Buffer.byteLength(body)>64000)throw Error('Support research bounds');requests++;
     const request=JSON.parse(body);
     let response:Response;

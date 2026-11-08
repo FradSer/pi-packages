@@ -1038,3 +1038,31 @@ def test_actual_luna_coverage_wire_separates_request_authority_from_source_suppo
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_no_tools_worker_keeps_unsupported_provider_fail_closed() -> None:
+    # Phase 3 planner children run with --no-tools, so getActiveTools() is [].
+    # The zero-active-tool gate now engages where workerCliArgs previously
+    # suppressed it. An unknown/unsupported provider must still receive NO
+    # json_schema or json_object injection and must not admit an unvalidated
+    # plan; only explicitly verified opted-in providers get a format.
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import extension from './packages/continual-learning/extensions/planner-json-output.ts';
+      fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({plannerStructuredOutput:true}));
+      const flags={'learning-output-schema':'memory-delta','learning-citation-domain':JSON.stringify({indices:[0],refs:['e0.b0.l1']})};
+      let handler;
+      // Zero active tools is exactly what a --no-tools child exposes.
+      extension({registerFlag:()=>{},getFlag:name=>flags[name],on:(name,fn)=>{if(name==='before_provider_request')handler=fn},getActiveTools:()=>[]});
+      const payload={model:'unknown',messages:[{role:'user',content:'Return one JSON plan.'}]};
+      const rows=[];
+      for(const model of [{api:'anthropic-messages',id:'claude-x'},{api:'openai-completions',id:'gpt-unknown'},{api:'openai-responses',id:'gpt-unlisted'}]){
+        rows.push(handler({payload},{model})??null);
+      }
+      // A verified provider with the zero-tool gate still gets its schema.
+      const capable=handler({payload},{model:{api:'openai-completions',id:'bailian/qwen3.8-flash'}});
+      console.log(JSON.stringify({noInjection:rows.every(r=>r===null),capable:!!capable&&capable.response_format?.type==='json_schema',unchanged:JSON.stringify(payload)===JSON.stringify({model:'unknown',messages:[{role:'user',content:'Return one JSON plan.'}]})}));
+    ''')
+    assert value['noInjection'] is True, value
+    assert value['capable'] is True, value
+    assert value['unchanged'] is True, value

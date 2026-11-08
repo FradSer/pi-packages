@@ -24,7 +24,6 @@ interface SubsetInput {
   review?: JevCandidateReview;
   pairs: readonly PairObservation[];
   windows: number;
-  allowPrivateMemory?: boolean;
 }
 interface SubsetSimulation {
   purpose: 'research-only';
@@ -95,8 +94,7 @@ export async function simulateIndependentMemorySubset(input: SubsetInput): Promi
   // never inference or semantic support; it cannot forward external requests.
   let localRequests = 0;
   const preflight = createJevJudge({maxRequestBytes: 64_000, enabled: true, apiKey: 'fixture-only', defaultModel: 'jev-1.13.0',
-    scopes: ['memory'], allowPrivateMemory: input.allowPrivateMemory === true,
-    fetch: async () => { localRequests++; throw new Error('Offline subset preflight'); }});
+    scopes: ['memory'], fetch: async () => { localRequests++; throw new Error('Offline subset preflight'); }});
   const eligibility = await preflight.validate('memory', input.evidence, candidates, existing);
   if (!localRequests || eligibility.telemetry.evidenceWindows !== windows
     || eligibility.telemetry.evidenceEntries !== input.evidence.entries.length

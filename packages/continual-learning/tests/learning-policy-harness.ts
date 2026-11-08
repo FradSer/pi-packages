@@ -21,6 +21,9 @@ const isAgents = scenario.startsWith("agents-");
 const isManual = scenario.startsWith("manual-");
 const isRemember = scenario.startsWith("remember-");
 const isAgentMemory = scenario.startsWith("agent-memory");
+const isAgentPrivateConsent = scenario === "agent-memory-private-default";
+const fencedCoverage = process.env.CL_FENCED_COVERAGE === "1";
+const consentAccepted = false;
 const isModelFreeze = scenario === "model-freeze" || scenario === "session-model-freeze";
 const manualReplayProbe = process.env.CL_MANUAL_REPLAY_PROBE;
 let manualReplayObservation: unknown;
@@ -58,20 +61,29 @@ if (process.env.CL_JEV_FIXTURE?.startsWith("subset-name-collision")) {
   fs.mkdirSync(path.join(cwd,".memory"),{recursive:true});
   fs.writeFileSync(path.join(cwd,".memory","cache.md"),"---\nname: cache\ndescription: Cache timeout cleared on retry\ntype: project\n---\nA timeout cleared on retry.\n");
 }
-// A single malformed backlog row must not stop an agent-requested learning run.
+// Agent-requested runs get a real persisted session, like an interactive TUI.
+// One scenario deliberately corrupts the replay backlog to exercise the
+// best-effort fallback; all others verify the normal replay-bound path.
 let backlogSessionFile: string | undefined;
-if (scenario === "agent-memory-backlog-unavailable") {
+if (isAgentMemory && scenario !== "agent-memory-disabled") {
   const backlogDir = path.join(agent, "learning");
   fs.mkdirSync(backlogDir, { recursive: true });
-  fs.writeFileSync(path.join(backlogDir, "backlog.jsonl"), "{ this is not valid JSON\n");
-  const sessionsDir = path.join(agent, "sessions", "backlog-case");
+  if (scenario === "agent-memory-backlog-unavailable") {
+    fs.writeFileSync(path.join(backlogDir, "backlog.jsonl"), "{ this is not valid JSON\n");
+  }
+  const sessionsDir = path.join(agent, "sessions", "agent-case");
   fs.mkdirSync(sessionsDir, { recursive: true });
   backlogSessionFile = path.join(sessionsDir, "session.jsonl");
-  fs.writeFileSync(backlogSessionFile, JSON.stringify({type:"session",id:"backlog-case",cwd,version:3})+"\n");
+  fs.writeFileSync(backlogSessionFile, JSON.stringify({type:"session",id:"agent-case",cwd,version:3})+"\n");
 }
 fs.writeFileSync(path.join(agent, "continual-learning.json"), JSON.stringify({ ...(scenario === "model-freeze" ? { model: "old/one" } : {}), autoSettledLearning: isAgentMemory ? scenario !== "agent-memory-disabled" : !isRemember, autoContinualLearning: isAgentMemory && scenario !== "agent-memory-disabled", automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
+if (scenario === "agent-memory-selector-empty" || scenario === "agent-memory-selector-garbage") {
+  fs.writeFileSync(path.join(agent, "continual-learning.json"), JSON.stringify({
+    jev: false, autoSettledLearning: false, autoContinualLearning: true,
+    automaticPhases: { memory: "apply", harness: "off", agents: "off" } }));
+}
 const coverageRepairFixture = process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-repair-") === true;
-const quote = (process.env.CL_JEV_FIXTURE === "coverage-real-correction" || process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? `Remember that the project build convention is CL_MANUAL_SHARED.${(process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? "\n" : " "}Apply this convention only during releases.` : laterAfterMemory ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry. I prefer concise progress updates. Never run the retired compiler. The AGENTS.md workflow instruction is wrong; use pnpm test instead." : scenario === "remember-private-maintenance" ? "整理记忆" : scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
+const quote = scenario === "agent-memory-organize" ? "整理记忆" : (process.env.CL_JEV_FIXTURE === "coverage-real-correction" || process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? `Remember that the project build convention is CL_MANUAL_SHARED.${(process.env.CL_JEV_FIXTURE?.startsWith("coverage-real-invalid") || coverageRepairFixture) ? "\n" : " "}Apply this convention only during releases.` : laterAfterMemory ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry. I prefer concise progress updates. Never run the retired compiler. The AGENTS.md workflow instruction is wrong; use pnpm test instead." : scenario === "remember-private-maintenance" ? "整理记忆" : scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
 const coverageLimit = "Apply this convention only during releases.";
 const oldAgents = "- Run tests with npm test\n";
 if (isAgents || isModelFreeze || isRemember || laterAfterMemory) fs.writeFileSync(path.join(cwd,"AGENTS.md"),oldAgents);
@@ -145,6 +157,10 @@ const tamperFrozen = (dossier = false, runId?: string): void => {
 };
 const planners: string[] = [];
 const initialMemoryInputs: {noTools:boolean;hasToolAllowlist:boolean;scopedReadExtension:boolean;completeInline:boolean;inlineDossierSha256?:string}[] = [];
+// Behavioral argv capture for EVERY planner child, not just Memory. A child
+// that runs without tools must never carry a --tools allowlist, a generated
+// planner-read/preview/source-reader -e helper, or omit its inline dossier.
+const plannerArgv: {kind:string;noTools:boolean;hasToolAllowlist:boolean;generatedHelpers:string[];inlineDossier:boolean;systemPrompt:boolean}[] = [];
 const plannerSystemInstructions: boolean[] = [];
 const modelCalls: string[] = [];
 let requestCaptured = false;
@@ -206,7 +222,7 @@ mock.module("../../kit/src/index.ts", () => ({
         return {exitCode:fixtureReason === "coverage-real-invalid-failed-worker"?1:0,
           cancelled:fixtureReason === "coverage-real-invalid-cancelled-worker",usage,
           usageLedger:{knownUsage:usage,complete:fixtureReason !== "coverage-real-invalid-incomplete-usage"},
-          text:fixtureReason === "coverage-real-invalid-malformed-json"?"{":JSON.stringify(response)};
+          text:fixtureReason === "coverage-real-invalid-malformed-json"?"{":fencedCoverage?"```json\n"+JSON.stringify(response)+"\n```":JSON.stringify(response)};
       }
       throw new Error("Coverage fixture needs an explicit controlled account");
     }
@@ -334,6 +350,11 @@ mock.module("../../kit/src/index.ts", () => ({
       const usage={input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01};
       return { exitCode: 0, stderr: "", text: JSON.stringify(prompt.includes("existing structural correction slot") ? freshProjectFixture(repaired) : repaired), usage,usageLedger:{knownUsage:usage,complete:true} };
     }
+    if ((scenario === "agent-memory-selector-empty" || scenario === "agent-memory-selector-garbage") && prompt.includes("Context digest:")) {
+      selectors += 1;
+      const text = scenario === "agent-memory-selector-garbage" ? "the model rambled instead of returning JSON" : "";
+      return { exitCode: 0, stderr: "", text, usage: { input: 5416, output: 16384, cacheRead: 0, cacheWrite: 0, totalTokens: 21800, cost: 0 } };
+    }
     selectors += 1;
     if (isRemember) requestCaptured = prompt.includes(quote);
     if (isModelFreeze) {
@@ -361,13 +382,19 @@ mock.module("../../kit/src/index.ts", () => ({
     const harness = taskFile.endsWith("harness-task.md") || taskFile.endsWith("harness-repair.md");
     const harnessRepair = taskFile.endsWith("harness-repair.md");
     const agents = taskFile.endsWith("agents-task.md");
+    const kind = agents ? "agents" : harness ? "harness" : "memory";
+    const taskText = fs.readFileSync(taskFile, "utf8");
+    const generatedHelpers = args.filter(arg => typeof arg === "string" && /planner-read-|harness-preview-|source-reader/.test(arg));
+    const completeInline = taskText.includes("<<<IMMUTABLE DOSSIER>>>") || taskText.includes("End of complete Learning Dossier.");
+    plannerArgv.push({kind, noTools: args.includes("--no-tools"), hasToolAllowlist: args.includes("--tools"),
+      generatedHelpers, inlineDossier: completeInline,
+      systemPrompt: systemIndex >= 0});
     if (!agents && !harness) {
-      const taskText = fs.readFileSync(taskFile,"utf8");
       const inline = taskText.split("\n\nEnd of complete Learning Dossier.")[0].split("\n").at(-1)!;
-      initialMemoryInputs.push({noTools:args.includes("--no-tools"),hasToolAllowlist:args.includes("--tools"),scopedReadExtension:args.some(arg=>arg.includes("planner-read-")),completeInline:taskText.includes("End of complete Learning Dossier."),
+      initialMemoryInputs.push({noTools:args.includes("--no-tools"),hasToolAllowlist:args.includes("--tools"),scopedReadExtension:args.some(arg=>arg.includes("planner-read-")),completeInline,
         ...(inline.startsWith('{"kind":"incremental-learning-dossier"') ? {inlineDossierSha256:createHash("sha256").update(inline).digest("hex")} : {})});
     }
-    planners.push(agents ? "agents" : harness ? "harness" : "memory");
+    planners.push(kind);
     const identity = { version: 1, schemaVersion: 1, runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest };
     const plan = isManual ? {
       ...identity, kind: harness ? "harness-consolidation-plan" : "incremental-memory-plan", operations: [],
@@ -455,6 +482,8 @@ let consentCount = 0;
 let reviewWireCalls = 0;
 let receiptDelivered: (() => void) | undefined;
 const receiptDelivery = new Promise<void>(resolve => {receiptDelivered=resolve;});
+const resultContents: string[] = [];
+const startedSubjects: string[] = [];
 if (privateAccepted) {
   const production = await import("../extensions/jev-learning.ts");
   const productionFactory = production.createJevJudge;
@@ -482,7 +511,7 @@ if (process.env.CL_JEV_FIXTURE) {
     createJevJudge: (options?: {independentMemoryApplication?: boolean; composedMemoryApplication?: boolean}) => {
       productionJudgeOptions = options;
       if (isDeleteReconsideration || reason?.startsWith("coverage-real")) {
-        const judge=productionJudgeFactory({...options,defaultModel:fixtureJevModel,enabled:true,apiKey:"fixture",allowPrivateMemory:true,fetch:async(_url,init)=>{
+        const judge=productionJudgeFactory({...options,defaultModel:fixtureJevModel,enabled:true,apiKey:"fixture",fetch:async(_url,init)=>{
           reviewWireCalls++;const request=JSON.parse(String(init.body));
           const answers=Object.fromEntries(Object.entries(request.questions).map(([key,q])=>{
             const keys=Object.keys(q.criteria);
@@ -565,8 +594,7 @@ if (process.env.CL_JEV_FIXTURE) {
         return {telemetry,...(readiness?{readiness,readinessTelemetry:{...telemetry,strategy:"standalone-memory"}}:{}),
           review:{version:1,purpose:"diagnostic-only",complete:true,evidenceDigest:fixtureDigest(evidence),existingDigest:fixtureDigest(existing),candidatesDigest:fixtureDigest(candidates),model:review.model,pairs}};
       },
-      ...(reason.startsWith("no-entry") ? {reviewMemoryWithdrawals: productionJudgeFactory({enabled:true,apiKey:"fixture",allowPrivateMemory:true,
-        defaultModel:fixtureJevModel,fetch:async(_url,init)=>{
+      ...(reason.startsWith("no-entry") ? {reviewMemoryWithdrawals: productionJudgeFactory({enabled:true,apiKey:"fixture",defaultModel:fixtureJevModel,fetch:async(_url,init)=>{
           reviewWireCalls++;
           const request=JSON.parse(String(init.body));
           const label=reason === "no-entry-required" || reason === "no-entry-final-held" && request.state.effectiveCandidates !== undefined ? "required" : "optional";
@@ -731,10 +759,24 @@ mock.module("../extensions/worker-model-preflight.ts", () => ({
 }));
 try {
   const { default: register, resolveMemoryPaths } = await import("../extensions/inject-memory.ts");
-  if (scenario === "remember-private-maintenance" || scenario === "remember-private-request" || privateAccepted) {
+  if (scenario === "agent-memory-selector-empty" || scenario === "agent-memory-selector-garbage") {
+    // A non-empty corpus forces the legacy selector worker instead of the
+    // parent's empty-index shortcut, which is the user's real condition.
+    const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});
+    fs.writeFileSync(path.join(paths.harnessDir,"MEMORY.md"),"# Memory\n\n- [known.md](known.md) — existing knowledge\n");
+    fs.writeFileSync(path.join(paths.harnessDir,"known.md"),"---\nname: known\ndescription: Existing knowledge\ntype: project\n---\nExisting knowledge.\n");
+  }
+  if (scenario === "remember-private-maintenance" || scenario === "remember-private-request" || privateAccepted || isAgentPrivateConsent) {
     const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});
     if (scenario !== "remember-new-private-accepted") fs.writeFileSync(path.join(paths.harnessDir,"private.md"),"---\nname: private\ndescription: Local preference\ntype: feedback\n---\nLocal preference.\n");
-    fs.writeFileSync(path.join(agent,"continual-learning.json"),JSON.stringify({jev:{enabled:true,apiKey:"fixture-only",scopes:["memory"],allowPrivateMemory:false},...(JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")))}));
+    if (isAgentPrivateConsent) {
+      // The index must mark the entry private, as a real canonical root does.
+      fs.writeFileSync(path.join(paths.harnessDir,"MEMORY.md"),"# Memory\n\n- [private.md](private.md) (harness only) — Local preference\n");
+    }
+    if (!isAgentPrivateConsent) fs.writeFileSync(path.join(agent,"continual-learning.json"),JSON.stringify({jev:{enabled:true,apiKey:"fixture-only",scopes:["memory"]},...(JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")))}));
+  }
+  if (isAgentPrivateConsent) {
+    fs.writeFileSync(path.join(agent,"continual-learning.json"),JSON.stringify({jev:{enabled:true,apiKey:"fixture-only",scopes:["memory"]},...(JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")))}));
   }
   const { listLearningHistory } = await import("../extensions/learning-history.ts");
   let manualReplayManager: import("@earendil-works/pi-coding-agent").SessionManager | undefined;
@@ -745,7 +787,7 @@ try {
   const notices: string[] = [];
   register({ on: (name, fn) => hooks.set(name, [...(hooks.get(name) ?? []), fn]),
     registerCommand: (name, definition) => commands.set(name, definition.handler),
-    sendMessage: (message) => {if(message.customType==="continual-learning-result")receiptDelivered?.();}, appendEntry: (kind,data) => {if(manualReplayProbe !== "unpersisted-marker")manualReplayManager?.appendCustomEntry(kind,data);}, getCommands: () => [],
+    sendMessage: (message) => {if(message.customType==="continual-learning-result"){receiptDelivered?.();resultContents.push(String(message.content ?? ""));} if(message.customType==="learning-procedure")startedSubjects.push(String((message.details as {subject?:string}|undefined)?.subject ?? ""));}, appendEntry: (kind,data) => {if(manualReplayProbe !== "unpersisted-marker")manualReplayManager?.appendCustomEntry(kind,data);}, getCommands: () => [],
     registerEntryRenderer: () => {},
     registerTool: (tool: { name: string }) => registeredTools.set(tool.name, tool as never),
     getActiveTools: () => activeToolWrites.at(-1) ?? [], setActiveTools: (names: string[]) => { activeToolWrites = [...activeToolWrites, names]; },
@@ -766,7 +808,9 @@ try {
     {message:{role:"assistant",content:[{type:"toolCall",id:"environment",name:"bash",arguments:{command:"env"}}]}} as typeof entries[number],
     {message:{role:"toolResult",toolCallId:"environment",toolName:"bash",isError:false,
       content:"TYPESAFE_API_KEY=CL_BASH_LEARNING_SECRET_0123456789"}} as typeof entries[number]);
-  const ctx = {cwd,mode:"json",hasUI:privateAccepted,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{},confirm:async()=>{consentCount++;return true;}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries,...(backlogSessionFile?{getSessionFile:()=>backlogSessionFile!,getSessionId:()=>"backlog-case",getLeafId:()=>"leaf"}:{})}};
+  const tuiMode = process.env.CL_TUI_MODE === "1";
+  const widgetEvents: Array<{ key: string; mounted: boolean; placement?: string }> = [];
+  const ctx = {cwd,mode:tuiMode?"tui":"json",hasUI:privateAccepted||isAgentPrivateConsent||tuiMode,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:(key:string,factory:unknown,options?:{placement?:string})=>{widgetEvents.push({key,mounted:factory!==undefined,placement:options?.placement});},confirm:async()=>{consentCount++;return consentAccepted;}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries,...(backlogSessionFile?{getSessionFile:()=>backlogSessionFile!,getSessionId:()=>"backlog-case",getLeafId:()=>"leaf"}:{})}};
   if (manualReplayProbe && manualReplayProbe !== "no-session") {
     const {SessionManager} = await import("@earendil-works/pi-coding-agent");
     const sessionDir=path.join(agent,"sessions","manual-request");fs.mkdirSync(sessionDir,{recursive:true});
@@ -849,7 +893,7 @@ try {
   else if (isRemember) await commands.get("memory")!(scenario === "remember-existing-maintenance" ? "整理记忆" : quote, ctx);
   else if (isManual) await commands.get("consolidate")!(scenario === "manual-full" ? "  full  " : "", ctx);
   else if (isAgentMemory) {
-    const tool = registeredTools.get("learn_current_memory");
+    const tool = registeredTools.get("learn");
     const call = async () => tool ? await tool.execute("agent-test", {}, undefined, undefined, ctx) : undefined;
     globalThis.agentFirst = await call();
     globalThis.agentSecond = await call();
@@ -876,6 +920,10 @@ try {
   const {learningSummarySubject} = await import("../extensions/learning-efficiency.ts");
   const {learningReceiptComplete} = await import("../extensions/learning-replay.ts");
   const savedReceipt = receiptOf(path.join(paths.runsDir, "learning-pipeline-receipt.json"));
+  // A fail-closed hold must never delete credential-shaped source evidence to
+  // sneak past the screening gate. Expose whether the frozen entries still hold
+  // it, so behaviour tests can distinguish "held" from "silently scrubbed".
+  const frozenEvidenceRetainsSensitiveText = JSON.stringify(entries).includes("CL_BASH_LEARNING_SECRET_0123456789");
   const runs = (fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir).filter(name => name.startsWith("run_")) : []).map(dir => ({
     dir, files: fs.readdirSync(path.join(paths.runsDir, dir)).sort(),
     receipt: receiptOf(path.join(paths.runsDir, dir, "learning-pipeline-receipt.json")),
@@ -894,12 +942,12 @@ try {
   })) : [];
   if (isRemember) requestCaptured = runs.some(run => run.dossier?.taskSlice?.entries[run.dossier?.memoryRequest?.entryIndex]?.message?.content === quote);
   const agentOutcome = (value: { content?: Array<{ text?: string }>; details?: Record<string, unknown>; isError?: boolean } | undefined) => value === undefined ? undefined
-    : { text: value.content?.[0]?.text, status: value.details?.status, isError: value.isError === true };
-  console.log(JSON.stringify({ agentFirst: agentOutcome((globalThis as { agentFirst?: never }).agentFirst), agentSecond: agentOutcome((globalThis as { agentSecond?: never }).agentSecond), agentActiveTools: activeToolWrites, coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:!privateAccepted || JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev.allowPrivateMemory===false,newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
+    : { text: value.content?.[0]?.text, status: value.details?.status, replayBound: value.details?.replayBound, isError: value.isError === true };
+  console.log(JSON.stringify({ agentFirst: agentOutcome((globalThis as { agentFirst?: never }).agentFirst), agentSecond: agentOutcome((globalThis as { agentSecond?: never }).agentSecond), agentActiveTools: activeToolWrites, coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:(()=>{const j=JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev;return !(/^object$/.test(typeof j)&&j!==null&&'allowPrivateMemory' in j)})(),newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,plannerArgv,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
     privateFiles: fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir) : [],
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
     numericUsageLedgers: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("memory-task-usage.json")).map(name=>{const file=path.join(paths.runsDir,String(name));return {mode:fs.statSync(file).mode & 0o777,...JSON.parse(fs.readFileSync(file,"utf8"))};}) : [],
-    runs, registryReceipt: savedReceipt, receiptComplete: !!savedReceipt && learningReceiptComplete(savedReceipt),
+    runs, registryReceipt: savedReceipt, frozenEvidenceRetainsSensitiveText, receiptComplete: !!savedReceipt && learningReceiptComplete(savedReceipt),
     bodyReviewCalls, correctedKnownMemory:fs.existsSync(path.join(paths.harnessDir,"known.md"))?fs.readFileSync(path.join(paths.harnessDir,"known.md"),"utf8"):undefined, conciseMemory: fs.existsSync(path.join(paths.harnessDir,"concise.md")) ? fs.readFileSync(path.join(paths.harnessDir,"concise.md"),"utf8") : undefined, semanticRepairs, coverageRepairContracts, totalRepairs, maintenanceClaimChecks, receivedFailureHints, requiredTextChangesReceived, repairableFieldsReceived, structuralContextReceived, repairErrors,
     initialMemoryPlanDigest: lastMemoryPlan ? createHash("sha256").update(JSON.stringify(lastMemoryPlan)).digest("hex") : undefined,
     structuralRejections: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("structural-rejection.json")).map(name=>JSON.parse(fs.readFileSync(path.join(paths.runsDir,String(name)),"utf8"))) : [],
@@ -919,5 +967,6 @@ try {
     replacementMemory: fs.existsSync(path.join(paths.harnessDir,"replacement.md")) ? fs.readFileSync(path.join(paths.harnessDir,"replacement.md"),"utf8") : undefined,
     memoryMirrored: fs.existsSync(path.join(paths.harnessDir,'concise.md')) && fs.existsSync(path.join(paths.publicDir!,'concise.md')) && fs.readFileSync(path.join(paths.harnessDir,'concise.md')).equals(fs.readFileSync(path.join(paths.publicDir!,'concise.md'))),
     harnessExists:fs.existsSync(path.join(cwd,".pi","harness.json")), agentsUnchanged: !(isAgents || isRemember || laterAfterMemory) || fs.readFileSync(path.join(cwd,"AGENTS.md"),"utf8") === oldAgents, lock:fs.existsSync(paths.lockFile),
+    resultContents, widgetEvents, startedSubjects, quote,
   }));
 } finally { fs.rmSync(root,{recursive:true,force:true}); }

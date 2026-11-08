@@ -25,7 +25,6 @@ def main() -> None:
     output=Path(tempfile.mkdtemp(prefix='private-consent-',dir=parent))
     sources=[FIXTURE,Path(__file__),REPO/'packages/continual-learning/extensions/inject-memory.ts',
              REPO/'packages/continual-learning/extensions/jev-learning.ts',
-             REPO/'packages/continual-learning/extensions/memory-review-consent.ts',
              REPO/'packages/continual-learning/extensions/learning-efficiency.ts']
     hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     version=subprocess.run(['node',str(CLI),'--version'],capture_output=True,text=True,check=True).stdout.strip()

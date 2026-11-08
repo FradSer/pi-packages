@@ -35,7 +35,7 @@ const requests: Record<string, number> = { before: 0, after: 0 };
 for (const input of inputs) {
   const outcomes: Verdict[] = [];
   for (const label of ["before", "after"] as const) {
-    const judge = createJevJudge({ enabled: true, defaultModel: "jev-1.13.0", allowPrivateMemory: true, scopes: ["memory"], fetch: async (url, init) => {
+    const judge = createJevJudge({ enabled: true, defaultModel: "jev-1.13.0", scopes: ["memory"], fetch: async (url, init) => {
       const request = JSON.parse(String(init?.body));
       for (const [key, value] of Object.entries(request.questions)) {
         if (!key.startsWith("supported_")) continue;

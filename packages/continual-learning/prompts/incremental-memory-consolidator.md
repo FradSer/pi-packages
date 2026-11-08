@@ -58,8 +58,7 @@ only explicitly selected original syntax, never missing evidence or runtime fact
 Ordinary observations and explanatory context use the same cited text format.
 Keep at most 32 materialized units and 8 total citations. Keep the evidence-justified
 `safe` or `private` classification; source copying grants no sharing permission.
-Source copying requires a successful original project `read`, a parent-audited
-`learning_read`, or a contiguous range of added lines
+Source copying requires a successful original project `read` observed in the immutable dossier, a parent-audited maintenance-source evidence row marked readOnlyMaintenanceAudit, or a contiguous range of added lines
 from a successful original `edit` patch. For edits
 use patch refs (`.p`), retain every `+` marker in the evidence, and select only
 added source text supplied by that invocation; no removals, hunk/file headers or

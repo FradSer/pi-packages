@@ -7,7 +7,7 @@ def test_normal_review_requests_supported_context_without_changing_frozen_wire()
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const input=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-memory-mutation-references.json','utf8')),out=[];
       for(const mode of ['normal','disabled','bounded']){
-        const requests=[];const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,...(mode==='disabled'?{longContext:false}:{}),...(mode==='bounded'?{maxRequestBytes:64000}:{}),fetch:async(_u,init)=>{
+        const requests=[];const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,...(mode==='disabled'?{longContext:false}:{}),...(mode==='bounded'?{maxRequestBytes:64000}:{}),fetch:async(_u,init)=>{
           const wire=String(init.body),r=JSON.parse(wire);requests.push({hash:createHash('sha256').update(wire).digest('hex'),longContext:new Headers(init.headers).get('TypeSafe-Danger-Zone-Long-Context')});
           return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{const labels=Object.keys(q.criteria),choice=['compatible','grounded','consistent','independent','unrelated'].find(x=>labels.includes(x))??labels[0];return[key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(labels.map(x=>[x,+(x===choice)]))}]}))}));
         }});const result=await judge.validate('memory',input.evidence,input.candidates,input.existing,undefined,undefined,undefined,input.memorySources);out.push({mode,requests,complete:result.candidateReview?.complete});
@@ -29,7 +29,7 @@ def test_actual_capacity_failure_keeps_every_original_entry_and_semantic_holds()
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const input=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-jev-context-overflow.json','utf8')),out=[];const sha=s=>createHash('sha256').update(s).digest('hex');
       for(const mode of ['normal','disabled','uncertain']){
-        const requests=[];const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,...(mode==='disabled'?{longContext:false}:{}),fetch:async(_u,init)=>{
+        const requests=[];const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,...(mode==='disabled'?{longContext:false}:{}),fetch:async(_u,init)=>{
           const wire=String(init.body),r=JSON.parse(wire),state=typeof r.state==='string'?JSON.parse(r.state):r.state,hash=sha(wire),long=new Headers(init.headers).get('TypeSafe-Danger-Zone-Long-Context')==='true';
           const historical=JSON.parse(wire);
           const historicalState=typeof historical.state==='string'?JSON.parse(historical.state):historical.state;

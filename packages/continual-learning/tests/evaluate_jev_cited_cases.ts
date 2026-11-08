@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { createJevJudge } from "../extensions/jev-learning";
 import { normalizeNewMemoryProposals } from "../extensions/consolidation-run";
 if (!process.argv.includes("--live") || !process.env.TYPESAFE_API_KEY) throw new Error("--live and TYPESAFE_API_KEY required");
-const judge = createJevJudge({ ...(process.argv.includes("--invalidation-shadow") ? { fetch: (url: string | URL | Request, init?: RequestInit) => fetch(url, invalidationShadow(init)) } : {}), enabled: true, defaultModel: "jev-1.13.0", allowPrivateMemory: true, scopes: ["memory"] });
+const judge = createJevJudge({ ...(process.argv.includes("--invalidation-shadow") ? { fetch: (url: string | URL | Request, init?: RequestInit) => fetch(url, invalidationShadow(init)) } : {}), enabled: true, defaultModel: "jev-1.13.0", scopes: ["memory"] });
 if (!judge.enabled) throw new Error("Jev disabled; no real inference evidence");
 const rows = [];
 for (const language of ["en", "zh"] as const) {

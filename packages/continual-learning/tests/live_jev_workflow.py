@@ -6,7 +6,7 @@ Run: uv run --no-project packages/continual-learning/tests/live_jev_workflow.py
 """
 from __future__ import annotations
 
-from live_acceptance_support import workspace_pi
+from live_acceptance_support import workspace_pi, write_learning_config
 
 import json
 import hashlib
@@ -305,9 +305,12 @@ def trial(enabled: bool, base: Path, automatic: bool = False, *, scenario: dict[
     profile = scenario.get('profile', 'full') if scenario else 'full'
     project, agent, probe = prepare(base, False)
     home = base / 'home'; home.mkdir()
-    (agent / 'continual-learning.json').write_text(json.dumps({'jev': {'model': 'jev-1.13.0'} if enabled else False}))
-    learning_settings = {'autoSettledLearning': automatic, 'autoContinualLearning': False, 'automaticPhases': {'memory': 'apply', 'harness': 'apply', 'agents': 'off'}, 'agentsMd': {'disabled': True}}
-    (agent / 'memory' / 'settings.json').write_text(json.dumps(learning_settings))
+    write_learning_config(agent, {
+        'jev': {'model': 'jev-1.13.0'} if enabled else False,
+        'autoSettledLearning': automatic, 'autoContinualLearning': False,
+        'automaticPhases': {'memory': 'apply', 'harness': 'apply', 'agents': 'off'},
+        'agentsMd': {'disabled': True},
+    })
     # Public existing metadata forces real selector/fallback and body retrieval.
     shared = project / '.memory'; shared.mkdir()
     shared.joinpath('package_manager.md').write_text(SEED_MEMORY)
@@ -372,9 +375,7 @@ def trial(enabled: bool, base: Path, automatic: bool = False, *, scenario: dict[
         prompt += ' ' + scenario['freshInstructions'] + ' Execute each additional exact command separately: ' + ', '.join(f'`{command}`' for command in scenario['allowedProbes']) + '.'
     fresh_command = command[:]
     fresh_command[fresh_command.index('--session') + 1] = str(fresh)
-    settings = json.loads((agent/'memory'/'settings.json').read_text())
-    settings['autoSettledLearning'] = False
-    (agent/'memory'/'settings.json').write_text(json.dumps(settings))
+    write_learning_config(agent, {'autoSettledLearning': False})
     if scenario and scenario.get('nativeApproval'):
         fresh_native_tui(fresh_command, project, env, ready, settled, menus, prompt, scenario['allowedProbes'])
     else:

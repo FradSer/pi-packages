@@ -156,6 +156,13 @@ Feature: Consolidate artifact validator
     When I run the structured validator
     Then validation fails with an artifact identity diagnostic
 
+  Scenario: Dotted version-style Memory filenames are valid in both roots
+    Given an existing safe Memory file named "88.1-dual-wan-loadbalance-research.md"
+    And the same filename appears in the Harness private and project .memory roots
+    When I run the structured validator and the TypeScript filename guard
+    Then both accept the filename as a regular Markdown child
+    But leading dots, consecutive dots, trailing dots and path components remain rejected
+
   Scenario: Index names are recognized case-insensitively
     Given an inventory contains MEMORY.md in mixed case
     When I run the structured validator

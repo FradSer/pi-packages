@@ -1,4 +1,5 @@
 import {parse} from "@babel/parser";
+import { TOOL_NAMES } from "./tool-surface";
 import path from "node:path";
 import {createHash} from "node:crypto";
 
@@ -101,7 +102,7 @@ function sources(snapshot: unknown, cwd: string, selectedEntries: Set<number>): 
   for (const aliasesOnly of [false, true]) entries.forEach((entry, index) => {
     if (aliasesOnly && selectedEntries.has(index)) return;
     const result = message(entry);
-    if (result?.role !== "toolResult" || result.isError !== false || !["read", "learning_read"].includes(result.toolName)) return;
+    if (result?.role !== "toolResult" || result.isError !== false || !["read", TOOL_NAMES.learningRead].includes(result.toolName)) return;
     const calls = entries.flatMap((value, at) => {
       const m = message(value);return m?.role === "assistant" && Array.isArray(m.content)
         ? m.content.filter((c: any) => c?.type === "toolCall" && c.id === result.toolCallId).map((call: Node) => ({call, at})) : [];
@@ -117,7 +118,7 @@ function sources(snapshot: unknown, cwd: string, selectedEntries: Set<number>): 
     let text = typeof content === "string" ? content : Array.isArray(content) && content.length === 1 && content[0]?.type === "text" ? content[0].text : undefined;
     if (typeof text !== "string" || Buffer.byteLength(text) > MAX_SOURCE) return;
     const footer = /\n\[lines (\d+)-(\d+) of (\d+)(; byte limit reached)?\]$/.exec(text);
-    if (result.toolName === "learning_read") {
+    if (result.toolName === TOOL_NAMES.learningRead) {
       if (!footer || footer[1] !== "1" || footer[2] !== footer[3] || footer[4]) return;
       text = text.slice(0, footer.index);
       if (text.split("\n").length !== Number(footer[3])) return;

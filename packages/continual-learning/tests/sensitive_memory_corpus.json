@@ -22,7 +22,9 @@
     "passwd: <password>",
     "password: \"<password>\"",
     "apiKey: process.env.API_KEY",
-    "secret: a ? b : c"
+    "secret: a ? b : c",
+    "Auth: provider=antigravity, oauth (user@example.invalid)",
+    "{\"username\":\"admin\",\"password\":\"<pw>\"}"
   ],
   "sensitive": [
     "token: sk-test-secret",
@@ -61,6 +63,9 @@
     "{\"authorization\": \"https://login.example.com/oauth\"}",
     "{\"password\": \"https://Xq7bN2mP4kL9vR3s\"}",
     "{\"password\": \"https://Xq7bN2mP4kL9vR3s@host\"}",
-    "{\"password\": \"https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX\"}"
+    "{\"password\": \"https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX\"}",
+    "tailscale derp unavailable; secret=abcdefghijklmnop controller 127.0.0.1:9090",
+    "MAGPIE_WEB_KEY=abcdefghijklmnop",
+    "export MAGPIE_WEB_KEY=abcdefghijklmnop"
   ]
 }

@@ -1,3 +1,5 @@
+import { TOOL_NAMES } from "./tool-surface";
+
 type RecordValue = Record<string, unknown>;
 function record(value: unknown): RecordValue | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : undefined;
@@ -6,7 +8,7 @@ function message(entry: unknown): RecordValue | undefined {
   return record(record(entry)?.message) ?? record(entry);
 }
 
-const LOCAL_TOOLS = new Set(["read", "learning_read", "bash", "exec", "exec_command", "codemode", "functions.exec", "edit", "write"]);
+const LOCAL_TOOLS = new Set(["read", TOOL_NAMES.learningRead, "bash", "exec", "exec_command", "codemode", "functions.exec", "edit", "write"]);
 // The escaped project scope also recognizes isolated/custom agent directories.
 // A source filename such as memory-reader.ts is not a managed Memory surface.
 const MEMORY_SURFACE = /(?:^|[\\/\s"'`])\.memory(?=[\\/\s"'`]|$)|(?:^|[\\/\s"'`])\.pi[\\/]+agent[\\/]+memory(?=[\\/\s"'`]|$)|(?:^|[\\/\s"'`])memory[\\/]+--[^\\/"'`]+--(?=[\\/\s"'`]|$)/i;
@@ -37,7 +39,7 @@ export function memoryReferenceResults(entries: readonly unknown[]): ReadonlySet
         // Frozen invocation arguments, never candidate-provided provenance or
         // path names merely mentioned in tool-output prose.
         const args = record(call.arguments);
-        const input = ["read", "learning_read", "edit", "write"].includes(call.name)
+        const input = ["read", TOOL_NAMES.learningRead, "edit", "write"].includes(call.name)
           ? args?.path ?? args?.file_path : call.arguments;
         if (touchesMemory(input)) {
           invocations.add(`${call.name}\0${call.id}`);

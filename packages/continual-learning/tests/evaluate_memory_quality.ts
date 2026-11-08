@@ -50,7 +50,7 @@ if (mode === '--preflight-only') {
     return fetch(url,init);
   }});
   const baselineJudge = createJevJudge({enabled:true,apiKey:process.env.TYPESAFE_API_KEY,defaultModel:m.model,
-    scopes:['memory'],allowPrivateMemory:true,timeout:5000});
+    scopes:['memory'],timeout:5000});
   const rows: Record<string,unknown>[] = [];
   for (const {row,candidates,questions,state} of prepared) {
     await frozen.verify();

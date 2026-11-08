@@ -1,6 +1,18 @@
 # Continual-learning checkpoint
 
-Updated: 2026-10-30. Owns package architecture and acceptance; root CONTEXT.md is the entrypoint.
+Updated: 2026-11-04. Owns package architecture and acceptance; root CONTEXT.md is the entrypoint.
+
+Storage scope names fold whitespace and control characters into one dash; the
+2026-11-04 one-time local migration, its no-runtime-fallback boundary and the
+learning-state hygiene contract are recorded in
+`docs/adr/0011-fold-whitespace-in-private-storage-scope-names.md`.
+Pre-run mirror normalization imports tracked project-shared Memory instead of
+deleting it; the recurrence, its real-CLI reproduction and the reporting
+contract are recorded in
+`docs/adr/0012-import-project-shared-memory-during-normalization.md`.
+Pure organization now completes inside the parent with truthful evidence and
+routing reasons; see
+`docs/adr/0013-complete-pure-memory-organization-inside-the-parent.md`.
 
 ## Objective and evidence
 
@@ -24,6 +36,15 @@ and descriptions, while bodies require relevant reads. Harness owns scoped
 parent-evaluated execution conditions and guidance. AGENTS consolidation maintains
 project instructions; user-level AGENTS files are not targets.
 
+`extensions/tool-surface.ts` owns the four canonical tool names (`learn`,
+`harness_preview`, `harness_write`, `learning_read`), the parent active-tool
+transitions and the dynamic current-source collector's scoped one-read budget.
+The old worker loadouts, worker CLI allowlist and planner case tool were retired
+in Phase 4: planner children now run with `--no-tools` and a bounded inline
+dossier, and only the parent and the collector activate tools. The
+`learning_read` name survives as both the collector tool and a frozen-evidence
+marker; tool execute implementations stay in their owning modules.
+
 All user-level configuration lives in one file,
 `<agent-dir>/continual-learning.json`: the learning model (`model` as
 `provider/model` or `{provider, model}`), the learning triggers, phase policies,
@@ -31,30 +52,54 @@ the AGENTS.md budget, Jev and the capability flags. The retired
 `<agent-dir>/memory.json` and `<agent-dir>/memory/settings.json` are neither
 read nor written. Learning triggers:
 `autoSettledLearning` runs the settled-task learner after `agent_settled`, and
-`autoContinualLearning` exposes the parent `learn_current_memory` tool so the
+`autoContinualLearning` exposes the parent `learn` tool so the
 agent can request current-task Memory learning once before its answer. Both
 default off; the retired `autoMemory` field is ignored. Both share the
 `automaticPhases` Memory policy and the same parent pipeline: agent-requested
 runs use the automatic policy, floor Memory routing without supplying content,
 and never run Harness or AGENTS.md phases. A terminal agent attempt records the
 task anchor so the settled run skips Memory for that task while still processing
-Harness and AGENTS.md.
+Harness and AGENTS.md. Replay-backlog bookkeeping is best-effort for agent
+requests: a malformed backlog, a full queue, an acknowledged reference or a
+session without a persisted file never stops the learning run; only a verified
+replay identity binds the receipt for later backfill, and the tool result states
+when no replay reference exists.
+
+All Memory is reviewable by default; private (`harness only`) entries are not
+gated. `allowPrivateMemory` no longer exists: it is absent from the
+configuration schema, from `createJevJudge`, and from the Jev judge surface.
+There is no per-run authorization dialog and no consent helper. Frozen research
+source copies under `tests/fixtures/` keep their historical form unchanged.
+
+Selector resilience: `learningPlannerArgs("memory-selector")` defaults to
+`--thinking off` (operator-overridable). An empty selector decision gets a
+parent-routed minimal selection with a receipt diagnostic; a nonempty invalid
+decision stays a failure. Tool results reflect any failed phase, not just the
+last Memory attempt. Regression: `test_learning_controls.py` selector cases.
+
+Review-response parsing: `parseReviewResponse` in `memory-body-review.ts`
+accepts a single complete Markdown JSON fence for coverage and body reviews and
+is shared by the sensitive-material preflight. Malformed, multi-object or
+prose-suffixed responses stay rejected; digests bind the untouched text.
+Regressions: `tests/memory-review-fenced-response.test.ts` and the
+`remember-shared` + `CL_FENCED_COVERAGE=1` pipeline case.
 
 Planner children run without extensions, so the learning model must resolve from
 the static catalog or the user's custom-provider config. The parent preflights
 the configured or session model with the same no-extensions view and blocks with
-`/memory model` guidance when the model is extension-registered; an unavailable
-preflight itself never blocks.
+model-selection guidance through `/learning` when the model is
+extension-registered; an unavailable preflight itself never blocks.
 
-Automatic learning and default `/consolidate` use one completed Task Slice. A
-metadata selector chooses related Memory; the parent freezes the Learning Dossier,
-runs one-shot planners, validates deltas and owns mutation. Package prompts and
-typed builders own generation. Planner prose is not success. Memory must verify
-before a selected Harness phase; a later failure does not undo an earlier verified
-phase. `/consolidate full` explicitly requests whole-corpus maintenance.
-`/memory <request>` retains original evidence and actual command arguments, forces
-Memory review and excludes Harness/AGENTS. The agent tool carries no request
-text; the parent freezes the evidence and the agent cannot author Memory content. Backfill requires verified original
+Automatic learning and default current-task learning use one completed Task
+Slice. A metadata selector chooses related Memory; the parent freezes the
+Learning Dossier, runs one-shot planners with `--no-tools` and a bounded inline
+dossier, validates deltas and owns mutation. Package prompts and typed builders
+own generation. Planner prose is not success. Memory must verify before a
+selected Harness phase; a later failure does not undo an earlier verified phase.
+Whole-corpus maintenance is requested from `/learning`. An explicit request
+retains original evidence and actual command arguments, forces Memory review and
+excludes Harness/AGENTS. The `learn` tool carries no request text; the parent
+freezes the evidence and the model cannot author Memory content. Backfill requires verified original
 session references, never change-history summaries or repeated task tools.
 
 Harness layers are project personal `.pi/harness.local.json`, project shared

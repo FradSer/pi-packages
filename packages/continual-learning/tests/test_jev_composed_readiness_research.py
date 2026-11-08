@@ -53,7 +53,7 @@ def test_original_invalid_proofs_never_gain_readiness_from_new_answers() -> None
     value = isolated_run_bun(BASE + r'''
       const variants=[{...input,operations:[{op:'delete',name:'prior.md'}]},
         {...input,review:{...review,evidenceDigest:'stale'}},{...input,pairs:[]},
-        {...input,allowPrivateMemory:false},{...input,windows:2},
+        {...input,windows:2},
         {...input,review:{...review,candidates:review.candidates.map(c=>({...c,passedChecks:[]}))}}];
       console.log(JSON.stringify(await Promise.all(variants.map(v=>simulateComposedMemoryReadiness(v,standalone)))));
     ''')

@@ -1,12 +1,12 @@
 import { locatedMemoryEvidence } from "./memory-citation-locations";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { constants } from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { containsSensitiveMemoryMaterial } from "./consolidation-run";
+import { createCollectorToolSurface, TOOL_NAMES } from "./tool-surface";
 
 export interface PlannerReadScope { cwd: string; files: string[]; roots: string[]; indexedEvidence?: boolean; excludedComponents?: string[]; regularFilesOnly?: boolean; excludedPaths?: string[] }
 /** Render an already-authorized source read without changing its byte/line bound. */
@@ -134,17 +134,15 @@ export async function readPlannerFile(input: string, scope: PlannerReadScope, of
 }
 export interface PlannerReadObservation { toolCallId?: string; path: string; offset: number; limit: number; result?: string; sha256?: string; error?: string }
 export function registerPlannerRead(pi: ExtensionAPI, scope: PlannerReadScope, observe?: (read: PlannerReadObservation) => Promise<void>, maxReads?: number): void {
-  let reads = 0;
+  const surface = createCollectorToolSurface(pi, { maxReads });
   pi.registerTool({
-    name: "learning_read", label: "Read scoped evidence", description: scope.regularFilesOnly
+    name: TOOL_NAMES.learningRead, label: "Read scoped evidence", description: scope.regularFilesOnly
       ? "Read a parent-approved regular text file. Directories are refused; use the parent source inventory for discovery. Paths outside the frozen scope, symlinks and sensitive files are refused. Use offset/limit to page."
       : "Read a parent-approved regular text file or list an approved directory. Paths outside the frozen scope, symlinks and sensitive files are refused. Use offset/limit to page.",
     parameters: Type.Object({ path: Type.String(), offset: Type.Optional(Type.Integer({minimum:1})), limit: Type.Optional(Type.Integer({minimum:1,maximum:2000})) }),
     async execute(_id, params, signal, _onUpdate, ctx) {
       const read = {toolCallId: _id, path: path.resolve(scope.cwd, params.path), offset: params.offset ?? 1, limit: params.limit ?? 200};
-      reads += 1;
-      if (maxReads !== undefined && reads >= maxReads) pi.setActiveTools([]);
-      if (maxReads !== undefined && reads > maxReads) {
+      if (surface.noteRead()) {
         await observe?.({...read, error: "Source audit read budget exceeded"});
         ctx?.abort();
         throw new Error("Source audit read budget exceeded");
@@ -163,25 +161,6 @@ export function registerPlannerRead(pi: ExtensionAPI, scope: PlannerReadScope, o
       return {content:[{type:"text", text: snapshot.text}], details:{}};
     },
   });
-  pi.on("before_provider_request", (event, ctx) => {
-    if (maxReads === undefined || reads < maxReads || ctx.model?.api !== "openai-completions"
-      || pi.getActiveTools().length !== 0) return;
-    const payload = event.payload;
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
-    const request = payload as Record<string, unknown>;
-    if (!Array.isArray(request.messages) || request.tools !== undefined
-      && (!Array.isArray(request.tools) || request.tools.length !== 0)) return;
-    // Past tool calls remain as evidence; an empty definition list alone can
-    // still make some providers request unavailable tools repeatedly.
-    return {...request, tool_choice: "none"};
-  });
-  pi.on("session_start", async () => { pi.setActiveTools(["learning_read"]); });
-}
-/** Explicit extension is loaded even with -ne; no native filesystem tool is
- * granted. The extension's only operation enforces the parent-owned policy. */
-export async function plannerReadArgs(directory: string, scope: PlannerReadScope): Promise<string[]> {
-  const extension = path.join(directory, `planner-read-${randomUUID()}.mjs`);
-  const module = fileURLToPath(import.meta.url);
-  await fs.writeFile(extension, `import { registerPlannerRead } from ${JSON.stringify(module)};\nexport default pi => registerPlannerRead(pi, ${JSON.stringify(scope)});\n`, {mode:0o600, flag:"wx"});
-  return ["-e", extension];
+  pi.on("before_provider_request", (event, ctx) => surface.beforeProviderRequest(event, ctx));
+  pi.on("session_start", async () => { surface.sessionStart(); });
 }

@@ -34,9 +34,11 @@ for (const kind of ["citations", "body", "description", "retained-only", "mixed-
     assert.equal(result.registryReceipt.attempts.filter((attempt: any) => attempt.usage?.cost === .004).length, 1);
     if (["retained-only", "mixed-retained"].includes(kind)) {
       assert.ok(result.correctedKnownMemory.endsWith("Existing knowledge.\n"));
-      // The initial safe mirror synchronization predates this review.
-      assert.equal(result.history.filter((record: any) => record.status === "applied").length, 1);
-      assert.ok(result.history.every((record: any) => record.status === "applied" || record.changes.length === 0));
+      // An already-identical safe mirror needs no write: normalization must not
+      // stage unchanged bodies into a WAL or record an applied mutation. A held
+      // proposal with no changes is still allowed to remain for inspection.
+      assert.equal(result.history.filter((record: any) => record.status === "applied").length, 0);
+      assert.ok(result.history.every((record: any) => record.changes.length === 0));
     }
   });
 }

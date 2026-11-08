@@ -19,7 +19,7 @@ const transport=async(_url,init)=>{
   answers:{[ready?'ready':'relation']:result},usage:{input_tokens:10,output_tokens:3}}));
 };
 const make=(extra=true)=>createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',
- scopes:['memory'],allowPrivateMemory:true,independentMemoryApplication:true,composedMemoryApplication:extra,fetch:transport});
+ scopes:['memory'],independentMemoryApplication:true,composedMemoryApplication:extra,fetch:transport});
 '''
 
 
@@ -74,12 +74,9 @@ def test_all_original_candidates_are_reviewed_with_bounded_concurrency() -> None
     assert all(len(s['originalCandidates']) == 5 for s in value['states'])
 
 
-def test_stale_original_review_and_private_denial_send_no_extra_requests() -> None:
+def test_stale_original_review_sends_no_extra_requests() -> None:
     value = isolated_run_bun(BASE + r'''
       const results=[await make().reviewMemoryRelations(evidence,candidates,existing,{...review,evidenceDigest:'stale'})];
-      const denied=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],
-        allowPrivateMemory:false,independentMemoryApplication:true,composedMemoryApplication:true,fetch:transport});
-      results.push(await denied.reviewMemoryRelations(evidence,candidates,existing,review));
       console.log(JSON.stringify({results,calls:calls.length}));
     ''')
     assert value['calls'] == 0
@@ -92,7 +89,7 @@ def test_extra_requests_cannot_expand_the_five_second_budget() -> None:
       const original=TypeSafeClient.prototype.systemOne,timeouts=[];
       TypeSafeClient.prototype.systemOne=function(request,options){timeouts.push(options?.timeout);return original.call(this,request,options)};
       const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],
-        allowPrivateMemory:true,independentMemoryApplication:true,composedMemoryApplication:true,timeout:90000,fetch:transport});
+        independentMemoryApplication:true,composedMemoryApplication:true,timeout:90000,fetch:transport});
       await judge.reviewMemoryRelations(evidence,candidates,existing,review);
       console.log(JSON.stringify(timeouts));
     ''')

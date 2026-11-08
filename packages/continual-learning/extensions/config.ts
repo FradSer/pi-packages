@@ -254,7 +254,6 @@ export interface JevLearningConfig {
   model: string;
   /** Grants semantic participation only, never file-write authority. */
   scopes: JevStage[];
-  allowPrivateMemory?: boolean;
   requestConcurrency?: number;
   /** Normal complete reviews request the service long context unless disabled. */
   longContext?: boolean;
@@ -278,11 +277,10 @@ export function readJevConfigState(): JevConfigState {
     if (jev === false) return { disabled: true };
     if (jev !== true && (!jev || typeof jev !== "object" || Array.isArray(jev))) return { invalid: "invalid-config" };
     const value = (jev === true ? {} : jev) as Record<string, unknown>;
-    if (Object.keys(value).some(key => !["model", "scopes", "enabled", "allowPrivateMemory", "requestConcurrency", "longContext", "apiKey"].includes(key))
+    if (Object.keys(value).some(key => !["model", "scopes", "enabled", "requestConcurrency", "longContext", "apiKey"].includes(key))
       || (value.enabled !== undefined && typeof value.enabled !== "boolean")
       || (value.apiKey !== undefined && (typeof value.apiKey !== "string" || !value.apiKey.trim()))
       || (value.longContext !== undefined && typeof value.longContext !== "boolean")
-      || (value.allowPrivateMemory !== undefined && typeof value.allowPrivateMemory !== "boolean")
       || (value.requestConcurrency !== undefined && (!Number.isSafeInteger(value.requestConcurrency) || Number(value.requestConcurrency) < 1 || Number(value.requestConcurrency) > 4))) return { invalid: "invalid-config" };
     const model = value.model ?? "jev-1.13.0";
     const scopes = value.scopes ?? ["selection", "memory", "harness"];
@@ -291,7 +289,7 @@ export function readJevConfigState(): JevConfigState {
       || !scopes.every(scope => ["selection", "memory", "harness"].includes(scope))
       || new Set(scopes).size !== scopes.length) return { invalid: "invalid-config" };
     if (value.enabled === false) return { disabled: true };
-    return { config: { model, scopes: scopes as JevStage[], allowPrivateMemory: value.allowPrivateMemory === true,
+    return { config: { model, scopes: scopes as JevStage[],
       ...(typeof value.longContext === "boolean" ? {longContext: value.longContext} : {}),
       ...(typeof value.requestConcurrency === "number" ? {requestConcurrency: value.requestConcurrency} : {}),
       ...(typeof value.apiKey === "string" ? { apiKey: value.apiKey } : {}) } };

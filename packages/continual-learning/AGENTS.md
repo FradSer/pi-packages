@@ -204,7 +204,9 @@ complete write, readback and fresh-session revision delivery. `--real-model`
 repeats the original `/harness 避免后续 D0 的流量被打爆` request with the configured
 provider and records every call and reported cost without accessing D0. Admit
 `harness_preview` explicitly when using a CLI tool allowlist; the command activates
-this read-only tool and authoring completion removes it. Keep plain positive,
+this read-only tool for the authoring request and subsequent follow-up turns.
+Session lifecycle resets remove it; an accepted preview is consumed on write.
+Keep plain positive,
 unrelated-action, same-action/different-resource and near-name negatives. A
 syntax-valid selector, saved file or delivered guidance alone does not establish
 scope correctness or enforced traffic limits. Preserve failed runs, including

@@ -42,6 +42,30 @@ def test_explicit_request_is_grounded_applied_and_memory_only(scenario: str) -> 
     assert len(dossiers) == 1 and dossiers[0]["memoryRequest"] == {"entryIndex": 1}, result
 
 
+def test_applied_safe_memory_reaches_the_expandable_result_without_changing_the_receipt() -> None:
+    # Given an applied safe Memory entry, When the parent reports the result,
+    # Then the terminal-only expansion carries its filename and body, while
+    # the stored receipt (and therefore the model context) stays unchanged.
+    result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "remember-shared")
+    contents = result["resultContents"]
+    assert contents, contents
+    delivered = contents[-1]
+    assert "generated Memory" in delivered, delivered
+    assert "concise.md" in delivered, delivered
+    assert "CL_MANUAL_SHARED" in delivered, delivered
+    import json
+    receipt_text = json.dumps(result["registryReceipt"])
+    assert "CL_MANUAL_SHARED" not in receipt_text, "receipt must not carry Memory bodies"
+    assert "generated Memory" not in receipt_text
+
+
+def test_applied_private_memory_is_never_in_the_expandable_result() -> None:
+    # Given an applied private Memory entry, When the parent reports the result,
+    # Then no terminal expansion body is emitted (privacy gate is parent-owned).
+    result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "manual-full")
+    assert all("generated Memory" not in content for content in result["resultContents"]), result["resultContents"]
+
+
 def test_secret_request_does_not_launch_workers_or_repeat_secret() -> None:
     result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "remember-secret")
     assert result["selectors"] == 0 and result["planners"] == [], result
@@ -50,22 +74,23 @@ def test_secret_request_does_not_launch_workers_or_repeat_secret() -> None:
     assert result["privateFiles"] == [] and result["publicFiles"] == []
 
 
-def test_sensitive_tool_observation_keeps_a_safe_pre_generation_failure_reason() -> None:
+def test_sensitive_tool_observation_does_not_stop_learning() -> None:
     import json
-    # Given a valid request whose original tool evidence contains a credential,
-    # When the Memory worker refuses setup, Then retain a safe reason and zero
-    # generation calls without deleting evidence or opening later planners.
+    # Given frozen tool evidence containing a credential-shaped value, When the
+    # parent runs learning, Then the normal planner handles the evidence and the
+    # validated plan is applied. The credential text stays out of the receipt
+    # and out of any written Memory body.
     result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "remember-shared",
-                            env={"CL_STARTUP_SECRET_OBSERVATION":"1"})
+                            env={"CL_STARTUP_SECRET_OBSERVATION": "1"})
     receipt = result["registryReceipt"]
-    attempt = next(item for item in receipt["attempts"] if item["phase"] == "memory")
-    assert attempt["outcome"] == "failed" and attempt["operations"] == 0
-    assert attempt["diagnostic"] == "Memory worker setup refused sensitive frozen evidence; no planner started."
-    assert attempt["modelCalls"] == 0 and attempt["usage"]["totalTokens"] == 0
-    assert result["planners"] == [] and not result["harnessExists"]
+    assert not any("sensitive" in reason for reason in receipt["screen"]["reasons"]), receipt
+    assert result["planners"], result["planners"]
     assert "CL_BASH_LEARNING_SECRET_0123456789" not in json.dumps(receipt)
-    assert any("CL_BASH_LEARNING_SECRET_0123456789" in json.dumps(run.get("dossier")) for run in result["runs"])
-    assert "concise.md" not in result["privateFiles"] and result["lock"] is False
+    assert result["frozenEvidenceRetainsSensitiveText"] is True
+    assert result["lock"] is False
+    assert result["privateFiles"], "the validated plan should still apply its learned change"
+    applied_body = result.get("conciseMemory") or ""
+    assert "CL_BASH_LEARNING_SECRET_0123456789" not in applied_body, applied_body
 
 
 def test_invalid_evidence_cannot_save_a_memory() -> None:

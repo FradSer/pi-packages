@@ -321,7 +321,7 @@ def test_memory_counterevidence_judges_content_without_write_metadata() -> None:
       let counterMeanings=[];
       const source='For future personal reports, always end with PUBLIC_SYNTHETIC_SIGNOFF.';
       const candidate={name:'report.md',kind:'preference',classification:'private',content:source,evidence:[{index:0,role:'user',quote:source}]};
-      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const counter=key.startsWith('counter_');if(counter)counterMeanings.push(q.instructions.candidate);
@@ -423,7 +423,7 @@ def test_cited_new_memory_support_judges_only_body_and_keeps_privacy_preflight()
       const candidate={name:'report.md',kind:'preference',classification:'private',content:source,evidence:[{index:0,role:'user',quote:source}]};
       const snapshot={contextEnabled:true,entries:[{role:'user',content:source}]};
       let calls=0,meanings=[];
-      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         calls++;const req=JSON.parse(init.body);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const support=key.startsWith('supported_');if(support)meanings.push(q.instructions.candidate);
@@ -440,7 +440,7 @@ def test_cited_new_memory_support_judges_only_body_and_keeps_privacy_preflight()
     assert result['meanings'] == [{'content': 'For future personal reports, always end with PUBLIC_SYNTHETIC_SIGNOFF.'}]
     assert result['sensitive']['telemetry']['reason'] == 'sensitive'
     assert result['sensitiveCalls'] == 0
-    assert result['privateDenied']['telemetry']['reason'] == 'private-memory-denied'
+    assert result['privateDenied']['telemetry']['reason'] != 'private-memory-denied'
 
 
 def test_single_executable_family_proves_only_matching_and_retains_semantic_holds() -> None:

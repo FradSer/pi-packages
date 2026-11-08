@@ -206,8 +206,11 @@ def test_selector_uses_metadata_only_accepts_all_related_and_writes_each_body_on
     assert len(result["selected"]) == 10
     assert result["tools"] == []
     assert result["minimal"] is True
-    assert result["systemArgs"][0] == "--append-system-prompt"
-    assert "untrusted evidence" in result["systemArgs"][1]
+    # The metadata-only selector now defaults to off thinking so its output
+    # budget reaches the JSON decision; the system prompt follows that flag.
+    args = result["systemArgs"]
+    assert args[:2] == ["--thinking", "off"], args[:2]
+    assert args[2] == "--append-system-prompt" and "untrusted evidence" in args[3]
     assert "Related selector fact 0" in result["prompt"]
     assert "classification" in result["prompt"]
     assert '"type":"feedback"' in result["prompt"]

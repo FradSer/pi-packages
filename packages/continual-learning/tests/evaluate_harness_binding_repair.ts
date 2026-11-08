@@ -49,7 +49,7 @@ if(mode==='--preflight-only'){
  let verdict:unknown;
  if(checked.category==='ready'){
   const parentScope:BoundScopeContext=Object.freeze({repoRoot:manifest.cwd,runId:manifest.runId,scopeKey:manifest.scopeKey,evidenceDigest:hash(JSON.stringify(snapshot))});
-  verdict=await createJevJudge({enabled:true,apiKey:process.env.TYPESAFE_API_KEY,defaultModel:'jev-1.13.0',scopes:['harness'],allowPrivateMemory:true,timeout:5000}).validate('harness',snapshot,checked.plan.operations as unknown[],[],undefined,checked.plan.evidence,parentScope);
+  verdict=await createJevJudge({enabled:true,apiKey:process.env.TYPESAFE_API_KEY,defaultModel:'jev-1.13.0',scopes:['harness'],timeout:5000}).validate('harness',snapshot,checked.plan.operations as unknown[],[],undefined,checked.plan.evidence,parentScope);
  }
  await verify();
  await fs.writeFile(input.output,JSON.stringify({evidence:'real-native-repair-generation-and-jev-on-frozen-original',nativeOutputSha256:hash(stdout),parentCategory:checked.category,mainUsage:worker.usage,verdict,productionWrites:0,limits:['One known original input; not heldout or full-workflow quality.','Retention comparison follows existing contract independently; no parent mutation queue or apply invoked.']})+'\n');

@@ -25,7 +25,7 @@ if (process.argv.includes("--preflight-only")) { console.log(JSON.stringify({ ch
 if (!process.env.TYPESAFE_API_KEY) throw new Error("Key required for real inference");
 const rows = [];
 for (const input of inputs) {
-  const common = { enabled: true, defaultModel: "jev-1.13.0", allowPrivateMemory: true, scopes: ["memory"] as const };
+  const common = { enabled: true, defaultModel: "jev-1.13.0", scopes: ["memory"] as const };
   // Paired transport experiment: only the support context field is removed.
   // Complete evidence windows and current capacity remain identical.
   const beforeJudge = createJevJudge({ ...common, scopes: [...common.scopes], fetch: async (url, init) => {

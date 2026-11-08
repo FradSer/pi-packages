@@ -29,11 +29,17 @@ def test_empty_memory_discovery_is_explicit_with_or_without_an_empty_index(tmp_p
         assert 'do not search guessed or alternative Memory locations' in ' '.join(result[state]['guidance'])
         protocol = result[state]['sections']['project_memory_protocol']
         assert "Respect the task's read and write scope" in protocol
-        assert 'these are Pi input commands, not shell tools' in protocol
+        # Single-learn-tool: the disabled branch names the learn tool's state
+        # instead of pointing users at the retired /memory, /consolidate,
+        # /harness commands. The enabled branch keeps the Pi-input note.
+        assert 'The learn tool is registered but disabled by settings' in protocol
+        assert 'explicit learning request reports that state' in protocol
+        assert 'never a suggestion to type /memory' not in protocol
         assert 'The parent performs automatic maintenance when enabled' in protocol
         assert 'Memory retrieval alone does not authorize configuration discovery or launching another agent' in protocol
         assert 'those need separate task authorization' in protocol
         assert 'Maintain knowledge through /memory or /consolidate.' not in protocol
+        assert '/memory or /consolidate' not in protocol
     assert result['missing'] == result['emptyIndex']
 
 
@@ -49,10 +55,14 @@ def test_automatic_learning_owns_durable_writes_and_remember_does_not_expand_tas
       const options={{sections:{{}}}};await hooks.get('before_agent_start')({{systemPromptOptions:options}},{{cwd,ui:{{notify(){{}}}}}});
       console.log(JSON.stringify(options.sections));
     ''',env={'PI_CODING_AGENT_DIR':str(tmp_path / 'agent')})
-    guidance = result['project_memory_auto_learning']
+    guidance = ' '.join(result['project_memory_auto_learning'].split())
     assert 'The parent validates and writes them' in guidance
     assert '"remember" does not authorize writing Memory, Harness, AGENTS.md' in guidance
     assert 'PI.md or agent configuration, or probing enforcement' in guidance
     assert 'explicit authoring requests take precedence' in guidance
-    assert "Respect the task's read and write scope" in result['project_memory_protocol']
-    assert 'these are Pi input commands, not shell tools' in result['project_memory_protocol']
+    protocol = result['project_memory_protocol']
+    assert "Respect the task's read and write scope" in protocol
+    # autoContinualLearning is false here, so the protocol uses the disabled
+    # single-learn-tool branch (no retired slash-command suggestions).
+    assert 'The learn tool is registered but disabled by settings' in protocol
+    assert 'never a suggestion to type /memory' not in protocol

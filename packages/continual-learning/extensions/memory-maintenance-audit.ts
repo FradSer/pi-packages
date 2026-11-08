@@ -8,6 +8,7 @@ import { runPiWorker, type PiWorkerUsage, type PiWorkerResult, type PiWorkerTerm
 import { MAX_MEMORY_BYTES, readBoundedRegularFile, writeFileAtomic } from "./consolidation-run";
 import { memoryWorkerEnvironment } from "./memory-worker-environment";
 import { discoverPlannerSources, readPlannerFileSnapshot, type PlannerReadObservation, type PlannerReadScope } from "./planner-read-scope";
+import { TOOL_NAMES } from "./tool-surface";
 import type {MemoryMetadata} from "./incremental-learning";
 
 const MAX_AUDIT_BYTES = 512_000;
@@ -184,7 +185,7 @@ export async function auditMemoryMaintenanceSources(input: {
     ...(unavailableEditPaths.length ? ["sourceIndex.unavailableEditPaths are unavailable edited-path discovery hints, not verified absence claims or source facts. They are outside readScope: do not read them. Inspect the remaining exact approved current source paths."] : []),
     JSON.stringify({request: input.request, cwd: input.cwd, memoryFiles: input.memoryFiles, memoryIndex, untrustedMemoryClaims, sourceIndex, readScope, observationsPath, replayPaths: input.replayPaths ?? []}),
   ].join("\n");
-  const result: PiWorkerResult = await runPiWorker({prompt, cwd: input.cwd, tools: ["learning_read"], minimal: true,
+  const result: PiWorkerResult = await runPiWorker({prompt, cwd: input.cwd, tools: [TOOL_NAMES.learningRead], minimal: true,
     model: input.model, signal: input.signal, env: memoryWorkerEnvironment(), extraArgs: ["-e", extension]})
     .catch(() => ({exitCode: 1, text: "", stderr: "", cancelled: input.signal?.aborted, usage: undefined}));
   const hashes = new Map<string, string>();
@@ -224,8 +225,8 @@ export async function auditMemoryMaintenanceSources(input: {
       if (exact.sha256 !== read.sha256 || hashes.has(file) && hashes.get(file) !== read.sha256) throw new Error("Audit source revision changed between reads");
       hashes.set(file, exact.sha256);
       const id = `maintenance-source-${nonce}-${index}`;
-      entries.push({type: "message", message: {role: "assistant", content: [{type: "toolCall", id, name: "learning_read", arguments: {path: file, offset: read.offset, limit: read.limit}}]}},
-        {type: "message", message: {role: "toolResult", toolCallId: id, toolName: "learning_read", isError: false, content: [{type: "text", text: read.result}], details: {sourcePath: file, sourceSha256: hashes.get(file), readOnlyMaintenanceAudit: true}}});
+      entries.push({type: "message", message: {role: "assistant", content: [{type: "toolCall", id, name: TOOL_NAMES.learningRead, arguments: {path: file, offset: read.offset, limit: read.limit}}]}},
+        {type: "message", message: {role: "toolResult", toolCallId: id, toolName: TOOL_NAMES.learningRead, isError: false, content: [{type: "text", text: read.result}], details: {sourcePath: file, sourceSha256: hashes.get(file), readOnlyMaintenanceAudit: true}}});
     }
   } catch { valid = false; }
   const assertClaimsUnchanged = async (): Promise<void> => {

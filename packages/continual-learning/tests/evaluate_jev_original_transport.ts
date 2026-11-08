@@ -31,7 +31,7 @@ const checked=checkFrozenHarnessRepair(stdout,original,options);if(checked.categ
 if(!Array.isArray(checked.plan.operations))throw Error('Original operations invalid');
 const parentScope=Object.freeze({repoRoot:manifest.cwd,runId:manifest.runId,scopeKey:manifest.scopeKey,evidenceDigest:hash(JSON.stringify(snapshot))});
 const exactHashes:string[]=[];
-const config={enabled:true,baseURL:endpoint,defaultModel:'jev-1.13.0',scopes:['harness' as const],allowPrivateMemory:true,timeout:arm.timeout,retry:{maxRetries:0},logLevel:'off' as const};
+const config={enabled:true,baseURL:endpoint,defaultModel:'jev-1.13.0',scopes:['harness' as const],timeout:arm.timeout,retry:{maxRetries:0},logLevel:'off' as const};
 // Reconstruct the whole current SDK collection before releasing any paid fetch.
 const preSend=await createJevJudge({...config,apiKey:'fixture-only',fetch:async(url,init)=>{
  if(String(url)!==endpoint+'/v1/systemone')throw Error('Frozen original endpoint changed');

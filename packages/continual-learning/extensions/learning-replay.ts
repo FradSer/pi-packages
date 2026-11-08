@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { readBacklog, acknowledgeBacklog, backlogIdentity, safeBacklogStorage, readBoundedBacklogFile, withBacklogLock, type BacklogEntry } from "./learning-backlog";
+import { readBacklog, acknowledgeBacklog, backlogIdentity, safeBacklogStorage, pruneEmptyLearningScope, readBoundedBacklogFile, withBacklogLock, type BacklogEntry } from "./learning-backlog";
 import { recentProjectLearningInput, resolveManualMemoryRequest } from "./learning-input";
 import { currentTaskSlice } from "./incremental-learning";
 import { sha256Digest, writeFileAtomic, type MemoryCommandPhaseInvocation } from "./consolidation-run";
@@ -85,7 +85,6 @@ export function beginBacklogAttempt(cwd: string, entry: BacklogEntry, agentDir =
     const backlog = readBacklog(cwd, agentDir);
     if (backlog.error || backlog.malformed || !backlog.pendingEntries.some(({entry: pending}) => backlogIdentity(paths.scopeKey, pending) === id)) return false;
     const file = path.join(paths.agentDir, "learning", paths.scopeKey, `replay-${id}.json`);
-    safeBacklogStorage(file, paths.agentDir, true);
     const state = readReplayState(file);
     const last = state.attempts.at(-1);
     if (last?.outcome === "completed" && last.receipt && learningReceiptComplete(last.receipt)) {
@@ -96,6 +95,7 @@ export function beginBacklogAttempt(cwd: string, entry: BacklogEntry, agentDir =
     state.attempts.push({at:new Date().toISOString(), outcome:"running", ...(inputSource ? {sourceBinding:sourceBinding(inputSource)} : {})});
     const text = JSON.stringify(state);
     if (Buffer.byteLength(text) > 256_000) return false;
+    safeBacklogStorage(file, paths.agentDir, true);
     const temporary = `${file}.${randomUUID()}.tmp`;
     try {
       fs.writeFileSync(temporary, text, {flag:"wx",mode:0o600});
@@ -115,7 +115,6 @@ export function recordBacklogAttempt(cwd: string, entry: BacklogEntry, receipt: 
     const paths = resolveMemoryPaths(cwd, agentDir);
     if (!receiptOwnerRangeMatches(receipt, entry, backlogIdentity(paths.scopeKey, entry))) return false;
     const file = path.join(paths.agentDir, "learning", paths.scopeKey, `replay-${backlogIdentity(paths.scopeKey, entry)}.json`);
-    safeBacklogStorage(file, paths.agentDir, true);
     const state = readReplayState(file);
     const binding = state.attempts.at(-1)?.sourceBinding;
     if (!receiptSourceMatches(receipt, binding)) return false;
@@ -127,6 +126,7 @@ export function recordBacklogAttempt(cwd: string, entry: BacklogEntry, receipt: 
     state.nextAttemptAt = Date.now() + Math.min(24 * 60 * 60_000, 60_000 * 2 ** state.attempts.length);
     const text = JSON.stringify(state);
     if (Buffer.byteLength(text) > 256_000) return false;
+    safeBacklogStorage(file, paths.agentDir, true);
     const temporary = `${file}.${randomUUID()}.tmp`;
     try {
       fs.writeFileSync(temporary, text, {flag:"wx",mode:0o600});
@@ -162,6 +162,7 @@ export function claimLearningLease(cwd: string, agentDir = getAgentDir()): (() =
     safeBacklogStorage(lease, paths.agentDir);
     const owner = JSON.parse(readBoundedBacklogFile(lease, 4096));
     if (owner.token === token) fs.unlinkSync(lease);
+    pruneEmptyLearningScope(paths.agentDir, paths.scopeKey);
   };
 
 }
@@ -190,7 +191,7 @@ export async function replayLearningBacklog(input: {
       const id = backlogIdentity(paths.scopeKey, entry);
       if (attempted.has(id)) continue;
       const file = path.join(directory, `replay-${id}.json`);
-      safeBacklogStorage(file, paths.agentDir, true);
+      safeBacklogStorage(file, paths.agentDir);
       const last = readReplayState(file).attempts.at(-1);
       if (last?.outcome !== "completed" || !last.receipt || !learningReceiptComplete(last.receipt)) continue;
       if (!acknowledgeReplayCompletion(input.cwd, entry, last.receipt, backlog, agentDir, last.sourceBinding)) throw new Error("Could not acknowledge replay");
@@ -206,7 +207,7 @@ export async function replayLearningBacklog(input: {
       let id = backlogIdentity(paths.scopeKey, entry);
       if (attempted.has(id)) continue;
       let file = path.join(directory, `replay-${id}.json`);
-      safeBacklogStorage(file, paths.agentDir, true);
+      safeBacklogStorage(file, paths.agentDir);
       let state = readReplayState(file);
       if (state.attempts.length >= 16 || (!input.force && (state.attempts.length >= 3 || state.nextAttemptAt > Date.now()))) {
         outcomes.push({id,outcome:"deferred"}); continue;
@@ -234,7 +235,7 @@ export async function replayLearningBacklog(input: {
         const otherId = backlogIdentity(paths.scopeKey, other);
         if (attempted.has(otherId)) return [];
         const otherFile = path.join(directory, `replay-${otherId}.json`);
-        safeBacklogStorage(otherFile, paths.agentDir, true);
+        safeBacklogStorage(otherFile, paths.agentDir);
         const otherState = readReplayState(otherFile);
         const deferred = otherState.attempts.length >= 16 || (!input.force && (otherState.attempts.length >= 3 || otherState.nextAttemptAt > Date.now()));
         const candidate = currentTaskSlice(source.contextEntries!.slice(other.from, other.to + 1));

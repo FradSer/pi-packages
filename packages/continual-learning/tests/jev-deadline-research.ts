@@ -1,8 +1,7 @@
 /** Research only: deadlines do not change wire evidence, thresholds or authority. */
 export function deadlineResearchOptions(arm:string) {
  if(arm!=='before'&&arm!=='after')throw Error('Invalid research arm');
- return {enabled:true,defaultModel:'jev-1.13.0',baseURL:'https://api.typesafe.ai',scopes:['harness' as const],allowPrivateMemory:false,
-  timeout:arm==='before'?5000:15000,retry:{maxRetries:0},logLevel:'off' as const};
+ return {enabled:true,defaultModel:'jev-1.13.0',baseURL:'https://api.typesafe.ai',scopes:['harness' as const],timeout:arm==='before'?5000:15000,retry:{maxRetries:0},logLevel:'off' as const};
 }
 /** Consume one original occurrence before any paid transport, including duplicates. */
 export function claimFrozenRequestHash(remaining:string[],digest:string):void {

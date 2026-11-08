@@ -11,7 +11,7 @@ const samples: Sample[] = JSON.parse(await fs.readFile(new URL(expanded ? "./fix
 const live = process.argv.includes("--live");
 // Only this checked-in public synthetic corpus contains preference candidates
 // that parent normalization marks private. Never load real private entries.
-const judge = live ? createJevJudge({ enabled: true, defaultModel: "jev-1.13.0", scopes: ["selection", "memory", "harness"], ...(holdout ? { allowPrivateMemory: true } : {}) }) : undefined;
+const judge = live ? createJevJudge({ enabled: true, defaultModel: "jev-1.13.0", scopes: ["selection", "memory", "harness"], ...(holdout ? {} : {}) }) : undefined;
 const report = await evaluateJevSamples(samples, live ? "real-jev-inference" : "offline-baseline-only", judge);
 const acceptance = candidateImprovementGate(report);
 console.log(JSON.stringify({ ...report, acceptance }, null, 2));

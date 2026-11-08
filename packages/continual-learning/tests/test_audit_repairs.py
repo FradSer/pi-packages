@@ -1,6 +1,7 @@
 """Regression cases for the comprehensive learning audit."""
 import json
-from support import run_bun
+from pathlib import Path
+from support import run_bun, PKG_DIR
 from agents_md_fixtures import apply_plan_script, evidence
 
 
@@ -111,25 +112,32 @@ def test_management_can_reach_memory_129_and_full_body(tmp_path):
     assert result['reached'] and result['tail'] and result['bounded']
 
 
-def test_real_sdk_loads_only_the_explicit_scoped_worker_tool(tmp_path):
+def test_planner_read_generator_is_retired_but_collector_and_pure_readers_survive():
+    # The planner-facing planner-read-*.mjs generator is gone; the collector's
+    # registerPlannerRead and the frozen-proof pure readers must remain.
+    from pathlib import Path
+    from support import PKG_DIR
+    src = (PKG_DIR / "extensions" / "planner-read-scope.ts").read_text(encoding="utf-8")
+    assert "plannerReadArgs" not in src
+    assert "export function registerPlannerRead" in src
+    assert "export async function readPlannerFileSnapshot" in src
+    assert "export function formatPlannerFileRead" in src
+    # No generated planner tool-extension module ships with the package.
+    assert not (PKG_DIR / "extensions" / "harness-planner-preview.ts").exists()
+    # The pure scoped reader still refuses a foreign path and admits an approved one.
     result = run_bun(f'''
-      import {{createAgentSession,DefaultResourceLoader,SettingsManager,SessionManager,ModelRuntime}} from '@earendil-works/pi-coding-agent';
-      import {{plannerReadArgs}} from './packages/continual-learning/extensions/planner-read-scope.ts';
-      const root={json.dumps(str(tmp_path))};
-      const args=await plannerReadArgs(root,{{cwd:root,files:[],roots:[root]}});
-      const settingsManager=SettingsManager.inMemory();
-      const loader=new DefaultResourceLoader({{cwd:root,agentDir:root,settingsManager,noExtensions:true,noSkills:true,noPromptTemplates:true,noThemes:true,agentsFilesOverride:()=>({{agentsFiles:[]}}),additionalExtensionPaths:[args[1]]}});
-      await loader.reload();
-      const modelRuntime=await ModelRuntime.create({{authPath:root+'/auth.json',modelsPath:root+'/models.json',allowModelNetwork:false}});
-      const {{session}}=await createAgentSession({{cwd:root,agentDir:root,resourceLoader:loader,settingsManager,modelRuntime,sessionManager:SessionManager.inMemory(root),tools:['learning_read']}});
-      try{{await session.bindExtensions({{mode:'print'}});
-        const tool=session.getToolDefinition('learning_read'); await Bun.write(root+'/ok.txt','approved evidence');
-        const text=await tool.execute('inside',{{path:'ok.txt'}},new AbortController().signal,undefined,{{}});
-        let refused=false; try{{await tool.execute('outside',{{path:'/etc/hosts'}},new AbortController().signal,undefined,{{}});}}catch{{refused=true;}}
-        console.log(JSON.stringify({{tools:session.getActiveToolNames(),all:session.getAllTools().map(t=>t.name),inside:text.content[0].text.includes('approved evidence'),refused}}));}}
-      finally{{session.dispose();}}
+      import {{readPlannerFile}} from './packages/continual-learning/extensions/planner-read-scope.ts';
+      import fs from 'node:fs';
+      const root={json.dumps(str(Path(__file__).parent))};
+      const scope={{cwd:root,files:[root+'/audit-approved.txt'],roots:[]}};
+      fs.writeFileSync(root+'/audit-approved.txt','approved evidence');
+      let refused=false;try{{await readPlannerFile('/etc/hosts',scope);}}catch{{refused=true;}}
+      const inside=await readPlannerFile(root+'/audit-approved.txt',scope);
+      fs.unlinkSync(root+'/audit-approved.txt');
+      console.log(JSON.stringify({{refused,inside}}));
     ''')
-    assert result == {'tools':['learning_read'], 'all':['learning_read'], 'inside':True, 'refused':True}
+    assert result['refused'] is True
+    assert 'approved evidence' in result['inside']
 
 
 def test_legacy_data_is_bound_on_first_access_without_mutation(tmp_path):
@@ -214,15 +222,20 @@ def test_real_builder_preserves_placeholder_tokens_inside_paths():
     assert result is True
 
 
-def test_worker_scope_policies_do_not_overwrite_each_other(tmp_path):
+def test_scoped_reader_is_parent_owned_and_bounded(tmp_path):
+    # With no worker extension generator, the parent pure reader enforces the
+    # approved scope directly; two independent scopes stay separate.
     result = run_bun(f'''
-      import {{plannerReadArgs}} from './packages/continual-learning/extensions/planner-read-scope.ts';
+      import {{readPlannerFile}} from './packages/continual-learning/extensions/planner-read-scope.ts';
+      import fs from 'node:fs';
       const root={json.dumps(str(tmp_path))};
-      const scopes=[{{cwd:root,files:[root+'/a'],roots:[]}},{{cwd:root,files:[root+'/b'],roots:[]}}];
-      const args=await Promise.all(scopes.map(scope=>plannerReadArgs(root,scope)));
-      console.log(JSON.stringify({{different:args[0][1]!==args[1][1],a:(await Bun.file(args[0][1]).text()).includes(root+'/a'),b:(await Bun.file(args[1][1]).text()).includes(root+'/b')}}));
+      fs.writeFileSync(root+'/a','evidence A');fs.writeFileSync(root+'/b','evidence B');
+      const scopeA={{cwd:root,files:[root+'/a'],roots:[]}},scopeB={{cwd:root,files:[root+'/b'],roots:[]}};
+      let aRefusedB=false;try{{await readPlannerFile(root+'/b',scopeA);}}catch{{aRefusedB=true;}}
+      const a=await readPlannerFile(root+'/a',scopeA),b=await readPlannerFile(root+'/b',scopeB);
+      console.log(JSON.stringify({{aRefusedB,a:a.includes('evidence A'),b:b.includes('evidence B')}}));
     ''')
-    assert result == {'different':True,'a':True,'b':True}
+    assert result == {'aRefusedB': True, 'a': True, 'b': True}
 
 
 def test_recovery_refuses_replaced_ancestor_and_preserves_external_file(tmp_path):

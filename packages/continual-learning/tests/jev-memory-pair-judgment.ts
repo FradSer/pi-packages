@@ -27,8 +27,7 @@ export function interpretMemoryPair(answer:unknown):{status:'decided'|'uncertain
  * Reaching mock fetch proves only preflight eligibility, never semantic support. */
 export async function ensureMemoryPairResearchPreflight(evidence:unknown,candidates:readonly unknown[]):Promise<number> {
  const {createJevJudge}=await import('../extensions/jev-learning');let mockRequests=0;
- const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],allowPrivateMemory:false,
-  fetch:async()=>{mockRequests++;throw new Error('Offline research preflight transport');}});
+ const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],fetch:async()=>{mockRequests++;throw new Error('Offline research preflight transport');}});
  await judge.validate('memory',evidence,candidates,[]);
  if(mockRequests===0)throw new Error('Research input denied by production privacy or bounds preflight');
  return mockRequests;

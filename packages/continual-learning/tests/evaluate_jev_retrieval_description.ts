@@ -48,7 +48,7 @@ if(!live){
  try {
  for(const row of inputs)for(const arm of ['before','after']){
   const factory=arm==='after'?research.createJevJudge:createJevJudge;
-  const judge=factory({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory','harness'],allowPrivateMemory:true,fetch:async(_url,init)=>{
+  const judge=factory({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory','harness'],fetch:async(_url,init)=>{
    const original=JSON.parse(String(init?.body));const request=original;
    if(Buffer.byteLength(JSON.stringify(request))>64_000)throw new Error('Offline wire cap exceeded');
    fixtureRequests++;if(fixtureRequests>320)throw new Error('Offline study budget exceeded');
@@ -83,7 +83,7 @@ for(const row of inputs){
  const outcomes:Verdict[]=[];
  for(const arm of ['before','after']as const){
   const factory=arm==='after'?research.createJevJudge:createJevJudge;
-  const judge=factory({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory','harness'],allowPrivateMemory:true,fetch:async(url,init)=>{
+  const judge=factory({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory','harness'],fetch:async(url,init)=>{
    const original=JSON.parse(String(init?.body));const request=original;
    const body=JSON.stringify(request);
    if(Buffer.byteLength(body)>64_000)throw new Error('Unchanged wire cap exceeded');

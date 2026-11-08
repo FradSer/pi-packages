@@ -349,7 +349,10 @@ test("range data rejects current full-source changes even outside the offered sp
 });
 
 test("range data never offers a sensitive or overlong continuous source interval", async () => {
-  const unsafe = "// token: sk-test-secret\n";
+  // A synthetic GitHub-token-shaped secret, not a placeholder: HEAD deliberately
+  // exempts sk-test/dummy/local values from the credential guard.
+  const secret = "ghp_" + "a".repeat(40);
+  const unsafe = "// token: " + secret + "\n";
   assert.equal(containsSensitiveMemoryMaterial(unsafe), true);
   for (const added of [unsafe, "// " + "x".repeat(2500) + "\n"]) {
     const js = implementation.replace("\tObject.defineProperties(generator, {", added + "\tObject.defineProperties(generator, {");
@@ -363,7 +366,7 @@ test("range data never offers a sensitive or overlong continuous source interval
         assert.ok(selected.length <= 2000);
         assert.equal(containsSensitiveMemoryMaterial(selected), false);
       }
-      assert.equal(JSON.stringify(choices).includes("sk-test-secret"), false);
+      assert.equal(JSON.stringify(choices).includes(secret), false);
     } finally {f.close();}
   }
 });

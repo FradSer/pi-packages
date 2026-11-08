@@ -244,3 +244,9 @@ Feature: Failed or aborted planner output cannot become a learning candidate
     And retain the first failure and both costs
     And preserve parent inventory privacy and complete source validation
     And treat new proposals as private and reject a second invalid answer
+
+Scenario: A fenced review response is parsed without accepting extra prose
+  Given a Memory coverage or body-review worker returns one complete Markdown JSON fence
+  When the parent validates the review decision
+  Then the decision is reviewed with the same binding, digest and validation gates as plain JSON
+  And trailing prose, an inner fence or a second fenced object remains rejected

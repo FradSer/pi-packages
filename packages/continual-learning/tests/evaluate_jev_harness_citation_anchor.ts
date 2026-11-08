@@ -37,7 +37,7 @@ for(const row of samples)if(typeof row.expectedAllow!=='boolean'||validateHarnes
   const order:('before'|'after')[]=sampleIndex%2?['after','before']:['before','after'];
   for(const arm of order){
    const observations:Observation[]=[];
-   const judge=factories[arm]({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture',defaultModel:m.model,scopes:['harness'],allowPrivateMemory:false,timeout:5000,fetch:async(url,init)=>{
+   const judge=factories[arm]({enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture',defaultModel:m.model,scopes:['harness'],timeout:5000,fetch:async(url,init)=>{
     const sent=arm==='after'?anchorHarnessScopeCitation(init,sample.snapshot,sample.plan.evidence):init;
     const body=String(sent?.body);if(requests>=m.requestBudget||Buffer.byteLength(body)>64000)throw Error('Support research bounds');requests++;
     const request=JSON.parse(body);

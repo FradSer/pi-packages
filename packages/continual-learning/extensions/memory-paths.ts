@@ -63,9 +63,15 @@ function resolvePublicMemoryDir(cwd: string, agentDir: string): string | undefin
 
 const PRIVATE_DIR_MAX_BYTES = 240;
 
+/** Readable flat identity shared by private Memory, locks, and run directories.
+ * Whitespace and control characters are folded into one dash: a project path
+ * such as `~/Documents/Home Lab/1984` must never produce a storage path with a
+ * literal space, tab or newline. Plain paths keep their established readable
+ * name, so existing scopes stay addressable. */
 export function escapedProjectPath(cwd: string): string {
   const canonical = canonicalProjectCwd(cwd);
-  const raw = canonical.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-");
+  const raw = canonical.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")
+    .replace(/[\s\u0000-\u001f\u007f]+/gu, "-");
   const safePath = `--${raw}--`;
   if (Buffer.byteLength(safePath, "utf8") > PRIVATE_DIR_MAX_BYTES) {
     throw new Error(`Readable project scope exceeds ${PRIVATE_DIR_MAX_BYTES} bytes; use a shorter canonical project path`);

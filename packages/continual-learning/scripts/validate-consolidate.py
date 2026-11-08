@@ -45,9 +45,12 @@ VERDICTS = frozenset(
 # fails as a usage error before any artifact is judged.
 LEARNING_MODES = ("automatic", "manual", "full")
 
-# Memory names are deliberately narrower than arbitrary filesystem names.  A
-# memory is a single Markdown file directly below its memory root.
-MEMORY_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.md$")
+# Memory names are deliberately narrower than arbitrary filesystem names. A
+# memory is a single Markdown file directly below its memory root. Dotted
+# version-style names (88.1-topic.md) are ordinary children; a dot must be
+# followed by another name character so path components, leading/trailing dots
+# and consecutive dots stay out. Keep this in step with memory-files.ts.
+MEMORY_NAME_RE = re.compile(r"^(?!.*\.md.)[A-Za-z0-9](?:[A-Za-z0-9_-]|\.(?=[A-Za-z0-9_-]))*\.md$")
 INDEX_NAME = "memory.md"
 HASH_RE = re.compile(r"^(?:sha256:)?[0-9a-fA-F]{64}$")
 PRIVATE_MARKER_RE = re.compile(r"\(\s*harness[\s_-]+only\s*\)", re.IGNORECASE)
@@ -91,7 +94,7 @@ SENSITIVE_MEMORY_PATTERNS = (
 # short-lived") assigns nothing. A credential-named assignment has no URL
 # exemption; the placeholder rule is the only exemption.
 ASSIGNED_CREDENTIAL_PATTERN = re.compile(
-    r"(?<![A-Za-z])(?P<key>['\"]?api[_ -]?(?:key|token|secret)|['\"]?access[_ -]?token|['\"]?auth(?:orization)?|['\"]?bearer|['\"]?client[_ -]?secret|['\"]?credential|['\"]?password|['\"]?passwd|['\"]?secret|['\"]?token)\s*(?::|=)\s*(?P<value>[^\s,;]{8,})",
+    r"(?<![A-Za-z])(?P<key>['\"]?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token|web[_ -]?key)['\"]?)\s*(?::|=)\s*(?P<value>[^\s,;]{8,})",
     re.IGNORECASE,
 )
 
@@ -100,7 +103,7 @@ ASSIGNED_CREDENTIAL_PATTERN = re.compile(
 # a quote-aware value class and judged by the same placeholder rule. The value
 # admits the other quote type and backslash escapes. There is no URL exemption.
 QUOTED_ASSIGNED_CREDENTIAL_PATTERN = re.compile(
-    r"(?<![A-Za-z])(?P<key>['\"]?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)['\"]?)\s*(?::|=)\s*(?P<value>\"(?:[^\"\\\r\n]|\\.){7,}\"|'(?:[^'\\\r\n]|\\.){7,}')",
+    r"(?<![A-Za-z])(?P<key>['\"]?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token|web[_ -]?key)['\"]?)\s*(?::|=)\s*(?P<value>\"(?:[^\"\\\r\n]|\\.){7,}\"|'(?:[^'\\\r\n]|\\.){7,}')",
     re.IGNORECASE,
 )
 
@@ -256,6 +259,11 @@ def placeholder_credential_value(key: str, assigned: str) -> bool:
     if CODE_OR_ENV_PATTERN.search(trimmed):
         return True
     unquoted = re.sub(r"^[\"'`\\\\]+|[\"'`\\\\]+$", "", trimmed)
+    # A bracketed documentation placeholder in tracked-source text is not an
+    # assigned secret, whether or not the JSON value is quoted. Parsed object
+    # members stay strict in the TypeScript guard.
+    if re.fullmatch(r"(?:<[^<>]{1,96}>|\{\{[^{}]{1,96}\}\})", unquoted):
+        return True
     value = re.sub(r"[^a-z0-9]", "", unquoted.lower())
     if not value:
         return True
@@ -263,16 +271,31 @@ def placeholder_credential_value(key: str, assigned: str) -> bool:
         return True
     if len(set(value)) == 1:
         return True
-    if re.fullmatch(r"(?:fixture|mock|fake|stub|test|dummy|example|sample)[0-9a-z_]*", value):
+    # Only a bounded, recognizable placeholder suffix is documentation. A
+    # random token that merely begins with a placeholder word stays sensitive.
+    if re.fullmatch(
+        r"(?:(?:fixture|mock|fake|stub|test|dummy|example|sample)(?:[0-9_]*|password[0-9_]*|(?:only|value|string|key|token|secret|here|placeholder|absentsdk)?)|sk(?:dummy|test|local|dev))",
+        value,
+    ):
         return True
     key_word = re.sub(r"[^a-z0-9]", "", key.lower())
     return bool(value.startswith(key_word)) and re.fullmatch(r"[0-9]*(?:value|string|here|example|placeholder)?", value[len(key_word) :]) is not None
+
+
+def _is_auth_mode_label(key: str, assigned: str) -> bool:
+    """`Auth: provider=antigravity, oauth` names a diagnostic mode, not a secret."""
+    return (
+        re.sub(r"[^a-z]", "", key.lower()) == "auth"
+        and re.fullmatch(r"[a-z][a-z0-9_.-]*=[a-z0-9_.-]+", assigned, re.IGNORECASE) is not None
+    )
 
 
 def contains_assigned_credential_material(value: str, depth: int = 0) -> bool:
     for pattern in (ASSIGNED_CREDENTIAL_PATTERN, QUOTED_ASSIGNED_CREDENTIAL_PATTERN):
         for match in pattern.finditer(value):
             assigned = match.group("value")
+            if _is_auth_mode_label(match.group("key"), assigned):
+                continue
             if assigned[:1] in STRUCTURED_LITERAL_OPENERS:
                 start = match.start() + len(match.group(0)) - len(assigned)
                 if depth < MAX_CREDENTIAL_LITERAL_DEPTH and contains_assigned_credential_material(

@@ -9,7 +9,7 @@ def test_new_memory_review_distinguishes_prior_source_and_partial_failed_command
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const f=await Bun.file('./packages/continual-learning/tests/fixtures/real-quoted-description-distillation.json').json();
       const requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const r=JSON.parse(init.body);requests.push(r);const answers={};
         for(const [key,q] of Object.entries(r.questions)){
           const label=key.startsWith('supported_')?'grounded':key.startsWith('relation_')?'unrelated':'compatible';
@@ -215,7 +215,7 @@ def test_mixed_new_memory_counter_choices_keep_their_own_claim_scope_and_atomic_
       for(const kind of ['project','preference'])for(const mode of ['normal','bounded','body-conflict','description-conflict','body-unclear','description-unclear','body-probability','description-confidence']){
         const fresh={name:'local-build.md',kind,classification:kind==='preference'?'private':'safe',content:`---\nname: local-build\ndescription: Local builds use workspace configuration\ntype: ${kind==='preference'?'feedback':'project'}\n---\nFor local builds only, use the workspace configuration.`,evidence:[{index:0,quote:evidence.entries[0].content}]};
         const candidates=[rewrite,fresh],before=JSON.stringify({evidence,candidates,existing}),requests=[];
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,...(mode==='bounded'?{maxRequestBytes:64000}:{}),fetch:async(_u,init)=>{
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',...(mode==='bounded'?{maxRequestBytes:64000}:{}),fetch:async(_u,init)=>{
           const r=JSON.parse(init.body);requests.push(r);
           const answers=Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
             const target=mode.startsWith('description')?key.startsWith('counter_description_1_'): /^counter_1_/.test(key);
@@ -287,7 +287,7 @@ def test_real_mutation_counter_and_preservation_are_independent_required_checks(
       const results=[];
       for(const mode of ['positive','joint-bound-pass','joint-bound-held','preservation-conflict','preservation-unclear','preservation-probability','preservation-confidence','evidence-conflict','description-conflict','missing-preservation','permission-conflict','permission-unclear','permission-probability','permission-confidence','missing-permission','three-way-held','three-way-pass','all-body-dimensions-held']){
         const requests=[];
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,requestConcurrency:1,fetch:async(_u,init)=>{
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{
           const r=JSON.parse(init.body),state=typeof r.state==='string'?JSON.parse(r.state):r.state;requests.push({questions:r.questions,state});
           const answers=Object.fromEntries(Object.entries(r.questions).flatMap(([key,q])=>{
             const preservation=key.startsWith('counter_preservation_'),permission=key.startsWith('counter_permission_'),target=preservation&&mode.startsWith('preservation-')||permission&&mode.startsWith('permission-');

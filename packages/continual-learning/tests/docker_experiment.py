@@ -705,7 +705,7 @@ class InferenceProxy:
                     "baseUrl": f"http://host.docker.internal:{port}/v1"}
         (root / "models.json").write_text(json.dumps({"providers": {self.selection["provider"]: provider}}))
         (root / "continual-learning.json").write_text(json.dumps(
-            {"model": f"{self.selection['provider']}/{self.selection['model']}", **({"jev": {"model": self.jev_model, "allowPrivateMemory": True}} if self.jev_key else {})}))
+            {"model": f"{self.selection['provider']}/{self.selection['model']}", **({"jev": {"model": self.jev_model}} if self.jev_key else {})}))
         (root / "settings.json").write_text(json.dumps({"defaultProvider": self.selection["provider"],
             "defaultModel": self.selection["model"], "packages": []}))
         for file in root.iterdir():
@@ -762,6 +762,16 @@ def fixed_memory_seam(source: str | None, directory: str | None, project: str) -
     return path.read_text(), ("--env", SEAM_ENVIRONMENT)
 
 
+def jev_arm_learning_config(existing: dict, jev_enabled: bool, jev_model: str) -> dict:
+    """Toggle only the Jev switch on the config write_agent_config produced.
+
+    Replacing the whole file drops the selected `model`, which makes the
+    read-only planner child fall back to settings.json's provider/model pair
+    instead of the exact selection the host proxy validates and forwards.
+    """
+    return {**existing, "jev": {"model": jev_model} if jev_enabled else False}
+
+
 def run_project(image: str, digest: str, proxy: InferenceProxy, project: dict[str, str], output: Path, *, jev_enabled: bool | None = None) -> dict:
     name = f"cl-project-{project['name']}-{secrets.token_hex(4)}"
     output.mkdir(parents=True)
@@ -774,8 +784,8 @@ def run_project(image: str, digest: str, proxy: InferenceProxy, project: dict[st
             config = Path(temporary) / "agent"
             proxy.write_agent_config(config)
             if jev_enabled is not None:
-                (config / "continual-learning.json").write_text(json.dumps({"jev": {
-                    "model": proxy.jev_model, "allowPrivateMemory": True} if jev_enabled else False}))
+                (config / "continual-learning.json").write_text(json.dumps(jev_arm_learning_config(
+                    json.loads((config / "continual-learning.json").read_text()), jev_enabled, proxy.jev_model)))
             contents = {file.name: file.read_text() for file in config.iterdir()}
             # Attribution experiment seam: one fixed candidate list for both arms.
             seam_contents, seam_environment = fixed_memory_seam(

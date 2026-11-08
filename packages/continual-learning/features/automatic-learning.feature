@@ -18,6 +18,35 @@ Feature: Learn from settled user tasks without a memory command
     When learning settings are read
     Then both current learning triggers remain disabled
 
+  Scenario: An explicit request to organize Memory calls the agent tool
+    Given autoContinualLearning is enabled in a fresh session
+    And the user asks to organize Memory without describing new project knowledge
+    When the agent receives its prompt and guidance
+    Then the guidance requires calling learn once before answering
+    And the guidance does not redirect Memory maintenance to slash commands
+    And learn is active when the prompt is built
+
+  Scenario: An explicit organize request completes inside the plugin
+    Given autoContinualLearning is enabled and the current task contains no new durable knowledge
+    When the agent calls the parent Memory-learning tool
+    Then the plugin organizes mirrors, indexes and consistency in-process
+    And no selector, planner or review worker starts and no proposal is saved for later action
+    And the tool reports the completed organization with its screened entry count
+
+  Scenario: Learning receipts distinguish evidence signals from routing policy
+    Given a learning pipeline runs with agent-requested Memory-only routing
+    When the parent writes its receipt
+    Then evidence reasons describe only the frozen task slice and its screened entry count
+    And disabled Harness and AGENTS phases are attributed to policy, not to absent evidence
+    And the explicit request is recorded as a routing decision
+
+  Scenario: Credential-shaped frozen evidence is ordinary learning input
+    Given autoContinualLearning is enabled and the frozen task evidence contains credential-shaped text
+    When the agent calls the parent Memory-learning tool
+    Then the parent starts the normal selector and planner workers on that evidence
+    And the receipt reports the ordinary pipeline outcome with no screening reason
+    And storage, display and semantic-review guards still refuse credential-shaped writes
+
   Scenario: An agent can request current-task Memory learning before answering
     Given autoContinualLearning is enabled and the current task contains source evidence
     When the agent calls the parent Memory-learning tool
@@ -182,6 +211,20 @@ Feature: Learn from settled user tasks without a memory command
     When the parent validates and applies the plan
     Then the Memory attempt records the number of operations actually applied
     And failed or verified-noop later planner attempts remain present with zero applied operations
+
+  Scenario: A zero-write Memory review hold is reported as held, not a failure
+    Given an agent-requested learning run whose Memory review cannot reach a decision
+    When the parent records the terminal receipt
+    Then no Memory or Harness file is written and every original diagnostic is retained
+    And the Memory phase is skipped rather than failed or rejected
+    And the result is held by Memory review with a warning, not "finished with issues"
+    And the task remains in the backlog for a later replay
+
+  Scenario: An operator can turn planner thinking off for a reasoning model
+    Given the single continual-learning.json has no plannerThinkingLevel
+    When the operator sets plannerThinkingLevel to off
+    Then every read-only planner worker, including the Memory delta planner, is launched with thinking off
+    And the selector still defaults to off when no level is configured
 
   Scenario: A renamed successful edit does not discard other current source
     Given a settled task successfully edited source and then renamed a file

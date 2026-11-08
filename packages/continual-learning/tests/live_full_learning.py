@@ -1,7 +1,7 @@
 """Real-provider cold-start full learning, with disposable native Pi sessions."""
 from __future__ import annotations
 
-from live_acceptance_support import workspace_pi
+from live_acceptance_support import workspace_pi, write_learning_config
 
 import hashlib
 import json
@@ -47,7 +47,7 @@ def verify() -> dict:
     with tempfile.TemporaryDirectory(prefix="cl-full-learning-") as raw:
         base = Path(raw).resolve()
         project, agent, probe = prepare(base, False)
-        (agent / "memory" / "settings.json").write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
+        write_learning_config(agent, {"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}})
         provider, model = _model(agent)
         home = base / "home"
         home.mkdir()

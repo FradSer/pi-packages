@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from continuous_failure_retention import deduplicate_receipt_views
 
-from live_acceptance_support import workspace_pi
+from live_acceptance_support import workspace_pi, write_learning_config
 
 import errno
 from collections.abc import Callable
@@ -56,9 +56,8 @@ def _prepare(base: Path) -> tuple[Path, Path, Path]:
     from live_smoke import prepare  # noqa: PLC0415
 
     project, agent, probe = prepare(base, False, agents_md=True)
-    settings = json.loads((agent / "memory" / "settings.json").read_text(encoding="utf-8"))
-    settings["automaticPhases"] = {"memory": "off", "harness": "off", "agents": "off"}
-    (agent / "memory" / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+    from live_acceptance_support import write_learning_config  # noqa: PLC0415
+    write_learning_config(agent, {"automaticPhases": {"memory": "off", "harness": "off", "agents": "off"}})
 
     harness = project / ".pi" / "harness.json"
     harness.parent.mkdir(parents=True, exist_ok=True)

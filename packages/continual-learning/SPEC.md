@@ -134,10 +134,13 @@ Feature: Readable private Memory and sanitized project mirror
 - Validator CLI arguments bind leading-dash scope values with `--expected-scope-key=<scopeKey>`.
 - Project `.memory/` is enabled only at the canonical Git worktree root.
 - Strict valid Markdown basenames and `MEMORY.md` index exclusion apply to both roots.
-- The pre-run parent normalizes drift, removes project-shared private leaks and orphans, and rebuilds both indexes.
+- The pre-run parent normalizes drift, imports project-shared entries that have
+  no private copy, removes only project-shared private leaks, and rebuilds both
+  indexes. It never deletes a project-shared Memory entry outside the
+  parent-owned `/consolidate` transaction.
 - The child remains read-only. The parent owns validation, atomic writes, rollback, and receipts. AGENTS.md extraction persists an exact pre-apply recovery receipt before mutating Memory, Harness, or instructions. A later session validates and consumes an orphan pre receipt before new learning; a successful transaction retains it beside the verified post receipt.
 - Safe create/rewrite writes both roots; private create/rewrite writes private and removes shared; delete removes both.
-- Obsolete hash-only, hash-suffixed, and former-sanitizer private roots are ignored. Whitespace and Unicode in the current canonical flat `scopeKey` are preserved. There is no discovery, import, approval, or compatibility read fallback; only that directory participates at runtime.
+- Obsolete hash-only, hash-suffixed, and former-sanitizer private roots are ignored. Whitespace and control characters in the current canonical flat `scopeKey` are folded into one dash; Unicode and existing punctuation remain intact. There is no discovery, import, approval, or compatibility read fallback; only that directory participates at runtime.
 - Harness configuration remains a four-layer user-owned override system independent of Memory mirroring.
 
 ## Testing Decisions

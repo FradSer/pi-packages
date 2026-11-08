@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+from live_acceptance_support import write_learning_config
 import time
 import traceback
 import uuid
@@ -215,12 +216,30 @@ def checked(args: list[str], cwd: Path, label: str, *, timeout: int = 600) -> di
     return record
 
 
+def selected_model_ref(agent: Path) -> str:
+    """Resolve --model from the config the parent proxy actually writes.
+
+    InferenceProxy.write_agent_config stores a unified "provider/model" string
+    in continual-learning.json; older runs used a {provider,model} object, and
+    settings.json always carries the resolved default pair.
+    """
+    config = json.loads((agent / "continual-learning.json").read_text())
+    model = config.get("model")
+    if isinstance(model, str) and "/" in model:
+        return model
+    if isinstance(model, dict) and model.get("provider") and model.get("model"):
+        return f"{model['provider']}/{model['model']}"
+    if isinstance(config.get("provider"), str) and isinstance(model, str):
+        return f"{config['provider']}/{model}"
+    settings = json.loads((agent / "settings.json").read_text())
+    return f"{settings['defaultProvider']}/{settings['defaultModel']}"
+
+
 def run_pi(project: Path, prompt: str, label: str, *, extensions: bool = True, agent: Path = AGENT, tools: str = "read,bash,edit,write",
            timeout: int = 900) -> dict:
-    selection = json.loads((agent / "continual-learning.json").read_text())
     session = RESULTS / f"{label}-session.jsonl"
     args = ["pi", "--offline", "--no-extensions", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes",
-            "--no-approve", "--model", f"{selection['provider']}/{selection['model']}", "--thinking", "low",
+            "--no-approve", "--model", selected_model_ref(agent), "--thinking", "low",
             "--tools", tools, "--session", str(session), "--print", "--mode", "json"]
     if extensions:
         args.extend(["-e", str(PACKAGE / "index.ts")])
@@ -395,9 +414,8 @@ def verify_container(name: str, expected_digest: str, jev_mode: str = "off", mem
                                                      "ts-node CommonJS loader replaces obsolete esm; same original typecheck/lint/mocha/test-types stages"]
                 (RESULTS / "environment-patch.diff").write_text(command(["git", "-C", str(project), "diff"]))
         report["baselineCheck"] = checked(task["check"], project, "upstream-baseline")
-        memory_settings = AGENT / "memory" / "settings.json"
-        memory_settings.parent.mkdir()
-        memory_settings.write_text(json.dumps({"autoSettledLearning": True, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
+        (AGENT / "memory").mkdir(exist_ok=True)
+        write_learning_config(AGENT, {"autoSettledLearning": True, "autoContinualLearning": False, "agentsMd": {"disabled": True}})
 
         report["stage"] = "real-regression-task"
         test_command = " ".join(task["check"])
@@ -419,7 +437,7 @@ def verify_container(name: str, expected_digest: str, jev_mode: str = "off", mem
         receipts = deduplicate_receipt_views([json.loads(file.read_text()) for file in sorted((AGENT / "memory" / "runs").rglob("learning-pipeline-receipt.json"))])
         report["receipts"] = receipts
         # Freeze learning before independent probes, including held Memory.
-        memory_settings.write_text(json.dumps({"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}}))
+        write_learning_config(AGENT, {"autoSettledLearning": False, "autoContinualLearning": False, "agentsMd": {"disabled": True}})
         private_root = AGENT / "memory" / f"--work-{name}--"
         private: dict[str, str] = {}
         public: dict[str, str] = {}

@@ -66,7 +66,7 @@ const boundedFetch: typeof fetch = async (url, init) => {
   } finally { request.durationMs = Date.now() - started; }
 };
 const config = {apiKey: live ? process.env.TYPESAFE_API_KEY : 'fixture-only', defaultModel: manifest.model, timeout: 5000, retry: {maxRetries: 0}, logLevel: 'off' as const, fetch: boundedFetch};
-const judge = createJevJudge({...config, enabled: true, scopes: ['memory'], allowPrivateMemory: false});
+const judge = createJevJudge({...config, enabled: true, scopes: ['memory']});
 const client = new TypeSafeClient(config);
 interface StudyRow {id: string; completeInference: boolean; allowedUsefulSets: number[][]; unsupportedFactIndexes: number[];
   original: Awaited<ReturnType<typeof simulateIndependentMemorySubset>>;
@@ -90,7 +90,7 @@ for (const sample of samples) {
   const standalone = observations.length === 2 && observations.every(Boolean)
     ? {version: 1, purpose: 'diagnostic-only', complete: true, model: manifest.model, ...binding, candidates: observations} : undefined;
   const input = {evidence: sample.snapshot, candidates: sample.candidates, existing: [], operations: [], review: support.candidateReview,
-    pairs: (relations.review?.pairs ?? []).map(pair => ({...pair, model: manifest.model, ...binding})), windows: support.telemetry.evidenceWindows ?? 0, allowPrivateMemory: false};
+    pairs: (relations.review?.pairs ?? []).map(pair => ({...pair, model: manifest.model, ...binding})), windows: support.telemetry.evidenceWindows ?? 0};
   const original = await simulateIndependentMemorySubset(input);
   const composed = await simulateComposedMemoryReadiness(input, standalone);
   rows.push({id: sample.id, completeInference: !!(support.candidateReview && relations.review && standalone), allowedUsefulSets: sample.allowedUsefulSets, unsupportedFactIndexes: sample.unsupportedFactIndexes,

@@ -20,6 +20,51 @@ def test_production_initial_incremental_worker_grants_no_tools() -> None:
     assert all(row['noTools'] and not row['hasToolAllowlist'] and not row['scopedReadExtension'] and row['completeInline'] for row in value['initialMemoryInputs'])
 
 
+def test_all_planner_children_run_without_tools_and_carry_an_inline_dossier() -> None:
+    # Given the three planner families that consume an immutable dossier,
+    # When their spawnPiChild argv is captured behaviorally, Then each uses
+    # the literal --no-tools flag, carries NO --tools allowlist, loads NO
+    # generated planner-read/preview/source-reader -e helper, and receives an
+    # inline dossier. The dynamic current-source maintenance collector is a
+    # separate worker and is intentionally NOT in this capture.
+    from pathlib import Path
+    from support import run_bun_script
+    harness = Path(__file__).with_name('learning-policy-harness.ts')
+    cases = {
+        'remember-shared': {'memory'},
+        'manual-full': {'memory'},
+        'harness-propose': {'harness'},
+        'agents-propose': {'agents'},
+    }
+    for scenario, expected in cases.items():
+        value = run_bun_script(harness, scenario)
+        rows = value['plannerArgv']
+        assert rows, f'{scenario}: no planner argv captured'
+        assert {row['kind'] for row in rows} == expected, (scenario, rows)
+        for row in rows:
+            assert row['noTools'] and not row['hasToolAllowlist'], (scenario, row)
+            assert row['generatedHelpers'] == [], (scenario, row)
+            assert row['inlineDossier'], (scenario, row)
+            assert row['systemPrompt'], (scenario, row)
+
+
+def test_full_mode_memory_planner_grants_no_tools_with_inline_dossier() -> None:
+    # Given a manual full-mode run that spawns TWO real full-mode Memory
+    # planners, When their spawn argv is captured, Then each runs with no
+    # tools and receives the complete immutable dossier inline, with no
+    # generated planner-read extension. Before Phase 3 both spawn with
+    # --tools learning_read + planner-read-*.mjs and no inline dossier.
+    from pathlib import Path
+    from support import run_bun_script
+    value = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'manual-full')
+    assert [phase for phase in value['planners'] if phase == 'memory'] == ['memory', 'memory'], value['planners']
+    assert value['initialMemoryInputs']
+    assert all(
+        row['noTools'] and not row['hasToolAllowlist'] and not row['scopedReadExtension'] and row['completeInline']
+        for row in value['initialMemoryInputs']
+    ), value['initialMemoryInputs']
+
+
 def test_native_pi_receives_complete_large_indexed_dossier_without_tools(tmp_path) -> None:
     import json
     value = isolated_run_bun(r'''

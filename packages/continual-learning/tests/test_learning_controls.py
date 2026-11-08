@@ -681,19 +681,37 @@ def test_agent_triggered_memory_learns_once_before_the_answer_and_deduplicates_s
     value = run_bun_script(POLICY_HARNESS, "agent-memory-apply")
     assert value["agentFirst"] == {
         "text": "Memory learning finished: Learning 1 memory applied · usage unavailable · cost unavailable",
-        "status": "applied", "isError": False,
+        "status": "applied", "replayBound": True, "isError": False,
     }, value["agentFirst"]
-    assert value["agentSecond"] == {
-        "text": value["agentFirst"]["text"], "status": "already-learned", "isError": False,
-    }, value["agentSecond"]
+    assert value["agentSecond"]["text"] == value["agentFirst"]["text"], value["agentSecond"]
+    assert value["agentSecond"]["status"] == "already-learned" and value["agentSecond"]["isError"] is False, value["agentSecond"]
     assert value["planners"] == ["memory"], value["planners"]
     # The empty Memory index parent-routes explicit evidence without a selector
     # worker for both the agent run and the settled run.
     assert value["selectors"] == 0, value["selectors"]
+    # A normal interactive session binds the receipt for later replay.
+    assert value["agentFirst"].get("replayBound") is True, value["agentFirst"]
     assert "concise.md" in value["privateFiles"], value
     assert value["harnessExists"] is False and value["agentsUnchanged"] is True, value
-    # The settled receipt skips Memory for the already-processed task.
-    assert value["registryReceipt"]["screen"]["memory"] is False, value["registryReceipt"]
+    # No second Memory pipeline runs: the acknowledged replay reference lets
+    # the settled learner skip the whole already-processed task.
+    assert [phase for phase in value["planners"] if phase == "memory"] == ["memory"], value["planners"]
+
+
+def test_pure_organize_request_completes_in_process_without_workers() -> None:
+    # Given the user only asks to organize Memory, When the parent tool runs,
+    # Then it finishes the organization itself: no selector or planner child,
+    # no proposal for external action, and a receipt with an explicit scope.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-organize")
+    first = value["agentFirst"]
+    assert first["status"] == "organized" and first["isError"] is False, first
+    assert value["selectors"] == 0 and value["planners"] == [], value
+    assert [record["status"] for record in value["history"] if record["status"] == "proposed"] == [], value["history"]
+    receipt = value["registryReceipt"]
+    assert receipt is not None, value
+    assert "organized-in-process" in receipt["screen"].get("routing", []), receipt["screen"]
+    assert receipt["input"]["screenedEntryCount"] == 1, receipt["input"]
+    assert "no proposals" in first["text"].lower(), first["text"]
 
 
 def test_agent_triggered_memory_propose_saves_a_reviewable_outcome() -> None:
@@ -737,7 +755,7 @@ def test_extension_only_learning_model_blocks_before_any_worker_spawns() -> None
     assert any("Learning is blocked" in notice and "/memory model" in notice for notice in value["notices"]), value["notices"]
     receipt = value["registryReceipt"]
     assert [(attempt["phase"], attempt["outcome"]) for attempt in receipt["attempts"]] == [("selector", "failed")], receipt
-    assert "without extensions" in receipt["attempts"][0]["diagnostic"], receipt
+    assert "read-only planner workers" in receipt["attempts"][0]["diagnostic"], receipt
     assert value["lock"] is False, value
     assert value["history"] == [], value
 
@@ -752,5 +770,167 @@ def test_agent_learning_still_runs_when_the_replay_backlog_is_unavailable() -> N
     assert first["isError"] is False, first
     assert "learning was not started" not in first["text"].lower(), first
     assert "Memory learning finished" in first["text"], first
+    assert first.get("replayBound") is False, first
+    assert "no replay reference" in first["text"], first
     assert value["planners"] == ["memory"], value["planners"]
     assert "concise.md" in value["privateFiles"], value
+
+
+def test_sensitive_frozen_evidence_does_not_stop_learning() -> None:
+    # Given frozen task evidence containing credential-shaped text, When the
+    # agent asks for Memory learning, Then the normal pipeline starts so the
+    # model can handle the evidence and the validated plan is applied;
+    # write-side guards still refuse credential-shaped Memory bodies.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-sensitive",
+                           env={"CL_STARTUP_SECRET_OBSERVATION": "1"})
+    first = value["agentFirst"]
+    assert first["status"] in {"applied", "no-change", "proposed"}, first
+    assert value["planners"], value["planners"]
+    receipt = value["registryReceipt"]
+    assert not any("sensitive" in reason for reason in receipt["screen"]["reasons"]), receipt
+    assert "CL_BASH_LEARNING_SECRET_0123456789" not in json.dumps(receipt), receipt
+
+
+def test_private_memory_is_reviewable_by_default_without_a_consent_gate() -> None:
+    # Given a corpus with private entries and no `allowPrivateMemory` setting,
+    # When the agent requests learning and any consent dialog would be declined,
+    # Then no dialog appears, no private-memory hold occurs, and the validated
+    # Memory phase runs. All Memory is reviewable by default.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-private-default")
+    assert value["consentCount"] == 0, value
+    assert value["agentFirst"]["status"] != "held", value["agentFirst"]
+    assert "private-memory-denied" not in str(value["registryReceipt"]), value["registryReceipt"]
+    assert "memory" in value["planners"], value
+
+
+def test_empty_selector_output_does_not_fail_the_whole_learning_run() -> None:
+    # Given a selector worker that exits normally but emits no text (output
+    # budget exhausted before JSON), When the agent requests learning, Then the
+    # parent records a bounded diagnostic and still completes the validated
+    # Memory phase instead of reporting `selector failed` with no changes.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-selector-empty")
+    assert value["agentFirst"]["status"] != "failed", value["agentFirst"]
+    assert "selector failed" not in str(value["registryReceipt"]), value["registryReceipt"]
+    assert "memory" in value["planners"], value
+
+
+def test_unparseable_selector_output_is_reported_as_failed() -> None:
+    # A non-empty but undecidable selector response must still surface as a
+    # failure, never as a silent "no-change" outcome.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-selector-garbage")
+    assert value["agentFirst"]["status"] == "failed", value["agentFirst"]
+    assert value["agentFirst"]["isError"] is True, value["agentFirst"]
+    assert "selector rejected" in str(value["registryReceipt"]), value["registryReceipt"]
+
+
+def test_selector_defaults_to_low_thinking_and_honors_an_operator_override(tmp_path: Path) -> None:
+    result = run_bun(r"""
+      import fs from 'node:fs';import path from 'node:path';
+      import {learningPlannerArgs} from './packages/continual-learning/extensions/planner-prompts.ts';
+      fs.mkdirSync(process.env.PI_CODING_AGENT_DIR,{recursive:true});
+      const cfg=path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json');
+      const selector=()=>learningPlannerArgs('memory-selector');
+      const delta=()=>learningPlannerArgs('memory-delta');
+      const read=(args)=>{const i=args.indexOf('--thinking');return i<0?null:args[i+1]};
+      const defaultSelector=read(selector()),defaultDelta=read(delta());
+      fs.writeFileSync(cfg,JSON.stringify({plannerThinkingLevel:'max'}));
+      const overridden=read(selector());
+      console.log(JSON.stringify({defaultSelector,defaultDelta,overridden}));
+    """, tmp_path)
+    assert result == {"defaultSelector": "off", "defaultDelta": None, "overridden": "max"}
+
+
+def test_fenced_coverage_response_completes_the_learning_pipeline() -> None:
+    # Given a coverage worker that wraps its valid decision in a Markdown JSON
+    # fence, When the parent runs the real Memory pipeline, Then coverage is
+    # reviewed and the validated Memory change is applied.
+    value = run_bun_script(POLICY_HARNESS, "remember-shared",
+                           env={"CL_JEV_FIXTURE": "coverage-real-correction", "CL_FENCED_COVERAGE": "1"})
+    assert value["registryReceipt"]["operations"] == 1, value["registryReceipt"]
+    assert value["memoryMirrored"], value
+    assert "invalid-response" not in str(value["registryReceipt"]), value["registryReceipt"]
+    assert value["semanticRepairs"] == 1 and value["bodyReviewCalls"] == 2, value
+
+
+def test_non_git_mirror_normalization_never_ingests_existing_bodies(tmp_path: Path) -> None:
+    # Given a project outside any Git repository (publicDir undefined) whose
+    # private Memory already contains credential-shaped text, When mirror
+    # normalization runs before any worker, Then there is no mutation to record:
+    # no history row, no exception and no model call. Existing bodies must not
+    # be copied into a WAL that scans them as if they were new evidence.
+    result = run_bun(r"""
+      import fs from 'node:fs';import path from 'node:path';
+      import {normalizeTrackedMemory,listLearningHistory} from './packages/continual-learning/extensions/learning-history.ts';
+      import {resolveMemoryPaths} from './packages/continual-learning/extensions/memory-paths.ts';
+      const cwd=path.join(process.env.CONTROL_TEST_ROOT,'project');fs.mkdirSync(cwd);
+      const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});
+      fs.writeFileSync(path.join(paths.harnessDir,'MEMORY.md'),'- [note](note.md) (harness only)\n');
+      const note=path.join(paths.harnessDir,'note.md');
+      fs.writeFileSync(note,'Auth: provider=antigravity, oauth\napi_key: sk-abcdefghijklmnop\n');
+      const before=fs.readFileSync(note,'utf8');let error='';
+      let normalized={};
+      try{normalized=await normalizeTrackedMemory(paths)}catch(e){error=e instanceof Error?e.message:String(e)}
+      const history=await listLearningHistory(cwd);
+      console.log(JSON.stringify({error,normalized,publicDir:paths.publicDir??null,
+        historyCount:history.length,unchanged:fs.readFileSync(note,'utf8')===before}));
+    """, tmp_path)
+    assert result["publicDir"] is None, result
+    assert result["error"] == "", result
+    assert result["historyCount"] == 0, result
+    assert result["unchanged"] is True
+    assert result["normalized"] == {"repaired": [], "removed": []}, result
+
+
+def test_assigned_credential_guard_separates_mode_labels_placeholders_and_real_secrets(tmp_path: Path) -> None:
+    # Given three real-world shapes plus a *_WEB_KEY assignment, When the
+    # Memory/Jev guard scans them, Then only the real secrets are refused.
+    # "Auth: <mode-label>" is a diagnostic label, not a credential; a quoted
+    # placeholder value must not be swallowed by the value class; a *_WEB_KEY
+    # assignment must be recognized like other credential-named keys.
+    result = run_bun(r"""
+      import {containsSensitiveMemoryMaterial} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const samples={
+        modeLabel:'Auth: provider=antigravity, oauth (user@example.invalid)',
+        quotedPlaceholder:'{"username":"admin","password":"<pw>"}',
+        realSecret:'controller 127.0.0.1:9090 secret=abcdefghijklmnop hot reload',
+        webKey:'MAGPIE_WEB_KEY=abcdefghijklmnop',
+        realWebKey:'export MAGPIE_WEB_KEY=abcdefghijklmnop',
+      };
+      console.log(JSON.stringify(Object.fromEntries(Object.entries(samples).map(([k,v])=>[k,containsSensitiveMemoryMaterial(v)]))));
+    """, tmp_path)
+    assert result == {
+        "modeLabel": False,
+        "quotedPlaceholder": False,
+        "realSecret": True,
+        "webKey": True,
+        "realWebKey": True,
+    }, result
+
+
+def test_legacy_backlog_reason_does_not_block_replay_binding(tmp_path: Path) -> None:
+    # Given historical "auto-memory-off" rows from before the setting rename,
+    # When the current scope has a real pending row and no malformed row of its
+    # own, Then the parent binds that row for replay. Old rows stay quarantined
+    # rather than being re-queued or reported as global corruption.
+    result = run_bun(r"""
+      import fs from 'node:fs';import path from 'node:path';
+      const B=await import('./packages/continual-learning/extensions/learning-backlog.ts');
+      const R=await import('./packages/continual-learning/extensions/learning-replay.ts');
+      const {resolveMemoryPaths}=await import('./packages/continual-learning/extensions/memory-paths.ts');
+      const cwd=path.join(process.env.CONTROL_TEST_ROOT,'project'),agent=path.join(process.env.CONTROL_TEST_ROOT,'agent');
+      fs.mkdirSync(cwd,{recursive:true});fs.mkdirSync(agent,{recursive:true});
+      const session=path.join(process.env.CONTROL_TEST_ROOT,'session.jsonl');
+      fs.writeFileSync(session,JSON.stringify({type:'message',message:{role:'user',content:'a'}})+'\n');
+      const file=B.backlogFile(cwd,agent);fs.mkdirSync(path.dirname(file),{recursive:true});
+      const legacy=(scope,digest)=>JSON.stringify({version:1,sessionFile:session,from:0,to:1,digest,reason:'auto-memory-off',queuedAt:new Date().toISOString(),scopeKey:scope});
+      const scope=resolveMemoryPaths(cwd,agent).scopeKey,other='--unrelated--';
+      fs.writeFileSync(file,[legacy(other,'one'),legacy(other,'two'),legacy(scope,'three')].join('\n')+'\n');
+      const read=B.readBacklog(cwd,agent),status=B.backlogStatus(cwd,agent);
+      B.enqueueBacklog({cwd,sessionFile:session,from:2,to:3,digest:'current',reason:'settled-learning-off',agentDir:agent});
+      const pending=B.readBacklog(cwd,agent).pendingEntries.map(({entry})=>entry);
+      const bound=pending.length===1?R.beginBacklogAttempt(cwd,pending[0],agent):false;
+      console.log(JSON.stringify({malformed:read.malformed,quarantined:read.quarantined,
+        legacyPending:read.pending,statusMalformed:status.malformed,pending:pending.length,bound}));
+    """, tmp_path)
+    assert result == {"malformed": 0, "quarantined": 3, "legacyPending": 0,
+                      "statusMalformed": 0, "pending": 1, "bound": True}, result

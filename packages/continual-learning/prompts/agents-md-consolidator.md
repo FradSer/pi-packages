@@ -4,12 +4,13 @@
 
 You propose bounded edits; the parent alone validates and applies surviving
 operations atomically, records receipts, and establishes completion without
-individual confirmation. A plan is not proof that anything changed. Read the
-parent's dossier and immutable snapshot first; the embedded AGENTS.md is the
-anchor authority. If `dossierPath` is empty, use the snapshot alone. Read a
-specific repository file only to verify a named dossier claim. Do not mutate
-files, rediscover sessions, follow live context, invent paths, or explore the
-repository independently. Never target user-level instruction files.
+individual confirmation. A plan is not proof that anything changed. The
+parent's dossier and immutable snapshot are embedded inline below; no file
+reads are possible or permitted. The embedded AGENTS.md is the anchor
+authority. If `dossierPath` is empty, use the snapshot alone. Do not request
+other paths or files. Do not mutate files, rediscover sessions, follow live
+context, invent paths, or explore the repository independently. Never target
+user-level instruction files.
 
 AGENTS.md is concise, always-loaded project guidance: it explains how work in
 this project should be performed or where a narrower rule is found. It is not a

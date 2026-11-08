@@ -61,6 +61,10 @@ def run(output: Path, case: str = 'applied', *, pi_version: str = '1.3.0') -> di
     is_initialization=is_excerpt or case in ('manual-initialization','manual-initialization-held','manual-initialization-repair')
     is_manual=is_initialization or case in ('manual-maintenance','manual-maintenance-held','manual-coverage-replay','manual-phase','manual-phase-held')
     is_manual_held=is_manual and case.endswith('-held')
+    # A git-initialized fixture has a public root, so its selected/new Memory
+    # is safe. A non-Git fixture has no publicDir: the parent-owned inventory
+    # classifies its private-root file private, and the controlled plan agrees.
+    existing_class='safe' if is_mixed or is_manual or case=='coverage-replay' else 'private'
     phase={'policy':False}
     policy_text='Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead.'
     output.mkdir(parents=True, exist_ok=False)
@@ -435,7 +439,7 @@ def run(output: Path, case: str = 'applied', *, pi_version: str = '1.3.0') -> di
                         kinds.append('replay-questions-delivered')
                         content+=limit+'\n'
                     if case=='origin-repair':content=content.replace('mode new','mode old').replace('mode = "new"','mode = "old"')
-                    plan={'kind':'incremental-memory-plan','version':1,'schemaVersion':1,**{k:field(text,k) for k in ('runId','scopeKey','scopeDigest','artifactHash','snapshotDigest')},'operations':[{'name':'runtime.md','kind':'rewrite','classification':'safe','content':content,'evidence':[{'ref':f'e{index}.b0.l1'}]}],'newMemories':[]}
+                    plan={'kind':'incremental-memory-plan','version':1,'schemaVersion':1,**{k:field(text,k) for k in ('runId','scopeKey','scopeDigest','artifactHash','snapshotDigest')},'operations':[{'name':'runtime.md','kind':'rewrite','classification':existing_class,'content':content,'evidence':[{'ref':f'e{index}.b0.l1'}]}],'newMemories':[]}
                     if is_initialization and not phase.get('backfill'):
                         operation=plan['operations'].pop()
                         plan['newMemories']=[{'name':operation['name'],'kind':'project','classification':operation['classification'],

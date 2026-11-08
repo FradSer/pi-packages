@@ -15,7 +15,7 @@ expectType<number>(create()());
 expectType<boolean>(create().visible);
 ''')
     result = subprocess.run(
-        ['pnpm', 'exec', 'tsc', '--noEmit', '--strict', '--skipLibCheck', '--target', 'ES2022',
+        ['bun', 'x', 'tsc', '--noEmit', '--strict', '--skipLibCheck', '--target', 'ES2022',
          '--module', 'NodeNext', '--moduleResolution', 'NodeNext', str(source)],
         capture_output=True, text=True, timeout=40, check=False,
     )

@@ -819,21 +819,39 @@ export async function selectIncrementalLearning(input: {
         if (outcome !== "applied") return { outcome, durationMs: Date.now() - startedAt, usage, attempts,
           error: repairDiagnostic, diagnostic: repairDiagnostic };
       }
-      if (!parsed.ok) return {
-        outcome: "failed", durationMs, usage: result.usage,
-        error: `selector rejected: ${parsed.error}`, diagnostic: `selector rejected: ${parsed.error}`, jev,
-      };
+      if (!parsed.ok) {
+        if (result.text.trim() !== "") return {
+          outcome: "failed", durationMs, usage: result.usage,
+          error: `selector rejected: ${parsed.error}`, diagnostic: `selector rejected: ${parsed.error}`, jev,
+        };
+        // The worker produced no decision at all. A selector is an optimization
+        // over the parent's own evidence screen: fall back to the empty delta
+        // (select no existing entry, request no phase) and let the parent's
+        // screen decide routing. The diagnostic stays in the receipt; no model
+        // text is trusted and every write gate is unchanged.
+        selection = { kind: "incremental-memory-selection", version: 1, contextDigest: input.contextDigest,
+          selected: [], memory: false, harness: false, agents: false,
+          reason: "selector worker produced no decision; parent-routed minimal selection" };
+        diagnostic = "selector worker produced no parseable decision; parent-routed minimal selection";
+      }
     }
-    selection = input.memoryOnly
+    if (parsed.ok) selection = input.memoryOnly
       ? { ...parsed.selection, memory: true, harness: false, agents: false }
       : parsed.selection;
 
     if (!attempts) usage = result.usage;
-    if (jev?.status === "fallback") diagnostic = `Jev fallback: ${jev.reason}; legacy selector`;
+    if (jev?.status === "fallback" && !diagnostic) diagnostic = `Jev fallback: ${jev.reason}; legacy selector`;
   }
 
   // Exposed knowledge is a maintenance target, never factual support. This
   // keeps a correction from being lost when the selector returns only creates.
+  // Every branch above assigns a decision: Jev, a parsed worker response, or
+  // the parent-routed minimum. Fail closed if that invariant is ever broken
+  // instead of asserting a type the control flow has not established.
+  if (!selection) return {
+    outcome: "failed", durationMs: Date.now() - startedAt, usage,
+    error: "selector produced no selection", diagnostic: "selector produced no selection", jev,
+  };
   if (delivered.length) selection = { ...selection, memory: true, selected: [...new Set([...delivered, ...selection.selected])].slice(0, MAX_MEMORY_FILES) };
   const dossier = await buildDossier(input.contextDigest, input.taskSlice, selection, indexed, input.registeredSkills ?? [], input.memoryOnly);
   if (!dossier) {

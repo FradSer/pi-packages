@@ -206,9 +206,12 @@ def test_rejects_foreign_out_of_scope_duplicate_and_invalid_classification() -> 
       await writeFile(join(harness, 'private.md'), 'private\n');
       await writeFile(join(harness, 'safe.md'), 'safe\n');
       await writeFile(join(harness, 'MEMORY.md'), '- [private.md](private.md) (harness only)\n- [safe.md](safe.md)\n');
+      const publicDir = join(root, 'public');
+      await mkdir(publicDir, { recursive: true });
+      await writeFile(join(publicDir, 'safe.md'), 'safe\n');
       const manifest = {
         runId: 'run_scope', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
-        harnessDir: harness, cwd: root, sourceHashes: { harness: {}, public: {} },
+        harnessDir: harness, publicDir, cwd: root, sourceHashes: { harness: {}, public: {} },
       };
       const run = { manifest };
       const base = {
@@ -356,9 +359,12 @@ def test_delete_requires_allowed_verdict_and_preservation_still_uses_validator()
               await writeFile(join(repo, 'docs', 'knowledge.md'), 'preserved knowledge\n');
               await writeFile(join(harness, 'old.md'), 'obsolete\n');
               await writeFile(join(harness, 'MEMORY.md'), '- [old.md](old.md)\n');
+              const publicDir = join(root, 'public');
+              await mkdir(publicDir, { recursive: true });
+              await writeFile(join(publicDir, 'old.md'), 'obsolete\n');
               const manifest = {
                 runId: 'run_delete', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
-                harnessDir: harness, cwd: repo, sourceHashes: { harness: {}, public: {} },
+                harnessDir: harness, publicDir, cwd: repo, sourceHashes: { harness: {}, public: {} },
               };
               const run = { manifest };
               const base = {
@@ -416,9 +422,12 @@ def test_rejects_unvalidated_repository_observations() -> None:
               await writeFile(join(repo, 'src', 'real.ts'), 'export {};\n');
               await writeFile(join(harness, 'project_fact.md'), 'fact\n');
               await writeFile(join(harness, 'MEMORY.md'), '- [project_fact.md](project_fact.md)\n');
+              const publicDir = join(root, 'public');
+              await mkdir(publicDir, { recursive: true });
+              await writeFile(join(publicDir, 'project_fact.md'), 'fact\n');
               const manifest = {
                 runId: 'run_grounding', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
-                harnessDir: harness, cwd: repo, sourceHashes: { harness: {}, public: {} },
+                harnessDir: harness, publicDir, cwd: repo, sourceHashes: { harness: {}, public: {} },
               };
               const run = { manifest };
               const base = {
@@ -468,9 +477,12 @@ def test_rejects_repository_observation_through_parent_symlink(tmp_path: Path) -
       await writeFile(join(repo, 'src', 'inside.ts'), 'inside\n'); await symlink(join(repo, 'src'), join(repo, 'inside-link'));
       await writeFile(join(outside, 'secret.ts'), 'outside\n'); await symlink(outside, join(repo, 'link'));
       await writeFile(join(harness, 'project_fact.md'), 'fact\n'); await writeFile(join(harness, 'MEMORY.md'), '- [project_fact.md](project_fact.md)\n');
+      const publicDir = join(root, 'public');
+      await mkdir(publicDir, { recursive: true });
+      await writeFile(join(publicDir, 'project_fact.md'), 'fact\n');
       const manifest = {
         runId: 'run_parent_symlink', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
-        harnessDir: harness, cwd: repo, sourceHashes: { harness: {}, public: {} },
+        harnessDir: harness, publicDir, cwd: repo, sourceHashes: { harness: {}, public: {} },
       };
       const base = {
         kind: 'incremental-memory-plan', version: 1, schemaVersion: 1,
@@ -678,3 +690,47 @@ def test_private_same_batch_preservation_rolls_back_and_undo_restores_exact_pred
     assert value['appliedState']['old'] is None and value['appliedState']['next']
     assert not value['appliedState']['publicExists']
     assert value['restored'] and value['history'][0]['status'] == 'undone'
+
+
+def test_non_git_selected_memory_is_private_in_dossier_and_delta_expansion() -> None:
+    # Given a project outside any Git repository, a private MEMORY.md row with
+    # no "(harness only)" marker and no public mirror, When the parent builds
+    # the dossier and expands a delta, Then both projections classify the file
+    # private. The dossier's private classification must not be rejected by a
+    # validator that only reads the index marker.
+    from support import isolated_run_bun
+
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs/promises';import path from 'node:path';import os from 'node:os';
+      import { indexMemoryMetadata } from './packages/continual-learning/extensions/incremental-learning.ts';
+      import { expandIncrementalMemoryPlan } from './packages/continual-learning/extensions/incremental-memory-plan.ts';
+      import { resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
+      const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'non-git-classification-')));
+      const cwd=path.join(root,'project');
+      await fs.mkdir(cwd,{recursive:true});
+      process.env.PI_CODING_AGENT_DIR=path.join(root,'agent');
+      const paths=resolveMemoryPaths(cwd);
+      await fs.mkdir(paths.harnessDir,{recursive:true});
+      const name='source-build-test-scripts.md';
+      await fs.writeFile(path.join(paths.harnessDir,name),'---\nname: source-build-test-scripts\ndescription: Build scripts\ntype: project\n---\nObserved build scripts.\n');
+      // No "(harness only)" marker: the only privacy signal is the absent mirror.
+      await fs.writeFile(path.join(paths.harnessDir,'MEMORY.md'),`- [${name}](${name}) — Build scripts\n`);
+      const dossier=await indexMemoryMetadata(cwd);
+      const manifest={schemaVersion:1,runId:'run_class',cwd,scopeKey:paths.scopeKey,scopeDigest:'b'.repeat(64),
+        snapshotDigest:'a'.repeat(64),harnessDir:paths.harnessDir,runDir:path.join(root,'run'),sourceHashes:{harness:{},public:{}}};
+      const run={manifest};
+      const base={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:manifest.runId,scopeKey:manifest.scopeKey,
+        scopeDigest:manifest.scopeDigest,artifactHash:manifest.snapshotDigest,snapshotDigest:manifest.snapshotDigest,
+        operations:[],newMemories:[]};
+      const capture=async classification=>{
+        try{await expandIncrementalMemoryPlan(run,[name],{...base,operations:[{name,kind:'rewrite',classification,content:'Observed build scripts.\n'}]});return null}
+        catch(error){return error.message}
+      };
+      console.log(JSON.stringify({publicDir:paths.publicDir??null,
+        dossierClassification:dossier.find(item=>item.name===name)?.classification??null,
+        privateDelta:await capture('private'),safeDelta:await capture('safe')}));
+    ''')
+    assert value["publicDir"] is None, value
+    assert value["dossierClassification"] == "private", value
+    assert value["privateDelta"] is None, value
+    assert value["safeDelta"] and "classification" in value["safeDelta"], value

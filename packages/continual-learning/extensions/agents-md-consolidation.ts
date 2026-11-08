@@ -1,4 +1,4 @@
-import { plannerReadArgs } from "./planner-read-scope";
+import { plannerNoToolArgs, buildInlineDossier, inlineDossierBlock } from "./planner-inline-dossier";
 import { assertTransactionPath, assertTransactionPredecessor, restoreOwnedFile, withOwnedFileTransaction, withRecoveredFileTransaction } from "./file-transaction";
 /**
  * AGENTS.md consolidation phase — the third stage of the /consolidate pipeline.
@@ -20,7 +20,6 @@ import path from "node:path";
 import type { ChildProcess } from "node:child_process";
 import { getAgentDir, withFileMutationQueue, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  minimalPiWorkerArgs,
   notifyPi,
   parsePiWorkerOutput,
   resolvePiCli,
@@ -1051,6 +1050,19 @@ async function planAgentsMdConsolidationPhaseInternal(
     budgetBytes: opts.budgetBytes,
   });
   if (!current()) return { outcome: "cancelled", durationMs: durationMs(), detail: "cancelled before planner start" };
+  let inlineDossierText: string;
+  try {
+    const dossierFiles = [
+      { path: run.manifest.snapshotPath, digest: run.manifest.snapshotDigest },
+      ...(opts.explorationPath
+        ? [{ path: opts.explorationPath, ...(opts.explorationDigest ? { digest: opts.explorationDigest } : {}) }]
+        : []),
+    ];
+    const dossier = await buildInlineDossier(dossierFiles);
+    inlineDossierText = inlineDossierBlock(dossier.text);
+  } catch (err: unknown) {
+    return { outcome: "failed", durationMs: durationMs(), detail: "AGENTS dossier unavailable: " + (err as Error).message };
+  }
   const taskText = [
     `Task: produce a read-only structured AGENTS.md consolidation plan for the project at ${opts.cwd}.`,
     `- Reason: ${opts.reason}`,
@@ -1062,7 +1074,9 @@ async function planAgentsMdConsolidationPhaseInternal(
     "<<<END AGENTS.MD>>>",
     "- Target file for every change: the embedded document's path on disk.",
     "- Your final assistant message must be exactly one JSON object.",
+    "- Use the inline dossier and embedded document; do not perform independent repository-wide exploration.",
     "",
+    inlineDossierText,
     procedure,
   ].join("\n");
 
@@ -1070,9 +1084,7 @@ async function planAgentsMdConsolidationPhaseInternal(
   await fs.writeFile(taskFile, taskText, { mode: 0o600 });
   const child = spawnPiChild(
     cli.command,
-    [...cli.args, ...minimalPiWorkerArgs(["learning_read"]), ...await plannerReadArgs(run.manifest.runDir, {
-      cwd: opts.cwd, files: [run.manifest.snapshotPath, ...(opts.explorationPath ? [opts.explorationPath] : [])], roots: [opts.cwd],
-    }), ...learningPlannerArgs(),
+    [...cli.args, ...plannerNoToolArgs(), ...learningPlannerArgs(),
     ...(opts.model ? ["--model", opts.model] : []), `@${taskFile}`],
     { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },
   );

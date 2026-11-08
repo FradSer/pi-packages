@@ -224,7 +224,7 @@ def test_origin_loader_rechecks_context_after_final_file_observation():
     assert result['rejected']
 
 
-@pytest.mark.parametrize('mode', ['allowed', 'denied', 'sensitive', 'changed', 'legacy'])
+@pytest.mark.parametrize('mode', ['allowed', 'sensitive', 'changed', 'legacy'])
 def test_origin_context_is_bound_and_screened_before_model_use(mode):
     value = isolated_run_bun(r'''
       import fs from 'node:fs/promises';
@@ -233,7 +233,7 @@ def test_origin_context_is_bound_and_screened_before_model_use(mode):
       const mode='__MODE__',f=await fixture('review-origin',1,'private',false,mode==='legacy',mode==='sensitive'?{purpose:JSON.stringify({password:'historical-sensitive-value'})}:{});
       const existing=[{name:'contract.md',content:await fs.readFile(f.target,'utf8'),classification:'private',type:'project',description:'Source'}];
       const evidence={entries:[{role:'user',content:'Correct the currently observed contract.'}]};
-      const loaded=await loadMemoryOriginReviewContext({cwd:f.cwd,evidence,existing,authorized:mode!=='denied'});
+      const loaded=await loadMemoryOriginReviewContext({cwd:f.cwd,evidence,existing,originsEnabled:true});
       let rejected=false;if(mode==='changed'&&loaded.bound){await fs.writeFile(f.target,'Manual edit');try{await loaded.bound.assertUnchanged()}catch{rejected=true}}
       console.log(JSON.stringify({bound:!!loaded.bound,origins:loaded.bound?.origins,diagnostics:loaded.diagnostics,rejected,paidRequests:0}));
     '''.replace('__MODE__', mode), temp_dirs=('PROBE_DIR',))
@@ -259,11 +259,11 @@ def test_jev_uses_separate_complete_historical_context_without_relaxing_gates():
       const evidence={contextEnabled:true,entries:[{role:'user',content:'Correct the currently observed contract.'},{role:'toolResult',toolName:'read',toolCallId:'source',isError:false,content:[{type:'text',text:'Source V1.'}]}]};
       const candidates=[{name:'contract.md',kind:'rewrite',classification:'private',content:old.replaceAll('V0','V1'),evidence:[{index:1,quote:'Source V1.',role:'toolResult'}]},
         {name:'new-contract.md',kind:'project',classification:'private',content:'Source V1.',evidence:[{index:1,quote:'Source V1.',role:'toolResult'}]}];
-      const loaded=await loadMemoryOriginReviewContext({cwd:f.cwd,evidence,existing,authorized:true}),rows=[];
-      for(const mode of ['allowed','denied','uncertain','changed','secret']){
+      const loaded=await loadMemoryOriginReviewContext({cwd:f.cwd,evidence,existing,originsEnabled:true}),rows=[];
+      for(const mode of ['allowed','uncertain','changed','secret']){
         const bound={...loaded.bound,origins:structuredClone(loaded.bound.origins)};let calls=0,states=[],questions=[],sourceStates=[],historicalEvidenceBindings=[],missingHistoryReferences=0;
         if(mode==='secret'){bound.origins[0].transactions[0].snapshot.hidden={password:'historical-sensitive-value'};bound.originsDigest=createHash('sha256').update(JSON.stringify(bound.origins)).digest('hex')}
-        const judge=createJevJudge({enabled:true,scopes:['memory'],apiKey:'fixture',allowPrivateMemory:mode!=='denied',requestConcurrency:1,fetch:async(_u,init)=>{
+        const judge=createJevJudge({enabled:true,scopes:['memory'],apiKey:'fixture',requestConcurrency:1,fetch:async(_u,init)=>{
           calls++;const r=JSON.parse(init.body);states.push(typeof r.state==='string'?JSON.parse(r.state):r.state);questions.push(...Object.values(r.questions));
           const state=states.at(-1);
           missingHistoryReferences+=Object.values(r.questions).filter(q=>q.instructions.question.includes('historicalMemoryOrigins')&&!state.historicalMemoryOrigins).length;
@@ -289,7 +289,7 @@ def test_jev_uses_separate_complete_historical_context_without_relaxing_gates():
       }
       console.log(JSON.stringify(rows));
     ''', temp_dirs=('PROBE_DIR',))
-    allowed, denied, uncertain, changed, secret = value
+    allowed, uncertain, changed, secret = value
     assert allowed['decision'] == 'allow' and allowed['complete'] and allowed['historical'] and allowed['instruction'], value
     assert allowed['sourceIsolated'] and uncertain['sourceIsolated']
     # Given historical context beside a normal counter window, When its
@@ -300,8 +300,8 @@ def test_jev_uses_separate_complete_historical_context_without_relaxing_gates():
     assert allowed['missingHistoryReferences'] == uncertain['missingHistoryReferences'] == 0
     assert allowed['originsDigest'] == allowed['expectedDigest']
     assert set(allowed['originalIndexes']) == {0, 1}
-    assert denied['calls'] == secret['calls'] == 0
-    assert denied['decision'] == secret['decision'] == uncertain['decision'] == changed['decision'] == 'propose'
+    assert secret['calls'] == 0
+    assert secret['decision'] == uncertain['decision'] == changed['decision'] == 'propose'
     assert not changed['complete'] and not changed['partial'] and changed['usage'] > 0
 
 
@@ -347,7 +347,7 @@ def test_semantic_repair_receives_private_history_and_preserves_failure_usage(mo
       const f=await fixture('repair-origin',1),old=await fs.readFile(f.target,'utf8');
       const existing=[{name:'contract.md',content:old,classification:'private',type:'project',description:'Source V0.'}];
       const evidence={contextEnabled:true,entries:[{role:'toolResult',toolName:'read',toolCallId:'source',isError:false,content:[{type:'text',text:'Source V2.'}]}]};
-      bound=(await loadMemoryOriginReviewContext({cwd:f.cwd,evidence,existing,authorized:true})).bound;
+      bound=(await loadMemoryOriginReviewContext({cwd:f.cwd,evidence,existing,originsEnabled:true})).bound;
       if(mode==='secret'){bound.origins[0].transactions[0].snapshot.hidden={password:'historical-sensitive-value'};bound.originsDigest=createHash('sha256').update(JSON.stringify(bound.origins)).digest('hex')}
       const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'h',snapshotDigest:'h'};
       const original={kind:'incremental-memory-plan',version:1,...identity,operations:[{name:'contract.md',kind:'rewrite',classification:'private',content:old.replaceAll('V0','V1'),evidence:[{index:0,quote:'Source V2.'}]}],newMemories:[]};
