@@ -1,7 +1,7 @@
 /** Native SDK retry boundary; provider callbacks are isolated and deterministic. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { createAssistantMessageEventStream, isRetryableAssistantError, type AssistantMessage } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 
 const error = "stream error: stream disconnected before completion: stream closed before response.completed";
@@ -45,6 +45,6 @@ try {
   await session.prompt("Return the fixture result; no tools or additional input.");
   const last = session.messages.filter(message => message.role === "assistant").at(-1) as AssistantMessage;
   console.log(JSON.stringify({ attempts, settled, nativeRetries, finalText: session.getLastAssistantText(), stopReason: last.stopReason,
-    diagnostic: last.errorMessage, baselineRetryable: isRetryableAssistantError({ ...last, stopReason: "error", errorMessage: error }),
+    diagnostic: last.errorMessage,
     userInputs: session.messages.filter(message => message.role === "user").length }));
 } finally { session.dispose(); }

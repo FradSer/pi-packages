@@ -98,8 +98,8 @@ def test_native_tui_shows_activity_resizes_retains_idle_and_clears_on_shutdown(n
             row = '\n'.join(payload[-1]['lines'])
             assert row.count('REQUIRED_STEER_TAIL') == row.count('STEER_FIRST_LINE') == 1, row
             assert row.count('steering') == 45, row
-            assert 'state · working' in row and 'next · runtime' in row, row
-            assert 'session · session:' in row, row
+            assert 'state · working' not in row and 'next · runtime' not in row, row
+            assert 'session · session:' not in row, row
             steered = next(event for event in records(snapshots)
             if event['kind'] == 'receipt' and event['details'].get('operation') == 'agent_input')
             assert steered['details']['prompt'] == steering and steered['structuredContent']['prompt'] == steering

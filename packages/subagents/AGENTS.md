@@ -16,7 +16,8 @@ python3 -m pytest packages/subagents/tests/ -q
 bun pm pack --destination /tmp --quiet --cwd packages/subagents
 ```
 
-For real-model Docker studies, see `packages/subagents/tests/docker-study/README.md`.
+For a compact hy4-dev real-model smoke or the historical controlled Docker
+study, see `packages/subagents/tests/docker-study/README.md`.
 
 ## Structure and Invariants
 

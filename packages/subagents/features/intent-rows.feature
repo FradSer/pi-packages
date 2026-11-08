@@ -22,11 +22,12 @@ Feature: Intent tool lifecycle rows keep controls readable
       When its row renders collapsed
       Then the headline is on the row, because it is the work itself
 
-    Scenario: Everything else waits for expansion and prints one fact once
+    Scenario: A control row expands to the work, not runtime bookkeeping
       Given an exact session, an input identifier, observed state, pending intent and next actor
       When the row renders expanded
-      Then each of those facts appears once
-      And no detail line repeats a fact the detail list already carries
+      Then the authored input is visible in full
+      And no session, input, state, next or pending identifier appears in the row
+      And the exact handles remain in the model-facing structured details
 
   Rule: Every intent operation has a readable subject
 
@@ -68,6 +69,7 @@ Feature: Intent tool lifecycle rows keep controls readable
       When the child is later replaced or removed from the roster
       Then the failure row preserves the original display label
       And an asynchronous rejection cannot adopt a successor's label
+      And the cancellation notice states its reason without an input identifier
 
   Rule: Authored control input appears once at the right detail level
 
@@ -75,8 +77,9 @@ Feature: Intent tool lifecycle rows keep controls readable
       Given a multiline authored input on an exact child
       When its queued or steered result is rendered collapsed and expanded
       Then collapsed mode shows one fitted preview without the exact handle
-      And expanded mode shows the authored input once with exact control metadata
+      And expanded mode shows the authored input once without runtime handles
       And rendering does not mutate the structured receipt
+      And error, model and grant facts remain available where their rows need them
 
     Scenario: An authored input includes an exact handle
       Given input text that names an exact child session

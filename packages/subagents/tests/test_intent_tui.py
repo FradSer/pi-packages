@@ -63,7 +63,8 @@ def test_intent_rows_use_readable_subjects_and_hide_handles_until_expanded() -> 
           rows[operation] = { collapsed: render(operation, value, false), expanded: render(operation, value, true) };
           assert.ok(rows[operation].collapsed.includes("reviewer"), rows[operation].collapsed);
           assert.ok(!rows[operation].collapsed.includes(handle), rows[operation].collapsed);
-          assert.ok(rows[operation].expanded.includes(handle), rows[operation].expanded);
+          assert.ok(!rows[operation].expanded.includes(handle), rows[operation].expanded);
+          assert.equal(value.details.session, handle, "exact handle stays in model-facing details");
         }
         // A roster names no child, so its collapsed row carries no child's name and,
         // when the page omitted nothing, no count either: each name waits for
@@ -98,8 +99,11 @@ def test_control_input_is_previewed_once_and_receipt_is_unchanged() -> None:
         assert.ok(expanded.includes("FIRST_AUTHORED_LINE") && expanded.includes("SECOND_AUTHORED_LINE"), expanded);
         assert.equal(expanded.split("FIRST_AUTHORED_LINE").length - 1, 1, expanded);
         assert.equal(expanded.split("SECOND_AUTHORED_LINE").length - 1, 1, expanded);
-        assert.ok(expanded.includes("session · " + handle), expanded);
-        assert.ok(expanded.includes("state · working") && expanded.includes("next · runtime"), expanded);
+        assert.ok(!expanded.includes("session · " + handle), expanded);
+        assert.ok(!expanded.includes("state · working") && !expanded.includes("next · runtime"), expanded);
+        assert.equal(value.details.session, handle);
+        assert.equal(value.details.state, "working");
+        assert.equal(value.details.nextActor, "runtime");
         assert.equal(JSON.stringify(value), before);
         console.log(JSON.stringify({ collapsed, expanded }));
         """
@@ -129,7 +133,8 @@ def test_actual_intent_results_retain_friendly_label_for_controls() -> None:
           // The row carries one identifier-shaped name, never the authored phrase.
           assert.ok(!collapsed.includes("friendly reviewer"), `${operation}: ${collapsed}`);
           assert.ok(!collapsed.includes(session), `${operation} leaked exact handle: ${collapsed}`);
-          assert.ok(render(operation, value, true).includes(session), `${operation} hid exact handle on expansion`);
+          assert.ok(!render(operation, value, true).includes(session), `${operation} leaked exact handle on expansion`);
+          assert.equal(value.structuredContent.session, session);
         }
         const listCollapsed = render("agent_list", listed, false);
         assert.ok(listCollapsed.includes("[agent] listed") && !listCollapsed.includes(session), listCollapsed);
@@ -188,7 +193,8 @@ def test_stop_and_error_rows_are_honest_and_keep_exact_handle_expanded() -> None
         assert.match(stopExpanded, /note · Completion belongs to the child result or task record/, stopExpanded);
         assert.ok(failureRow.includes("reviewer") || failureRow.includes("child"), failureRow);
         assert.ok(!failureRow.includes(handle), failureRow);
-        assert.ok(render("agent_input", failure, true, 100, true).includes(handle));
+        assert.ok(!render("agent_input", failure, true, 100, true).includes(handle));
+        assert.equal(failure.details.session, handle);
         console.log(JSON.stringify({ stopRow, stopExpanded, failureRow }));
         """
     )
@@ -255,7 +261,8 @@ def test_native_error_context_keeps_child_name_and_uncertain_disposition() -> No
       assert.ok(collapsed.includes('[agent] uncertain · @reviewer'), collapsed);
       assert.ok(collapsed.includes('do not repeat input'), collapsed);
       assert.ok(!collapsed.includes(handle), collapsed);
-      assert.ok(render('agent_input', value, true, 200, true).includes(handle));
+      assert.ok(!render('agent_input', value, true, 200, true).includes(handle));
+      assert.equal(value.details.session, handle);
       assert.equal(JSON.stringify(value), before);
       console.log(JSON.stringify({ ok: true }));
     """)
@@ -389,3 +396,32 @@ console.log(JSON.stringify({{ ok: true }}));
         "PI_TEST_CWD": str(tmp_path), "PI_NOTICE_FAILURE": failure,
     })
     assert result["ok"] is True
+
+
+def test_control_rows_do_not_dump_runtime_bookkeeping_on_expansion() -> None:
+    # Given a steered child with exact handles, state, pending intent and a
+    # next actor, When a person expands the row, Then they see the authored
+    # guidance only -- not session/input/state/next/pending identifiers. The
+    # model-facing structured details keep every exact handle unchanged.
+    result = run(
+        """
+        const steer = "Integrated ./test.sh currently fails Tests/TextDeliveryTests.swift:32 original??.count optional chaining; please correct in your ongoing test pass. Parent not touching your files. Parent only broad build owner.";
+        const value = base("agent_input", {
+          disposition: "steered", prompt: steer, inputId: "bbbd780f-f418-4091-bd54-9ec3ed2210c3",
+          pendingIntent: "steer", state: "working", nextActor: "runtime", pendingInputs: 1,
+        });
+        const before = JSON.stringify(value);
+        const collapsed = render("agent_input", value, false, 100);
+        const expanded = render("agent_input", value, true, 100);
+        assert.ok(collapsed.includes("steered") && collapsed.includes("@reviewer"), collapsed);
+        for (const marker of ["session ·", "input · bbbd", "state ·", "next ·", "pending ·", "queued ·"]) {
+          assert.ok(!expanded.includes(marker), `${marker} leaked into the expanded row:\\n${expanded}`);
+        }
+        const flat = expanded.replace(/\\s+/g, " ");
+        assert.ok(flat.includes("Integrated ./test.sh currently fails"), expanded);
+        assert.ok(flat.includes("Parent only broad build owner."), expanded);
+        assert.equal(JSON.stringify(value), before);
+        console.log(JSON.stringify({ collapsed, expanded }));
+        """
+    )
+    assert "Integrated ./test.sh currently fails" in result["expanded"]

@@ -1,10 +1,11 @@
 Feature: Native recovery for a known premature provider stream closure
   The package classifies the known diagnostic. Pi owns retries, budgets, backoff and cancellation.
+  Since Pi 1.5.0 also recognizes the diagnostic natively, the native policy alone owns admission.
 
   Scenario: A temporary child loses the terminal provider event
     Given the provider reports stream disconnected before completion and stream closed before response.completed
     And the assistant message contains no tool call
-    And native retry permits another attempt
+    And the Pi 1.5.0 native retry classifier permits another attempt
     When message_end reaches the explicitly loaded recovery extension
     Then Pi retries that assistant response in the same sequence
     And the original input is not dispatched again

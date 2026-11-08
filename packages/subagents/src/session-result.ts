@@ -246,7 +246,7 @@ export function sessionNoticeSpec(notice: SessionNotice): ToolLifecycleSpec {
   if (notice.kind === "input-cancelled") return {
     kind: "event", tool: "agent", subject: `@${notice.name}`, label: "input cancelled",
     summary: [],
-    details: [notice.reason, `input · ${notice.inputId}`], bgToken: "toolErrorBg",
+    details: [notice.reason], bgToken: "toolErrorBg",
   };
   if (notice.kind === "ended") {
     return {

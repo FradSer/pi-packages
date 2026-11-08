@@ -47,4 +47,5 @@ Feature: Explicit bounded child-to-parent intermediate messages
     Given the parent receives intermediate progress followed by a final result
     When their registered renderers produce the transcript
     Then progress uses the message lifecycle and the final result uses its result lifecycle
+    And the intermediate row shows the message body, not session, input or sequence handles
     And malformed intermediate details render a stable unreadable fallback

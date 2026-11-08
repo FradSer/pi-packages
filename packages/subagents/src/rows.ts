@@ -66,9 +66,9 @@ export function createSessionMessageRenderer(
   )(message as never, state, theme);
 }
 
-/** The intermediate child message has its own row language and sender. Its
- * original body is the Markdown summary, while session/input metadata stays
- * in the expanded lifecycle details. */
+/** The intermediate child message has its own row language and sender. The
+ * message body is the Markdown summary; session, input and sequence handles
+ * stay in the model-facing notice, not in the transcript. */
 export function parentMessageSpec(notice: ParentMessageNotice): ToolLifecycleSpec {
   return {
     kind: "event",
@@ -77,11 +77,6 @@ export function parentMessageSpec(notice: ParentMessageNotice): ToolLifecycleSpe
     label: "message",
     summary: [notice.text],
     summaryFormat: "markdown",
-    details: [
-      `session · ${notice.session}`,
-      ...(notice.inputId ? [`input · ${notice.inputId}`] : []),
-      `sequence · ${notice.sequence}`,
-    ],
   };
 }
 

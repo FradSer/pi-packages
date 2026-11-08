@@ -483,16 +483,17 @@ def test_native_tui_ctrl_o_reveals_session_definition_source(native_resident: Na
                             for event in records(evidence)))
         expanded = [event for event in selected(records(evidence), "agent-row") if event["expanded"] and not event["partial"]]
         assert expanded and all(event["bounded"] for event in expanded), expanded
-        # ctrl+O adds each control detail exactly once on top of the collapsed row.
+        # ctrl+O reveals the startup configuration, never runtime handles.
         for event in expanded:
             body = [line.strip() for line in event["lines"] if line.strip()]
             assert len(body) > 2, event
             joined = "\n".join(body)
-            assert joined.count(f"session · {session}") == 1, event
+            assert f"session · {session}" not in joined, event
+            assert session not in joined, event
             assert joined.count("model · resident-loopback/contract") == 1, event
             assert joined.count("tools · read, agent_memory") == 1, event
             assert all(source not in line for line in body), event
-        tui.wait_for(lambda: f"session · {session}" in tui.screen())
+        tui.wait_for(lambda: "model · resident-loopback/contract" in tui.screen())
         native.release.set()
         tui.wait_for(lambda: "LIVE_RESIDENT_RESULT_tui" in tui.screen())
         assert_result(records(evidence), "TUI_FINAL")

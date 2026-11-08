@@ -1,6 +1,6 @@
-/** Pi 1.0 misses this transport diagnostic in its native retry classifier.
- * Classify only that message; Pi still owns budget, backoff, abort, and recovery.
- * Remove this contribution when the supported Pi cohort recognizes it natively.
+/** Pi 1.5.0 recognizes this diagnostic in its native retry classifier.
+ * Keep only the narrow message rewrite so older recorded transports and the
+ * exact-match diagnostic stay consistent; Pi owns budget, backoff, abort and recovery.
  */
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

@@ -30,7 +30,6 @@ def test_native_retry_policy_recovers_or_exhausts_without_new_input(
                             cwd=PACKAGE, env=env, capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stderr + result.stdout
     report = json.loads(result.stdout.strip().splitlines()[-1])
-    assert report["baselineRetryable"] is False
     assert report["attempts"] == attempts
     assert report["stopReason"] == stop
     assert report["settled"] == report["userInputs"] == 1

@@ -211,44 +211,51 @@ function intentSummary(operation: IntentToolName, details: IntentRenderDetails, 
 
 function intentDetails(operation: IntentToolName, details: IntentRenderDetails): string[] {
   const rows = sessionRows(details);
+  // The exact handles, observed state, pending intent and next actor are
+  // runtime bookkeeping for the model, not work a person reads. They stay in
+  // the structured details; a control row expands to the authored input and
+  // only the facts that explain the outcome.
+  const substantive = [
+    // The applied role description, when the executor reported one. The receipt
+    // carries the description rather than the role name, so this line cannot
+    // repeat the name the subject already shows.
+    ...(displayText(details.role) ? [`role · ${displayText(details.role)}`] : []),
+    ...(details.previewNotice ? [`preview · ${details.previewNotice}`] : []),
+    ...(details.model ? [`model · ${details.model}`] : []),
+    ...(details.grant ? [`tools · ${details.grant.join(", ") || "none"}`] : []),
+    ...(details.evidence ? [`evidence · ${details.evidence}`] : []),
+    ...(operation === "agent_stop" && details.ok
+      ? ["note · Completion belongs to the child result or task record."] : []),
+    ...(details.body ? [`detail · ${details.body}`] : []),
+    ...(details.error ? [`error · ${details.error}`] : []),
+  ];
+  if (operation !== "agent_list") return substantive;
+  // A roster is the deliberate exception: it exists to look up exact
+  // incarnations, so its expanded body keeps the handles and live facts.
   const common = [
     ...(details.session ? [`session · ${details.session}`] : []),
     ...(details.inputId ? [`input · ${details.inputId}`] : []),
     ...(details.state ? [`state · ${details.state}`] : []),
     ...(details.pendingInputs !== undefined ? [`queued · ${details.pendingInputs}`] : []),
     ...(details.nextActor ? [`next · ${details.nextActor}`] : []),
-    // The applied role description, when the executor reported one. The receipt
-    // carries the description rather than the role name, so this line cannot
-    // repeat the name the subject already shows.
-    ...(displayText(details.role) ? [`role · ${displayText(details.role)}`] : []),
     ...(details.pendingIntent ? [`pending · ${details.pendingIntent}`] : []),
-    ...(details.previewNotice ? [`preview · ${details.previewNotice}`] : []),
     ...(details.page ? [`page · ${details.page.returned} returned · ${details.page.remaining} remaining${details.page.nextOffset !== undefined ? ` · next offset ${details.page.nextOffset}` : ""}`] : []),
     ...(!details.ok && details.prompt ? [`input · ${details.prompt}`] : []),
-    ...(details.model ? [`model · ${details.model}`] : []),
-    ...(details.grant ? [`tools · ${details.grant.join(", ") || "none"}`] : []),
-    ...(details.evidence ? [`evidence · ${details.evidence}`] : []),
     ...(details.interrupted ? [`interrupted · ${details.interrupted}`] : []),
-    ...(operation === "agent_stop" && details.ok
-      ? ["note · Completion belongs to the child result or task record."] : []),
-    ...(details.body ? [`detail · ${details.body}`] : []),
-    ...(details.error ? [`error · ${details.error}`] : []),
+    ...substantive,
   ];
-  if (operation === "agent_list") {
-    // One naming header per child, then only the facts the common block and that
-    // header do not already carry. The expanded row must not print a fact twice.
-    const block = (row: IntentSessionRow, offline = false): string[] => {
-      const addressed = Boolean(details.session) && displayText(row.session) === details.session;
-      const header = `${rowName(row)} · ${offline ? "offline" : (displayText(row.status) ?? "unknown")}`;
-      const lines = rowDetails(row).filter(line => {
-        const key = line.slice(0, line.indexOf(" · "));
-        return key !== "status" && !(addressed && key === "session");
-      });
-      return [header, ...lines];
-    };
-    return common.concat(rows.flatMap(row => block(row)), (details.definitions ?? []).flatMap(row => block(row, true)));
-  }
-  return common;
+  // One naming header per child, then only the facts the common block and that
+  // header do not already carry. The expanded row must not print a fact twice.
+  const block = (row: IntentSessionRow, offline = false): string[] => {
+    const addressed = Boolean(details.session) && displayText(row.session) === details.session;
+    const header = `${rowName(row)} · ${offline ? "offline" : (displayText(row.status) ?? "unknown")}`;
+    const lines = rowDetails(row).filter(line => {
+      const key = line.slice(0, line.indexOf(" · "));
+      return key !== "status" && !(addressed && key === "session");
+    });
+    return [header, ...lines];
+  };
+  return common.concat(rows.flatMap(row => block(row)), (details.definitions ?? []).flatMap(row => block(row, true)));
 }
 
 function observed(session?: string) {

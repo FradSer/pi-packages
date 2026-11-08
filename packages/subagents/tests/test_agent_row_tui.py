@@ -172,10 +172,13 @@ def test_a_started_child_renders_one_band_naming_it_and_its_work() -> None:
         assert.ok(expanded.some((row) => row.trim() === "Add the ledger row."), `expanded row dropped a line:\\n${expanded.join("\\n")}`);
         assert.ok(expanded.some((row) => row.trim() === "Then check the widget."), `expanded row clipped the prompt:\\n${expanded.join("\\n")}`);
         const text = expanded.join("\\n");
-        for (const fact of [`session · ${started.details.session}`, "tools · read", "state · starting", "next · runtime"]) {
-          assert.ok(text.includes(fact), `expanded row dropped ${fact}:\\n${text}`);
-          assert.equal(text.split(fact).length - 1, 1, `expanded row repeated ${fact}:\\n${text}`);
+        // Startup configuration stays; runtime handles and state words do not.
+        assert.ok(text.includes("tools · read"), text);
+        assert.equal(text.split("tools · read").length - 1, 1, text);
+        for (const noise of [`session · ${started.details.session}`, "state · starting", "next · runtime"]) {
+          assert.ok(!text.includes(noise), `expanded row printed ${noise}:\\n${text}`);
         }
+        assert.equal(started.details.session, started.structuredContent.session);
         console.log(JSON.stringify({ ok: true }));
         """
     )
@@ -265,7 +268,8 @@ def test_parent_message_row_keeps_body_and_rejects_malformed_details() -> None:
         const collapsed = renderer({ content: details.text, details }, { expanded: false }, theme).render(100).join("\\n");
         const expanded = renderer({ content: details.text, details }, { expanded: true }, theme).render(100).join("\\n");
         assert.match(collapsed, /\\[agent\\] message · @worker/);
-        assert.ok(expanded.includes("Keep") && expanded.includes("session · session:worker:incarnation") && expanded.includes("input · input-1"), expanded);
+        assert.ok(expanded.includes("Keep"), expanded);
+        assert.ok(!expanded.includes("session · session:worker:incarnation") && !expanded.includes("input · input-1") && !expanded.includes("sequence ·"), expanded);
         const malformed = renderer({ content: "ignored", details: { kind: "intermediate", name: "worker", session: "session:worker:incarnation", sequence: 1e20, text: "body", deliveredAt: 1e20 } }, { expanded: true }, theme).render(100).join("\\n");
         assert.ok(malformed.includes("intermediate message details were invalid"), malformed);
         const missingTimestamp = renderer({ content: "ignored", details: { kind: "intermediate", name: "worker", session: "session:worker:incarnation", sequence: 1, text: "body" } }, { expanded: true }, theme).render(100).join("\\n");
@@ -294,8 +298,9 @@ def test_long_single_line_steer_is_expandable_without_losing_its_first_line_tail
         const expanded = paint("agent_input", result, true, 80).join("\\n");
         assert.equal(expanded.split("REQUIRED_STEER_TAIL").length - 1, 1, "expanded steer must include the first-line tail exactly once");
         assert.equal(expanded.split("steering").length - 1, 45, "the authored input must be rendered once, not headline plus body");
-        assert.ok(expanded.includes(`session · ${result.details.session}`), expanded);
-        assert.ok(expanded.includes("state · starting") && expanded.includes("next · runtime"), expanded);
+        assert.ok(!expanded.includes(`session · ${result.details.session}`), expanded);
+        assert.ok(!expanded.includes("state · starting") && !expanded.includes("next · runtime"), expanded);
+        assert.equal(result.details.session, result.structuredContent.session);
         assert.equal(band(paint("agent_input", result, false, 80)).join("\\n"), collapsed.join("\\n"));
         assert.equal(JSON.stringify(result), before);
         console.log(JSON.stringify({ ok: true }));
@@ -303,7 +308,7 @@ def test_long_single_line_steer_is_expandable_without_losing_its_first_line_tail
     )
 
 
-def test_short_input_expands_metadata_without_duplicate_input() -> None:
+def test_short_input_stays_readable_without_runtime_metadata() -> None:
     run(
         """
         initTheme("dark", false);
@@ -314,13 +319,17 @@ def test_short_input_expands_metadata_without_duplicate_input() -> None:
           const result = await run({ operation: delivery, session: started.details.session, prompt });
           assert.equal(result.details.ok, true, result.content[0].text);
           const collapsed = band(paint("agent_input", result, false));
-          assert.ok(collapsed[0].includes("to expand"), `${delivery} hides its expansion affordance:\\n${collapsed.join("\\n")}`);
+          // A short input shows its whole authored body on the row. Whether a
+          // delivery still has substantive startup facts to expand is its own
+          // business; runtime handles are never part of either state.
+          assert.ok(collapsed.join("\\n").includes(prompt), collapsed.join("\\n"));
           assert.equal(collapsed[1].trim(), prompt);
           assert.ok(!collapsed.join("\\n").includes(result.details.session), collapsed.join("\\n"));
           const expanded = paint("agent_input", result, true).join("\\n");
           assert.equal(expanded.split(prompt).length - 1, 1, expanded);
-          assert.ok(expanded.includes(`session · ${result.details.session}`), expanded);
-          assert.ok(expanded.includes("state · starting") && expanded.includes("next · runtime"), expanded);
+          assert.ok(!expanded.includes(`session · ${result.details.session}`), expanded);
+          assert.ok(!expanded.includes("state · starting") && !expanded.includes("next · runtime"), expanded);
+          assert.equal(result.details.session, result.structuredContent.session);
         }
         console.log(JSON.stringify({ ok: true }));
         """
