@@ -2,7 +2,7 @@ Feature: Development checks use one Pi core cohort across the split chain
 
   Scenario: Host-provided Pi peers resolve to the root development version
     Given kit, subagents, tasks and agent-teams publish Pi core as wildcard peers
-    And the user selected Pi 1.3.0 as the locked development cohort
+    And the user selected Pi 1.5.0 as the locked development cohort
     And the root has that locked Pi development cohort
     When package-level verification resolves coding-agent or pi-tui
     Then each split package uses the same version as the root
@@ -20,3 +20,11 @@ Feature: Development checks use one Pi core cohort across the split chain
     When bun updates the split packages
     Then their peers stay wildcard compatible with the installed Pi host
     And only their development dependency requirements are pinned
+
+  Scenario: The development cohort is upgraded to Pi 1.5.0
+    Given the root pins one exact Pi cohort in dependencies and overrides
+    And kit, subagents, tasks, agent-teams and magpie pin matching devDependencies
+    When bun install resolves the workspace
+    Then coding-agent, pi-ai and pi-tui resolve to 1.5.0 for the root and split packages
+    And the full workspace quality gate remains green
+    And historical study baselines and frozen proof fixtures keep their recorded versions
