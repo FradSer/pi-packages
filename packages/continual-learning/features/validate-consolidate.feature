@@ -163,6 +163,13 @@ Feature: Consolidate artifact validator
     Then both accept the filename as a regular Markdown child
     But leading dots, consecutive dots, trailing dots and path components remain rejected
 
+  Scenario: A dotted version-style Memory filename can be selected for consolidation
+    Given a project whose private Memory contains "openwrt-upboard-1010101-25.12.md" and "88.1-dual-wan-loadbalance-research.md"
+    When a consolidation plan selects both canonical names
+    Then normalizeSelectedScope accepts and sorts them like any other Memory child
+    And the parent validator and the TypeScript filename guard agree on the result
+    But leading dots, consecutive dots, repeated .md segments, path components and MEMORY.md stay rejected
+
   Scenario: Index names are recognized case-insensitively
     Given an inventory contains MEMORY.md in mixed case
     When I run the structured validator

@@ -952,6 +952,42 @@ def test_selected_aliases_normalize_to_one_canonical_scope() -> None:
     assert result == ["a.md", "z.md"]
 
 
+def test_dotted_version_names_normalize_from_selected_scope() -> None:
+    # Given a real `~/Documents/Home Lab` failure: a consolidation plan selected
+    # `openwrt-upboard-1010101-25.12.md` and the parent rejected it with
+    # "selected[1] is not a canonical memory filename", even though the file
+    # enumerator, the TypeScript guard and the structured validator all accept
+    # dotted version-style names. When the parent normalizes the selected scope,
+    # Then those names survive and unsafe spellings still fail closed.
+    result = run_bun(
+        """
+        import { normalizeSelectedScope } from './packages/continual-learning/extensions/inject-memory.ts';
+        const names = normalizeSelectedScope({ selected: [
+          '88.1-dual-wan-loadbalance-research.md',
+          'openwrt-upboard-1010101-25.12.md',
+          'ordinary.md',
+        ] });
+        const rejected = ['.hidden.md', 'a..b.md', 'trailing..md', 'x.md.md',
+          '../evil.md', 'nested/child.md', 'MEMORY.md'];
+        const outcomes = rejected.map(name => {
+          try { normalizeSelectedScope({ selected: [name] }); return false; }
+          catch { return true; }
+        });
+        let duplicateAccepted = false;
+        try { normalizeSelectedScope({ selected: ['a.md', 'a.md'] }); duplicateAccepted = true; }
+        catch { /* duplicate names stay rejected */ }
+        console.log(JSON.stringify({ names, outcomes, duplicateAccepted }));
+        """
+    )
+    assert result["names"] == [
+        "88.1-dual-wan-loadbalance-research.md",
+        "openwrt-upboard-1010101-25.12.md",
+        "ordinary.md",
+    ], result
+    assert all(result["outcomes"]), result
+    assert result["duplicateAccepted"] is False, result
+
+
 def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
     content = source()
     assert "const workerEnv = memoryWorkerEnvironment();" in content
@@ -962,6 +998,11 @@ def test_worker_environment_is_an_explicit_non_credential_allowlist() -> None:
 
 def test_child_task_uses_selector_scope_for_incremental_and_full_scope_for_full_mode() -> None:
     content = source()
+    # Both selected-scope paths must use the shared filename guard. A private
+    # stricter regex here silently dropped dotted version-style names from the
+    # parent-derived scope even after normalizeSelectedScope accepted them.
+    assert "MEMORY_FILENAME_RE" not in content, content
+    assert "!isMemoryFilename(name)" in content, content
     assert "const selectedScope = parentSelectedScope(run, opts.selectedScope);" in content
     assert "Authoritative selected Memory names" in content
     incremental = (MEMORY_PKG_DIR / "prompts" / "incremental-memory-consolidator.md").read_text(encoding="utf-8")

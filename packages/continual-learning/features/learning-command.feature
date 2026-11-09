@@ -35,7 +35,11 @@ Feature: One learning command entry
     And the terminal shows one final outcome row when the run ends
     And that row expands to a Markdown rendering of each applied safe Memory's description and body
     And the expansion omits frontmatter, filenames and receipt details
-    And one spinner activity row shows above the editor while the run is active
+    And one spinner activity row names the agent "learner" above the editor while the run is active
+    And the run's bounded topic is shown as that row's activity, not as its identity
+    And no action-progress word such as "Learning..." is used as the agent name
+    And the complete agent name stays readable when the terminal is resized down to 24 columns
+    And at that width the activity is ellipsized before the agent name is shortened
     And that activity row is cleared when the run ends
     And no expandable receipt metadata is shown in either row
 

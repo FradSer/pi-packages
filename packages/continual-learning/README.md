@@ -299,8 +299,9 @@ No advanced command form is offered to users; internal frozen-protocol
 bindings remain for research and recovery scripts only. Each run shows two transcript rows: one
 `[learning] started · <subject>` line and one final `[learning]` outcome line.
 While a run is active, one spinner activity row sits above the editor (the
-same live widget language as subagents); it is cleared when the run ends, is
-cancelled or fails. The final row collapses
+same live widget language as subagents): its identity names the agent
+`learner`, while the bounded run topic is the row's activity. It is cleared
+when the run ends, is cancelled or fails. The final row collapses
 to one outcome line; when the run applied safe Memory, expanding it shows each
 entry's description and body as Markdown. Frontmatter, filenames and receipt
 metadata (usage, cost, source, calls, per-phase attempts and diagnostics) are

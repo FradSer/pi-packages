@@ -61,6 +61,29 @@ Feature: One model-facing learning tool
     And an applied write has an undoable learning-history record
     And no settled or early-correction hook starts a second pipeline for the task
 
+  Scenario: A started run always reports its outcome, including a no-change result
+    Given a learn call emits a [learning] started row but finds no durable changes, screens nothing, or organizes in process
+    When the parent finishes that pipeline and returns a receipt
+    Then the transcript shows exactly one final [learning] outcome row for that batch
+    And the row names the no-change, screened, skipped or organized outcome honestly
+    And no started row is left without its paired outcome row
+    And the tool result text and the outcome row describe the same receipt
+
+  Scenario: A cancelled started run still reports its terminal outcome
+    Given a learn call emitted a [learning] started row
+    And the session shuts down or changes while the pipeline is still running
+    When the parent writes the cancelled receipt
+    Then the transcript shows one [learning] outcome row naming the cancellation
+    And no started row is left without a paired outcome row
+    And the tool result reports the session change honestly without claiming applied knowledge
+
+  Scenario: The learn tool result row names the applied Memory count
+    Given a learn call applied two validated Memory records
+    When its tool result is rendered as a settled row
+    Then the row says "learned 2 Memory changes", not "learned 0 Memory changes"
+    And the count comes from the same receipt that produced the final outcome row
+    And a no-change result still names zero changes honestly
+
   Scenario: Held, disabled and failed outcomes are reported honestly
     Given a safety gate holds, the trigger is disabled, or a run fails
     When learn returns

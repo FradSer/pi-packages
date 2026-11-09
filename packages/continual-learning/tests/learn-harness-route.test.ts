@@ -115,3 +115,17 @@ test("a Memory request keeps the existing Memory-only pipeline outcome", async (
     expect(result.content[0].text).not.toContain("Harness authoring started");
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test("an applied outcome names its real operation count", async () => {
+  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
+  const spec = learningOutcomeSpec({ details: { status: "applied", operations: 2 }, content: [] } as never) as Record<string, unknown>;
+  expect(spec.label).toBe("settled");
+  expect(spec.tone).toBe("success");
+  expect(String(spec.subject)).toBe("learned 2 Memory changes");
+});
+
+test("an applied outcome with no operation count reports zero honestly", async () => {
+  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
+  const spec = learningOutcomeSpec({ details: { status: "applied" }, content: [] } as never) as Record<string, unknown>;
+  expect(String(spec.subject)).toBe("learned 0 Memory changes");
+});

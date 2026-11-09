@@ -231,3 +231,38 @@ def test_current_digest_position_alias_with_rationale_only_admits_fresh_correcti
     assert [a['outcome'] for a in value[0]['out']['attempts']] == ['failed', 'applied']
     assert value[1]['calls'] == 2 and value[1]['out']['outcome'] == 'failed'
     assert all(r['calls'] == 1 and r['out']['outcome'] == 'failed' for r in value[2:])
+
+
+def test_out_of_range_frozen_position_gets_one_bounded_correction() -> None:
+    # Given the real open-deskos shape (six valid-looking positions, one just
+    # past the frozen index), When the parent rejects it, Then it names the
+    # exact invalid position and range, gives one structural correction with
+    # the unchanged task/metadata, and revalidates the corrected decision.
+    value = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      const cwd=path.join(process.env.PI_CODING_AGENT_DIR,'project');fs.mkdirSync(path.join(cwd,'.memory'),{recursive:true});execFileSync('git',['init','-q',cwd]);
+      for(const name of ['a.md','b.md','c.md'])fs.writeFileSync(path.join(cwd,'.memory',name),'---\ndescription: Existing source fact\ntype: project\n---\nFact.');
+      const kit=await import('./packages/kit/src/index.ts');let calls=[],replies;
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{calls.push(input);return {text:replies.shift(),exitCode:0,stderr:'',usage:{input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01}}}}));
+      const {selectIncrementalLearning}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const bad={selectedIndices:[0,1,3],memory:true,harness:false,agents:false,reason:'Windows deployment slice.'};
+      const good={selectedIndices:[0,1,2],memory:true,harness:false,agents:false,reason:'Fresh independent decision.'};
+      const rows=[];
+      for(const [label,first,second] of [['repaired',bad,good],['still-bad',bad,bad]]){
+        calls=[];replies=[JSON.stringify(first),JSON.stringify(second)];
+        const out=await selectIncrementalLearning({cwd,outputDir:path.join(cwd,label),contextDigest:'current',taskSlice:{kind:'learning-task-slice',version:1,entries:[]},jevJudge:{select:async()=>({telemetry:{status:'disabled'}})}});
+        const rejected=JSON.parse(fs.readFileSync(path.join(cwd,label,'selector-rejected.json'),'utf8'));
+        rows.push({label,out,calls:calls.length,rejected:rejected.error,repairPrompt:calls[1]?.prompt,dossier:fs.existsSync(path.join(cwd,label,'incremental-learning-dossier.json'))});
+      }
+      console.log(JSON.stringify(rows));
+    ''')
+    rows = {row['label']: row for row in value}
+    repaired, still_bad = rows['repaired'], rows['still-bad']
+    assert repaired['calls'] == 2 and repaired['out']['outcome'] == 'selected', repaired
+    assert repaired['out']['selection']['selected'] == ['a.md', 'b.md', 'c.md'], repaired
+    assert [a['outcome'] for a in repaired['out']['attempts']] == ['failed', 'applied'], repaired
+    assert '3' in repaired['rejected'] and '0..2' in repaired['rejected'], repaired['rejected']
+    assert 'selectedIndices' in repaired['repairPrompt'], repaired
+    assert repaired['dossier'], repaired
+    assert still_bad['calls'] == 2 and still_bad['out']['outcome'] == 'failed', still_bad
+    assert not still_bad['dossier'], still_bad

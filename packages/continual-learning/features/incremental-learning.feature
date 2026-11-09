@@ -124,6 +124,14 @@ Feature: Select the minimum sufficient scope for incremental learning
     Then the exact selection is accepted
     But multiple balanced selection objects are rejected as ambiguous
 
+  Scenario: An out-of-range frozen position gets one bounded correction
+    Given the selector returns an otherwise complete decision with one index beyond the frozen metadata index
+    When the parent rejects that position
+    Then the rejection names the exact invalid position and the valid index range
+    And one structural correction worker is started with the unchanged task and metadata
+    And the corrected decision is fully revalidated before a dossier is written
+    And a second invalid position still fails the run without reading every Memory body
+
   # The reason is diagnostic prose inside a bounded artifact. An explanation
   # longer than the bound is a formatting overflow, not a structural violation:
   # rejecting it discarded a whole valid selection and ended the run.

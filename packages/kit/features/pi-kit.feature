@@ -454,9 +454,18 @@ Feature: Shared pi-kit runtime helpers
 
   Rule: Live-activity rows are ellipsized to the terminal width
 
-    Every live-activity row is ellipsized to the terminal width, and the activity
-    is the part that must not be sacrificed. @fradser/pi-recap is the deliberate
-    exception: it renders its full content across multiple lines.
+    Every live-activity row is ellipsized to the terminal width. A normal-length
+    identity is never sacrificed to reserve columns for the activity: the
+    activity is the part that gets truncated first, and a long identity is
+    bounded only after the normal identity fits. @fradser/pi-recap is the
+    deliberate exception: it renders its full content across multiple lines.
+
+    Scenario: A normal agent name stays intact on a narrow terminal
+      Given an activity is present and the identity is a short worker name
+      When the row is rendered at 24, 40, 48, and 120 columns
+      Then the complete identity is visible at every width
+      And the separator and a non-empty activity remain at 40 columns and wider
+      And only the activity is ellipsized when the row cannot hold both
 
     Scenario: The activity survives a long identity at any width
       Given an identity long enough to fill the row on its own

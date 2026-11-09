@@ -681,7 +681,8 @@ def test_agent_triggered_memory_learns_once_before_the_answer_and_deduplicates_s
     value = run_bun_script(POLICY_HARNESS, "agent-memory-apply")
     assert value["agentFirst"] == {
         "text": "Memory learning finished: Learning 1 memory applied · usage unavailable · cost unavailable",
-        "status": "applied", "replayBound": True, "isError": False,
+        "status": "applied", "operations": 1,
+        "settledSubject": "learned 1 Memory change", "replayBound": True, "isError": False,
     }, value["agentFirst"]
     assert value["agentSecond"]["text"] == value["agentFirst"]["text"], value["agentSecond"]
     assert value["agentSecond"]["status"] == "already-learned" and value["agentSecond"]["isError"] is False, value["agentSecond"]
@@ -696,6 +697,22 @@ def test_agent_triggered_memory_learns_once_before_the_answer_and_deduplicates_s
     # No second Memory pipeline runs: the acknowledged replay reference lets
     # the settled learner skip the whole already-processed task.
     assert [phase for phase in value["planners"] if phase == "memory"] == ["memory"], value["planners"]
+
+
+def test_started_no_change_run_still_reports_its_outcome_row() -> None:
+    # Given the real open-deskos failure: `[learning] started · <topic>` was
+    # emitted, the tool result honestly said "Learning no durable changes" (or
+    # "Memory organized in-process"), but no terminal transcript row followed.
+    # An automatic noop/screened receipt was filtered out of reporting while
+    # its started row was not. When that pipeline finishes, Then every started
+    # row has its paired result row describing the same receipt.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-organize")
+    assert value["startedSubjects"], value
+    assert len(value["resultContents"]) == len(value["startedSubjects"]), value
+    receipt = value["registryReceipt"]
+    assert receipt is not None, value
+    assert "organized" in value["resultContents"][0].lower(), value["resultContents"]
+    assert "organized" in value["agentFirst"]["text"].lower(), value["agentFirst"]
 
 
 def test_pure_organize_request_completes_in_process_without_workers() -> None:
@@ -726,7 +743,8 @@ def test_disabled_agent_trigger_never_starts_a_pipeline() -> None:
     value = run_bun_script(POLICY_HARNESS, "agent-memory-disabled")
     assert value["agentFirst"] == {
         "text": "Agent-triggered Memory learning is disabled by settings. Report this accurately and continue the task; do not retry.",
-        "status": "disabled", "isError": False,
+        "status": "disabled", "operations": None,
+        "settledSubject": "agent-triggered learning is disabled", "isError": False,
     }, value["agentFirst"]
     assert value["selectors"] == 0 and value["planners"] == [], value
     assert "registryReceipt" not in value or value["registryReceipt"] is None, value
@@ -934,3 +952,34 @@ def test_legacy_backlog_reason_does_not_block_replay_binding(tmp_path: Path) -> 
     """, tmp_path)
     assert result == {"malformed": 0, "quarantined": 3, "legacyPending": 0,
                       "statusMalformed": 0, "pending": 1, "bound": True}, result
+
+
+def test_cancelled_started_run_reports_a_terminal_outcome_row() -> None:
+    # Given a session_shutdown during an agent-triggered pipeline, When the
+    # parent writes its cancelled receipt, Then every started row still has a
+    # paired terminal row. The cancelled `finally` branch used to write the
+    # receipt to disk but never report it to the transcript.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-apply",
+                           env={"CL_JEV_FIXTURE": "repair-cancel"})
+    assert value["startedSubjects"], value
+    # Two distinct started runs in this fixture each get exactly one terminal
+    # row. Equal totals prove neither the cancelled finally nor the error
+    # handler doubled or dropped a report for a single started run.
+    assert len(value["resultContents"]) == len(value["startedSubjects"]), value
+    assert any("cancel" in text.lower() for text in value["resultContents"]), value["resultContents"]
+
+
+def test_applied_tool_result_row_names_the_real_memory_count() -> None:
+    # Given a real `~/Documents/Home Lab` report: `[learning] settled · learned
+    # 0 Memory changes` appeared even though the same run's transcript row said
+    # "2 memories applied". The tool-result renderer reads details.operations,
+    # which learn() never populated. When a run applies records, Then the row
+    # names the same count as its receipt, and no-change still says zero.
+    applied = run_bun_script(POLICY_HARNESS, "agent-memory-selector-empty")
+    first = applied["agentFirst"]
+    assert first["status"] == "applied", first
+    assert first["operations"] == applied["registryReceipt"]["operations"] == 1, first
+    assert first["settledSubject"] == "learned 1 Memory change", first
+    # The renderer's zero/missing-count path is covered directly in
+    # learn-harness-route.test.ts; a proposed or failed outcome carries 0.
+    assert "learned 0 Memory changes" not in first["settledSubject"], first

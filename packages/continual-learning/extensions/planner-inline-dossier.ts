@@ -1,5 +1,4 @@
 import {
-  containsSensitiveMemoryMaterial,
   MAX_SNAPSHOT_BYTES,
   readBoundedRegularFile,
   sha256Digest,
@@ -26,9 +25,10 @@ export interface InlineDossier {
 
 /** Parent-built immutable dossier. Each file is read through the no-symlink,
  * regular-file, byte-bounded reader; a supplied digest binds its exact bytes;
- * sensitive text, digest drift, a source change mid-read and an aggregate
- * encoded overflow all fail closed. The caller then holds without spawning a
- * child, so no silently incomplete or changed dossier can reach a planner. */
+ * digest drift, a source change mid-read and an aggregate encoded overflow all
+ * fail closed. The caller then holds without spawning a child, so no silently
+ * incomplete or changed dossier can reach a planner. Evidence text is delivered
+ * unchanged: the model handles it, while write-side gates protect persistence. */
 export async function buildInlineDossier(files: readonly DossierFile[]): Promise<InlineDossier> {
   const entries: Array<{ path: string; sha256: string; bytes: string }> = [];
   for (const file of files) {
@@ -38,9 +38,6 @@ export async function buildInlineDossier(files: readonly DossierFile[]): Promise
       throw new Error(`Immutable dossier file changed before planning: ${file.path}`);
     }
     const text = buffer.toString("utf8");
-    if (containsSensitiveMemoryMaterial(text)) {
-      throw new Error("Immutable dossier contains sensitive material");
-    }
     entries.push({ path: file.path, sha256: digest, bytes: text });
   }
   const payload = JSON.stringify({ files: entries });

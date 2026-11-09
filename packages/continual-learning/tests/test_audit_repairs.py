@@ -94,7 +94,10 @@ def test_incomplete_evidence_proposes_and_automatic_receipts_are_meaningful():
       reports:outcomes.map(outcome=>shouldReportLearningReceipt({mode:'automatic',attempts:[{phase:'memory',outcome}]},false))}));
     ''')
     assert result['policies'] == {'memory':'propose','harness':'off','agents':'propose'}
-    assert result['reports'] == [True]*5+[False]*2
+    # Background replay/settled paths keep their quiet no-change behavior; the
+    # started-row pairing is enforced by startConsolidationPipeline's explicit
+    # reportedStarted flag, covered in test_learning_single_tool.py.
+    assert result['reports'] == [True] * 5 + [False] * 2
 
 
 def test_management_can_reach_memory_129_and_full_body(tmp_path):

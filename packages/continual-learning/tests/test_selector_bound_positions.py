@@ -47,8 +47,16 @@ def test_selector_parent_binds_positions_without_transcribed_identity() -> None:
     assert 'EXACT_ORIGINAL_BODY' in dossier['selectedMemories'][0]['content']
     assert 'selectedIndices' in rows[0]['prompt'] and '"index":0' in rows[0]['prompt']
     assert rows[0]['calls'] == 1 and rows[0]['tools'] == []
-    for row in rows[1:12] + rows[14:]:
-        assert row['out']['outcome'] == 'failed'
-        assert row['calls'] == (2 if row is rows[10] else 1) and row['dossier'] is None
+    # A complete decision with only an invalid/duplicate frozen position now
+    # earns exactly one bounded correction (cases 1-5), as does the existing
+    # missing-field case (10). Every other structural or privacy defect still
+    # fails immediately with no second worker and no dossier.
+    recoverable = {1, 2, 3, 4, 5, 10}
+    for index, row in enumerate(rows[1:12]):
+        assert row['out']['outcome'] == 'failed', (index + 1, row)
+        assert row['calls'] == (2 if index + 1 in recoverable else 1), (index + 1, row)
+        assert row['dossier'] is None, (index + 1, row)
+    assert rows[14]['out']['outcome'] == 'failed'
+    assert rows[14]['calls'] == 1 and rows[14]['dossier'] is None
     assert rows[12]['out']['outcome'] == 'selected'  # Existing strict legacy envelope.
     assert rows[13]['dossier']['selection']['selected'] == ['z-other.md', 'contract.md']

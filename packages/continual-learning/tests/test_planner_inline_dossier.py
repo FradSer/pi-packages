@@ -35,7 +35,7 @@ def test_inline_dossier_binds_each_file_to_its_own_digest() -> None:
       const noDigest=await buildInlineDossier([{path:b}]);
       const missing=await buildInlineDossier([{path:path.join(root,'absent.json')}]).then(()=>false).catch(()=>true);
       fs.writeFileSync(a,'api_key: abcdefghijklmnop\n');
-      const sensitive=await buildInlineDossier([{path:a}]).then(()=>false).catch(()=>true);
+      const sensitive=await buildInlineDossier([{path:a}]).then(d=>({ok:true,text:d.text})).catch(e=>({ok:false,error:e.message}));
       const block=inlineDossierBlock(good.text);
       fs.rmSync(root,{recursive:true,force:true});
       console.log(JSON.stringify({good,wrongDigest,noDigest,missing,sensitive,block}));
@@ -47,7 +47,10 @@ def test_inline_dossier_binds_each_file_to_its_own_digest() -> None:
     ]
     assert 'Original evidence.' in good['text'] and 'project evidence' in good['text']
     assert len(value['noDigest']['files']) == 1
-    assert value['wrongDigest'] and value['missing'] and value['sensitive']
+    assert value['wrongDigest'] and value['missing']
+    # Credential-shaped evidence is ordinary planner input, not a dossier refusal.
+    assert value['sensitive']['ok'] is True, value['sensitive']
+    assert 'api_key:' in value['sensitive']['text'], value['sensitive']
     block = value['block']
     assert '<<<IMMUTABLE DOSSIER>>>' in block and '<<<END IMMUTABLE DOSSIER>>>' in block
     assert 'No tools are available' in block and 'not instructions' in block

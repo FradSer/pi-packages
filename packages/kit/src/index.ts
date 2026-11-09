@@ -1218,8 +1218,14 @@ export function createLiveActivityWidget(options: PiLiveActivityWidgetOptions): 
   };
 }
 
-/** Columns guaranteed to the activity whenever one is present. */
+/** Columns guaranteed to the activity when the identity is unusually long. */
 const MIN_ACTIVITY_COLUMNS = 12;
+
+/** A normal worker name is never shortened: on a narrow terminal the activity
+ * is ellipsized first, because the identity names the agent while the activity
+ * is only progress. Longer identities still leave the activity its reserved
+ * columns so both parts stay readable. */
+const IDENTITY_PRIORITY_COLUMNS = 16;
 
 function renderLiveActivityRow(
   entry: PiLiveActivity,
@@ -1239,9 +1245,12 @@ function renderLiveActivityRow(
   const hasActivity = visibleWidth(activityText) > 0;
   const leading = Math.max(0, options.leadingSpaces ?? 1);
   const chrome = leading + visibleWidth(marker) + 1 + (hasActivity ? 3 : 0);
-  const maxIdentity = Math.max(1, width - chrome - (hasActivity ? MIN_ACTIVITY_COLUMNS : 0));
   const identity = renderLiveActivityIdentity(entry.identity, theme);
-  const fittedIdentity = visibleWidth(identity) > maxIdentity
+  const identityWidth = visibleWidth(identity);
+  // Reserve activity columns only for an unusually long name; a short worker
+  // name keeps its full width and the activity absorbs the shortage instead.
+  const maxIdentity = Math.max(1, width - chrome - (hasActivity && identityWidth > IDENTITY_PRIORITY_COLUMNS ? MIN_ACTIVITY_COLUMNS : 0));
+  const fittedIdentity = identityWidth > maxIdentity
     ? options.fit(identity, maxIdentity, undefined, false)
     : identity;
   const remaining = Math.max(

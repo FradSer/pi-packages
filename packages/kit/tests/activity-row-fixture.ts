@@ -157,4 +157,25 @@ assert.ok(stripVTControlCharacters(long).trimEnd().endsWith("..."), stripVTContr
 const identityOnly = row({ id: "a", identity: "researcher", activity: "\u001b[2J" }, { activityFormat: "markdown" }, 40);
 assert.equal(stripVTControlCharacters(identityOnly).trimEnd(), ` ⠋ researcher`);
 
+// A normal-length worker identity is never sacrificed to reserve columns for
+// the activity. On a narrow terminal the activity is ellipsized first; at 40
+// columns and wider both parts remain readable. This protects learner,
+// researcher and monitor alike, in both shared activity formats.
+for (const format of ["plain", "markdown"] as const) {
+  for (const width of [24, 40, 48, 120]) {
+    const narrow = stripVTControlCharacters(row(
+      { id: "a", identity: "learner", activity: "pnpm build and onIdle order" },
+      { activityFormat: format },
+      width,
+    ));
+    assert.ok(visibleWidth(narrow) <= width, narrow);
+    assert.ok(narrow.includes("learner"), `identity clipped at ${width} (${format}): ${narrow}`);
+    assert.ok(!narrow.includes("lea..."), `identity truncated at ${width} (${format}): ${narrow}`);
+    if (width >= 40) {
+      assert.ok(narrow.includes(" · "), `separator lost at ${width} (${format}): ${narrow}`);
+      assert.ok(narrow.split(" · ")[1]?.trim(), `activity lost at ${width} (${format}): ${narrow}`);
+    }
+  }
+}
+
 console.log("KIT_ACTIVITY_ROW_OK");

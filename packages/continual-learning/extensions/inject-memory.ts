@@ -334,6 +334,10 @@ interface LaterPlannerState {
   child?: ChildProcess;
 }
 
+/** PiLiveActivity.identity names the worker, not the in-progress action. The
+ * bounded run topic stays in `activity`; the spinner already conveys progress. */
+export const LEARNING_ACTIVITY_IDENTITY = "learner";
+
 interface DreamState {
   active: boolean;
   generation: number;
@@ -344,7 +348,6 @@ interface DreamState {
   memoryReviewHeld?: boolean;
   /** Fixed parent diagnostic for a refusal before the Memory child starts. */
   memoryStartupDiagnostic?: string;
-  /** A refusal caused by credential-shaped frozen evidence is a policy hold. */
   child?: ChildProcess;
   run?: ConsolidationRun;
   completion?: Promise<void>;
@@ -396,11 +399,12 @@ interface ChildJsonEvent {
   };
 }
 
-const MEMORY_FILENAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*\.md$/;
-
 /**
  * Normalize the child-facing selected scope using the same alias precedence as
  * the apply path. The parent receipt only ever receives this canonical list.
+ * Use the shared filename guard: a dotted version-style name is a valid Memory
+ * child in the corpus, index and validator, so a private stricter regex here
+ * rejected plans that selected an existing file.
  */
 export function normalizeSelectedScope(plan: unknown): string[] {
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
@@ -418,7 +422,7 @@ export function normalizeSelectedScope(plan: unknown): string[] {
           ?? (entry as { file?: unknown }).file
           ?? (entry as { filename?: unknown }).filename
         : undefined;
-    if (typeof name !== "string" || !MEMORY_FILENAME_RE.test(name) || name.toLowerCase() === "memory.md") {
+    if (typeof name !== "string" || !isMemoryFilename(name)) {
       throw new Error(`Consolidation plan selected[${index}] is not a canonical memory filename`);
     }
     return name;
@@ -477,7 +481,7 @@ function parentSelectedScope(run: ConsolidationRun, selected?: readonly string[]
   const names = new Map<string, string>();
   const sourceHashes = run.manifest.sourceHashes;
   for (const name of [...Object.keys(sourceHashes.harness), ...Object.keys(sourceHashes.public)].sort()) {
-    if (!MEMORY_FILENAME_RE.test(name) || name.toLowerCase() === "memory.md") continue;
+    if (!isMemoryFilename(name)) continue;
     names.set(name.toLowerCase(), names.get(name.toLowerCase()) ?? name);
   }
   return [...names.values()].sort();
@@ -4940,10 +4944,24 @@ async function startConsolidationPipeline(
 ): Promise<void> {
   if (opts.currentUserHarnessCurrent && !opts.currentUserHarnessCurrent()) return;
   if (state.pipeline) return state.pipeline;
+  // Every pipeline that emits a started row must emit a paired terminal row,
+  // including no-change, screened, skipped and in-process organization outcomes.
+  // Otherwise the transcript leaves `[learning] started` with no result while
+  // the tool result already reports the honest outcome.
+  const shouldReport = Boolean(opts.reportResult) || Boolean(opts.reportStarted);
+  // Exactly one terminal row per started run: an await in the error handler can
+  // overlap a session shutdown, so both the catch and the cancelled finally
+  // must not report. Cancellation also still closes a started row.
+  let reportedTerminal = false;
+  const reportTerminal = (receipt: LearningPipelineReceipt): void => {
+    if (reportedTerminal) return;
+    reportedTerminal = true;
+    if (shouldReportLearningReceipt(receipt, shouldReport)) opts.reportReceipt?.(receipt, state.appliedMemoryDetails);
+  };
   const activitySubject = learningRunSubject(opts);
   opts.reportStarted?.(activitySubject, opts.reason);
   const activityContext = ctx as unknown as PiLiveWidgetContext;
-  const learningActivity: PiLiveActivity = { id: "learning", identity: "learning", status: "working", activity: activitySubject };
+  const learningActivity: PiLiveActivity = { id: "learning", identity: LEARNING_ACTIVITY_IDENTITY, status: "working", activity: activitySubject };
   // pi-kit mounts only for mode "tui" with a live ui; headless runs stay silent.
   state.activityWidget?.update(activityContext, [learningActivity]);
   state.cancelled = false;
@@ -5095,8 +5113,8 @@ async function startConsolidationPipeline(
     // A pure organize request has no user-stated durable knowledge to learn.
     // Finish mirrors, indexes and consistency here in the parent instead of
     // spawning selector/planner/review children and leaving a proposal for an
-    // external actor. Credential-shaped evidence and invalid model config keep
-    // their existing fail-closed paths; this branch never bypasses them.
+    // external actor. Evidence that needs model judgment and invalid model
+    // config take the full pipeline instead; this branch bypasses neither.
     if (opts.agentRequested && !fullMode && opts.memoryRequest === undefined
       && !opts.currentUserHarnessRevisions && !modelConfigurationError
       && !containsSensitiveMemoryMaterial(JSON.stringify(taskSlice.entries))) {
@@ -5121,7 +5139,7 @@ async function startConsolidationPipeline(
         await writeLearningReceipt(memoryPaths.runsDir, receipt);
         opts.onReceipt?.(receipt);
         if (!isCurrent()) return;
-        if (shouldReportLearningReceipt(receipt, Boolean(opts.reportResult))) opts.reportReceipt?.(receipt, state.appliedMemoryDetails);
+        reportTerminal(receipt);
         return;
       }
     }
@@ -5132,14 +5150,14 @@ async function startConsolidationPipeline(
       const receipt = buildLearningReceipt(opts.mode, screen, [], learningInput, pipelineBatchId);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt); opts.onReceipt?.(receipt);
       if (!isCurrent()) return;
-      if (shouldReportLearningReceipt(receipt, Boolean(opts.reportResult))) opts.reportReceipt?.(receipt, state.appliedMemoryDetails);
+      reportTerminal(receipt);
       // Retain a bounded reference for inspection. Historical replay requires
       // a separate source-verified replay implementation.
       if (!opts.currentUserHarnessRevisions) queueSettledTask(invocationContext, taskSlice, "screen-found-nothing", opts.cwd);
       return;
     }
     const reportReceipt = (receipt: LearningPipelineReceipt): void => {
-      if (shouldReportLearningReceipt(receipt, Boolean(opts.reportResult))) opts.reportReceipt?.(receipt, state.appliedMemoryDetails);
+      reportTerminal(receipt);
     };
     const writeCurrentReceipt = async (): Promise<void> => {
       const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? [], learningInput, pipelineBatchId);
@@ -5527,7 +5545,7 @@ async function startConsolidationPipeline(
         ...(attempts.length === 0 ? {diagnostic:"Parent preflight failed before any worker started."} : {})});
       const receipt = buildLearningReceipt(opts.mode, pipelineScreen ?? {memory:false,harness:false,agents:false,reasons:["Parent preflight failed"]}, attempts, learningInput, pipelineBatchId);
       try { await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt); opts.onReceipt?.(receipt); } catch { /* Ownership failure must not escape the pipeline rejection handler. */ }
-      if (shouldReportLearningReceipt(receipt, Boolean(opts.reportResult))) opts.reportReceipt?.(receipt, state.appliedMemoryDetails);
+      reportTerminal(receipt);
     }
     if (!state.cancelled) notifyPi(ctx.ui, `Learning pipeline failed: ${error instanceof Error ? error.message : String(error)}`, "error");
   }).finally(async () => {
@@ -5537,6 +5555,10 @@ async function startConsolidationPipeline(
         ...(opts.currentUserHarnessRevisions ? {modelCalls: 0 as const} : {})});
       const receipt = buildLearningReceipt(opts.mode, pipelineScreen ?? {memory:false,harness:false,agents:false,reasons:["Cancelled before screening"]}, attempts, learningInput, pipelineBatchId);
       try { await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt); opts.onReceipt?.(receipt); } catch { /* Pending WAL retains the interrupted attempt when receipt storage is unavailable. */ }
+      // Cancellation is a terminal outcome too. The catch handler skips all
+      // reporting when cancelled, so this is the only place a started run can
+      // emit its paired result row; leaving it out strands `[learning] started`.
+      reportTerminal(receipt);
     }
     if (state.pipeline === pipeline) state.pipeline = undefined;
     // One terminal clear covers completion, failure, cancellation and every
@@ -5848,7 +5870,10 @@ export default function (pi: ExtensionAPI) {
           ? "Memory learning held by Memory review: no decision could be verified, no Memory or Harness was written, and the original diagnostics are retained in the receipt. Report this accurately and continue; the task stays available for a later replay."
           : replayBound ? `Memory learning finished: ${summary}${importsNote}`
             : `Memory learning finished: ${summary}${importsNote} (no replay reference; backfill cannot retry this run)`;
-        const outcome = { content: [{ type: "text" as const, text }], details: { ...detailsBase(), status, normalizedImports: importedCount, ...(screenedCount !== undefined ? { screenedEntryCount: screenedCount } : {}), receipt: { summary }, replayBound }, isError: failed };
+        // The tool-result renderer reads `details.operations` to name the
+        // applied Memory count. Without it a successful run still rendered
+        // "learned 0 Memory changes" while the receipt said "2 applied".
+        const outcome = { content: [{ type: "text" as const, text }], details: { ...detailsBase(), status, operations: applied, normalizedImports: importedCount, ...(screenedCount !== undefined ? { screenedEntryCount: screenedCount } : {}), receipt: { summary }, replayBound }, isError: failed };
         // Any terminal pipeline attempt consumes this task's one agent trigger.
         if (key) agentMemoryTasks.set(key, { attempted: true, ...(failed ? {} : { echo: outcome.content[0]!.text }) });
         return outcome;

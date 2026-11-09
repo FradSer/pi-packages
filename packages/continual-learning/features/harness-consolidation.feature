@@ -215,6 +215,13 @@ Feature: Harness consolidation alongside memory consolidation
     Then no repair child runs
     And the plan is applied exactly as it does today
 
+  Scenario: Credential-shaped evidence does not block the Harness planner dossier
+    Given a frozen snapshot or dossier file carries credential-shaped project text
+    When the parent builds the immutable inline dossier for the Harness planner
+    Then the dossier is delivered unchanged and digest-bound to the planner
+    And the Harness phase reports its ordinary outcome rather than "dossier unavailable"
+    And write-side gates still refuse persisting a credential-shaped rule or plan
+
   Scenario: Optional report formatting cannot suppress valid constraints
     Given a plan whose only structural error is an invalid optional report
     When the parent removes that report and repeats complete validation

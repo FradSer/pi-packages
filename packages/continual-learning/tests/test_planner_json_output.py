@@ -505,13 +505,16 @@ def test_actual_selector_worker_transmits_schema_and_keeps_parent_range_gate(tmp
         def do_POST(self):
             request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             requests.append(request)
-            if len(requests) == 3:
+            # Run 2 sends an out-of-range position and now earns one bounded
+            # correction (request 3), which must still fail the parent range
+            # gate. Requests 4/5 are run 3's schema failure and run 4's repair.
+            if len(requests) == 4:
                 self.send_error(400, 'Fixture schema unsupported')
                 return
-            if len(requests) == 4:
+            if len(requests) == 5:
                 stream_response(self, json.dumps({'selectedIndexes': [], 'reason': 'Fixture wrong schema'}))
                 return
-            content = {'selectedIndices': [99] if len(requests) == 2 else [],
+            content = {'selectedIndices': [99] if len(requests) in (2, 3) else [],
                        'memory': True, 'harness': False, 'agents': False, 'reason': 'Fixture routing only.'}
             stream_response(self, json.dumps(content))
 
@@ -544,8 +547,9 @@ def test_actual_selector_worker_transmits_schema_and_keeps_parent_range_gate(tmp
         assert results[1]['outcome'] == 'failed'
         assert results[2]['outcome'] == 'failed'
         assert results[3]['outcome'] == 'selected'
+        assert [a['outcome'] for a in results[1]['attempts']] == ['failed', 'failed']
         assert [a['outcome'] for a in results[3]['attempts']] == ['failed', 'applied']
-        assert len(requests) == 5
+        assert len(requests) == 6
         assert all(not request.get('tools') for request in requests)
         assert all(request['response_format']['type'] == 'json_schema' for request in requests)
         assert all(request['response_format']['json_schema']['strict'] is True for request in requests)
