@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   HIDDEN_THINKING_LABEL,
   hiddenThinkingEnabled,
   resolveLiveActivity,
+  resolvePiCli,
   runPiWorker,
   visibleWorkerActivity,
   type PiWorkerProgressUpdate,
@@ -66,12 +67,27 @@ async function lastProgress(events: readonly unknown[]): Promise<PiWorkerProgres
     )});\n`);
     process.argv[1] = cli;
     const updates: PiWorkerProgressUpdate[] = [];
-    await runPiWorker({
+    const result = await runPiWorker({
       prompt: "think",
       cwd: root,
       minimal: true,
       onUpdate: (update) => { updates.push(update); },
     });
+    // A silent worker means the fake CLI never ran, so name the resolved launch
+    // and the worker's own verdict instead of reporting an empty list.
+    if (updates.length === 0) {
+      throw new Error(`fake CLI produced no progress: ${JSON.stringify({
+        cli,
+        argv1: process.argv[1],
+        resolved: resolvePiCli(),
+        execPath: process.execPath,
+        platform: process.platform,
+        tmpdir: realpathSync(tmpdir()),
+        exitCode: result.exitCode,
+        terminal: result.terminal,
+        stderr: result.stderr.slice(0, 300),
+      })}`);
+    }
     expect(updates.length).toBeGreaterThan(0);
     return updates.at(-1) as PiWorkerProgressUpdate;
   } finally {

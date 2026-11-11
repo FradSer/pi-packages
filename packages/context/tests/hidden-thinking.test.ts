@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { initTheme } from "@earendil-works/pi-coding-agent";
+import { resolvePiCli } from "@fradser/pi-kit";
 import { registerContextTools } from "../extensions/context-tools.ts";
 
 initTheme("dark", false);
@@ -77,6 +78,20 @@ async function researchRows(hideThinkingBlock: boolean): Promise<{ rows: string[
       failure = error;
     }
     expect(failure).toBeInstanceOf(Error);
+    // Any other failure means the fake CLI was not the child that ran, so name
+    // the launch resolution instead of leaving a bare message compare.
+    if (!String(failure).includes("returned no answer after retry")) {
+      throw new Error(`research child never reached the documented retry: ${JSON.stringify({
+        argv1: process.argv[1],
+        resolved: resolvePiCli(),
+        kit: import.meta.resolve("@fradser/pi-kit"),
+        execPath: process.execPath,
+        platform: process.platform,
+        tmpdir: realpathSync(tmpdir()),
+        error: String(failure),
+        stack: ((failure as Error)?.stack ?? "").split("\n").slice(0, 6),
+      })}`);
+    }
     expect(String(failure)).toContain("returned no answer after retry");
     return { rows, partials };
   } finally {
