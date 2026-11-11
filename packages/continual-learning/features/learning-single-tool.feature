@@ -57,12 +57,13 @@ Feature: One model-facing learning tool
     When the run ends
     Then the transcript shows one [learning] started row
     And one final outcome row that expands to Markdown descriptions and bodies of applied safe Memory
+    And the expansion names each applied Memory so the user can tell which records were written
     And the complete receipt stays unchanged in message details and on disk
     And an applied write has an undoable learning-history record
     And no settled or early-correction hook starts a second pipeline for the task
 
   Scenario: A started run always reports its outcome, including a no-change result
-    Given a learn call emits a [learning] started row but finds no durable changes, screens nothing, or organizes in process
+    Given a learn call emits a [learning] started row but writes no changes, screens nothing, or organizes in process
     When the parent finishes that pipeline and returns a receipt
     Then the transcript shows exactly one final [learning] outcome row for that batch
     And the row names the no-change, screened, skipped or organized outcome honestly

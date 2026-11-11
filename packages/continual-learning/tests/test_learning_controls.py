@@ -701,7 +701,7 @@ def test_agent_triggered_memory_learns_once_before_the_answer_and_deduplicates_s
 
 def test_started_no_change_run_still_reports_its_outcome_row() -> None:
     # Given the real open-deskos failure: `[learning] started · <topic>` was
-    # emitted, the tool result honestly said "Learning no durable changes" (or
+    # emitted, the tool result honestly said "Learning no changes written" (or
     # "Memory organized in-process"), but no terminal transcript row followed.
     # An automatic noop/screened receipt was filtered out of reporting while
     # its started row was not. When that pipeline finishes, Then every started
@@ -983,3 +983,109 @@ def test_applied_tool_result_row_names_the_real_memory_count() -> None:
     # The renderer's zero/missing-count path is covered directly in
     # learn-harness-route.test.ts; a proposed or failed outcome carries 0.
     assert "learned 0 Memory changes" not in first["settledSubject"], first
+
+
+def test_zero_write_result_row_states_what_was_checked_but_failures_do_not() -> None:
+    # Given an in-process organize run that normally settled with zero writes,
+    # When its terminal result row is built, Then it expands to say what was
+    # checked and that nothing was written. A failed or proposed run must not
+    # be dressed up as a completed no-change check.
+    organized = run_bun_script(POLICY_HARNESS, "agent-memory-organize")
+    assert organized["resultContents"], organized
+    assert "--- no changes ---" in organized["resultContents"][0], organized["resultContents"]
+    assert "No Memory or AGENTS.md changes were written" in organized["resultContents"][0], organized["resultContents"]
+    for scenario in ("agent-memory-apply", "manual-full", "agent-memory-selector-garbage"):
+        value = run_bun_script(POLICY_HARNESS, scenario)
+        for content in value["resultContents"]:
+            assert "--- no changes ---" not in content, (scenario, content)
+
+
+def test_agents_applied_result_row_names_the_applied_edit() -> None:
+    # Given a run that applied one validated AGENTS.md edit, When its terminal
+    # result row is built, Then the stored custom message carries the operation
+    # and applied unit text for the expandable view, while the receipt in
+    # details stays unchanged.
+    value = run_bun_script(POLICY_HARNESS, "agents-apply")
+    receipt = value["registryReceipt"]
+    assert receipt["operations"] == 1, receipt
+    assert any(a["phase"] == "agents" and a["outcome"] == "applied" for a in receipt["attempts"]), receipt
+    assert value["resultContents"], value
+    content = value["resultContents"][0]
+    assert "--- AGENTS.md changes ---" in content, content
+    assert "rewriteUnit" in content and "Run tests with pnpm test" in content, content
+    assert "digestBefore" not in content and "bytesAfter" not in content, content
+
+
+def test_automatic_run_holds_a_plan_with_too_many_new_memory_files() -> None:
+    # Given an automatic learning run that proposes four independent new Memory
+    # files, When the parent applies its configured per-run cap (default two),
+    # Then it holds the plan without writing any Memory file or applied receipt
+    # and reports the exact count and limit for review.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-apply",
+                           env={"CL_NEW_MEMORY_COUNT": "4"})
+    receipt = value["registryReceipt"]
+    assert receipt["operations"] == 0, receipt
+    # The shared MEMORY.md index is created by setup and is not a written
+    # candidate; no proposed candidate file may appear in either root.
+    written = [name for name in value["privateFiles"] + value["publicFiles"] if name.startswith("candidate-")]
+    assert written == [], (written, value)
+    assert any("4 new Memory files" in notice and "limit 2" in notice for notice in value["notices"]), value["notices"]
+    held = [record for record in value["history"]
+            if record["status"] == "proposed" and record["phase"] == "memory"]
+    assert held, value["history"]
+    # The held proposal retains every grounded candidate for review; nothing
+    # was silently discarded or written.
+    assert [entry["name"] for entry in held[0]["proposal"]["newMemories"]] == [
+        "candidate-0.md", "candidate-1.md", "candidate-2.md", "candidate-3.md"], held[0]
+    # A held run still closes every started row with exactly one terminal row.
+    assert len(value["resultContents"]) == len(value["startedSubjects"]), value
+    # But it must not be dressed up as a normally completed zero-write check:
+    # the cap held a grounded plan for review, so the result row says so and
+    # never claims mirrors/indexes/consistency were verified.
+    assert value["resultContents"], value
+    result = value["resultContents"][0].lower()
+    assert "held" in result, value["resultContents"]
+    assert "review" in result, value["resultContents"]
+    assert "--- no changes ---" not in result, value["resultContents"]
+    assert "verified" not in result, value["resultContents"]
+
+
+def test_automatic_run_holds_the_six_new_memory_files_seen_in_real_logs() -> None:
+    # Regression for the hud-playground automatic batch whose plan.json held
+    # six newMemories with selected=[] (batch ops 6). The debug log's
+    # pipeline:started mode sha256 resolves to "automatic"; cap must hold it.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-apply",
+                           env={"CL_NEW_MEMORY_COUNT": "6"})
+    assert value["registryReceipt"]["operations"] == 0, value["registryReceipt"]
+    assert any("6 new Memory files" in notice and "limit 2" in notice
+               for notice in value["notices"]), value["notices"]
+    written = [name for name in value["privateFiles"] + value["publicFiles"] if name.startswith("candidate-")]
+    assert written == [], (written, value)
+
+
+def test_automatic_run_at_or_below_the_new_memory_cap_is_unaffected() -> None:
+    # Given an automatic plan proposing exactly two new files (the default cap),
+    # When the parent validates it, Then the run proceeds normally and applies
+    # both files; the cap must not reject a plan within its bound.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-apply",
+                           env={"CL_NEW_MEMORY_COUNT": "2"})
+    receipt = value["registryReceipt"]
+    assert receipt["operations"] == 2, receipt
+    assert not any("new Memory files" in notice for notice in value["notices"]), value["notices"]
+
+
+def test_configured_new_memory_cap_is_honored_and_explicit_requests_are_exempt() -> None:
+    # Given a configured cap of three, When an automatic plan proposes four
+    # files, Then the exact configured limit appears in the hold diagnostic.
+    # But an explicit /memory request is not subject to the automatic cap.
+    automatic = run_bun_script(POLICY_HARNESS, "agent-memory-apply",
+                               env={"CL_NEW_MEMORY_COUNT": "4", "CL_MAX_NEW_MEMORIES": "3"})
+    assert automatic["registryReceipt"]["operations"] == 0, automatic["registryReceipt"]
+    assert any("4 new Memory files" in notice and "limit 3" in notice
+               for notice in automatic["notices"]), automatic["notices"]
+
+    explicit = run_bun_script(POLICY_HARNESS, "remember-shared",
+                              env={"CL_NEW_MEMORY_COUNT": "4", "CL_MAX_NEW_MEMORIES": "1"})
+    assert explicit["registryReceipt"]["operations"] == 4, explicit["registryReceipt"]
+    assert not any("new Memory files" in notice and "limit" in notice
+                   for notice in explicit["notices"]), explicit["notices"]

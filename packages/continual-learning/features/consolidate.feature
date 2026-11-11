@@ -32,6 +32,19 @@ Feature: Memory management with automatic learning and manual consolidation
     And a routine task with no durable signal launches no learning model
     And repeated settled events do not start duplicate pipelines
 
+  Scenario: One automatic task creates at most a bounded number of new Memory files
+    Given automatic learning distills several candidate facts from one completed task
+    When the fully reviewed generation plan proposes more new Memory files than the per-run limit
+    Then the parent holds the plan as a proposal and writes no Memory file or applied mutation receipt
+    And the saved proposal retains every grounded candidate for review
+    And it reports the exact count and limit
+    And the terminal result row says the plan was held for review, not that a normal zero-write check completed
+    And it never claims that mirrors, indexes and consistency were verified for a held plan
+    But an explicit /memory request may keep every grounded proposal
+    And a plan at or below the limit is unaffected
+    And rewrites and deletes of existing records do not consume the limit
+    And the limit is configurable and validated as a positive bounded integer
+
   Scenario: Dedicated /consolidate command is a sibling of /memory
     Given the user types /consolidate
     Then the extension starts manual consolidation without opening the menu

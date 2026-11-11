@@ -129,3 +129,12 @@ test("an applied outcome with no operation count reports zero honestly", async (
   const spec = learningOutcomeSpec({ details: { status: "applied" }, content: [] } as never) as Record<string, unknown>;
   expect(String(spec.subject)).toBe("learned 0 Memory changes");
 });
+
+test("a no-change settled row stays short, factual and jargon-free", async () => {
+  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
+  const spec = learningOutcomeSpec({ details: { status: "no-change" }, content: [] } as never) as Record<string, unknown>;
+  expect(spec.label).toBe("settled");
+  expect(spec.tone).toBe("success");
+  expect(String(spec.subject)).toBe("no Memory changes written");
+  expect(String(spec.subject)).not.toContain("durable");
+});

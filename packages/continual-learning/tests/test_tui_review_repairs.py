@@ -143,7 +143,7 @@ def test_recovered_retry_is_not_reported_as_an_unresolved_failure() -> None:
       const receipt={attempts:[{phase:'memory',outcome:'rejected',operations:0},{phase:'memory',outcome:'applied',operations:1}],screen:{reasons:[]}};
       console.log(JSON.stringify({subject:learningSummarySubject(receipt),tone:learningSummaryTone(receipt),noop:learningSummarySubject({...receipt,attempts:[{phase:'memory',outcome:'rejected',operations:0},{phase:'memory',outcome:'noop',operations:0}]})}));
     ''')
-    assert result == {'subject': '1 memory applied', 'tone': 'success', 'noop': 'no durable changes'}
+    assert result == {'subject': '1 memory applied', 'tone': 'success', 'noop': 'no changes written'}
 
 
 def test_terminal_pipeline_error_after_recovered_retry_is_reported() -> None:

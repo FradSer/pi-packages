@@ -331,7 +331,7 @@ def test_quiet_learning_subjects_and_details_keep_routine_rows_compact() -> None
         noop: learningSummarySubject(noop), changed: learningSummarySubject(changed), failed: learningSummarySubject(failed), details: learningSummaryDetails(changed),
       }));
     """)
-    assert result["noop"] == "no durable changes"
+    assert result["noop"] == "no changes written"
     assert result["changed"] == "2 memories applied"
     assert result["failed"] == "finished with issues: memory failed"
     assert any("memory: applied" in line for line in result["details"])
@@ -365,7 +365,7 @@ def test_selector_is_the_incremental_selection_accounting_phase() -> None:
       console.log(JSON.stringify({ phase: receipt.attempts[0].phase, summary: formatLearningSummary(receipt) }));
     """)
     assert result["phase"] == "selector"
-    assert "no durable changes" in result["summary"]
+    assert "no changes written" in result["summary"]
     assert "explorer" not in result["summary"]
 
 
@@ -604,5 +604,43 @@ def test_sensitive_evidence_startup_hold_design_is_removed() -> None:
       }));
     """)
     assert value["exports"] == [], value
-    assert value["subject"] == "no durable changes", value
+    assert value["subject"] == "no changes written", value
     assert value["tone"] == "success", value
+
+
+def test_zero_write_subject_is_short_factual_and_jargon_free() -> None:
+    # Given a normally settled zero-write receipt, When its subject is shown,
+    # Then it is one short factual line ("no changes written") rather than the
+    # engineering-jargon old "no durable changes" wording, and a pending-review suffix is
+    # retained. This is a display-only decision; the receipt is unchanged.
+    result = run_bun(r"""
+      import { buildLearningReceipt, learningSummarySubject } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const screen = { memory: true, harness: false, agents: false, reasons: [] };
+      const noop = buildLearningReceipt('automatic', screen, [{ phase: 'selector', attempt: 0, outcome: 'applied', durationMs: 5, operations: 0 }]);
+      const pending = buildLearningReceipt('automatic', screen, [{ phase: 'memory', attempt: 0, outcome: 'noop', durationMs: 5, operations: 0, pendingOperations: 2 }]);
+      console.log(JSON.stringify({ noop: learningSummarySubject(noop), pending: learningSummarySubject(pending) }));
+    """)
+    assert result["noop"] == "no changes written", result
+    assert "durable" not in result["noop"], result
+    assert "no changes written" in result["pending"] and "2 pending review" in result["pending"], result
+
+
+def test_new_memory_cap_hold_subject_reports_a_hold_not_a_zero_write() -> None:
+    # A cap-held receipt has a proposed attempt with operations=0 and no
+    # pending count. It must not fall through to the quiet zero-write subject:
+    # the parent saved a grounded plan for review, not a completed check.
+    result = run_bun(r"""
+      import { buildLearningReceipt, learningSummarySubject, NEW_MEMORY_CAP_HOLD } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const screen = { memory: true, harness: false, agents: false, reasons: [], routing: [NEW_MEMORY_CAP_HOLD] };
+      const held = buildLearningReceipt('automatic', screen, [
+        { phase: 'selector', attempt: 0, outcome: 'applied', durationMs: 5, operations: 0 },
+        { phase: 'memory', attempt: 0, outcome: 'proposed', durationMs: 5, operations: 0 },
+      ]);
+      const plain = buildLearningReceipt('automatic', { memory: true, harness: false, agents: false, reasons: [] }, [
+        { phase: 'memory', attempt: 0, outcome: 'proposed', durationMs: 5, operations: 0 },
+      ]);
+      console.log(JSON.stringify({ held: learningSummarySubject(held), plain: learningSummarySubject(plain) }));
+    """)
+    assert result["held"] == "new Memory plan held by per-run limit; proposal saved for review", result
+    assert "held" in result["held"] and "review" in result["held"], result
+    assert result["plain"] == "no changes written", result

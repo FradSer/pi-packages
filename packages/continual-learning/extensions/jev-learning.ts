@@ -1,3 +1,4 @@
+import { recordLearningDebug } from "./debug.ts";
 import type {MemoryCoverageContext, PreparedMemoryCoverage} from "./memory-knowledge-coverage";
 import { TOOL_NAMES } from "./tool-surface";
 import { memoryReferenceResults } from "./memory-evidence-provenance";
@@ -976,6 +977,17 @@ function instantiateJevJudge(config: JevJudgeOptions, configured: ReturnType<typ
     return client;
   };
   async function evaluate(stage: JevTelemetry["stage"], state: unknown, questions: Questions, signal?: AbortSignal, maximumTimeout?: number): Promise<{ result?: SystemOneResult<Questions>; telemetry: JevTelemetry }> {
+    const result = await evaluateService(stage, state, questions, signal, maximumTimeout);
+    recordLearningDebug("extensions/jev-learning.ts", "jev:evaluated", { stage, status: result.telemetry.status,
+      reason: result.telemetry.reason, requestCount: result.telemetry.requestCount ?? 0,
+      completedRequests: result.telemetry.completedRequests ?? 0,
+      retriedRequests: result.telemetry.retriedRequests ?? null, httpStatus: result.telemetry.httpStatus ?? null,
+      failureKind: result.telemetry.failureKind ?? null,
+      knownInputTokens: result.telemetry.inputTokens ?? result.telemetry.knownInputTokens ?? null,
+      knownEstimatedCostUsd: result.telemetry.estimatedCostUsd ?? result.telemetry.knownEstimatedCostUsd ?? null });
+    return result;
+  }
+  async function evaluateService(stage: JevTelemetry["stage"], state: unknown, questions: Questions, signal?: AbortSignal, maximumTimeout?: number): Promise<{ result?: SystemOneResult<Questions>; telemetry: JevTelemetry }> {
     const started = Date.now();
     const telemetry: JevTelemetry = { stage, status: stage === "selection" ? "fallback" : "propose", reason: "unavailable", durationMs: 0, requestCount: 0, completedRequests: 0 };
     if (!enabled) return { telemetry: { ...telemetry, status: "disabled", reason: disabledReason() } };

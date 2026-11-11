@@ -17,10 +17,19 @@ import injectMemory from "./extensions/inject-memory.ts";
 import registerGuardrails from "./extensions/guardrails.ts";
 import registerHarnessGuidance from "./extensions/harness-guidance.ts";
 import registerOutputChecks from "./extensions/output-checks.ts";
+import { createLearningDebug } from "./extensions/debug.ts";
 
 export default function (pi: ExtensionAPI) {
+  const debug = createLearningDebug();
+  const projectCwd = process.cwd();
+  const exit = (reason: string) => debug.noteProcessExit(reason, null, undefined, projectCwd);
+  process.once("exit", () => exit("process-exit"));
+  pi = debug.wrap(pi, "extensions/inject-memory.ts");
   injectMemory(pi);
+  debug.wrap(pi, "extensions/harness-guidance.ts");
   registerHarnessGuidance(pi);
+  debug.wrap(pi, "extensions/guardrails.ts");
   registerGuardrails(pi);
+  debug.wrap(pi, "extensions/output-checks.ts");
   registerOutputChecks(pi);
 }

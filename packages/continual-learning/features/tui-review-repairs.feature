@@ -11,17 +11,17 @@ Feature: Readable and truthful learning management
     Then the previous list retains its position
 
   Scenario: Final learning result expands to the generated Memory content
-    Given a completed learning run that applied safe Memory entries
+    Given a completed learning run that applied Memory entries
     When the learning result is rendered collapsed
     Then the user sees one final outcome line with an expand affordance
     And no usage, cost, source, calls, status, summary or attempt details are shown
     When the user expands the result
-    Then the generated Memory filenames and bodies are readable
-    And private or sensitive entries are never shown in the terminal
+    Then every applied Memory filename and body is readable, including harness-only private entries
+    But credential-shaped content is never shown in the terminal
     And the complete receipt remains available to the model and stored on disk
     And no usage, cost, source, calls, status or attempt details are shown expanded
 
-  Scenario: A result without applied safe Memory stays one unexpandable row
+  Scenario: A result without applied Memory stays one unexpandable row
     Given a completed learning run that applied no safe Memory entries
     When the learning result is rendered collapsed and expanded
     Then the user sees one final outcome line in both states

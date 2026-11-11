@@ -9,6 +9,7 @@ import { MAX_MEMORY_BYTES, readBoundedRegularFile, writeFileAtomic } from "./con
 import { memoryWorkerEnvironment } from "./memory-worker-environment";
 import { discoverPlannerSources, readPlannerFileSnapshot, type PlannerReadObservation, type PlannerReadScope } from "./planner-read-scope";
 import { TOOL_NAMES } from "./tool-surface";
+import { recordLearningDebug } from "./debug.ts";
 import type {MemoryMetadata} from "./incremental-learning";
 
 const MAX_AUDIT_BYTES = 512_000;
@@ -248,5 +249,9 @@ export async function auditMemoryMaintenanceSources(input: {
     workerOutcome, ...(workerTerminal ? {workerTerminal} : {}), ...(controlledStop ? {controlledStopReason: "complete-read-budget-prefix"} : {}),
     sourceEvidenceStatus: valid ? controlledStop ? "verified-prefix" : "verified-observations" : "hold",
     usage, usageLedgerId, usageAvailable: usageComplete, usageComplete, mutationAuthorized: false, remoteSourceCalls: 0}));
-  return {outcome, entries: valid ? entries : [], usage, usageLedgerId, usageComplete, workerOutcome, ...(workerTerminal ? {workerTerminal} : {}), ...(controlledStop ? {controlledStopReason: "complete-read-budget-prefix" as const} : {}), durationMs: Date.now() - started, directory, assertSourcesUnchanged, assertClaimsUnchanged};
+  const resultSummary: {outcome: "observed" | "failed" | "cancelled"; entries: unknown[]; usage?: PiWorkerUsage; usageLedgerId?: string; usageComplete?: boolean; workerOutcome?: "completed" | "failed" | "cancelled"; workerTerminal?: PiWorkerTerminal; controlledStopReason?: "complete-read-budget-prefix"; durationMs: number; directory: string; assertSourcesUnchanged: () => Promise<void>; assertClaimsUnchanged: () => Promise<void>} = {outcome, entries: valid ? entries : [], usage, usageLedgerId, usageComplete, workerOutcome, ...(workerTerminal ? {workerTerminal} : {}), ...(controlledStop ? {controlledStopReason: "complete-read-budget-prefix" as const} : {}), durationMs: Date.now() - started, directory, assertSourcesUnchanged, assertClaimsUnchanged};
+  recordLearningDebug("extensions/memory-maintenance-audit.ts", "source-collector:closed", { outcome, directory,
+    observedEntries: entries.length, usageLedgerId, usageComplete, workerOutcome, workerTerminal,
+    controlledStopReason: resultSummary.controlledStopReason ?? null });
+  return resultSummary;
 }

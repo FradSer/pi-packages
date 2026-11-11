@@ -8,6 +8,7 @@ import { acquireConsolidationLock, containsSensitiveMemoryMaterial, digest, hash
 import { isMemoryFilename } from "./memory-files";
 import { canonicalProjectCwd, resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
 import type { LearningSurface } from "./learning-controls";
+import { recordLearningDebug } from "./debug.ts";
 
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_HISTORY_BYTES = 32 * 1024 * 1024;
@@ -317,6 +318,9 @@ export async function recordLearningMutation<T>(cwd: string, phase: LearningSurf
       await save(cwd, record);
     }
     else await fs.unlink(await historyPath(cwd, record.id));
+    recordLearningDebug("extensions/learning-history.ts", "mutation:closed", { changeId: record.id,
+      batchId: record.batchId ?? null, phase: record.phase, status: record.status,
+      targets: record.changes.map(change => change.target), originStatus: record.origin?.status ?? null });
   }
 }
 

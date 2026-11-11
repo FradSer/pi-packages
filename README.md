@@ -74,7 +74,7 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
-Explicit private Memory review asks for native, one-run permission before model work when existing private entries are known. Refusing preserves knowledge and does not change privacy defaults; see the package README for the review boundary.
+所有 Memory 默认可参与审核；private 条目保持私有存储，敏感材料仍受原有检查约束，详见包内 README。
 
 Learning now enforces worker read scope and transaction ownership. Legacy populated scopes bind automatically to the first accessing canonical project; Memory metadata remains untrusted reference context. See the package upgrade notes.
 
@@ -82,6 +82,8 @@ Learning now enforces worker read scope and transaction ownership. Legacy popula
 Learns from settled task evidence: Memory retains reusable knowledge and supplies a bounded relevance index before generation; full entries are read when needed. Harness evaluates executable constraints, including Bash confirmation and blocking; skill/text rules provide scoped guidance. Planners propose and the parent validates evidence, privacy, rule cases and ownership before applying changes. `/learning` is the single user entry: one menu, or an explicit natural-language request handled by the parent through the zero-argument `learn` tool. Installed `policies`/`skillPrompts` retain their protections through read-only compatibility, including existing output/artifact checks.
 
 **Commands:** `/learning` is the only documented user command. Its menu covers remembering a request, learning from this task, whole-corpus maintenance, Harness rule management, settings, history and undo. Frozen research and offline recovery scripts keep internal `/memory`-, `/consolidate`- and `/harness`-shaped command bindings for provenance only; those are not user entry points and are never offered in any menu or guidance.
+
+Debug 默认开启，私有分段日志记录插件入口、项目/会话、上下文、实际结果、错误及学习回执；`/learning debug` 查看目录，`/learning debug on|off` 持久切换。详见[Debug 模式](packages/continual-learning/README.md#debug-模式)。仓库专用[反思修复 skill](.agents/skills/continual-learning-debug/SKILL.md)读取这些证据并按回归测试闭环修复插件。
 
 Automatic Memory, Harness and AGENTS.md still default to applying validated changes. An explicit request through `/learning` works when automatic learning is off, is parent-validated, and can produce no write when the request is not durable or safe. Phase policies, history and undo live in the `/learning` menu.
 

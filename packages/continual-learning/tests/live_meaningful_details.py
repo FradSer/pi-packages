@@ -40,15 +40,22 @@ def verify_expanded(row: dict) -> None:
     text = "".join("".join(lines).split())
     data = row["data"]
     if row["customType"] == "continual-learning-result":
-        # Learning shows its final outcome; expanding reveals the applied
-        # Memory description and body as Markdown, never frontmatter, filenames
-        # or receipt usage/cost/source/calls/per-attempt details.
+        # Learning shows its final outcome; expanding names each applied
+        # Memory and AGENTS.md edit, and renders their content as Markdown.
+        # Frontmatter fields and receipt usage/cost/source/calls details stay
+        # out; `---` now also separates the two rendered sections.
         assert lines[0].startswith("[learning]"), lines
         assert "1AGENTS.mdchangeapplied" in text, lines
         assert "Releasecheckscope" in text, lines
+        assert "release-notes.md" in text, lines
         assert "Keepreleasechecksseparatefromlocalbuilds." in text, lines
+        # Harness-only private Memory is visible to its owner in the real PTY.
+        assert "private-notes.md" in text, lines
+        assert "Privatenotesarevisibletotheirowner." in text, lines
+        assert "addUnit" in text, lines
+        assert "Verifyreleasechecksbeforepublishing." in text, lines
         assert not any(marker in text for marker in (
-            "release-notes.md", "name:release-notes", "type:project", "---",
+            "name:release-notes", "type:project",
             "mode·", "source·", "operations·", "calls·", "usage·", "cost·",
             "directions·", "selectedMemory·", "jev-1.13.0", "uncertain",
             "test-command.md", "toexpand",

@@ -34,7 +34,10 @@ Feature: One learning command entry
     Then the transcript shows one [learning] started row naming the run
     And the terminal shows one final outcome row when the run ends
     And that row expands to a Markdown rendering of each applied safe Memory's description and body
-    And the expansion omits frontmatter, filenames and receipt details
+    And each applied Memory is identifiable by its filename so the user can tell which records were applied
+    And when AGENTS.md also changed, the expansion names that file and shows each applied unit's operation and text
+    And the expansion omits frontmatter and receipt usage, cost, source, calls and per-phase details
+    And a no-change or in-process result expands to state what was checked and that nothing was written
     And one spinner activity row names the agent "learner" above the editor while the run is active
     And the run's bounded topic is shown as that row's activity, not as its identity
     And no action-progress word such as "Learning..." is used as the agent name

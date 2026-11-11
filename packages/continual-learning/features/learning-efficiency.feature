@@ -71,13 +71,22 @@ Feature: Spend learning tokens only when durable value is plausible
     Given a consolidation applies only AGENTS.md operations
     When its result is rendered
     Then the title names the number of AGENTS.md changes
-    And it never reports no durable changes
+    And it never reports a zero-write subject
 
   Scenario: Parent screening can skip an automatic run without tokens
     Given a frozen task contains no durable user statement, correction, or harness event
     When automatic learning evaluates the task
     Then no selector or planner is launched
     And the receipt records zero calls and zero tokens
+
+  Scenario: A zero-write result row stays quiet and factual
+    Given a learning run settles normally with no Memory, Harness or AGENTS.md writes
+    When its terminal result row is shown
+    Then the collapsed row is one short line stating that no changes were written
+    And it uses no engineering jargon or success framing for an empty result
+    And every started row still has its exactly one paired result row
+    And the complete receipt and checked-scope note remain available on expansion
+    But a failed, held or cancelled run never claims a completed zero-write check
 
   Scenario: Screening keeps knowledge and executable-validation opportunities distinct
     Given the user explicitly records a project fact or asks to retain a preference

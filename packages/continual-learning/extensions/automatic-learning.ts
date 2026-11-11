@@ -1,3 +1,5 @@
+import { recordLearningDebug } from "./debug.ts";
+
 /** The reason a settled task was recorded without starting a learner. */
 export type AutomaticLearningSkipReason = "settled-learning-off";
 
@@ -31,9 +33,12 @@ export function createAutomaticLearning<T>(
     while (pending && !stopped) {
       const { context } = pending;
       pending = undefined;
+      recordLearningDebug("extensions/automatic-learning.ts", "automatic:run-started", { revision: revision });
       try {
         await run(context);
+        recordLearningDebug("extensions/automatic-learning.ts", "automatic:run-closed", { outcome: "completed", revision });
       } catch (error) {
+        recordLearningDebug("extensions/automatic-learning.ts", "automatic:run-failed", { outcome: "failed", revision, error });
         reportError(error, context);
       }
     }
@@ -49,6 +54,7 @@ export function createAutomaticLearning<T>(
       if (settledRevision <= handledRevision) return active ?? Promise.resolve();
       handledRevision = settledRevision;
       if (!enabled) {
+        recordLearningDebug("extensions/automatic-learning.ts", "automatic:skipped", { reason: "settled-learning-off", revision: settledRevision });
         pending = undefined;
         let skipped: Promise<void> = Promise.resolve();
         try {
@@ -59,6 +65,7 @@ export function createAutomaticLearning<T>(
         skipped = skipped.catch((error) => reportError(error, context));
         return Promise.all([active ?? Promise.resolve(), skipped]).then(() => undefined);
       }
+      recordLearningDebug("extensions/automatic-learning.ts", "automatic:pending", { revision: settledRevision });
       try { options.onPending?.(context, settledRevision); } catch (error) { reportError(error, context); }
       pending = { context };
       active ??= drain().finally(() => { active = undefined; });

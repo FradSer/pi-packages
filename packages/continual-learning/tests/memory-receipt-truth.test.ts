@@ -37,7 +37,7 @@ test("a zero-operation proposed attempt is not reported as a proposal for extern
     { phase: "memory", attempt: 0, outcome: "proposed", operations: 0, durationMs: 1, usage: zeros },
   ], { source: "current-session", entryCount: 226, screenedEntryCount: 2 });
   expect(learningSummarySubject(receipt)).not.toContain("proposals saved for review");
-  expect(learningSummarySubject(receipt)).toContain("no durable changes");
+  expect(learningSummarySubject(receipt)).toContain("no changes written");
 });
 
 test("a genuine proposal with operations still reports that a proposal was saved", () => {

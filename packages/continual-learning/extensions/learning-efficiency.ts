@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { assertTransactionPath } from "./file-transaction";
 import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
 import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-guidance-planner.ts";
+import { recordLearningDebug } from "./debug.ts";
 
 export type LearningMode = "automatic" | "manual" | "full";
 export type LearningPhase = "preflight" | "selector" | "memory" | "harness" | "agents";
@@ -13,6 +14,10 @@ export type LearningOutcome = "screened" | "skipped" | "noop" | "applied" | "pro
 
 /** Parent-owned deterministic organization, with no planner or review worker. */
 export const ORGANIZED_IN_PROCESS = "organized-in-process";
+/** A grounded automatic plan was held (not written) for exceeding the per-run
+ * new-Memory cap. The proposal is saved for review; this is not a zero-write
+ * check and must never be reported as one. */
+export const NEW_MEMORY_CAP_HOLD = "new-memory-cap-hold";
 
 /** A zero-write Memory review that cannot decide is a policy hold: no
  * validation gate is relaxed, no file is written, and the original diagnostic
@@ -513,10 +518,17 @@ export async function writeLearningReceipt(directory: string, receipt: LearningP
   };
   // The batch record survives later invocations. The flat file remains the
   // compatibility view of the latest write, not the complete receipt history.
-  if (batch) await write(path.join(directory, "receipts", batch, "learning-pipeline-receipt.json"));
   const target = path.join(directory, "learning-pipeline-receipt.json");
-  await write(target);
-  return target;
+  const batchFile = batch ? path.join(directory, "receipts", batch, "learning-pipeline-receipt.json") : undefined;
+  try {
+    if (batchFile) await write(batchFile);
+    await write(target);
+    recordLearningDebug("extensions/learning-efficiency.ts", "receipt:written", { file: target, batchFile, receipt });
+    return target;
+  } catch (error) {
+    recordLearningDebug("extensions/learning-efficiency.ts", "receipt:failed", { file: target, batchFile, receipt, error });
+    throw error;
+  }
 }
 
 export function formatLearningUsage(usage: PiWorkerUsage): string {
@@ -622,6 +634,7 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
   const final = new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome]));
   const issues = [...final].filter(([, outcome]) => ["failed", "rejected", "cancelled"].includes(outcome)).map(([phase, outcome]) => `${phase} ${outcome}`);
   if (receipt.screen.reasons.includes(MEMORY_REVIEW_HOLD) && issues.length === 0 && surfaces.length === 0) return MEMORY_REVIEW_HOLD_SUMMARY;
+  if (receipt.screen.routing?.includes(NEW_MEMORY_CAP_HOLD)) return "new Memory plan held by per-run limit; proposal saved for review";
   if (surfaces.length > 0 && issues.length) return `${surfaces.join(" and ")} applied; ${issues.join(", ")}${pending ? `; ${pending} pending review` : ""}${notLearned ? `; ${notLearned}` : ""}`;
   if (surfaces.length > 0) return `${surfaces.join(" and ")} applied${pending ? `; ${pending} pending review` : ""}${notLearned ? `; ${notLearned}` : ""}`;
   if (issues.length) return `finished with issues: ${issues.join(", ")}${notLearned ? `; ${notLearned}` : ""}`;
@@ -630,7 +643,10 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
   if ([...final.values()].some(outcome => outcome === "proposed")
       && receipt.attempts.some(attempt => attempt.outcome === "proposed" && (attempt.operations > 0 || (attempt.pendingOperations ?? 0) > 0))) return "proposals saved for review";
   if (receipt.attempts.length === 0 && receipt.screen.reasons.includes("no-learning-inputs")) return "no learning input";
-  return `no durable changes${pending ? `; ${pending} pending review` : ""}`;
+  // A normal zero-write result is a quiet statement of fact, not an outcome to
+  // celebrate. Keep it short and jargon-free; the expansion carries the checked
+  // scope, and the complete receipt stays in details/on disk.
+  return `no changes written${pending ? `; ${pending} pending review` : ""}`;
 }
 
 export function learningSummaryTone(receipt: LearningPipelineReceipt): "success" | "warning" | "error" {

@@ -76,7 +76,7 @@ if (isAgentMemory && scenario !== "agent-memory-disabled") {
   backlogSessionFile = path.join(sessionsDir, "session.jsonl");
   fs.writeFileSync(backlogSessionFile, JSON.stringify({type:"session",id:"agent-case",cwd,version:3})+"\n");
 }
-fs.writeFileSync(path.join(agent, "continual-learning.json"), JSON.stringify({ ...(scenario === "model-freeze" ? { model: "old/one" } : {}), autoSettledLearning: isAgentMemory ? scenario !== "agent-memory-disabled" : !isRemember, autoContinualLearning: isAgentMemory && scenario !== "agent-memory-disabled", automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
+fs.writeFileSync(path.join(agent, "continual-learning.json"), JSON.stringify({ ...(scenario === "model-freeze" ? { model: "old/one" } : {}), autoSettledLearning: isAgentMemory ? scenario !== "agent-memory-disabled" : !isRemember, autoContinualLearning: isAgentMemory && scenario !== "agent-memory-disabled", automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies, ...(process.env.CL_MAX_NEW_MEMORIES ? { maxNewMemoriesPerRun: Number(process.env.CL_MAX_NEW_MEMORIES) } : {}) }));
 if (scenario === "agent-memory-selector-empty" || scenario === "agent-memory-selector-garbage") {
   fs.writeFileSync(path.join(agent, "continual-learning.json"), JSON.stringify({
     jev: false, autoSettledLearning: false, autoContinualLearning: true,
@@ -415,6 +415,16 @@ mock.module("../../kit/src/index.ts", () => ({
         evidence: [{index:0,quote:scenario === "remember-invalid" ? "No such request evidence" : quote}],
       }],
     };
+    // A controlled automatic-learning plan with several independent new files
+    // exercises the parent's per-run cap without changing any other scenario.
+    const newMemoryCount = Number(process.env.CL_NEW_MEMORY_COUNT ?? "");
+    if (Number.isInteger(newMemoryCount) && newMemoryCount >= 1 && !harness && !agents && !isManual && Array.isArray(plan.newMemories)) {
+      const template = plan.newMemories[0];
+      plan.newMemories = Array.from({length: newMemoryCount}, (_, index) => ({
+        ...template, name: `candidate-${index}.md`,
+        content: String(template.content).replace(/name: [^\n]+/, `name: candidate-${index}`),
+      }));
+    }
     if (coverageRepairFixture && !harness && !agents) {
       plan.newMemories[0].evidence=[{ref:"e0.b0.l1"}];
       if(fixtureReason === "coverage-real-repair-body-conflict") plan.newMemories[0].content += "Prefer concise progress updates.\nNever provide concise progress updates.\n";
@@ -946,7 +956,7 @@ try {
     : { text: value.content?.[0]?.text, status: value.details?.status, operations: value.details?.operations ?? null,
         settledSubject: value.details ? learningOutcomeSpec(value as never).subject : undefined,
         replayBound: value.details?.replayBound, isError: value.isError === true };
-  console.log(JSON.stringify({ agentFirst: agentOutcome((globalThis as { agentFirst?: never }).agentFirst), agentSecond: agentOutcome((globalThis as { agentSecond?: never }).agentSecond), agentActiveTools: activeToolWrites, coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:(()=>{const j=JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev;return !(/^object$/.test(typeof j)&&j!==null&&'allowPrivateMemory' in j)})(),newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,plannerArgv,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
+  console.log(JSON.stringify({ agentFirst: agentOutcome((globalThis as { agentFirst?: never }).agentFirst), agentSecond: agentOutcome((globalThis as { agentSecond?: never }).agentSecond), agentActiveTools: activeToolWrites, coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:(()=>{const j=JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev;return !(/^object$/.test(typeof j)&&j!==null&&'allowPrivateMemory' in j)})(),newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,plannerArgv,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" || process.env.CL_NEW_MEMORY_COUNT ? {proposal:record.proposal} : {})})),
     privateFiles: fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir) : [],
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
     numericUsageLedgers: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("memory-task-usage.json")).map(name=>{const file=path.join(paths.runsDir,String(name));return {mode:fs.statSync(file).mode & 0o777,...JSON.parse(fs.readFileSync(file,"utf8"))};}) : [],

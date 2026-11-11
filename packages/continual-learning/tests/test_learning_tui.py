@@ -62,8 +62,11 @@ def test_learning_result_expands_to_markdown_descriptions_and_bodies() -> None:
     assert "Release scope" in output["expanded"], output["expanded"]
     assert "The project builds with" in output["expanded"], output["expanded"]
     assert "Keep release checks separate from local builds." in output["expanded"]
-    # No raw frontmatter, filenames or metadata in the expanded body.
-    for marker in ("pnpm-contract.md", "release-scope.md", "name: pnpm-contract", "type: project", "--- generated Memory ---", "---\n"):
+    # Each applied Memory is named so the user can identify which records were
+    # written; raw frontmatter and receipt metadata stay out of the expansion.
+    assert "pnpm-contract.md" in output["expanded"], output["expanded"]
+    assert "release-scope.md" in output["expanded"], output["expanded"]
+    for marker in ("name: pnpm-contract", "type: project", "--- generated Memory ---"):
         assert marker not in output["expanded"], (marker, output["expanded"])
     # Markdown is rendered by pi-tui, not printed as literal source markers.
     assert "**pnpm**" not in output["expanded"], output["expanded"]
@@ -73,9 +76,9 @@ def test_learning_result_expands_to_markdown_descriptions_and_bodies() -> None:
 
 
 def test_learning_result_without_applied_memory_stays_one_unexpandable_line() -> None:
-    # Given a run with no applied safe Memory (proposed/held/private/failed),
-    # When rendered collapsed and expanded, Then the row stays one compact line
-    # with no expand affordance and no body.
+    # Given a legacy message with no expanded content, When rendered collapsed
+    # and expanded, Then the row stays one compact line with no expand affordance
+    # and no body. Malformed stored shapes must not throw.
     source = _result_fixture() + r'''
       const message = { content: '', details: receipt };
       const collapsed = render(message, false);
@@ -99,10 +102,10 @@ def test_learning_result_without_applied_memory_stays_one_unexpandable_line() ->
     assert output["messages"] == []
 
 
-def test_learning_result_expansion_never_renders_private_or_sensitive_entries() -> None:
-    # The parent owns privacy: private and credential-shaped entries never enter
-    # the emitted content, and a forged credential-shaped entry in stored
-    # content is dropped by the renderer as a second line of defence.
+def test_learning_result_expansion_shows_private_memory_but_never_secrets() -> None:
+    # The user owns all their Memory files: private (harness-only) entries are
+    # shown in the terminal just like safe ones. Only credential-shaped content
+    # stays out, both at construction time and on a forged stored message.
     source = _result_fixture() + r'''
       const appliedMemory = [
         { name: 'public.md', content: 'A public project fact.', classification: 'safe' },
@@ -116,12 +119,16 @@ def test_learning_result_expansion_never_renders_private_or_sensitive_entries() 
       console.log(JSON.stringify({ content, emitted, forged, collapsed, messages }));
     '''
     output = run_bun(source)
-    assert "private.md" not in output["content"], output["content"]
-    assert "A private preference." not in output["content"], output["content"]
+    assert "private.md" in output["content"], output["content"]
+    assert "A private preference." in output["content"], output["content"]
     assert "secret.md" not in output["content"], output["content"]
     assert "A public project fact." in output["emitted"], output["emitted"]
-    # The expansion shows learned content, not file-identity details.
-    assert "public.md" not in output["emitted"], output["emitted"]
+    # Every applied Memory is named in the expansion regardless of privacy;
+    # credential-shaped and forged entries still stay hidden.
+    assert "public.md" in output["emitted"], output["emitted"]
+    assert "private.md" in output["emitted"], output["emitted"]
+    assert "A private preference." in output["emitted"], output["emitted"]
+    assert "secret.md" not in output["emitted"], output["emitted"]
     assert "A public project fact." in output["forged"], output["forged"]
     assert "forged.md" not in output["forged"], output["forged"]
     assert "abcdefghijklmnop" not in output["emitted"] and "abcdefghijklmnop" not in output["forged"]
@@ -187,3 +194,82 @@ def test_started_row_falls_back_when_no_real_user_topic_exists() -> None:
     assert subjects, value
     assert all(subject and "\n" not in subject for subject in subjects), subjects
     assert all(subject == "maintain all knowledge" for subject in subjects), subjects
+
+
+def test_applied_agents_md_edits_are_named_in_the_expanded_result() -> None:
+    # Given a run that applied both a Memory and one AGENTS.md change, When the
+    # user expands the result, Then both are identifiable: the Memory by name
+    # and description/body, the AGENTS.md edit by its operation and applied unit
+    # text. Receipt metadata, byte digests and the whole document stay hidden.
+    source = _result_fixture() + r'''
+      import { displayableAgentDetails } from './packages/continual-learning/extensions/inject-memory.ts';
+      const appliedMemory = [
+        { name: 'pi-tasks-waiting.md', content: '---\nname: pi-tasks-waiting\ndescription: pi-tasks emits a waiting row at settlement\ntype: project\n---\nUnfinished tasks keep the waiting reminder.', classification: 'safe' },
+      ];
+      const agents = displayableAgentDetails([
+        { operation: 'addUnit', text: 'Use pnpm for verification before publishing.' },
+        { operation: 'removeUnit', text: 'Old duplicated instruction.' },
+      ]);
+      const content = learningResultContent('Learning result', appliedMemory, agents);
+      const emitted = render({ content, details: receipt }, true);
+      const collapsed = render({ content, details: receipt }, false);
+      console.log(JSON.stringify({ content, emitted, collapsed, agents }));
+    '''
+    output = run_bun(source)
+    assert output["agents"] == [
+        {"operation": "addUnit", "text": "Use pnpm for verification before publishing."},
+        {"operation": "removeUnit", "text": "Old duplicated instruction."},
+    ], output
+    assert "pi-tasks-waiting.md" in output["emitted"], output["emitted"]
+    assert "Unfinished tasks keep the waiting reminder." in output["emitted"], output["emitted"]
+    assert "AGENTS.md" in output["emitted"], output["emitted"]
+    assert "addUnit" in output["emitted"] and "removeUnit" in output["emitted"], output["emitted"]
+    assert "Use pnpm for verification before publishing." in output["emitted"], output["emitted"]
+    assert "to expand" in output["collapsed"], output["collapsed"]
+    assert "addUnit" not in output["collapsed"], output["collapsed"]
+    for marker in ("--- AGENTS.md changes ---", "bytesBefore", "digestBefore", "planDigest", "usage", "cost"):
+        assert marker not in output["emitted"], (marker, output["emitted"])
+
+
+def test_zero_write_result_expands_to_state_what_was_checked() -> None:
+    # Given an in-process organize run with zero writes, When the user expands
+    # the result, Then it says nothing was written and names the screened scope,
+    # instead of looking like an unfinished run. A legacy message with an empty
+    # content still stays one unexpandable line.
+    source = _result_fixture() + r'''
+      const note = 'No Memory or AGENTS.md changes were written. 66 frozen entries were checked; mirrors, indexes and consistency were verified.';
+      const content = learningResultContent('Learning organized in-process', [], [], note);
+      const emitted = render({ content, details: receipt }, true);
+      const collapsed = render({ content, details: receipt }, false);
+      const legacy = render({ content: '', details: receipt }, false);
+      console.log(JSON.stringify({ emitted, collapsed, legacy }));
+    '''
+    output = run_bun(source)
+    assert "No Memory or AGENTS.md changes were written" in output["emitted"], output["emitted"]
+    assert "66 frozen entries were checked" in output["emitted"], output["emitted"]
+    assert "to expand" in output["collapsed"], output["collapsed"]
+    assert "No Memory or AGENTS.md changes" not in output["collapsed"], output["collapsed"]
+    assert "to expand" not in output["legacy"], output["legacy"]
+
+
+def test_displayable_memory_details_accept_private_and_refuse_secrets() -> None:
+    # The collection gate is shared by the pipeline (plan object) and the
+    # renderer (stored array). Both must admit private entries now, while
+    # credential-shaped content and incomplete records stay out.
+    source = _result_fixture() + r'''
+      import { displayableMemoryDetails } from './packages/continual-learning/extensions/inject-memory.ts';
+      const plan = { operations: [], newMemories: [
+        { name: 'safe.md', content: 'Public fact.', classification: 'safe' },
+        { name: 'private.md', content: 'Private note.', classification: 'private' },
+        { name: 'secret.md', content: 'api_key: abcdefghijklmnop', classification: 'private' },
+        { name: 'empty.md', content: '   ', classification: 'safe' },
+        { name: 'public.md', content: 'No label.', classification: 'public' },
+      ] };
+      const collected = displayableMemoryDetails(plan);
+      const rescreened = displayableMemoryDetails(collected);
+      console.log(JSON.stringify({ collected, rescreened }));
+    '''
+    value = run_bun(source)
+    assert [item["name"] for item in value["collected"]] == ["safe.md", "private.md"], value["collected"]
+    assert [item["classification"] for item in value["collected"]] == ["safe", "private"], value["collected"]
+    assert value["rescreened"] == value["collected"], value

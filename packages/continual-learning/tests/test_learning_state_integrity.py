@@ -20,16 +20,19 @@ def test_shutdown_during_preparation_never_starts_a_worker() -> None:
 
 def test_shutdown_during_zero_screen_receipt_retains_prequeued_recovery_reference() -> None:
     result = run_bun_script(PREPARATION, "shutdown-zero-receipt")
-    assert result["selectors"] == 0 and result["reported"] == 0, result
+    # A cancelled run that emitted a started row still gets exactly one paired
+    # terminal result row; the receipt stays cancelled, never a success.
+    assert result["selectors"] == 0 and result["reported"] == 1, result
     assert result["backlog"]["pending"] == 1 and result["lock"] is False, result
     copies=result['receiptCopies']
     assert copies and all(receipt==copies[0] for receipt in copies), copies
     assert any(a['outcome']=='cancelled' for a in copies[0]['attempts'])
 
 
-def test_shutdown_during_selector_receipt_never_reports_a_result() -> None:
+def test_shutdown_during_selector_receipt_pairs_one_cancelled_result() -> None:
     result = run_bun_script(PREPARATION, "shutdown-current-receipt")
-    assert result["selectors"] == 1 and result["reported"] == 0, result
+    # See above: cancellation closes its started row with one terminal row.
+    assert result["selectors"] == 1 and result["reported"] == 1, result
     assert result["backlog"]["pending"] == 0 and result["lock"] is False, result
     copies=result['receiptCopies']
     assert copies and all(receipt==copies[0] for receipt in copies), copies
@@ -285,3 +288,66 @@ def test_learning_settings_reject_invalid_unified_values_without_writing() -> No
         "badPhase": {"settled": False, "continual": False, "diagnostic": True},
         "badAgents": {"settled": False, "continual": False, "diagnostic": True},
     }
+
+
+def test_new_memory_cap_setting_is_a_positive_bounded_integer() -> None:
+    # Given the unified user-level configuration, When maxNewMemoriesPerRun is
+    # set to valid and invalid shapes, Then only a positive bounded integer is
+    # accepted and every other shape fails closed with a diagnostic; the valid
+    # value also round-trips through writeLearningSettings.
+    result = isolated_run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import {readLearningSettings,writeLearningSettings,DEFAULT_MAX_NEW_MEMORIES_PER_RUN} from './packages/continual-learning/extensions/learning-settings.ts';
+      const agent=process.env.PI_CODING_AGENT_DIR,cwd=path.join(agent,'project');fs.mkdirSync(cwd);
+      const file=path.join(agent,'continual-learning.json');
+      const raws=['{"autoSettledLearning":true,"maxNewMemoriesPerRun":3}','{"autoSettledLearning":true,"maxNewMemoriesPerRun":0}',
+        '{"autoSettledLearning":true,"maxNewMemoriesPerRun":17}','{"autoSettledLearning":true,"maxNewMemoriesPerRun":2.5}',
+        '{"autoSettledLearning":true,"maxNewMemoriesPerRun":"3"}','{"autoSettledLearning":true,"maxNewMemoriesPerRun":null}'];
+      const states=[];for(const raw of raws){fs.writeFileSync(file,raw);const s=await readLearningSettings(cwd);states.push({cap:s.maxNewMemoriesPerRun??null,invalid:Boolean(s.invalid)});}
+      fs.writeFileSync(file,'{"autoSettledLearning":true,"autoContinualLearning":false}');
+      await writeLearningSettings({autoSettledLearning:true,autoContinualLearning:false,maxNewMemoriesPerRun:5});
+      const persisted=JSON.parse(fs.readFileSync(file,'utf8'));
+      console.log(JSON.stringify({states,default:DEFAULT_MAX_NEW_MEMORIES_PER_RUN,persisted:persisted.maxNewMemoriesPerRun}));
+    ''')
+    assert result == {
+        "states": [
+            {"cap": 3, "invalid": False},
+            {"cap": None, "invalid": True},
+            {"cap": None, "invalid": True},
+            {"cap": None, "invalid": True},
+            {"cap": None, "invalid": True},
+            {"cap": None, "invalid": True},
+        ],
+        "default": 2,
+        "persisted": 5,
+    }, result
+
+
+def test_new_memory_cap_counts_only_new_files_and_respects_mode() -> None:
+    # Given a cap of two, When plans contain many rewrites/deletes but no new
+    # files, Then they are never held; a manual (explicit /memory) plan with
+    # many new files is also exempt; only an automatic plan over the cap holds.
+    result = isolated_run_bun(r'''
+      import {exceedsNewMemoryCap,DEFAULT_MAX_NEW_MEMORIES_PER_RUN} from './packages/continual-learning/extensions/learning-settings.ts';
+      const cap=DEFAULT_MAX_NEW_MEMORIES_PER_RUN;
+      const manyOperations={newMemories:[],operations:Array.from({length:6},(_,i)=>({name:`old-${i}.md`,kind:'rewrite'}))};
+      const manyNew={newMemories:Array.from({length:4},(_,i)=>({name:`new-${i}.md`})),operations:[]};
+      const atCap={newMemories:[{name:'a.md'},{name:'b.md'}],operations:[]};
+      const noNewMemories={operations:[{name:'old.md',kind:'delete'}]};
+      console.log(JSON.stringify({
+        manyOperations:exceedsNewMemoryCap(manyOperations,cap,true),
+        manyNewAutomatic:exceedsNewMemoryCap(manyNew,cap,true),
+        manyNewManual:exceedsNewMemoryCap(manyNew,cap,false),
+        atCap:exceedsNewMemoryCap(atCap,cap,true),
+        noNewMemories:exceedsNewMemoryCap(noNewMemories,cap,true),
+        malformed:exceedsNewMemoryCap({newMemories:'not-an-array'},cap,true),
+      }));
+    ''')
+    assert result == {
+        "manyOperations": {"exceeded": False, "count": 0},
+        "manyNewAutomatic": {"exceeded": True, "count": 4},
+        "manyNewManual": {"exceeded": False, "count": 4},
+        "atCap": {"exceeded": False, "count": 2},
+        "noNewMemories": {"exceeded": False, "count": 0},
+        "malformed": {"exceeded": False, "count": 0},
+    }, result

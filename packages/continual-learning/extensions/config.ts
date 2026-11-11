@@ -249,6 +249,20 @@ export function memoryConfigPath(): string {
   return unifiedConfigPath();
 }
 
+export function readDebugConfigState(): { enabled: boolean; invalid?: string } {
+  try {
+    const state = readUnifiedConfig();
+    if (state.invalid) return { enabled: true, invalid: state.invalid };
+    const value = state.record?.debug;
+    if (value !== undefined && typeof value !== "boolean") {
+      return { enabled: true, invalid: "debug must be a boolean" };
+    }
+    return { enabled: value !== false };
+  } catch {
+    return { enabled: true, invalid: "Debug configuration could not be read safely" };
+  }
+}
+
 export type JevStage = "selection" | "memory" | "harness";
 export interface JevLearningConfig {
   model: string;

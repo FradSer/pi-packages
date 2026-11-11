@@ -5,11 +5,31 @@ import { MAX_AGENTS_MD_FILE_BYTES, MIN_BUDGET_BYTES } from "./agents-md-consolid
 import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls";
 import { readUnifiedConfig, writeUnifiedConfig } from "./config";
 
+/** One automatic task's cap on newly created Memory files. Only newMemories
+ * count; rewrites and deletes of existing records are not bound by it, and an
+ * explicit /memory (manual) request is exempt. */
+export const DEFAULT_MAX_NEW_MEMORIES_PER_RUN = 2;
+export const MAX_NEW_MEMORIES_PER_RUN_LIMIT = 16;
+
+/** Decide whether a fully reviewed plan exceeds the automatic-task cap. The
+ * caller decides the mode; this helper only counts newly created files, so a
+ * plan with many rewrites/deletes but no new files is never held. */
+export function exceedsNewMemoryCap(
+  plan: unknown,
+  cap: number,
+  isAutomatic: boolean,
+): { exceeded: boolean; count: number } {
+  const newMemories = (plan as { newMemories?: unknown } | null)?.newMemories;
+  const count = Array.isArray(newMemories) ? newMemories.length : 0;
+  return { exceeded: isAutomatic && count > cap, count };
+}
+
 export interface MemorySettings {
   autoSettledLearning: boolean;
   autoContinualLearning: boolean;
   automaticPhases?: Partial<PhasePolicies>;
   agentsMd?: { disabled?: boolean; budgetBytes?: number };
+  maxNewMemoriesPerRun?: number;
   /** Read diagnosis, never persisted as a setting. */
   invalid?: string;
 }
@@ -32,12 +52,21 @@ function normalizeSettings(raw: Record<string, unknown>): MemorySettings {
       ...(typeof agents.budgetBytes === "number" ? { budgetBytes: Math.min(MAX_AGENTS_MD_FILE_BYTES, Math.max(MIN_BUDGET_BYTES, Math.round(agents.budgetBytes))) } : {}),
     };
   }
+  let maxNewMemoriesPerRun: number | undefined;
+  if (raw.maxNewMemoriesPerRun !== undefined) {
+    const value = raw.maxNewMemoriesPerRun;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MAX_NEW_MEMORIES_PER_RUN_LIMIT) {
+      throw new Error(`maxNewMemoriesPerRun must be an integer between 1 and ${MAX_NEW_MEMORIES_PER_RUN_LIMIT}`);
+    }
+    maxNewMemoriesPerRun = value;
+  }
   automaticPhasePolicies({ automaticPhases: raw.automaticPhases, agentsMd }, "automatic");
   return {
     autoSettledLearning: raw.autoSettledLearning === true,
     autoContinualLearning: raw.autoContinualLearning === true,
     ...(raw.automaticPhases !== undefined ? { automaticPhases: raw.automaticPhases as Partial<PhasePolicies> } : {}),
     ...(agentsMd ? { agentsMd } : {}),
+    ...(maxNewMemoriesPerRun !== undefined ? { maxNewMemoriesPerRun } : {}),
   };
 }
 
@@ -64,5 +93,6 @@ export async function writeLearningSettings(settings: MemorySettings): Promise<v
     autoContinualLearning: normalized.autoContinualLearning,
     ...(normalized.automaticPhases !== undefined ? { automaticPhases: normalized.automaticPhases } : {}),
     ...(normalized.agentsMd !== undefined ? { agentsMd: normalized.agentsMd } : {}),
+    ...(normalized.maxNewMemoriesPerRun !== undefined ? { maxNewMemoriesPerRun: normalized.maxNewMemoriesPerRun } : {}),
   });
 }

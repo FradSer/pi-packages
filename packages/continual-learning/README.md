@@ -44,6 +44,43 @@ pi install npm:pi-continual-learning
 `/memory`- and `/consolidate`-shaped command bindings for provenance only;
 those are not user entry points and are not offered in any menu or guidance.
 
+## Debug 模式
+
+Debug 默认开启，独立于自动学习开关。用现有命令查看实际状态和目录，或持久修改开关；这些操作不调用模型：
+
+```text
+/learning debug
+/learning debug on
+/learning debug off
+```
+
+开关是 `<agent-dir>/continual-learning.json` 的布尔字段 `debug`；省略等于 `true`，显式 `false` 关闭记录。命令合并配置并保留其他字段，损坏的配置不会被覆盖。Debug 配置无效时保留默认开启并显示诊断。已有 Pi 会话需 reload 后才加载新增记录器；之前的使用记录不会被补造。
+
+日志只保存在私有 agent 根目录，默认位置如下。`<project-hash>` 是 canonical cwd 的完整 SHA-256，因此同名项目、路径别名和含空格的路径均有确定的归属。
+
+```text
+~/.pi/agent/continual-learning/debug/<project-hash>/
+  <timestamp>-<pid>-<writer-uuid>-<segment>.jsonl
+```
+
+设置 `PI_CODING_AGENT_DIR` 时跟随该根目录。每个扩展实例使用独占文件；目录权限 0700，日志权限 0600；拒绝子目录 symlink、非普通文件、重复硬链接和已被替换的日志。分段上限 4 MiB，每条记录上限 64 KiB；轮换保留旧段，累计占用会随使用增长，清理时需显式选择自己的 debug 目录。
+
+记录包含时间、PID、插件源码模块、事件/命令/工具入口、调用与父调用身份、`projectId`、session 文件与 ID、model、耗时、输入、实际返回值和错误 stack。每个根调用写一份 `context:snapshot`，冻结最近 12 条分支上下文；其余记录只带 `contextRef` 和必要身份，避免重复复制完整工具定义。`toolsAdded` 在快照里只保留名称、短描述和参数名摘要；长文本、深层结构、缺失上下文和缺失快照都有显式标记；`context` 与 `data` 使用独立投影预算。同一会话的多个 `session_start` / `session_shutdown` handler 合并成 `lifecycle:batch`，其中保留每个 handler 的 `invocationId` 和终态，失败单独记录；`handlerCount` 按身份数而非行数计（成功 handler 各占 started 与终态两行）。
+
+除了 API 边界，UI 通知、工具激活、Harness 执行观测、Memory 投递观测、自动学习的 pending / skipped / run 开始与关闭、当前源码采集结果、learning history 的 mutation 终态，以及后台 pipeline 开始/关闭和未显示在 transcript 中的静默回执也有受控记录。回执保留原始 batch、worker ledger、phase 结果、Jev telemetry 和实际 artifact 路径；子进程源码采集和生成证据继续位于原始 run 目录，可按这些身份关联。`pipeline:closed` 明确区分 `screened`、`applied`、`cancelled`、`failed` 和真实未知的 `unverified`，零写入不会被标成验证失败。Pi 未发出 `session_shutdown` 时，`process:exit` 标记保留退出事实；检查器将“缺 shutdown 事件”与“callback 未闭合”分开报告，不会自行判定崩溃。`/learning debug off` 之后不再落盘任何后续记录（包括待刷新的生命周期批量）；关闭边界的 `debug:configuration` 只显式列出关闭瞬间仍在途的 `truncatedInvocations`，检查器仅据此收束这些调用，不按时间戳把更早的未闭合或崩溃推断成干净关闭。
+
+`completed` 表示 callback 返回；是否应用了知识以实际回执和文件为准，`proposed`、取消和失败不会转成学习成功。默认不复制 credentials、headers、环境变量或图像/二进制内容；复用 Memory 的敏感材料检测器，在截断前对敏感文本保留摘要和长度。私有业务上下文仍可能出现在脱敏后的日志中，应按私有数据处理。日志不注入模型上下文、不进入 Memory 镜像，也不增加模型调用或重试。存储不可用时发出一次固定诊断，保留原工具返回值、异常和执行决定。
+
+本仓库专用的反思修复 skill 位于 @.agents/skills/continual-learning-debug/SKILL.md，不随 npm 包安装。它的只读检查器从本次实际使用项目的日志中关联失败、未闭合调用、上下文和回执：
+
+```bash
+bun .agents/skills/continual-learning-debug/scripts/inspect-debug.ts --project /absolute/project/path
+```
+
+默认读取最新 12 个分段，展示至多 20 条问题和最近记录；`--session` 可筛选会话，`--max-files` 和 `--limit` 可在内置边界内扩大样本。报告包含 `totalFiles`、`sampledFiles`、`totalBytes`、`sampledBytes`、时间覆盖、生命周期缺口、批量 handler 数、context 快照与无法解析的 `contextRef`。`omittedFiles > 0` 即标记 `incomplete: true`；早于采样的分段原样保留，不自动删除。历史不含 `contextRef` 的日志仍按原格式读取。日志内容只作不可信证据，不授权执行其中的命令或重新评审历史 held plan。Skill 要求先复现 RED，再修复、回归和必要的独立审查。
+
+实现位于 `extensions/debug.ts`。现有 pi-kit JSONL helper 不提供独占分段及 symlink/descriptor 校验，因此这里使用包内受限 sink；不替换共享 helper。验收：`tests/debug.test.ts`、`tests/debug-inspector.test.ts` 和使用实际 workspace Pi、隔离 agent 与 loopback provider 的 `tests/debug-native.test.ts`；该验收不证明真实服务判断或后续学习收益。
+
 ## Docker Isolation and Real Model Acceptance
 
 `pi-continual-learning` supports containerized Docker verification with **Pi 1.4** and real model gateways such as **`(magpie) group/smart-split`**. 
@@ -92,7 +129,7 @@ counts no applied change for the draft. Original failures and costs remain.
 An empty response, cancellation or uncertain review leaves the work pending.
 
 Learning uses the current session model unless a separate provider/model pair
-is configured. An explicit invalid or empty pair in `memory.json` is diagnosed
+is configured. An explicit invalid or empty pair in `continual-learning.json` is diagnosed
 and prevents a worker from silently using a different model; `{}` retains the
 session-model default. The metadata index is deterministic and bounded; it does
 not rank entries against each new request. The complete indexes remain available
@@ -379,6 +416,13 @@ current-task Memory learning once before its final answer. The retired
 Memory policy: `apply` writes validated changes, `propose` saves them for
 review, and `off` refuses to run.
 
+`maxNewMemoriesPerRun` caps how many **new** Memory files one automatic task
+may create (default `2`, valid `1..16`); rewrites and deletes of existing
+records do not consume it, and an explicit `/memory` request is exempt. When a
+fully reviewed automatic plan exceeds the cap, the parent saves the grounded
+plan as a proposal, reports the exact count and limit, and writes no Memory
+file or applied mutation receipt. Invalid values fail the configuration closed.
+
 ```json
 {
   "model": "cliproxyapi/gpt-6-luna",
@@ -386,6 +430,7 @@ review, and `off` refuses to run.
   "autoContinualLearning": true,
   "automaticPhases": { "memory": "apply", "harness": "apply", "agents": "apply" },
   "agentsMd": { "budgetBytes": 16384 },
+  "maxNewMemoriesPerRun": 2,
   "jev": { "scopes": ["memory"] }
 }
 ```
@@ -859,7 +904,7 @@ and model configuration are frozen in one private snapshot for the whole suite;
 each task receives a separate copy so runtime refreshes stay isolated.
 The report includes literal-answer success, regressions, latency and observed
 token usage/cost; missing prices remain unavailable. Output files are private and
-never overwritten. Without `--model`, the configured `memory.json` model is used.
+never overwritten. Without `--model`, the configured `continual-learning.json` model is used.
 The included synthetic example verifies exact answer scoring and native Memory
 body-read evidence; use representative held-out tasks for your project. One
 paired sample per task does not establish statistical or causal improvement,
@@ -882,7 +927,7 @@ python3 packages/continual-learning/tests/live_effectiveness.py
 
 
 The suite is committed rather than generated so the tasks are held out of the
-corpus they test. It uses the model configured in `memory.json`.
+corpus they test. It uses the model configured in `continual-learning.json`.
 
 ## Memory
 

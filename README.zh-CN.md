@@ -77,21 +77,23 @@ pi install npm:@fradser/pi-context
 学习 worker 的读取范围和事务回滚所有权现在由代码限制。旧作用域首次访问时自动绑定 canonical cwd，后续碰撞被拒绝；Memory 元数据以不可信参考上下文提供。升级说明见包内 README。
 
 
-从完成的任务证据中学习：Memory 积累可复用知识，在生成前注入相关性索引，需要时读取全文；Harness 将可执行的约束交给运行检查，包括 Bash 确认和阻止，skill/text 规则则提供有范围的提示。规划模型提出方案，父进程验证证据、隐私、规则正反样例和所有权后应用。也可通过 `/consolidate` 显式整理。存量 `policies`/`skillPrompts` 通过只读兼容保留原有保护，包括已有 output/artifact 检查。
+从完成的任务证据中学习：Memory 积累可复用知识，在生成前注入元数据索引，需要时读取全文；Harness 将可执行的约束交给运行检查，包括 Bash 确认和阻止，skill/text 规则则提供有范围的提示。规划模型提出方案，父进程验证证据、隐私、规则正反样例和所有权后应用。存量 `policies`/`skillPrompts` 通过只读兼容保留原有保护，包括已有 output/artifact 检查。
 
-**命令：** `/memory` 打开 Browse memories、Learning settings 和 Recent learning；`/memory <request>` 记录明确的 Memory 请求；`/consolidate` 学习当前任务；`/consolidate full` 执行完整维护；`/harness` 打开规则面板；`/harness <request>` 默认在项目共享配置中编写规则。
+**命令：** `/learning` 是唯一用户入口；菜单覆盖记住请求、学习当前任务、完整维护、Harness 管理、设置、历史与撤销。历史研究和隔离验收保留内部 `/memory`、`/consolidate`、`/harness` 绑定，仅用于证据协议，不作为用户入口推荐。
 
-Memory、Harness 和 AGENTS.md 默认仍自动应用通过验证的变更。即使关闭自动学习，也可以显式执行 `/memory` 请求；请求由父进程验证，若内容不够持久或不安全，也可以不产生写入。各阶段策略位于 Memory 面板的 Advanced 区域，历史记录内提供 Undo。旧版 `/memory model`、`/memory status`、`/memory policy`、`/memory history`、`/memory undo`、`/memory evaluate`、`/consolidate backfill` 及 Harness 范围别名仍兼容。
+Debug 默认开启，私有分段日志记录插件入口、项目/会话、上下文、实际结果、错误及学习回执；`/learning debug` 查看目录，`/learning debug on|off` 持久切换。详见[Debug 模式](packages/continual-learning/README.md#debug-模式)。仓库专用[反思修复 skill](.agents/skills/continual-learning-debug/SKILL.md)读取这些证据并按回归测试闭环修复插件。
 
-学习在异步处理前冻结任务，关闭会话后停止。学习设置损坏时关闭自动学习并报告原因；`/memory status` 查看实际策略、存储、学习状态和队列诊断。跳过的任务只保存私有、按项目隔离的引用，`/consolidate backfill` 查看其状态，不回放历史或调用模型。关闭自动学习后，已有知识仍可读取。
+自动学习触发器默认关闭，各阶段策略默认应用通过验证的变更。关闭自动学习时仍可通过 `/learning` 提交明确请求；若内容不够持久、不安全或审核未通过，可以不产生写入。阶段策略、历史和 Undo 均位于同一菜单。
+
+学习在异步处理前冻结任务，关闭会话后停止。学习设置损坏时关闭自动学习并报告原因；`/learning` 设置视图展示实际策略、存储、流水线和队列诊断。跳过的任务保存私有、按项目隔离的引用。关闭自动学习后，已有知识仍可读取。
 
 在用户级 `continual-learning.json` 中配置 `jev`，或提供 `TYPESAFE_API_KEY` 环境变量，即可启用可选的 Jev 判断：选择学习方向并审查已通过代码校验的候选；证据、隐私、写入权限和 Harness 执行仍由父进程控制。不确定或不可用时沿用现有选择器或保存提案，不新增命令。详见[配置与评估说明](packages/continual-learning/README.md#optional-jev-judgments)。 [改善验收报告](packages/continual-learning/tests/jev-improvement-evaluation.md)分别记录真实中英文判断、插件实际效果和剩余误拦，不把模拟测试算作效果提升。 [严格全流程审计](packages/continual-learning/tests/jev-workflow-strict-evaluation.md)要求真实配对效果提升；此前四场公开样本的真实同版本对照为 36/50 → 50/50 效果，十四项改善、零退步；费用增加，不能推广为所有项目都更好。 [扩大的中英文与 Docker 评估](packages/continual-learning/tests/jev-expanded-evaluation.md)保留新的真实项目失败和修复；短候选的安全性改善不能证明大型仓库轨迹的自动学习产出提高。 [最新冻结复测](packages/continual-learning/tests/jev-cited-followup-evaluation.md)保留失败轮次与独立 Git 选项探针：误拦减少仍未证明漏拦或完整流程改善。完整候选停止信号现在帮助已有的有界修复，不授予部分写入权限。
 
-显式 `/memory <请求>` 涉及私有记忆且启用了 Jev 时，先由原生对话确认是否允许本次发送相关私有记忆和任务证据至 TypeSafe Jev。已有私有记忆在审计和选择前确认；新私有候选在语义审查前确认。拒绝、取消或无交互界面时保留原知识；前置拒绝新增模型调用和费用均为零，学习仍未完成。许可仅本次有效，不修改配置或跳过校验。
+所有 Memory 默认可参与审核；private 条目保持私有存储，敏感材料仍受原有检查约束。Jev 参与审核不授予文件写入权限，实际变更仍须通过父进程的全部校验。
 
 完整维护也会从空 Memory 中提取新知识。当前会话没有有效证据时，可冻结同一项目最近的一份有界会话，并在回执中记录来源摘要；没有证据也没有已有 Memory 时，零模型调用，报告 `no learning input`。
 
-Harness 编写与自动学习默认写入项目 `.pi/harness.json`；明确请求个人配置时使用 `.pi/harness.local.json`（`/harness --local`）。用户层包括 `~/.pi/agent/harness.json` 和按项目隔离的 `~/.pi/agent/harness/<scopeKey>.json`，项目层优先。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
+Harness 编写与自动学习默认写入项目 `.pi/harness.json`；明确请求个人配置时，在 `/learning` 规则管理流程中选择 `.pi/harness.local.json`。用户层包括 `~/.pi/agent/harness.json` 和按项目隔离的 `~/.pi/agent/harness/<scopeKey>.json`，项目层优先。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
 
 **安装：**
 

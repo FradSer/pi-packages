@@ -67,7 +67,7 @@ def test_pending_latest_phase_cannot_ack_even_when_applied_or_noop() -> None:
     ''')
     assert value['partial']['complete'] is False
     assert value['partial']['tone'] == 'warning'
-    assert value['empty'] == {'complete': False, 'tone': 'warning', 'subject': 'no durable changes; 2 pending review'}
+    assert value['empty'] == {'complete': False, 'tone': 'warning', 'subject': 'no changes written; 2 pending review'}
     assert value['resolved']['complete'] is True
     assert 'pending' not in value['resolved']['subject']
     assert value['resolved']['tone'] == 'success'
