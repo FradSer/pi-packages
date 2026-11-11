@@ -153,7 +153,9 @@ files, or when the work outlives the turn. A single edit is not a task.
 
 - `create_task` records the work, its `dependsOn`, and its completion gate.
 - `update_task` moves it: `in_progress` takes it, `completed` delivers it with
-  its evidence, `pending` reopens it. One call may carry both a content edit and
+  its evidence, `pending` reopens it, and `blocked` records the blocker as its
+  reason. Blocked work waits for deliberate recovery; read its saved evidence
+  before reopening it with a reason. One call may carry both a content edit and
   a status change; a refused status keeps the edit.
 - `get_task` reads one task in full. `list_tasks` reads the list.
 
