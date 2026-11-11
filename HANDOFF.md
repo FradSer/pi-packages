@@ -2,25 +2,39 @@
 Intent: [INTENT.md](INTENT.md)
 
 ## Current state
-Completed: `hideThinkingBlock` handling is unified for above-editor agent activity rows across `packages/` (see INTENT.md). Reference behaviour was `packages/subagents/src/extension.ts`; the shared contract now lives in `packages/kit/src/index.ts` and is used by `subagents`, `agent-teams`, `context`, `plan-mode`. `monitor`, `recap`, `vision`, `continual-learning` and `goal` mount above/below-editor widgets but do not stream thinking text, so they need no change. Shared checkout has ~30 pre-existing uncommitted files from other sessions; this change touched only the files listed below.
+Commit, push and release work for the hidden-thinking unification is done: `main` carries the six delivered commits (kit/subagents/agent-teams/context/plan-mode thinking policy, continual-learning debug logging + Memory cap + honest result rows, SDLC shared metadata records, Memory/docs) plus four release-engineering commits. The version PR was merged into `main` and GitHub Actions published from there.
+
+Published by CI through npm trusted publishing (OIDC, each with an SLSA provenance attestation): `@fradser/pi-kit@0.6.0`, `@fradser/pi-impeccable@0.1.2`, `pi-continual-learning@1.0.0`, `@fradser/pi-btw@0.2.11`, `@fradser/pi-monitor@2.3.2`, `@fradser/pi-utils@0.6.0`, `@fradser/pi-vision@0.2.12`, `@fradser/pi-plan-mode@0.2.1`, `@fradser/pi-recap@0.2.0`. `@fradser/pi-kit@0.6.0` records `_npmUser.trustedPublisher = github` and a `slsa.dev/provenance/v1` predicate, which proves the OIDC path rather than a local token.
+
+Twelve allowlist packages are still unversioned on npm; see Blockers.
 
 ## Decisions
-- The policy lives in pi-kit (shared label, settings reader, activity resolver and worker-progress source) rather than being copied into each package. Masking happens at each package's display boundary so existing activity arrival order and worker arguments stay unchanged.
-- `PiWorkerProgressUpdate` gains an additive `activitySource` so `context` can tell whether `activity` came from thinking without string guessing.
-- Each extension binds `pi.getSettings()` once at load and reads it per refresh; a host without that API keeps thinking visible.
-- The idea-to-ship workflow was cancelled: the request names an explicit reference implementation, so no unresolved design decision remained.
-- Files changed: `packages/kit/src/index.ts`, `packages/kit/README.md`, `packages/subagents/src/extension.ts`, `packages/agent-teams/src/{activity,ui,index}.ts`, `packages/context/extensions/context-tools.ts`, `packages/plan-mode/src/{plan-worker,index}.ts`, four `.feature` files, two new Bun tests, three existing harnesses/tests, root `package.json` test script, and `.changeset/hidden-thinking-agent-rows.md`.
-- A real Pi runtime smoke (`/tmp/pi-hidden-thinking-smoke`) showed `getSettings()` throws during extension loading, so the shared reader now fails open; all consumers bind a closure at load and read only during refresh/progress.
-- Independent review (isolated `context_get`) returned PASS on public-interface and state-machine risk; its non-blocking process findings (changeset, README, CI test paths, wiring assertions) were all applied.
+- Hidden-thinking policy lives in `packages/kit/src/index.ts` (label, per-refresh `hideThinkingBlock` reader, activity resolver, `activitySource` on worker progress); each package masks at its own display boundary, so activity order and worker arguments stay unchanged.
+- The continual-learning worker stand-in runs in a spawned `--fixture` child process. Bun binds `mock.module` for the whole test process, so a load-time mock replaced pi-kit's real `runPiWorker` for every later file and made the result depend on Bun's file order. `tests/test_bun_module_mock_isolation.py` forbids the load-time shape.
+- The release workflow versions through `scripts/changeset-version.sh` because a bare `bun x changeset version` reports only "bun failed with exit code 1", and workflow logs need repository admin rights.
+- `scripts/publish-release.mjs` reports never-published packages as first-release bootstrap rather than publishing them: npm trusted publishing cannot create a package npm has never seen, and one refused create stopped every later package in kit-first order.
+- The version PR was merged by fetching `changeset-release/main` and pushing a `--no-ff` merge to `main`; `gh` on this machine has an invalid token, and the merge is the documented publish trigger.
 
 ## Verification
-Green: `bun run check` (340 bun tests / 0 fail, typecheck, 21 packed manifests), `bun test packages/kit/tests/ packages/context/tests/` (6/6), affected pytest 121/121 (`subagents/test_agent_activity_widget.py`, `context/tests`, `plan-mode/tests`, `agent-teams/test_agent_package.py`), kit pytest 73/73 with one pre-existing baseline deselected, `bun pm pack` for all five touched packages, `bun run check:install` (20 packages / 21 settings entries). Real Pi SDK runtime smoke with `SettingsManager.inMemory({hideThinkingBlock:true})`: `hidden=true`, `settings=true`, `activity=Thinking...`. RED was captured before implementation for all four regression targets. Native widget rows were rendered with pi-tui components; no PTY session, resize, focus or screen-reader verification was performed. Baseline failure (unrelated): `packages/kit/tests/test_pi_kit.py::test_kit_manifest_is_a_pure_runtime_dependency` hard-asserts two peers while HEAD declares a third (`typebox`); left untouched.
+Green at every pushed commit: `bun run check` (373 bun tests / 0 fail, `bun run typecheck`, 21 packed manifests), `uv run pytest tests/test_publish_release.py` (25 pass), `uv run pytest tests/test_bun_module_mock_isolation.py` (2 pass, RED-first against the previous load-time mock). Registry probes (`registry.npmjs.org`) confirmed each published version and the provenance record above. Release-run failures were diagnosed from check-run annotations only: the logs endpoint returned 403 `Must have admin rights`.
+
+Not verified: workflow log text, interactive npm/GitHub authentication, and any publish for the twelve packages in Blockers.
 
 ## Blockers
-None. Known baseline from other sessions: shared tree has uncommitted work and pre-existing full-pytest failures; those were excluded rather than weakened. Not verified: a real interactive PTY session, a custom Pi `hiddenThinkingLabel`, and `packages/open-deskos` desktop cards (not a Pi above-editor row).
+- The npm credential on this machine is dead (`npm whoami` returns E401), so registry write operations need the user's own terminal. Per the release skill, credential prompts, OTP entry and browser approval are never automated from here.
+- Five allowlist packages have never been published, so CI cannot create them: `pi-sdlc@0.2.0`, `@fradser/pi-loop@0.2.0`, `@fradser/pi-subagents@0.2.0`, `@fradser/pi-tasks@0.2.0`, `@fradser/pi-goal@0.2.0`. Tarballs are already packed at `/tmp/pi-release-bootstrap/` and verified free of `workspace:` protocols.
+- Seven published packages have no trusted publisher for `.github/workflows/release.yml`, so npm answered `ENEEDAUTH` at `@fradser/pi-magpie@0.4.0`: magpie 0.4.0, keyboard 0.1.9, agent-teams 1.0.0, context 0.6.4, matt-pocock 0.3.0, skill-router 0.3.0, open-deskos 0.4.0.
 
 ## Next steps
-No next action remains for this task. Commit the touched files via the git-agent skill with exact staging; the changeset covers the five published packages.
+1. Restore the npm credential in the user's terminal and confirm `npm whoami` succeeds.
+2. First releases, one command per line, OTP prompt expected:
+   `npm publish /tmp/pi-release-bootstrap/pi-sdlc-0.2.0.tgz --access public`
+   `npm publish /tmp/pi-release-bootstrap/fradser-pi-loop-0.2.0.tgz --access public`
+   `npm publish /tmp/pi-release-bootstrap/fradser-pi-subagents-0.2.0.tgz --access public`
+   `npm publish /tmp/pi-release-bootstrap/fradser-pi-tasks-0.2.0.tgz --access public`
+   `npm publish /tmp/pi-release-bootstrap/fradser-pi-goal-0.2.0.tgz --access public`
+3. Trusted publisher for all twelve names: `npm trust github <package> --file release.yml --repo FradSer/pi-packages --allow-publish -y`.
+4. Push any commit (or re-run the Release workflow) so CI publishes the twelve versions; the script skips versions already on npm and names any remaining bootstrap package.
 
 ## Continual-learning default debug mode & repo-local reflection skill (2026-11-10)
 - **State**: Completed. `pi-continual-learning` now enables private debug logging by default (`readDebugConfigState()` in `packages/continual-learning/extensions/config.ts`, `LearningDebug` in `packages/continual-learning/extensions/debug.ts`, wired in `packages/continual-learning/index.ts`, `packages/continual-learning/extensions/learning-efficiency.ts`, and `packages/continual-learning/extensions/inject-memory.ts`). Added repo-local skill `.agents/skills/continual-learning-debug/SKILL.md` and read-only log inspector `.agents/skills/continual-learning-debug/scripts/inspect-debug.ts`.
@@ -43,7 +57,7 @@ Committed `78a9dd6d` (learning first green slice); HEAD `1dc2a3c4` from another 
 
 <!-- sdlc:lifecycle:start -->
 ## Latest lifecycle checkpoint
-Turn: d324766487ddfe48
-Updated: 2026-11-11T17:02:22.623Z
+Turn: 839ddfd4402ad33f
+Updated: 2026-11-11T18:43:28.909Z
 Status: started; refresh the current state before task work.
 <!-- sdlc:lifecycle:end -->
