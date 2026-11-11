@@ -67,7 +67,7 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: bun x changeset version && bun install
+          version: bash scripts/changeset-version.sh
           publish: bun scripts/publish-release.mjs
           commit: "chore(release): version packages"
           title: "chore(release): version packages"
