@@ -1,196 +1,49 @@
-# Handoff: continual-learning refactor and Goal Docker E2E
-Last verified: 2026-11-08 (`check:install`, `bun run check`, Goal gates).
-Plan: `/Users/FradSer/.claude/plans/vectorized-sprouting-peach.md` (outside).
+# Handoff
+Intent: [INTENT.md](INTENT.md)
 
-## State
-`78a9dd6d` committed the first green slice (one `/learning` menu, one final
-outcome row, one `[learning] started` row); HEAD `1dc2a3c4` (other session).
-Shared checkout has ~154 uncommitted files from other sessions; not a clean
-per-session diff. Phases 1-4 (option B, additive harness_write, no-tools inlinedossier, single command + retired worker loadout) are DONE and green; the
-result row is now expandable and a live activity row is shown (follow-ups).
-Nothing committed since; index 0 staged.
+## Current state
+Completed: `hideThinkingBlock` handling is unified for above-editor agent activity rows across `packages/` (see INTENT.md). Reference behaviour was `packages/subagents/src/extension.ts`; the shared contract now lives in `packages/kit/src/index.ts` and is used by `subagents`, `agent-teams`, `context`, `plan-mode`. `monitor`, `recap`, `vision`, `continual-learning` and `goal` mount above/below-editor widgets but do not stream thinking text, so they need no change. Shared checkout has ~30 pre-existing uncommitted files from other sessions; this change touched only the files listed below.
 
-## Phase 1 / option B (details: adr-0014 + session memory)
-User chose B. Harness-only ENTRY route uses a pure classifier over the last real
-`role:user` entry (`learn-intent.ts`); global screen truth table and
-test_learning_efficiency.py unchanged (frozen evidence). `TOOL_NAMES.learn` (no
-alias), dual-intent guidance all naming `learn`; 9 flags + planner-json-output
-unchanged. `startHarnessProcedureForLearn` (WeakMap bridge) opens the identical
-guarded procedure; `learn()` returns honest `authoring-started`, never fakes a
-receipt/write or starts Memory. Settled dedup prevents a second rule. Tests:
-learning-single-tool.feature, learn-intent (6), learn-harness-route (3),
-learning-single-tool (8). Fresh-agent 4 defects ALL fixed with RED; no defect
-in write-time gates/screen/bridge/Memory gates/dedup. Gate: typecheck, bun check
-323/0; frozen proofs/fixtures/ADR-0012+0013 byte-identical.
+## Decisions
+- The policy lives in pi-kit (shared label, settings reader, activity resolver and worker-progress source) rather than being copied into each package. Masking happens at each package's display boundary so existing activity arrival order and worker arguments stay unchanged.
+- `PiWorkerProgressUpdate` gains an additive `activitySource` so `context` can tell whether `activity` came from thinking without string guessing.
+- Each extension binds `pi.getSettings()` once at load and reads it per refresh; a host without that API keeps thinking visible.
+- The idea-to-ship workflow was cancelled: the request names an explicit reference implementation, so no unresolved design decision remained.
+- Files changed: `packages/kit/src/index.ts`, `packages/kit/README.md`, `packages/subagents/src/extension.ts`, `packages/agent-teams/src/{activity,ui,index}.ts`, `packages/context/extensions/context-tools.ts`, `packages/plan-mode/src/{plan-worker,index}.ts`, four `.feature` files, two new Bun tests, three existing harnesses/tests, root `package.json` test script, and `.changeset/hidden-thinking-agent-rows.md`.
+- A real Pi runtime smoke (`/tmp/pi-hidden-thinking-smoke`) showed `getSettings()` throws during extension loading, so the shared reader now fails open; all consumers bind a closure at load and read only during refresh/progress.
+- Independent review (isolated `context_get`) returned PASS on public-interface and state-machine risk; its non-blocking process findings (changeset, README, CI test paths, wiring assertions) were all applied.
 
-## Invariants (do not drop)
+## Verification
+Green: `bun run check` (340 bun tests / 0 fail, typecheck, 21 packed manifests), `bun test packages/kit/tests/ packages/context/tests/` (6/6), affected pytest 121/121 (`subagents/test_agent_activity_widget.py`, `context/tests`, `plan-mode/tests`, `agent-teams/test_agent_package.py`), kit pytest 73/73 with one pre-existing baseline deselected, `bun pm pack` for all five touched packages, `bun run check:install` (20 packages / 21 settings entries). Real Pi SDK runtime smoke with `SettingsManager.inMemory({hideThinkingBlock:true})`: `hidden=true`, `settings=true`, `activity=Thinking...`. RED was captured before implementation for all four regression targets. Native widget rows were rendered with pi-tui components; no PTY session, resize, focus or screen-reader verification was performed. Baseline failure (unrelated): `packages/kit/tests/test_pi_kit.py::test_kit_manifest_is_a_pure_runtime_dependency` hard-asserts two peers while HEAD declares a third (`typebox`); left untouched.
 
-- Memory is untrusted discovery context. Harness writes: parent positive AND
-  negative cases, exact candidate/predecessor bytes, no-UI fail-closed, option
-  confirmation, atomic write + readback + rollback, receipt, undoable record.
-- One learn() call: one started row, one final row (expandable for applied safe
-  Memory), complete receipt in `details`/disk, no second pipeline.
-- Frozen, byte-identical: 6 proof files (`tests/continuous-*`),
-  `tests/fixtures/**`, preintegration copies, `tests/jev-*.json` manifests,
-  `docs/adr/0012` and `0013` (supersession goes in a NEW ADR, never an edit).
-- Keep the 9 `--learning-*` planner-child structured-output flags and
-  `extensions/planner-json-output.ts`. Keep `TOOL_NAMES.learningRead` as a
-  frozen-dossier evidence marker even after the tool registration is retired.
-- Never run real-model / paid / `--live` runners without explicit authorization.
+## Blockers
+None. Known baseline from other sessions: shared tree has uncommitted work and pre-existing full-pytest failures; those were excluded rather than weakened. Not verified: a real interactive PTY session, a custom Pi `hiddenThinkingLabel`, and `packages/open-deskos` desktop cards (not a Pi above-editor row).
 
-## Phase 2 / 3 DELIVERED (details: adr-0015, session memory)
-Phase 2 added `harness_write` (declared parent-owned tool, strict native wire,
-exact bytes + cases + confirm + atomic write + rollback); additive, all gates
-green. Phase 3 moved 3 of 4 planner spawns to `--no-tools` + inline bounded
-dossier (`planner-inline-dossier.ts`); the DYNAMIC current-source collector
-STAYS because 6 frozen proofs bind its 18-read prefix. Deleted
-harness-planner-preview.ts + plannerReadArgs; kept 9 flags, structured output,
-`TOOL_NAMES.learningRead` evidence marker. Both gates green (bun check 335/0,
-typecheck, PTY/loopback, frozen SHA). Full pytest went 18->14 baseline
-failures; the remaining were detector/corpus drift and another session's
-in-flight jev-learning.ts consent refactor, deliberately not taken over.
+## Next steps
+No next action remains for this task. Commit the touched files via the git-agent skill with exact staging; the changeset covers the five published packages.
 
-## Phase 4 DELIVERED (2026-11-06)
-Goal: "旧版本彻底删除掉" -- converge on `/learning` + one `learn` tool. RED
-first (command-surface-retirement.feature 5 scenarios +
-test_command_surface_retirement.py 6 tests). Completed, gates green:
+## Continual-learning default debug mode & repo-local reflection skill (2026-11-10)
+- **State**: Completed. `pi-continual-learning` now enables private debug logging by default (`readDebugConfigState()` in `packages/continual-learning/extensions/config.ts`, `LearningDebug` in `packages/continual-learning/extensions/debug.ts`, wired in `packages/continual-learning/index.ts`, `packages/continual-learning/extensions/learning-efficiency.ts`, and `packages/continual-learning/extensions/inject-memory.ts`). Added repo-local skill `.agents/skills/continual-learning-debug/SKILL.md` and read-only log inspector `.agents/skills/continual-learning-debug/scripts/inspect-debug.ts`.
+- **Decisions**:
+  - One shared `ExtensionAPI` proxy preserves WeakMap identity across `injectMemory`, `registerHarnessGuidance`, `registerGuardrails`, and `registerOutputChecks`, while tagging each module's registrations with its exact source file.
+  - Private segmented JSONL logs (`0700` dir, `0600` exclusive files, 4 MiB segments, 64 KiB record cap) live under `<agentDir>/continual-learning/debug/<sha256(canonicalProjectCwd)>/`. `/learning debug [on|off|status]` inspects or updates `<agentDir>/continual-learning.json` without registering a new slash command or invoking a model.
+  - Separate sanitization budgets for `context` and `data`, strict numeric-only usage token exemptions, descriptor-only property reads, cross-realm Promise/thenable handling, `projectId` binding for redacted project paths, and live `debug off` cutoff repaired all 7 independent-review findings plus context-vs-data budget contention (RED-first).
+- **Files**: `packages/continual-learning/features/debug-mode.feature`, `packages/continual-learning/extensions/{debug,config,learning-efficiency,inject-memory}.ts`, `packages/continual-learning/index.ts`, `packages/continual-learning/tests/{debug,debug-inspector,debug-native}.test.ts`, `packages/continual-learning/README.md`, `.agents/skills/continual-learning-debug/{SKILL.md,scripts/inspect-debug.ts}`, `README.md`, `README.zh-CN.md`, `.changeset/continual-learning-private-debug.md`.
+- **Verification**: `bun test packages/continual-learning/tests/` (189 pass / 0 fail across 22 files, including real `pi --print` loopback verification in `debug-native.test.ts`), `uv run pytest` on 6 continual-learning suites (240+ pass), `bun run typecheck`, `bun run pack:check` (21/21), `bun run check:install` (20/21), and `quick_validate.py` on `.agents/skills/continual-learning-debug`.
 
-RETIRED (production): WORKER_LOADOUTS / workerCliArgs / workerToolNames /
-createWorkerToolSurface / harnessCheckCases / planner case tool + loadout, CLI
-allowlist and worker tool_choice. tool-surface.ts now owns 4 canonical names +
-createParentToolSurface + createCollectorToolSurface (keeps the collector's
-one-read budget, sessionStart activation, tool_choice:"none" prefix-stop
-VERBATIM). planner-read-scope.ts + memory-maintenance-audit.ts migrated to
-createCollectorToolSurface / TOOL_NAMES.learningRead. tool-surface.test.ts 6->3.
-- /learning menu Harness branch now calls startHarnessProcedureForLearn
-  DIRECTLY (WeakMap bridge, same as learn tool); no getCommands().find, no
-  "Use /harness" notice.
-- Guidance (AGENT_LEARNING_TOOL_GUIDANCE, SETTLED_LEARNING_GUIDANCE, tool
-  description, project_memory_protocol), 6 runtime diagnostics, both READMEs,
-  CONTEXT.md: old slash commands are no longer offered or named to users;
-  only /learning is documented. Features rewritten: command-surface-retirement
-  (new), learning-command, simple-command-surface, tool-surface.
+## Debug 日志体积与状态语义优化（2026-11-10）
+- **State**: Completed. 在既有 `LearningDebug` 中新增 `context:snapshot` + `contextRef` 去重，完整工具定义只写一次且只保留名称、短描述与参数名摘要；`context`/`data` 分离投影预算。同类 `session_start` / `session_shutdown` handler 合并为 `lifecycle:batch` 并保留每个 `invocationId`、终态与失败明细。`pipeline:closed` 以 receipt/state 明确区分 `screened` / `applied` / `cancelled` / `failed`，`unverified` 仅留给确实未知；`process:exit` 标记补足未发 shutdown 的进程退出证据。
+- **Decisions**: 自动学习 pending/skipped/run 结果、源码采集结果、learning-history mutation 终态新增父进程受控类别与现有 batch/run/ledger/change 身份，不复制完整 wire、credential 或 Memory 正文；缺失身份保持缺失。`/learning debug` 报告分段数、总字节与 manual retention；检查器报告采样覆盖、容量、时间范围、生命周期缺口、`contextRef` 解析与批量 handler 数，旧格式历史分段继续可读且不改写。真实模型本地 E2E 的 zero-call preflight、disposable agent 与明确预算准入写入 skill 约束。
+- **Files**: `features/debug-mode.feature`, `extensions/{debug,inject-memory,learning-efficiency,automatic-learning,memory-maintenance-audit,learning-history}.ts`, `index.ts`, `tests/{debug,debug-inspector,debug-native}.test.ts`, `README.md`, `.agents/skills/continual-learning-debug/{SKILL.md,scripts/inspect-debug.ts}`, `.changeset/continual-learning-private-debug.md`。
+- **Verification**: 新增场景与回归先 RED；`bun test packages/continual-learning/tests/debug*.test.ts` 31/0，包测试 197/0，全工作区 Bun 372/0，`bun run typecheck`，`bun run pack:check` 21/21，`bun run check:install` 20/21，5 个关联 Python 套件和 skill validator 通过。隔离新格式日志中 1 次会话生命周期 + 1 次输入 + 退出标记仅约 2 KB（`contextSnapshots=1`、`missingContextRefs=[]`）；真实历史 10 段旧格式日志仍无损坏或诊断。Jev telemetry 新增受控类别记录，不影响 `test_jev_learning.py` / `test_jev_long_context.py` / `test_jev_https_forward.py`；`test_jev_memory_pair.py::test_pair_research_uses_complete_production_privacy_preflight` 为工作区既有基线失败，与本次日志改动无关。
+- **独立审查与修复（2026-11-10）**: 只读独立审查（subagent `a4d585afa90948faf`）确认 3 项问题，均已 RED-first 修复，debug 套件 32/0（205 expect）：(1) 检查器曾按「started 时间戳 ≤ 后续任意关闭时间」把数小时前崩溃/未闭合调用误判为 `closedByDebugShutdown`。现 `/learning debug off` 的 `debug:configuration` 只显式写入关闭瞬间仍在途的 `data.truncatedInvocations`（`LearningDebug.inFlight` 由每个非生命周期 `emit("started")` 登记、终态移除），检查器仅按该显式集合收束，未列出的 `started` 一律保留在 `unclosedInvocations`。(2) 关闭后待刷新 `lifecycle:batch` 仍落盘：`flushLifecycle` 增加实时 `readDebugConfigState().enabled` 守卫，关闭后不再补写批量。(3) `handlerCount` 误按行数：`flushLifecycle` 改用 `Set(invocationId).size`，检查器 `handlerCounts` 也按身份去重。README、SKILL.md 同步说明。其余六项重点（contextRef/snapshot、实时 off、批量身份、pipeline 终态、process:exit、内部受控观测、旧格式、并发 ALS）审查通过；JWT/裸 hex 中性键脱敏、跨 pid processExits 对齐、pipeline state 复用为低置信残留，按证据强度记录，不列为缺陷。最终门禁见交付报告。
 
-DELIBERATELY KEPT (internal, NOT user-facing): /memory + /consolidate
-(inject-memory.ts), /harness (guardrails.ts). FROZEN proofs drive `/memory
-整理记忆` / `/consolidate backfill` through REAL `pi --print` argv
-(live_automatic_source_refresh.py:611/623, live_continuous_project_learning.py,
-test_continuous_project_protocol.py, continuous-command-proof.ts:273 literal
-argv); OFFLINE E2E drives /harness (live_harness_first_run.py,
-live_meaningful_details.py PTY, test_harness_authoring_preview.py). Deleting
-breaks frozen provenance + E2E; AGENTS.md forbids reclassifying frozen cohorts
-/ weakening validation for green. Absent from all menus/guidance/doc tables.
-NOT literal deletion -- disclosed plainly.
+## Prior session records (condensed, unrelated to this task)
+Committed `78a9dd6d` (learning first green slice); HEAD `1dc2a3c4` from another session. Phases 1-4 of the continual-learning refactor (option B, harness_write, inline dossier, `/learning` single command) delivered and green; `/learning` + one `learn` tool is the only user-facing surface, while `/memory`, `/consolidate`, `/harness` remain internal because frozen proofs and offline E2E bind them. Private Memory data unseal still needs explicit user consent. Goal Docker E2E passed one native real-model lifecycle on Pi 1.5.0 (`@earendil-works/pi-ai` no longer re-exports `Type`); Docker run 4 and strict-provider `harness_write` dialog remain unverified. Earlier gates: typecheck, `bun run check` (332 bun tests, 21 packed manifests), `check:install` (20/21), four native PTY probes. Full pytest had 10-14 baseline failures bound to frozen `codeHashes` manifests and another session's Pi 1.5.0 upgrade; not weakened for green. 2026-11-09 continual-learning fixes (separate files, all RED-first and green): paired started/result rows including cancellation, one bounded selector correction for out-of-range frozen positions, `learner` identity kept intact at 24 columns (pi-kit row layout), and `learn()` now carrying its receipt's applied count so the settled row no longer says "learned 0" beside "2 memories applied", and `normalizeSelectedScope`/`parentSelectedScope` now reuse `isMemoryFilename` instead of a private stricter regex that rejected dotted version-style names (`openwrt-upboard-1010101-25.12.md`) with `selected[1] is not a canonical memory filename`. 2026-11-10: the expandable `[learning]` result now names each applied Memory by filename (previously only description/body), names each applied AGENTS.md edit by operation and unit text, and states what was checked for normally settled zero-write runs; failed/proposed runs never claim a completed check. RED-first TUI/control tests and a real PTY pass. `.changeset/continual-learning-expandable-result.md` is the one authoritative description. 2026-11-10: automatic tasks now cap newly created Memory files per run (`maxNewMemoriesPerRun`, default 2, valid 1..16, invalid fails closed); an over-limit fully reviewed plan is held as a reviewable proposal with an exact count/limit warning, no Memory file or applied receipt, and later planners gated off. Rewrites/deletes and explicit `/memory` are exempt. RED-first integration + settings tests green; `bun run check` (364 bun tests, typecheck, 21 manifests), continual-learning bun 189/0, pack, `git diff --check` pass. Private debug logs were re-read to verify the diagnosis: 4 project debug dirs (253M) map to hud-playground / VenusPrototype / RayNeo / pi-packages; the over-generating batch `batch_67abf737` has `mode=automatic` (mode sha256 resolves to "automatic"), `input.source=current-session`, `screen.memory=true` via agent request, ops=4, `selected=[]`. Across all scopes 17 automatic batches had ops>=3 and 19 stored plans had >=3 newMemories; feeding all 128 stored plans through `exceedsNewMemoryCap` holds exactly 19 at the default cap and shows 8 plans would be mis-decided if rewrites/deletes were counted. Full continual-learning pytest has 60 known baseline failures (another session's Pi 1.5.0 upgrade + concurrent Jev/debug changes); none involve the cap. `.changeset/continual-learning-new-memory-cap.md`. 2026-11-10: quieted the zero-write learning row — the terminal `[learning]` subject and `learn()` settled row now say `no changes written` / `no Memory changes written` instead of `no durable changes` / `no durable Memory in this task`. Display-only; receipt, pending-review suffix, started/result pairing and the expandable checked-scope note are unchanged, frozen fixtures keep old wording. Debug-log check confirmed 172 receipts fell into the ambiguous fallback across three different states. RED-first wording tests + all affected suites green. `.changeset/continual-learning-quiet-zero-write-row.md`. 2026-11-11: user directive "不区分是否隐私，因为都是我的文件，都可以被看到" — private (harness-only) applied Memory now shows its filename/body in the expandable `[learning]` result exactly like safe entries; `displayableMemoryDetails` admits both classifications and `AppliedMemoryDetail.classification` is `"safe" | "private"`. Root cause of the complaint: two 11-11 runs reported `1 memory applied` with an EMPTY expansion because the only written record was `private`, so `appliedMemoryDetails` was empty; debug logs + plans (`project_frad_mac_mini_work_environment.md`, `gemini-4-argon-no-override.md`, both private) confirmed. The credential-shaped sensitive screen is intentionally KEPT (not an ownership preference), and the safe/private STORAGE split + all write-side gates are unchanged. RED-first TUI tests updated, real PTY `live_meaningful_details.py` passes with a private entry in the fixture. `.changeset/continual-learning-expandable-result.md` updated in place. 2026-11-11: fixed a self-inflicted bug in the new-Memory cap — a held plan reused `semanticProposal`, so its receipt settled as `proposed`/ops0 and the result row fell through to the zero-write branch, claiming `no changes written` + `51 frozen entries were checked; mirrors, indexes and consistency were verified` even though a grounded plan was actively held. Reproduced from git-agent-cli debug log `batch_a0ef7c` (hold `ui:notify` and that result 25 ms apart, same receipt, `screen.routing` evidence). Fix: parent sets `state.newMemoryCapHeld`, `writeCurrentReceipt` adds a `NEW_MEMORY_CAP_HOLD` routing marker to the receipt; `learningSummarySubject` reports `new Memory plan held by per-run limit; proposal saved for review` and `reportLearningReceipt` suppresses the zero-write "verified" expansion for it. Normal zero-write runs unchanged; RED-first, all affected suites green. Commit via the git-agent skill, never bare git add/commit.
 
-VERIFICATION (green): typecheck; bun test 163/0; check 332/0; retirement pytest
-6/6; pack + pack:check(21); offline loopback passed/requests:0; PTY passed;
-diff-check; 8 frozen MATCH. Full pytest SAME 14 baseline failures (Phase 3).
-Fresh-agent INDEPENDENT REVIEW did NOT complete (2 read-only attempts timed
-out); equivalent main-thread checks done (tool-surface.ts UNTRACKED at HEAD,
-collector 163 bun + test_maintenance_collection_stop 11/11, docs/tests/features
-cross-checked). No production defect found. Nothing committed; 0 staged.
-
-## Zero-call preflight, backlog quarantine, detector parity (2026-11-07)
-User proved one real failure (sensitive guard scanning existing corpus in the
-WAL) was misreported as 4. Fixes, all RED-first:
-- `learning-history.ts normalizeTrackedMemory`: only actual drift/leak targets
-  enter the WAL; no-change runs create ZERO history rows (mirror-hold bun tests
-  updated from the obsolete "1 applied sync" expectation).
-- `learning-efficiency.ts` + `inject-memory.ts`: `preflight` phase, fixed
-  diagnostic, and `no model calls` ONLY for receipts with a preflight/screen
-  attempt; failed workers with unknown usage still say unavailable.
-- `learning-backlog.ts`: old `auto-memory-off` rows are quarantined (retained,
-  never replayed); malformed counting is scope-isolated; damaged rows still
-  fail closed. `beginBacklogAttempt` now binds in a clean scope. Regression in
-  BOTH test_learning_backlog.py and test_learning_controls.py.
-- `consolidation-run.ts` + `scripts/validate-consolidate.py`: `Auth:` mode-label
-  and bracketed/quoted placeholders stay benign; `*_WEB_KEY` and realistic
-  secrets are refused; structured object members stay strict; both detectors
-  classify the shared 40-sensitive / 25-benign corpus identically (0 FP, 0 miss).
-  Three sanitized positive samples added to the corpus; no real secret stored.
-Gates: typecheck; bun test 163/0; affected pytest 202/0; pack; diff-check.
-Full pytest: 10 baseline failures remain (frozen `codeHashes` manifests bound
-to shared-tree source + another session's in-flight Jev refactor), confirmed
-pre-existing by reverting `credentialNamedKeyAssignsValue` and re-running 2 of
-them. NOT weakened for green. Data unseal (3 private Memory files) NOT done:
-AskUserQuestion timed out with no response, which is NOT consent. Nothing staged.
-
-## Docker E2E: hunyuan-eval/hy4-dev (2026-11-07, STOPPED)
-Model is in Magpie (10.10.0.195:3425/v1), NOT cliproxyapi; `sk-dummy` is a
-gateway-special public key; containers need the host InferenceProxy. Disposable
-agent dir, no repo edits, no credential literals. Run 1: 0 requests because
-`run_pi` read `selection['provider']` while `write_agent_config` writes
-`{"model":"provider/model"}` -> FIX `selected_model_ref` (RED test). Run 2:
-24 requests / 525448 tokens / 0 errors, learning stopped with empty index,
-`real-regression-task` hit 900s. Run 3 (--run-timeout 1800): learningSeconds
-991, `learningCommandNativeSuccess` + `regressionChanged` TRUE, failed at
-`native-harness-enforcement` because `run_project` overwrote
-continual-learning.json with `{"jev":false}` and dropped `model` -> planner
-child 404 "magpie knows no model" -> FIX `jev_arm_learning_config` (merge,
-RED test, 130 docker_experiment tests green). Run 4 launched, then STOPPED when
-user redirected to the real single-run local failure above; NOT verified.
-Evidence: /tmp/cl-hy4-e2e-{retry,budget,final}-20261107*, no leftover containers.
-
-## Readable subagent control rows (2026-11-07)
-Expanded `[agent] steered` rows were too engineering-heavy; `intentDetails` now
-returns only substantive facts (model, tools, role description, evidence,
-preview, error), with handles in structured details. `agent_list` keeps its
-handles; coordination rows keep `role ·`. RED first, gates green; changeset
-`.changeset/subagents-readable-control-rows.md`.
-
-## Real-project classification and filename fixes (2026-11-08)
-Three user reports, all RED-first. (1) Voice-Bloom-MVP: `Operation
-classification disagrees ...` then `repair dropped recognizable selected
-operation` (one chain, not two bugs). Root cause: `indexMemoryCorpus` calls a
-no-mirror selected file private, `readPrivateClassifications` only read the
-`(harness only)` marker, so a correct private delta was rejected and the
-structural repair ran needlessly. Fix: validator uses the same mirror signal
-(`run.manifest.publicDir ?? resolveMemoryPaths(cwd).publicDir`); real artifact
-now expands both operations as private. (2) Home Lab: `invalid Markdown child
-name '88.1-dual-wan-loadbalance-research.md'`. Both `MEMORY_NAME` guards now
-allow dotted version names but still refuse leading/consecutive/trailing dots,
-path components and repeated `.md` segments. Live fixtures claiming `safe`
-without a mirror were corrected to declare a real public root.
-(3) User asked why `Learning held: ... no planner started` appeared and said
-credentials must not stop learning ("模型会自己处理"), then "删除启动前隐私闸
-的所有设计". Deleted the whole design: three pre-pipeline screens, agent-tool
-held report, 3 hold constants and both summary/tone branches; 2 feature
-scenarios and 3 tests now assert ordinary pipeline outcomes with no screening
-reason. `screened` stays only as a historical receipt enum value (frozen
-cohorts are not reclassified). Write-side guards (WAL, display, Jev preflight,
-semantic review) and explicit `/memory <secret>` refusal remain.
-Gates: affected pytest 177/0 + 3 new RED/GREEN, full pytest SAME 10 baseline,
-typecheck, bun 163/0, pack, diff-check.
-
-## Goal Docker E2E: hunyuan-eval/hy4-dev (2026-11-08)
-Pi 1.5.0 removed `@earendil-works/pi-ai`'s `Type` re-export; Goal now builds
-schemas from its declared TypeBox peer. RED regression in
-`goal_simplified.mts` + `features/goal.feature`; GREEN scripted Docker gate on
-Pi 1.5.0 (`GOAL_DOCKER_OK`). Explicit real-model E2E added:
-`packages/goal/tests/goal_real_model_e2e.py` (fresh source-bound image, host-only
-InferenceProxy, disposable agent dir). Final strict run:
-`/tmp/goal-real-model-hy4-20261108-symlink`, 19 requests / 0 errors after all
-review fixes (earlier strict runs: `review`, 9 requests; `final6`, 11), terminal
-goal status `complete`, native `get_goal/create_goal/write/bash/update_goal`
-events and tool-less completion check. A prior active status falsely graded
-as passed; `goalTerminal` and the runner's terminal-only `done()` now reject it.
-Final gates: 33 pytest, package/root typecheck, pack, scripted Pi 1.5.0 Docker
-(`GOAL_DOCKER_OK .../goal-docker-RY895RKG`), and the strict fresh-image
-real-model run. Independent review fixes: terminal delegated results, Goal-id
-bound waits, session-bound monitor observations, canonical project paths,
-provider-error settle skip, and a three-turn bounded wait. Evidence scan: 16
-directories / 128 files, zero hits for either host credential value; all Goal
-containers removed. `fix all needed` repaired the live Pi installation: added
-eight missing sources to `~/.pi/agent/settings.json`; `check:install` (20/21)
-and `bun run check` (332 bun tests, typecheck, 21 packed manifests) are green,
-as are Goal pytest 33/0, Goal test tsc, pack and four native PTY probes. Repeated
-`Goal check-in` notices are harness evaluator 400 Antigravity quota responses,
-not Goal defects. Evidence proves one native real-model lifecycle, not model
-quality or benefit. `HANDOFF.md` stays under 200 lines.
-
-## Remaining limitations / next
-Literal deletion of 3 hidden internal registrations would break frozen proofs /
-offline E2E (AGENTS.md forbids reclassifying frozen cohorts). 10 full-pytest
-baseline failures remain (not weakened for green). Private Memory data unseal
-needs explicit user consent. Docker run 4 and strict-provider harness_write
-dialog remain unverified. Nothing staged; commit via /git:commit skill.
+<!-- sdlc:lifecycle:start -->
+## Latest lifecycle checkpoint
+Turn: d324766487ddfe48
+Updated: 2026-11-11T17:02:22.623Z
+Status: started; refresh the current state before task work.
+<!-- sdlc:lifecycle:end -->
