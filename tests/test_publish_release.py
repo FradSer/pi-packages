@@ -111,6 +111,71 @@ def test_registry_query_distinguishes_exact_404_from_auth_and_bad_versions() -> 
     assert "@scope/pkg@1.2.3" in [call[1] for call in values["calls"]]
 
 
+def test_a_package_npm_has_never_published_waits_for_a_manual_first_release() -> None:
+    """Trusted publishing cannot create a package that does not exist on npm.
+
+    Five allowlist packages have never been published, so an attempted publish
+    stops the whole release at the second package in kit-first order. The
+    registry record makes the split: a name npm has never seen waits for the
+    documented manual first release, and every other package still publishes.
+    """
+    feature = (REPO / "features" / "publish-provenance.feature").read_text(encoding="utf-8")
+    assert "Scenario: A package npm has never published waits for a manual first release" in feature
+
+    result = run_node(
+        """
+        import { publishRelease } from "./scripts/publish-release.mjs";
+        const workspacePackages = new Map([
+          ["@fradser/pi-kit", { directory: "kit", version: "1.0.0" }],
+          ["pi-never", { directory: "never", version: "0.1.0" }],
+          ["pi-b", { directory: "b", version: "2.0.0" }],
+        ]);
+        const publishedVersions = {
+          "@fradser/pi-kit": ["0.9.0", "1.0.0"],
+          "pi-never": [],
+          "pi-b": ["1.0.0"],
+        };
+        const publishes = [];
+        const messages = [];
+        let failure = null;
+        try {
+          var outcome = publishRelease({
+            rootDir: "/tmp/release-root",
+            packagesDir: "/tmp/release-root/packages",
+            workspacePackages,
+            publishScope: ["@fradser/pi-kit", "pi-never", "pi-b"],
+            queryVersion() { return undefined; },
+            queryPublishedVersions(name) { return publishedVersions[name]; },
+            packAndVerify(directory) {
+              return { tarballPath: `${directory}.tgz`, cleanup() {} };
+            },
+            execFileSync(file, args) { publishes.push(args[1]); return ""; },
+            useProvenance: true,
+            logger: { log: (line) => messages.push(line) },
+          });
+        } catch (error) {
+          failure = error.message;
+        }
+        console.log(JSON.stringify({
+          failure,
+          publishes,
+          messages,
+          published: outcome.published.map(({ name }) => name),
+          firstRelease: outcome.firstRelease.map(({ name, version }) => `${name}@${version}`),
+          skipped: outcome.skipped.map(({ name }) => name),
+        }));
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    values = json.loads(result.stdout)
+    assert values["failure"] is None, values
+    assert values["published"] == ["@fradser/pi-kit", "pi-b"], values
+    assert values["firstRelease"] == ["pi-never@0.1.0"], values
+    assert "pi-never" in values["skipped"], values
+    assert [Path(call).name for call in values["publishes"]] == ["kit.tgz", "b.tgz"], values
+    assert any("manual first release" in message and "pi-never@0.1.0" in message for message in values["messages"]), values
+
+
 def test_release_selection_is_stubbed_and_keeps_kit_first() -> None:
     result = run_node(
         """
@@ -129,6 +194,7 @@ def test_release_selection_is_stubbed_and_keeps_kit_first() -> None:
             workspacePackages,
             publishScope: ["@fradser/pi-kit", "pi-b"],
             queryVersion(name, version) { queries.push(`${name}@${version}`); return undefined; },
+            queryPublishedVersions() { return ["0.1.0"]; },
             packAndVerify(directory) {
               return { tarballPath: `${directory}.tgz`, cleanup: () => cleaned.push(directory) };
             },
@@ -187,6 +253,7 @@ def test_published_version_that_wins_the_publish_race_is_not_a_release_failure()
             ]),
             publishScope: ["@fradser/pi-kit", "pi-b"],
             queryVersion() { return undefined; },
+            queryPublishedVersions() { return ["0.1.0"]; },
             packAndVerify(directory) {
               return { tarballPath: `${directory}.tgz`, cleanup() {} };
             },
@@ -247,6 +314,7 @@ def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> Non
             ]),
             publishScope: ["@fradser/pi-kit", "pi-b"],
             queryVersion() { return undefined; },
+            queryPublishedVersions() { return ["0.1.0"]; },
             packAndVerify(directory) {
               return { tarballPath: `${directory}.tgz`, cleanup() {} };
             },
@@ -350,11 +418,20 @@ def test_workflow_runs_publish_script_after_version_commits() -> None:
 
 def test_version_step_refreshes_the_bun_lockfile_before_publishing() -> None:
     """bun pm pack rewrites `workspace:*` from bun.lock, so a version bump that
-    left the lockfile behind would publish consumers pinned to the old pi-kit."""
+    left the lockfile behind would publish consumers pinned to the old pi-kit.
+
+    The step runs through a script because a bare `bun x changeset version` only
+    reports "bun failed with exit code 1" when the release tree is wrong.
+    """
     feature = (REPO / "features" / "publish-provenance.feature").read_text(encoding="utf-8")
     assert "Version bumps refresh the lockfile that packing reads" in feature
+    assert "Scenario: A failed version step reports the tree it ran in" in feature
     workflow = (REPO / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert "version: bun x changeset version && bun install" in workflow
+    assert "version: bash scripts/changeset-version.sh" in workflow
+    script = (REPO / "scripts" / "changeset-version.sh").read_text(encoding="utf-8")
+    assert "bun x changeset version" in script
+    assert script.rstrip().endswith("bun install"), "the lockfile refresh must follow a successful bump"
+    assert "::error::" in script
 
 
 def test_pull_request_quality_workflow_runs_the_same_check() -> None:

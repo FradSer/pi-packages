@@ -261,6 +261,44 @@ export function selectUnpublishedPackages(targets, queryVersion) {
 }
 
 /**
+ * List the versions npm holds for one package name.
+ *
+ * The exact-version query cannot tell "this version is new" from "this package
+ * does not exist", but only the second is outside CI's reach: npm trusted
+ * publishing cannot create the first version of an unknown package and no trust
+ * relationship can be configured for a package that has never been published.
+ * An empty answer therefore means a manual first release, not a bump to ship.
+ */
+export function queryPublishedVersions(name, execFileSync = defaultExecFileSync) {
+  try {
+    const output = execFileSync("npm", ["view", name, "versions", "--json"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const text = Buffer.isBuffer(output) ? output.toString("utf8") : String(output ?? "");
+    if (!text.trim()) return [];
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed.filter((value) => typeof value === "string");
+    if (typeof parsed === "string") return [parsed];
+    throw new Error(`npm returned no usable version list for ${name}; release stopped.`);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("npm returned")) throw error;
+    if (isRegistryNotFound(error)) return [];
+    const code = errorCode(error);
+    const status = errorStatus(error);
+    const detail = code ?? (status === undefined ? undefined : `status ${status}`);
+    throw new Error(
+      `Unable to query npm for ${name} package versions${detail ? ` (${detail})` : ""}; release stopped.`,
+    );
+  }
+}
+
+/** Select the packages npm has no record of; only a human can publish those. */
+export function selectFirstReleaseBootstrap(targets, queryVersions) {
+  return targets.filter(({ name }) => queryVersions(name).length === 0);
+}
+
+/**
  * Run release publication or registry-free packed-manifest validation.
  * Inject `execFileSync`, `packAndVerify` and `verifyPackedManifest` in tests; the
  * default path is only used by the executable script and never during module
@@ -295,14 +333,18 @@ export function publishRelease(options = {}) {
     return { checked: packedTargets, published: [], skipped: [] };
   }
 
+  const queryVersions =
+    options.queryPublishedVersions ?? ((name) => queryPublishedVersions(name, execFileSync));
   // Query every package before publishing any package so a registry outage
   // cannot leave a release half-published before the error is discovered.
   const unpublished = selectUnpublishedPackages(
     targets,
     options.queryVersion ?? ((name, version) => queryExactVersion(name, version, execFileSync)),
   );
-  const skipped = targets.filter((target) => !unpublished.includes(target));
-  for (const target of unpublished) {
+  const firstRelease = selectFirstReleaseBootstrap(unpublished, queryVersions);
+  const publishable = unpublished.filter((target) => !firstRelease.includes(target));
+  const skipped = targets.filter((target) => !publishable.includes(target));
+  for (const target of publishable) {
     const packageDir = join(packagesDir, target.directory);
     logger.log(`Verifying packed manifest for ${target.name}...`);
     const packed = pack(packageDir);
@@ -336,8 +378,15 @@ export function publishRelease(options = {}) {
       packed.cleanup();
     }
   }
-  if (unpublished.length === 0) logger.log("All selected packages are already published.");
-  return { checked: targets, published: unpublished, skipped };
+  if (firstRelease.length > 0) {
+    logger.log(
+      `Waiting for a manual first release, because trusted publishing cannot create a package npm has never seen: ${firstRelease
+        .map(({ name, version }) => `${name}@${version}`)
+        .join(", ")}.`,
+    );
+  }
+  if (publishable.length === 0) logger.log("All selected packages are already published.");
+  return { checked: targets, published: publishable, skipped, firstRelease };
 }
 
 export function isMainModule() {

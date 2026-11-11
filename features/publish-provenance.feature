@@ -91,3 +91,19 @@ Feature: Release publishing without local provenance assumptions
     When the release workflow versions packages
     Then it runs `bun install` in the same step
     So packed consumers pin the version the version PR declares
+
+  Scenario: A package npm has never published waits for a manual first release
+    Given the release script found a package version absent from npm
+    And npm holds no record of that package at all
+    When the release script plans the publish run
+    Then it does not call npm publish for that package
+    And it publishes the remaining packages in kit-first order
+    And it names the package as needing a manual first release
+    And the publish run does not fail for that package
+
+  Scenario: A failed version step reports the tree it ran in
+    Given the Changesets version step exits with a failure
+    When the release workflow runs its version step
+    Then the step reports the checked-out tree and the Changesets output
+    And the reason is readable without workflow log access
+
