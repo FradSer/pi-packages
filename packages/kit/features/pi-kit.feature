@@ -146,6 +146,15 @@ Feature: Shared pi-kit runtime helpers
     And a content or filename search carries its pattern rather than the directory it searched
     And every package labels a tool call through pi-kit's single activity classifier rather than its own ordering
 
+  Scenario: Hidden thinking is one shared contract for above-editor rows
+    Given a reader hides thinking blocks in Pi's settings
+    When any package resolves a live activity line from tool, thinking and answer streams
+    Then the settings reader reports the current setting on every refresh
+    And a thinking-only row shows Pi's Thinking... label instead of the reasoning
+    And an answer or tool name still takes precedence over that label
+    And a reader who shows thinking blocks keeps the reasoning text
+    And a worker progress snapshot names the stream that produced its activity
+
   Scenario: Tool-call activity labels share one precedence rule
     Given a package names what a tool call is doing from its arguments
     When it classifies the call through pi-kit's shared classifier

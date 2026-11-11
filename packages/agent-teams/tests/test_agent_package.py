@@ -1393,6 +1393,10 @@ def test_activity_rows_use_the_shared_pi_kit_markdown_renderer() -> None:
     activity = source("activity.ts")
     assert "renderLiveActivityMarkdown" in activity
     assert "COLORLESS_ACTIVITY_THEME" in activity
+    # The shared settings reader and policy keep every teammate row consistent.
+    assert "configureTeamActivity" in activity
+    assert "resolveLiveActivity" in activity
+    assert "configureTeamActivity(() => hiddenThinkingEnabled(pi))" in (SRC / "index.ts").read_text()
     # The console nests activity inside its own status color, so no local
     # markdown parse or theme may survive here.
     assert "new Markdown(" not in activity
@@ -1436,10 +1440,14 @@ def test_activity_priority_tool_then_thinking_then_text(tmp_path: Path) -> None:
         const withThinking = runningTeammateActivity({{ ...base, liveThinking: "reasoning about auth", liveText: "older text" }});
         const withText = runningTeammateActivity({{ ...base, liveText: "older\\nlatest" }});
         const fallback = runningTeammateActivity(base);
+        const hiddenThinking = runningTeammateActivity({{ ...base, liveThinking: "reasoning about auth" }}, true);
+        const hiddenWithAnswer = runningTeammateActivity({{ ...base, liveThinking: "reasoning about auth", liveText: "the answer" }}, true);
+        const hiddenWithTool = runningTeammateActivity({{ ...base, activeTool: "bash: npm test", liveThinking: "reasoning about auth" }}, true);
         console.log(JSON.stringify({{
           withTool, withThinking,
           latestLineWins: withText === "latest",
           fallback, fallbackIsWorking: fallback === "Working...",
+          hiddenThinking, hiddenWithAnswer, hiddenWithTool,
         }}));
         '''
     )
@@ -1447,6 +1455,11 @@ def test_activity_priority_tool_then_thinking_then_text(tmp_path: Path) -> None:
     assert payload["withThinking"] == "reasoning about auth"
     # The widget shows the LATEST non-empty line of streamed text.
     assert payload["latestLineWins"] is True
+    assert payload["fallbackIsWorking"] is True
+    # A reader who hid thinking blocks sees Pi's label, never the reasoning.
+    assert payload["hiddenThinking"] == "Thinking..."
+    assert payload["hiddenWithAnswer"] == "the answer"
+    assert payload["hiddenWithTool"] == "bash: npm test"
     assert payload["fallbackIsWorking"] is True
 
 

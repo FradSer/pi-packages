@@ -35,7 +35,12 @@ import { terminateAllAgents } from "./spawner.ts";
 import { getAgent, listAgents, livingAgents, observeAgentRoster, updateAgent, type Agent } from "./roster.ts";
 import { exactSessionRoute } from "./session-route.ts";
 import { clearSessionAgents } from "./agents.ts";
-import type { LifecycleRendererBindings, PiLiveWidgetContext } from "@fradser/pi-kit";
+import {
+  hiddenThinkingEnabled,
+  resolveLiveActivity,
+  type LifecycleRendererBindings,
+  type PiLiveWidgetContext,
+} from "@fradser/pi-kit";
 import {
   SESSION_ENDED_MESSAGE_TYPE,
   INPUT_CANCELLED_MESSAGE_TYPE,
@@ -53,11 +58,6 @@ import { publishParticipantRegistryFromRoster } from "./participant-registry.ts"
 
 export const PARENT_MESSAGE_MESSAGE_TYPE = "subagents-parent-message";
 
-/** Pi's own label for a thinking block the reader asked to hide. The transcript
- *  and this status row are the same reader's surface, so they name that hidden
- *  state the same way. Pi keeps the label itself out of settings. */
-const HIDDEN_THINKING_LABEL = "Thinking...";
-
 export default function piSubagents(pi: Parameters<typeof registerIntentTools>[0]): void {
   // Read per render: only a live session has a `ui` and a `cwd` for the host
   // wrapper, and a row rendered without them is a row the host cannot expand.
@@ -67,28 +67,21 @@ export default function piSubagents(pi: Parameters<typeof registerIntentTools>[0
   let activityContext: PiLiveWidgetContext | undefined;
   let stopObserving: (() => void) | undefined;
   const latestLine = (text?: string): string | undefined => text?.split("\n").reverse().find(line => line.trim())?.trim();
-  /** What one working child contributes to the activity area.
-   *
-   *  Tool, then reasoning, then answer: the order the stream produces them, so
-   *  the row names what the child is doing now. A reader who hid thinking blocks
-   *  asked for the reasoning not to be readable, so the row shows Pi's label for
-   *  it instead of the text. That label describes thinking, so it yields to the
-   *  answer as soon as the child writes one. */
-  const activityOf = (child: Agent, hideThinking: boolean): string => {
-    if (child.activeTool) return child.activeTool;
-    const thinking = latestLine(child.liveThinking);
-    if (thinking && !hideThinking) return thinking;
-    const text = latestLine(child.liveText);
-    if (text) return text;
-    if (thinking) return HIDDEN_THINKING_LABEL;
-    return child.status === "starting" ? "Starting..." : "Working...";
-  };
+  /** What one working child contributes to the activity area. The display
+   *  policy lives in pi-kit, so every above-editor agent row answers Pi's
+   *  hidden-thinking setting the same way: tool, then reasoning (or Pi's label),
+   *  then answer. */
+  const activityOf = (child: Agent, hideThinking: boolean): string | undefined =>
+    resolveLiveActivity({
+      tool: child.activeTool,
+      thinking: latestLine(child.liveThinking),
+      text: latestLine(child.liveText),
+    }, hideThinking, child.status === "starting" ? "Starting..." : "Working...");
   const refreshActivity = (): void => {
-    // Read per refresh rather than cached: the reader toggles this mid-session,
-    // and a cached copy would keep the old answer until the next session. A host
-    // with no settings API reports nothing, so thinking stays visible.
-    const hideThinking = typeof pi.getSettings === "function"
-      && pi.getSettings().hideThinkingBlock === true;
+    // pi-kit reads the setting per refresh rather than caching it: the reader
+    // toggles this mid-session, and a host with no settings API keeps thinking
+    // visible.
+    const hideThinking = hiddenThinkingEnabled(pi);
     activityWidget.update(activityContext, livingAgents()
       // Only work in flight occupies the activity area. A settled child leaves it:
       // an idle resident is still addressable through the roster and can take

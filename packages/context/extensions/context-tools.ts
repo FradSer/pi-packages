@@ -5,8 +5,10 @@ import {
   contentDetailLines,
   createLiveActivityWidget,
   eventToolLifecycle,
+  hiddenThinkingEnabled,
   MINIMAL_PI_WORKER_TOOLS,
   runPiWorker,
+  visibleWorkerActivity,
   type PiLiveWidgetContext,
   type PiWorkerProgressUpdate,
 } from "@fradser/pi-kit";
@@ -91,6 +93,9 @@ interface ActiveResearch {
 
 let researchToken = 0;
 let activeResearch: ActiveResearch | undefined;
+/** Bound by registerContextTools, which alone owns the ExtensionAPI. Read per
+ *  update so a mid-session settings change reaches the next researcher row. */
+let hiddenThinking: () => boolean = () => false;
 // Identity, marker, and activity rendering all come from pi-kit, so this
 // widget uses the same row language as every other package's status row; the
 // activity format is the only per-package choice.
@@ -169,6 +174,7 @@ const ResearchParams = Type.Object({
 });
 
 export function registerContextTools(pi: ExtensionAPI): void {
+  hiddenThinking = () => hiddenThinkingEnabled(pi);
   pi.registerTool({
     name: "context_get",
     label: "Isolated Pi research",
@@ -203,8 +209,12 @@ export function registerContextTools(pi: ExtensionAPI): void {
       const widget = startResearchWidget(ctx as ResearchWidgetContext | undefined);
       try {
         const child = await runResearchWithFinalAnswerRetry(params.query, signal, (progress) => {
-          updateResearchWidget(widget, progress.activity);
-          onUpdate?.(textResult(progress.activity ?? "Working...", {
+          // The above-editor row is the reader's surface, so reasoning becomes
+          // Pi's label when thinking blocks are hidden. Tool and answer activity
+          // keep their own text and the order in which they arrived.
+          const activity = visibleWorkerActivity(progress, hiddenThinking());
+          updateResearchWidget(widget, activity);
+          onUpdate?.(textResult(activity ?? "Working...", {
             operation: "context-review",
           }));
         });

@@ -6,6 +6,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  resolveLiveActivity,
   runPiWorker,
   type PiWorkerProgressUpdate,
   type PiWorkerUsage,
@@ -70,6 +71,13 @@ export interface RunPlanWorkerOptions {
 
 /** Read-only builtin tools explore workers may use. */
 const EXPLORE_TOOLS = ["read", "grep", "find", "ls"];
+
+/** Bound by the extension entry, which alone owns the ExtensionAPI. Read per
+ *  progress update so a mid-session settings change reaches the next row. */
+let hiddenThinking: () => boolean = () => false;
+export function configurePlanWorkerDisplay(reader: () => boolean): void {
+  hiddenThinking = reader;
+}
 
 function formatWorkerDiagnostics(stderr: string, exitCode: number): string {
   const details = stderr.trim();
@@ -235,7 +243,13 @@ function workerProgress(
   label: string,
   progress: PiWorkerProgressUpdate,
 ): PlanWorkerUpdate {
-  const detail = progress.activeTool ?? firstProgressLine(progress.liveThinking) ?? firstProgressLine(progress.text);
+  // The status row above the editor follows the same pi-kit display policy as
+  // every other agent row: hidden reasoning becomes Pi's Thinking... label.
+  const detail = resolveLiveActivity({
+    tool: progress.activeTool,
+    thinking: firstProgressLine(progress.liveThinking),
+    text: firstProgressLine(progress.text),
+  }, hiddenThinking());
   return { id, phase, label, status: "running", activeTool: progress.activeTool, detail };
 }
 

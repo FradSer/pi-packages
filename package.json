@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "bun test packages/impeccable/tests packages/open-deskos/tests packages/utils/tests/live-sessions*.test.ts packages/continual-learning/tests/*.test.ts",
+    "test": "bun test packages/impeccable/tests packages/open-deskos/tests packages/utils/tests/live-sessions*.test.ts packages/continual-learning/tests/*.test.ts packages/kit/tests/hidden-thinking.test.ts packages/context/tests/hidden-thinking.test.ts",
     "test:py": "uv run pytest tests",
     "check:install": "bun scripts/check-installation.mjs",
     "example:sdk": "bun examples/sdk-session.ts",

@@ -26,6 +26,7 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import {
   createLiveActivityWidget,
   enterModelFromInput,
+  hiddenThinkingEnabled,
   modelLabel,
   modelRef,
   notifyPi,
@@ -36,6 +37,7 @@ import {
 } from "@fradser/pi-kit";
 import { type PlanModeConfig, readPlanModeConfig, writePlanModeConfig } from "./config";
 import {
+  configurePlanWorkerDisplay,
   runPlanWorker,
   type PlanWorkerUpdate,
 } from "./plan-worker";
@@ -558,6 +560,8 @@ async function exitPlanMode(ctx: ExtensionContext): Promise<void> {
 
 export default function planMode(extensionApi: ExtensionAPI): void {
   pi = extensionApi;
+  // Plan worker rows share subagents' hidden-thinking display policy.
+  configurePlanWorkerDisplay(() => hiddenThinkingEnabled(pi));
   config = readPlanModeConfig();
 
   pi.on("session_start", (_event, ctx) => restorePlanPath(ctx));

@@ -25,6 +25,14 @@ Feature: Minimal read-only subagent planning
     When the command completes
     Then the child has finished and its plan is saved without implementation
 
+  Scenario: Plan worker rows respect Pi's hidden thinking setting
+    Given a reader hides thinking blocks in Pi's settings
+    When a plan worker streams reasoning
+    Then its above-editor detail shows Thinking... instead of the reasoning
+    And an active tool or answer detail still replaces the label
+    Given a reader shows thinking blocks
+    Then the detail shows the reasoning text
+
   Scenario: Failed or empty planning is visible without a TUI
     Given an existing saved plan and a headless planning command
     When the child fails or returns no plan

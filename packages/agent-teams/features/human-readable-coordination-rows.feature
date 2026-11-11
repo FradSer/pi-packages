@@ -30,6 +30,14 @@ Feature: Human-readable coordination rows
     And a content or filename search is named by its pattern, never by the search root it passed
     And a file read is named by the file, not by its directory
 
+  Scenario: Hidden thinking is not readable in team activity rows
+    Given a reader hides thinking blocks in Pi's settings
+    When a working teammate streams reasoning without a tool or answer
+    Then its above-editor row and console status row show Thinking...
+    And neither row shows the reasoning text
+    When the teammate streams an answer or starts a tool
+    Then the answer or tool name replaces the label
+
   Scenario: A failed Agent row explains itself without identifiers
     Given an Agent action fails with text containing a Work identifier
     When the failed agent row renders

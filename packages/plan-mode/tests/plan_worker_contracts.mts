@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runPlanWorker } from "../src/plan-worker.ts";
+import { configurePlanWorkerDisplay, runPlanWorker } from "../src/plan-worker.ts";
 
 const root = mkdtempSync(join(tmpdir(), "plan-worker-contract-"));
 const originalArgv = process.argv[1];
@@ -38,6 +38,28 @@ console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", 
     assert.match(failed.exploreResults[0].diagnostics, instructions === "FAIL_RESEARCH" ? /provider rejected research/ : /no structured result/);
     assert.equal(readFileSync(planPath, "utf8"), "# Previous plan\n");
   }
+
+  // Pi's hide-thinking-block setting reaches the plan-worker rows above the
+  // editor. A thinking-only turn keeps reasoning as the last activity even when
+  // the child's stdout arrives as one chunk, so this does not depend on timing.
+  const thinkingCli = join(root, "thinking-cli.cjs");
+  writeFileSync(thinkingCli, `process.stdout.write([
+  JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "private reasoning" } }),
+  JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "thinking", thinking: "private reasoning" }] } }),
+].join("\\n") + "\\n");
+`);
+  process.argv[1] = thinkingCli;
+  const hiddenDetails: string[] = [];
+  configurePlanWorkerDisplay(() => true);
+  await runPlanWorker({ ...options, onUpdate: (update) => { if (update.detail) hiddenDetails.push(update.detail); } });
+  assert.ok(hiddenDetails.includes("Thinking..."), `hidden plan row kept reasoning: ${JSON.stringify(hiddenDetails)}`);
+  assert.ok(!hiddenDetails.some((detail) => detail.includes("private reasoning")), `hidden plan row leaked reasoning: ${JSON.stringify(hiddenDetails)}`);
+
+  const shownDetails: string[] = [];
+  configurePlanWorkerDisplay(() => false);
+  await runPlanWorker({ ...options, onUpdate: (update) => { if (update.detail) shownDetails.push(update.detail); } });
+  assert.ok(shownDetails.some((detail) => detail.includes("private reasoning")), `visible plan row lost reasoning: ${JSON.stringify(shownDetails)}`);
+  assert.ok(!shownDetails.includes("Thinking..."), `visible plan row showed the hidden label: ${JSON.stringify(shownDetails)}`);
 } finally {
   process.argv[1] = originalArgv;
   rmSync(root, { recursive: true, force: true });

@@ -181,6 +181,9 @@ def test_plan_uses_minimal_pi_kit_worker_and_native_review():
     assert "minimal: true" in worker
     assert "ctx.ui.custom" not in source
     assert "PLAN_REVIEW_TIMEOUT_MS" not in source
+    # The plan worker rows share Pi's hidden-thinking setting with other packages.
+    assert "configurePlanWorkerDisplay(() => hiddenThinkingEnabled(pi))" in source
+    assert "resolveLiveActivity" in worker
 
 
 def test_default_planner_uses_one_read_only_minimal_worker():

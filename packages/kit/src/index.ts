@@ -1086,6 +1086,53 @@ export interface PiLiveActivity {
   status?: "working" | "running" | "completed" | "failed" | "pending";
 }
 
+/** Pi's own label for a thinking block the reader asked to hide. The transcript
+ *  and every above-editor activity row are the same reader's surface, so they
+ *  name that hidden state the same way. Pi keeps the label out of settings. */
+export const HIDDEN_THINKING_LABEL = "Thinking...";
+
+/** Read per refresh, not cached: the reader can hide thinking blocks mid-session.
+ *  A host with no settings API reports nothing, so thinking stays visible. Pi
+ *  1.5 also refuses action methods while an extension is still loading; a row
+ *  refreshed that early keeps the same visible default instead of throwing. */
+export function hiddenThinkingEnabled(
+  pi: { getSettings?: () => { hideThinkingBlock?: boolean } | undefined } | undefined,
+): boolean {
+  if (typeof pi?.getSettings !== "function") return false;
+  try {
+    return pi.getSettings()?.hideThinkingBlock === true;
+  } catch {
+    return false;
+  }
+}
+
+/** One tool, reasoning and answer line, already extracted from its stream so a
+ *  package's own latest-line rules (including truncation markers) still apply. */
+export interface PiLiveActivityLines {
+  tool?: string;
+  thinking?: string;
+  text?: string;
+}
+
+/** The one activity line a live row may show. Tool, then reasoning, then answer:
+ *  the order a stream produces them. A reader who hid thinking blocks asked for
+ *  the reasoning not to be readable, so Pi's label replaces it; the label
+ *  describes thinking, so it yields to an answer as soon as one exists. */
+export function resolveLiveActivity(
+  lines: PiLiveActivityLines,
+  hideThinking: boolean,
+  fallback?: string,
+): string | undefined {
+  const tool = lines.tool?.trim();
+  if (tool) return tool;
+  const thinking = lines.thinking?.trim();
+  if (thinking && !hideThinking) return thinking;
+  const text = lines.text?.trim();
+  if (text) return text;
+  if (thinking) return HIDDEN_THINKING_LABEL;
+  return fallback;
+}
+
 /** Structural TUI component shape returned from Pi's passive widget factory. */
 export interface PiLiveWidgetComponent {
   render(width: number): string[];
@@ -1546,7 +1593,20 @@ export interface PiWorkerProgressUpdate {
   liveThinking?: string;
   /** Authoritative latest worker activity across tools, thinking, and text. */
   activity?: string;
+  /** Which stream produced `activity`, so a displayed row can hide reasoning
+   *  without guessing from the text and without changing its arrival order. */
+  activitySource?: "text" | "thinking" | "tool";
   turns: number;
+}
+
+/** Apply Pi's hidden-thinking setting to one worker progress activity line.
+ *  Tool and answer activity keep their own text; only reasoning is replaced. */
+export function visibleWorkerActivity(
+  update: Pick<PiWorkerProgressUpdate, "activity" | "activitySource">,
+  hideThinking: boolean,
+): string | undefined {
+  if (!hideThinking || update.activitySource !== "thinking") return update.activity;
+  return resolveLiveActivity({ thinking: update.activity }, true);
 }
 
 /** Options for running a Pi worker. */
@@ -1750,6 +1810,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       activeTool: progress.activeTool,
       liveThinking: progress.thinking,
       activity: progress.activity,
+      activitySource: progress.activitySource,
       turns: progress.turns,
     });
 
@@ -2010,7 +2071,10 @@ interface PiWorkerProgressState {
   toolcallArgs: string;
   activeTool?: string;
   activity?: string;
+  /** Resets per stream segment so a new segment starts a fresh accumulation. */
   activityKind?: "text" | "thinking" | "tool";
+  /** Persists across segment boundaries: it names the origin of `activity`. */
+  activitySource?: "text" | "thinking" | "tool";
   turns: number;
 }
 
@@ -2047,10 +2111,12 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
     state.activeTool = toolcallLabel(serialized) ?? event.toolName ?? "tool";
     state.activity = state.activeTool;
     state.activityKind = "tool";
+    state.activitySource = "tool";
     return true;
   }
   if (event.type === "tool_execution_end") {
     state.activity = state.activeTool ?? state.activity;
+    if (state.activeTool) state.activitySource = "tool";
     return true;
   }
   if (event.type === "message_end" && event.message?.role === "assistant") {
@@ -2059,7 +2125,10 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
     if (text.trim()) {
       state.text = text;
       state.activity = latestActivityLine(text);
+      state.activitySource = "text";
     }
+    // With no answer text the last visible line is still reasoning (or a tool),
+    // so its source must survive the settled turn.
     state.activityKind = undefined;
     return true;
   }
@@ -2071,14 +2140,22 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
       state.activeTool = undefined;
       state.activityKind = "text";
       state.text += update.delta ?? "";
-      state.activity = latestActivityLine(state.text) ?? state.activity;
+      const textLine = latestActivityLine(state.text);
+      if (textLine) {
+        state.activity = textLine;
+        state.activitySource = "text";
+      }
       return true;
     case "thinking_delta":
       if (state.activityKind !== "thinking") state.thinking = "";
       state.activeTool = undefined;
       state.activityKind = "thinking";
       state.thinking += update.delta ?? "";
-      state.activity = latestActivityLine(state.thinking) ?? state.activity;
+      const thinkingLine = latestActivityLine(state.thinking);
+      if (thinkingLine) {
+        state.activity = thinkingLine;
+        state.activitySource = "thinking";
+      }
       return true;
     case "toolcall_start":
       state.toolcallArgs = "";
@@ -2088,14 +2165,20 @@ function applyPiWorkerProgress(state: PiWorkerProgressState, line: string): bool
       state.toolcallArgs += update.delta ?? "";
       state.activeTool = toolcallLabel(state.toolcallArgs) ?? state.activeTool;
       state.activity = state.activeTool ?? state.activity;
-      if (state.activeTool) state.activityKind = "tool";
+      if (state.activeTool) {
+        state.activityKind = "tool";
+        state.activitySource = "tool";
+      }
       return true;
     case "toolcall_end":
       state.activeTool = toolcallLabel(state.toolcallArgs)
         ?? update.toolCall?.name
         ?? state.activeTool;
       state.activity = state.activeTool ?? state.activity;
-      if (state.activeTool) state.activityKind = "tool";
+      if (state.activeTool) {
+        state.activityKind = "tool";
+        state.activitySource = "tool";
+      }
       state.toolcallArgs = "";
       return true;
     default:

@@ -1,5 +1,13 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { renderLiveActivityMarkdown, type PiMarkdownThemeSource } from "@fradser/pi-kit";
+import { renderLiveActivityMarkdown, resolveLiveActivity, type PiMarkdownThemeSource } from "@fradser/pi-kit";
+
+/** Bound by the extension entry, which alone owns the ExtensionAPI. Read per
+ *  call, so a mid-session settings change reaches every teammate activity row:
+ *  the widget, the console status line and expanded tool details alike. */
+let hiddenThinking: () => boolean = () => false;
+export function configureTeamActivity(reader: () => boolean): void {
+  hiddenThinking = reader;
+}
 import type { Agent } from "./types.ts";
 
 /** Console rows paint a whole status line in their own color, so the shared
@@ -24,14 +32,15 @@ function extractLatestLine(text: string | undefined): string | undefined {
   return undefined;
 }
 
-/** Extract the current teammate activity without imposing a display width. */
-export function runningTeammateActivity(teammate: Agent): string {
-  const tool = teammate.activeTool?.replace(/\s+/g, " ").trim();
-  if (tool) return tool;
-
-  return extractLatestLine(teammate.liveThinking)
-    ?? extractLatestLine(teammate.liveText)
-    ?? "Working...";
+/** Extract the current teammate activity without imposing a display width.
+ *  `hideThinking` comes from Pi's setting, so the shared pi-kit policy replaces
+ *  reasoning with Pi's label on both the widget and the console row. */
+export function runningTeammateActivity(teammate: Agent, hideThinking: boolean = hiddenThinking()): string {
+  return resolveLiveActivity({
+    tool: teammate.activeTool?.replace(/\s+/g, " ").trim(),
+    thinking: extractLatestLine(teammate.liveThinking),
+    text: extractLatestLine(teammate.liveText),
+  }, hideThinking) ?? "Working...";
 }
 
 export interface TeammateRowWidths {

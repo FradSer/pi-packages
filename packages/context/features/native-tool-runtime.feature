@@ -79,6 +79,14 @@ Feature: Isolated Pi research tool
     And newer activity replaces older activity
     And the widget clears when research completes
 
+  Scenario: The researcher row obeys Pi's hidden thinking setting
+    Given a reader hides thinking blocks in Pi's settings
+    When the research child streams reasoning before its answer
+    Then the row above the editor shows Thinking... and never the reasoning text
+    And the answer replaces the label as soon as it arrives
+    Given a reader shows thinking blocks
+    Then the row shows the reasoning text instead
+
   Scenario: Live research activity renders Markdown in its compact row
     Given a running research worker streams Markdown activity
     When its widget renders bold text, inline code, a link, or a heading

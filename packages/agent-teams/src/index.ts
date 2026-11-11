@@ -13,11 +13,12 @@ import { publishAgentHost } from "./agent-host.ts";
 import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onTaskChanged, onTaskCreated, onTaskTaken, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownAgents } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { getTask, getAgent, livingAgents, listTasks, resetState } from "./state.ts";
+import { configureTeamActivity } from "./activity.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
 import { registerChildCapabilities, workerBinding } from "./worker.ts";
 import { plainText } from "./tool-copy.ts";
-import { agentColor, bindLifecycleRenderers, clearPiStatus, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
+import { agentColor, bindLifecycleRenderers, clearPiStatus, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, hiddenThinkingEnabled, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
 import { annotateReportDelivery, formatReports, groupReportsByAgent, AGENT_HARNESS_MESSAGE_TYPE, AGENT_REPORT_MESSAGE_TYPE, type LeaderReport } from "@fradser/pi-subagents";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
@@ -125,6 +126,8 @@ export default function (pi: ExtensionAPI) {
   }
 
   leaderPi = pi;
+  // The team widget and console rows share subagents' hidden-thinking policy.
+  configureTeamActivity(() => hiddenThinkingEnabled(pi));
   const deliveries = new WeakMap<object, LeaderReport[]>();
   pi.registerEntryRenderer(TEAMMATE_FINISHED_ENTRY_TYPE, (entry, _options, theme) => {
     const data = entry.data as { teammate?: string; agent?: string } | undefined;
