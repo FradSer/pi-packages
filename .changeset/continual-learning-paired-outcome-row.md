@@ -1,5 +1,0 @@
----
-"pi-continual-learning": patch
----
-
-Pair every `[learning] started` transcript row with exactly one terminal outcome row. Two real gaps were found in `~/Developer/FradSer/open-deskos`: (1) an agent-triggered run that found no durable changes, organized in process, or produced a screened/skipped receipt emitted the started row and an honest tool result (`Learning no durable changes`, `Memory organized in-process`) but no terminal row, because `shouldReportLearningReceipt` filtered those outcomes when `reportResult` was false; (2) a cancelled run wrote its receipt to disk but the `finally` branch never reported it, so a session shutdown stranded the started row. `startConsolidationPipeline` now derives one `reportedStarted` flag from its own `reportStarted` callback, routes all terminal paths (normal, error, cancelled) through one `reportTerminal` latch so an error-handler await overlapping a shutdown cannot double-report, and always reports cancellation. Background settled/replay pipelines that never emit a started row keep their quiet no-change behavior; no receipt, gate or write path changes.

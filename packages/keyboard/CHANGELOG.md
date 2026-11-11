@@ -1,5 +1,34 @@
 # pi-keyboard
 
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [ff9b7ff]
+- Updated dependencies [a3ee3e3]
+- Updated dependencies [2bba220]
+- Updated dependencies [a0923d8]
+- Updated dependencies [426ef90]
+- Updated dependencies [6603d43]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [6416992]
+- Updated dependencies [fc0d801]
+- Updated dependencies [53cb34f]
+- Updated dependencies [ceb8e23]
+- Updated dependencies [842b92e]
+- Updated dependencies [2116b41]
+- Updated dependencies [b3daa7f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [842b92e]
+- Updated dependencies [e86a44f]
+- Updated dependencies [53cb34f]
+- Updated dependencies [53cb34f]
+  - @fradser/pi-kit@0.6.0
+
 ## 0.1.8
 
 ### Patch Changes

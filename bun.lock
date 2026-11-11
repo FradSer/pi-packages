@@ -18,7 +18,7 @@
     },
     "packages/agent-teams": {
       "name": "@fradser/pi-agent-teams",
-      "version": "0.10.0",
+      "version": "1.0.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
         "@fradser/pi-subagents": "workspace:*",
@@ -36,7 +36,7 @@
     },
     "packages/btw": {
       "name": "@fradser/pi-btw",
-      "version": "0.2.10",
+      "version": "0.2.11",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -47,7 +47,7 @@
     },
     "packages/context": {
       "name": "@fradser/pi-context",
-      "version": "0.6.3",
+      "version": "0.6.4",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -60,7 +60,7 @@
     },
     "packages/continual-learning": {
       "name": "pi-continual-learning",
-      "version": "0.4.0",
+      "version": "1.0.0",
       "dependencies": {
         "@babel/parser": "^7.29.9",
         "@fradser/pi-kit": "workspace:*",
@@ -79,7 +79,7 @@
     },
     "packages/goal": {
       "name": "@fradser/pi-goal",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -92,7 +92,7 @@
     },
     "packages/impeccable": {
       "name": "@fradser/pi-impeccable",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
         "css-select": "^7.0.0",
@@ -112,7 +112,7 @@
     },
     "packages/keyboard": {
       "name": "pi-keyboard",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -123,7 +123,7 @@
     },
     "packages/kit": {
       "name": "@fradser/pi-kit",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "devDependencies": {
         "@earendil-works/pi-coding-agent": "1.5.0",
         "@earendil-works/pi-tui": "1.5.0",
@@ -136,7 +136,7 @@
     },
     "packages/loop": {
       "name": "@fradser/pi-loop",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -147,7 +147,7 @@
     },
     "packages/magpie": {
       "name": "@fradser/pi-magpie",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
@@ -159,7 +159,7 @@
     },
     "packages/matt-pocock": {
       "name": "pi-matt-pocock",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -176,7 +176,7 @@
     },
     "packages/monitor": {
       "name": "@fradser/pi-monitor",
-      "version": "2.3.1",
+      "version": "2.3.2",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -192,7 +192,7 @@
     },
     "packages/open-deskos": {
       "name": "pi-open-deskos",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -204,7 +204,7 @@
     },
     "packages/plan-mode": {
       "name": "@fradser/pi-plan-mode",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -216,7 +216,7 @@
     },
     "packages/recap": {
       "name": "@fradser/pi-recap",
-      "version": "0.1.11",
+      "version": "0.2.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -228,7 +228,7 @@
     },
     "packages/sdlc": {
       "name": "pi-sdlc",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -240,7 +240,7 @@
     },
     "packages/skill-router": {
       "name": "pi-skill-router",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -253,7 +253,7 @@
     },
     "packages/subagents": {
       "name": "@fradser/pi-subagents",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -268,7 +268,7 @@
     },
     "packages/tasks": {
       "name": "@fradser/pi-tasks",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -283,7 +283,7 @@
     },
     "packages/utils": {
       "name": "@fradser/pi-utils",
-      "version": "0.5.2",
+      "version": "0.6.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },
@@ -299,7 +299,7 @@
     },
     "packages/vision": {
       "name": "@fradser/pi-vision",
-      "version": "0.2.11",
+      "version": "0.2.12",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
       },

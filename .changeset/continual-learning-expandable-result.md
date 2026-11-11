@@ -1,7 +1,0 @@
----
-"pi-continual-learning": patch
----
-
-Make the final `[learning]` outcome row expandable to show exactly what was applied. Expanding names each applied Memory by its filename and renders its description and body as Markdown; when AGENTS.md also changed, it names that file and shows each validated edit's operation and applied unit text. A normally settled zero-write run (no-change, screened, organized in-process) expands to state what was checked and that no Memory or AGENTS.md changes were written, so it no longer looks like an unfinished run; failed, rejected, cancelled or proposed runs never claim a completed check. Frontmatter, byte digests and receipt metadata (usage, cost, source, calls, attempts, diagnostics) are not displayed. The user owns every Memory file, so harness-only private entries are shown exactly like safe ones; credential-shaped and forged entries are never shown. Previously a private-only applied run reported `N memories applied` with an empty expansion; now the applied filenames and bodies are always readable. This relaxes only the display privacy classification, never the credential screen, the safe/private storage split (private still stays only in the private root with no public mirror), or the write-side privacy gates.
-
-The generated bodies and edit units travel inside the custom message's `content` after the one-line summary, because Pi persists only a fixed set of custom-message fields. The stored receipt and the model-facing `details` are unchanged.
