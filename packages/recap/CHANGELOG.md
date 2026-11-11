@@ -1,5 +1,58 @@
 # @fradser/pi-recap
 
+## 0.2.0
+
+### Minor Changes
+
+- e86a44f: Recap generation is now bounded end to end, automatic recapping no longer spends a reasoning model per turn by default, and a recap can no longer be corrupted or lost by the code that stores and displays it.
+  
+  **@fradser/pi-recap**
+  
+  - **A recap request always settles.** The 30-second budget was armed only after the provider call, so a credential lookup that never returned left the caller waiting forever: `/recap now` never returned, the `Recapping...` row stayed mounted, and the first-prompt refresh chain never ran again in that session. The budget is now armed before credentials are requested and settles the caller's promise instead of only signalling the provider, so neither a hung credential lookup nor a provider that ignores cancellation can hang a caller.
+  - **A widget failure no longer fails a completed recap.** `performRecap` refreshes the widget from a `finally` block and `updateRecapWidget` rethrew any non-stale error, so a TUI widget failure after a recap was generated and persisted still surfaced as generation failure. Refresh failures are now reported as a warning and returned.
+  - **The automatic-recap cost policy.** Recapping on every settled turn spends the session's own model each time, and a reasoning model spends its thinking budget before any summary text exists. With no stored `autoRecap` preference, automatic recapping is now off for a reasoning model the user never chose for recaps, until `/recap auto` or a chosen recap model opts in. Manual `/recap now`, the restored recap line, the display, and the one-shot startup recap are unaffected, and the `/recap` menu plus the headless summary both show the state and the reason, so it is never silent.
+  - **The length cap cannot corrupt a recap.** `slice(0, 120)` counted UTF-16 units, so a cut through an astral character left a lone surrogate in the recap row and a cut inside an inline code span left the odd backtick the package otherwise keeps balanced. The cap now cuts on grapheme boundaries and drops a code span the cut left unclosed.
+  - **The output-quality gate covers every configured language.** Its identifier was ASCII-only, so the retry it exists for never fired on Chinese output: `修复登录` passed while `Fixed` was rejected. A bare label (`更新：`) is rejected as well.
+  - **The recap prompt keeps one rule per distinct failure mode.** Fifteen rules, four of which restated the same evidence requirement, were paid for on every recap and the repeated wording outweighed the rule that actually applied.
+  - **A stored recap is reused only while it is the displayed one.** The previous recap belongs to the prompt, so a result generated against an older recap must not answer for a replaced one. The reuse condition now checks the produced text. Keying the request on the previous recap instead would have defeated deduplication outright, because every generation changes the previous recap of the next request for the same exchange.
+  - **One registry path, one ownership check, one field owner.** The directory-session path was spelled from the home directory while this package's own config honoured `PI_CODING_AGENT_DIR`, so a sandboxed agent directory still wrote to the real registry; reads and writes are now one `withDirectorySessionRecord` call on pi-kit's shared resolver. The sync also stamped `updatedAt`, a field the session-activity writers own, which skewed their recency ordering and liveness views for a turn that changed nothing but its summary; `recap` is now the only field written.
+  - The recap widget builds its Markdown once and swaps the text, instead of rebuilding the theme style and a `Markdown` component on every rendered frame while the agent streams.
+
+### Patch Changes
+
+- 49c8731: A complete recap no longer ends in a truncation marker it never earned.
+  
+  pi-tui's `Markdown` pads every rendered line to the width it was asked for, and the recap widget fed those padded lines straight into the kit row renderer. The composed row was therefore always wider than the terminal by the row's leading space plus that padding, so the row fitter clipped the invisible padding and appended its `...` to text that was fully present: a one-line recap showed its whole summary followed by a stray marker at the right edge, and a wrapped wide-character recap marked rows that had dropped nothing, sometimes after a run of padding spaces.
+  
+  **@fradser/pi-recap**
+  
+  - Markdown padding is trimmed before a row is composed, and the content width now subtracts the widget row's leading space from the prefix budget, so a full-width recap line fits exactly and keeps its real text.
+  - The widget no longer calls `wrapTextWithAnsi` for its side effect: the discarded result was dead weight left over from the pre-Markdown renderer.
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [ff9b7ff]
+- Updated dependencies [a3ee3e3]
+- Updated dependencies [2bba220]
+- Updated dependencies [a0923d8]
+- Updated dependencies [426ef90]
+- Updated dependencies [6603d43]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [6416992]
+- Updated dependencies [fc0d801]
+- Updated dependencies [53cb34f]
+- Updated dependencies [ceb8e23]
+- Updated dependencies [842b92e]
+- Updated dependencies [2116b41]
+- Updated dependencies [b3daa7f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [e86a44f]
+- Updated dependencies [842b92e]
+- Updated dependencies [e86a44f]
+- Updated dependencies [53cb34f]
+- Updated dependencies [53cb34f]
+  - @fradser/pi-kit@0.6.0
+
 ## 0.1.11
 
 ### Patch Changes

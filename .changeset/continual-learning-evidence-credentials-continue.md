@@ -1,5 +1,0 @@
----
-"pi-continual-learning": minor
----
-
-Remove the pre-pipeline privacy hold entirely, including the immutable-dossier reader that still failed the Harness phase with `harness planner dossier unavailable: Immutable dossier contains sensitive material` while Memory applied normally. Credential-shaped frozen evidence and snapshot/dossier text are ordinary learning input: selector, Harness and Memory planners all receive the unchanged digest-bound dossier and the model handles it. There is no startup hold, no screening reason in new receipts and no hold constants or summary/tone branches. Storage-side guards remain: the history WAL, expandable result display, Jev preflight and semantic review still refuse to persist or transmit a credential-shaped Memory body, and an explicit `/memory` request containing a secret is still refused rather than stored. The `screened` outcome stays only as a historical receipt value so frozen cohorts are not reclassified. The above-editor live activity identity now names its agent `learner`: `PiLiveActivity.identity` is a worker name, while the bounded run topic stays in `activity` and the spinner conveys progress.
