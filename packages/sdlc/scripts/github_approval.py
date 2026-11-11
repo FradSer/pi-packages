@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from sdlc import binding, git, read, require, run
+from sdlc import binding, git, read, require, run, workspace_root
 
 
 def main() -> int:
@@ -15,8 +15,8 @@ def main() -> int:
     parser.add_argument('--roles', required=True, type=Path, help='Managed role-to-login allowlist outside the checkout')
     args = parser.parse_args()
     request = json.load(sys.stdin)
-    cwd = Path.cwd().resolve()
     try:
+        cwd = workspace_root(Path.cwd())
         require(args.pr > 0 and len(args.repo.split('/')) == 2, 'Invalid GitHub pull request')
         roles_path = args.roles.resolve(strict=True)
         require(not roles_path.is_relative_to(cwd), 'Role policy must be outside the agent checkout')

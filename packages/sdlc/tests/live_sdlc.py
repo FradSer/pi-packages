@@ -1,4 +1,4 @@
-"""Native Pi print/RPC acceptance from packed archives; no external provider calls."""
+哦给你"""Native Pi print/RPC acceptance from packed archives; no external provider calls."""
 from __future__ import annotations
 
 import argparse
@@ -79,6 +79,7 @@ def native_case(output: Path, installed: Path, name: str, *, previous: Path | No
     env = support.isolated_environment(case)
     trace = case / "events.jsonl"
     env.update({"PI_E2E_AUTH": "offline-fixture", "PI_SDLC_SCRIPT": str(case / "script.json"), "PI_SDLC_TRACE": str(trace),
+                "SDLC_HOME": str(case / "sdlc-home"),
                 "PI_NATIVE_NETWORK_LOG": str(case / "network.log"),
                 "NODE_OPTIONS": f"--require={REPO / 'tests/native-run-start-no-network.cjs'}"})
     prompt = "让客户在门户查询理赔进度，只用现有身份认证，不新增个人敏感信息。第三方理赔员访问待确认。"
@@ -253,7 +254,8 @@ def pipeline_case(output: Path, installed: Path) -> dict[str, object]:
         env = support.isolated_environment(case)
         trace = case / "events.jsonl"
         env.update({"PI_E2E_AUTH": "offline-fixture", "PI_SDLC_SCRIPT": str(case / "script.json"), "PI_SDLC_TRACE": str(trace),
-                    "SDLC_POLICY_FILE": str(fixture.policy), "PI_NATIVE_NETWORK_LOG": str(case / "network.log"),
+                    "SDLC_POLICY_FILE": str(fixture.policy), "SDLC_HOME": str(fixture.home),
+                    "PI_NATIVE_NETWORK_LOG": str(case / "network.log"),
                     "NODE_OPTIONS": f"--require={REPO / 'tests/native-run-start-no-network.cjs'}"})
         turns = [{"tool": "sdlc", "args": {"action": "init", "args": '{"task":"native-pipeline"}'}},
                  {"tool": "sdlc", "args": {"action": "status"}}]
@@ -280,6 +282,15 @@ def pipeline_case(output: Path, installed: Path) -> dict[str, object]:
         state = json.loads((archived / "state.json").read_text())
         assert state["stage"] == "maintain", state
         assert all(state["receipts"][name]["passed"] for name in ("check", "eval", "review", "deploy")), state
+        assert not (archived / "REVIEW.md").exists()
+        assert state["method"]["name"] == "pi-sdlc"
+        assert state["reviewPolicy"]["source"] == "REVIEW.md"
+        global_record = Path(state["globalRecord"])
+        assert not (fixture.home / "methods").exists()
+        assert (global_record / "task.json").is_file()
+        global_events = [json.loads(line) for line in (global_record / "events.jsonl").read_text().splitlines()]
+        assert any(event["action"] == "init" and event["actor"]["agent"] == "pi" for event in global_events)
+        assert any(event["action"] == "archive" and event["actor"]["agent"] == "pi" for event in global_events)
         assert (fixture.cwd / ".sdlc/inbox/native-incident.md").exists()
         assert (fixture.base / "released").read_text() == "release"
         shutil.copytree(archived, case / "artifacts")

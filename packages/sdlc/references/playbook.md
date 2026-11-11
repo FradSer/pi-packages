@@ -13,9 +13,17 @@ HANDOFF.md states the latest execution state and evidence. REVIEW.md is review
 policy, not findings. Findings and approvals belong in the PR or change system.
 Use `init` to create the task record without overwriting existing documents.
 Update existing artifacts in place. Archive a finished task before starting the
-next one. `.sdlc/tasks/<task>` keeps the artifact snapshot; add that snapshot to
-version control explicitly if the team uses it as an audit record. Git commits,
-reviews and protected service records remain the durable audit trail.
+next one. `.sdlc/tasks/<task>` snapshots the task documents (`INTENT.md`, `SPEC.md`,
+`PLAN.md`, `HANDOFF.md`) and `state.json`; it records `REVIEW.md` by source and
+digest instead of copying a second editable review policy per task. `~/.sdlc`
+(or `SDLC_HOME`) stores the installed method version/source/digest, policy and
+external approval/review references, and metadata-only `events.jsonl` without a
+second `methods/` tree or copied transcripts. Git commits, reviews and protected
+service records remain the durable audit trail.
+Inside Git, all hooks and engine actions use the worktree root, including when
+started from a subdirectory. Each parallel session needs its own worktree and
+task. Inherited documents are preserved, reported by `init`, and must be refreshed
+for the new change; they do not carry approval or verification evidence.
 
 ## 1. Plan: capture the intent
 
@@ -54,6 +62,27 @@ Commit the approved plan. `advance` requires the engineer's approval before buil
 When implementation changes the plan, edit and review it in the same change;
 `rewind` invalidates downstream approvals and evidence.
 
+Choose the smallest complete change, not the shortest diff. Before editing, trace
+relevant behavior and identify affected callers, tests, fixtures, configuration,
+registrations and exports. Necessary propagation is scope, not an extra feature.
+For defects, fix the shared root cause and check other affected callers rather
+than patching only the reported symptom. Keep investigation proportional to risk.
+
+Reuse suitable project implementations and conventions first, then standard
+library or platform capabilities and installed dependencies. Explain why a new
+dependency, abstraction or option is needed now. Preserve existing architecture
+and supported contracts; prefer readable code over compressed one-liners.
+Simplification must retain required validation, error handling, data integrity,
+security, accessibility and domain-specific safeguards such as hardware calibration.
+Remove obsolete code only after checking static and dynamic references, tests and
+configuration. Preserve unrelated work.
+
+Record accepted limitations in PLAN.md's risks and alternatives: the limit, why
+it is acceptable now, and a concrete revisit trigger. Put a brief comment near
+non-obvious shortcuts when useful; use the project's existing convention. A
+comment grants neither approval nor an exemption from requirements or review.
+Keep deferred work in the existing plan or issue system, not a second debt ledger.
+
 Keep AGENTS.md (CLAUDE.md on Claude) short and specific: architecture, commands,
 conventions and repeated mistakes. Record a correction after the same mistake
 happens twice. Use versioned skills for organization knowledge with a named policy
@@ -87,6 +116,21 @@ skills and hooks on configuration changes and on a schedule. Do not disable the
 very setup under test. Include each production incident as a new regression.
 The engine's `eval` runs isolated worktrees; CI must protect the suite, runner and
 policy configuration. Measure case pass rate and escaped defects separately.
+Critical graders need positive and negative reference implementations: accepted
+behavior must pass and the targeted defect must fail. Configure the case's
+`selfTest` command to validate those references before its agent run; a failed or
+unavailable self-test fails the case. Existing cases remain supported without it.
+
+For skill changes, include observable cases for project reuse, shared-cause fixes,
+renames that reach fixtures and tests, features connected to real entry points,
+and simplification that preserves safety and privacy. Grade behavior, not exact
+source spellings. Establish completeness, correctness and safety before comparing
+size or cost; tests are evidence, not bloat. Distinguish static instruction checks,
+local process fixtures and real model measurements. For comparative experiments,
+verify which instructions each arm actually received, isolate control arms from
+skill and memory leakage, and record model, configuration and repeated-run limits.
+Report actual checks, skipped checks and remaining risk at delivery; benchmark
+averages are not measured savings for the current repository.
 
 ## 5. Deploy: review, approve and release
 
@@ -96,6 +140,11 @@ findings. Important findings stop progression. Address review comments, rerun
 checks and request a fresh review. Preserve comment-to-fix evidence in the PR.
 The code owner makes the merge decision through branch protection. The agent
 has no authority to approve itself. Update stale project guidance when found.
+Read connected behavior, including affected callers outside the diff. Judge load,
+concurrency and performance against repository evidence; state unknown assumptions.
+Use REVIEW.md's finding contract and disclose unread paths and checks not run.
+A full-repository audit is separate scope, not a prerequisite for every change.
+For an authorized audit, prioritize high-risk flows and report sampling limits.
 
 Run CI agents in isolated containers with scoped, short-lived credentials and
 network policy. Start with read-only failure triage; write changes through PRs.

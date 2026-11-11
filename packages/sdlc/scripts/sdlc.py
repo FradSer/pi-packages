@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 
 STAGES = ['intent', 'design', 'plan', 'build', 'test', 'review', 'deploy', 'maintain']
 DOCS = ['INTENT.md', 'SPEC.md', 'PLAN.md', 'HANDOFF.md', 'REVIEW.md']
+TASK_DOCS = ['INTENT.md', 'SPEC.md', 'PLAN.md', 'HANDOFF.md']
 SECTIONS = {
     'INTENT.md': ['Problem', 'Proposed outcome', 'Affected users and systems', 'Constraints', 'Open questions'],
     'SPEC.md': ['Requirements', 'Design', 'Constraint mapping', 'Open questions', 'Areas of concern', 'Policy versions'],
@@ -95,6 +96,21 @@ def git(cwd: Path, *args: str) -> str:
     return result['stdout'].strip()
 
 
+def workspace_root(cwd: Path) -> Path:
+    """Use the current Git worktree, retaining directory-scoped non-Git hooks."""
+    cwd = cwd.resolve(strict=True)
+    require(cwd.is_dir(), 'cwd must be an existing directory')
+    result = run(['git', 'rev-parse', '--show-toplevel'], cwd, timeout=5)
+    if result['code'] == 0:
+        root = Path(result['stdout'].removesuffix('\n')).resolve(strict=True)
+        require(cwd.is_relative_to(root), 'Git root does not contain cwd')
+        return root
+    # Do not silently create a second task when existing Git metadata is broken.
+    require(not any((parent / '.git').exists() or (parent / '.git').is_symlink()
+                    for parent in (cwd, *cwd.parents)), 'Cannot resolve the Git worktree: ' + result['stderr'])
+    return cwd
+
+
 def confined(base: Path, name: str) -> Path:
     relative = Path(name)
     require(not relative.is_absolute() and '..' not in relative.parts, 'Path escapes the workspace')
@@ -110,6 +126,187 @@ def local(cwd: Path) -> Path:
     root = cwd / '.sdlc'
     require(not root.is_symlink(), '.sdlc must not be a symbolic link')
     return root
+
+
+def global_home(*, create: bool = True) -> Path:
+    raw = os.environ.get('SDLC_HOME', '').strip()
+    require(raw != '~', 'SDLC_HOME must name a dedicated directory')
+    target = Path(raw).expanduser() if raw else Path.home() / '.sdlc'
+    require(target.is_absolute(), 'SDLC_HOME must be an absolute path')
+    require(not target.is_symlink(), 'SDLC_HOME must not be a symbolic link')
+    parent = target.parent.resolve()
+    root = parent / target.name
+    require(not root.is_symlink(), 'SDLC_HOME must not be a symbolic link')
+    if create:
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return root
+
+
+def project_id(cwd: Path) -> str:
+    result = run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd, timeout=5)
+    common = Path(result['stdout'].removesuffix('\n')).resolve(strict=True) if result['code'] == 0 else cwd
+    return digest({'common': str(common)})[:16]
+
+
+def method_provenance() -> dict[str, str]:
+    root = Path(__file__).resolve().parents[1]
+    manifest = root / 'package.json'
+    name, version = 'sdlc', 'unknown'
+    if manifest.is_file():
+        data = json.loads(read(manifest))
+        name = str(data.get('name') or name)
+        version = str(data.get('version') or version)
+    else:
+        plugin = root.parents[1] / '.codex-plugin/plugin.json'
+        if plugin.is_file():
+            data = json.loads(read(plugin))
+            name = 'codex:' + str(data.get('name') or 'sdlc')
+            version = str(data.get('version') or version)
+    files = {}
+    for folder in ('references', ASSETS.name, 'scripts'):
+        directory = root / folder
+        if directory.is_dir():
+            for path in sorted(directory.iterdir()):
+                if path.is_file():
+                    files[f'{folder}/{path.name}'] = digest(read(path))
+    if (root / 'SKILL.md').is_file():
+        files['SKILL.md'] = digest(read(root / 'SKILL.md'))
+    return {'name': name, 'version': version, 'source': str(root), 'digest': digest(files)}
+
+
+def review_policy_ref(cwd: Path, *, default_template: bool = False) -> dict[str, str] | None:
+    if (cwd / 'REVIEW.md').exists():
+        return {'source': 'REVIEW.md', 'digest': digest(doc(cwd, 'REVIEW.md'))}
+    if default_template and (ASSETS / 'REVIEW.md').is_file():
+        return {'source': f'{ASSETS.name}/REVIEW.md', 'digest': digest(read(ASSETS / 'REVIEW.md'))}
+    return None
+
+
+def artifact_digests(cwd: Path) -> dict[str, str]:
+    result = {}
+    for name in DOCS:
+        path = cwd / name
+        if path.is_file() and not path.is_symlink():
+            result[name] = digest(doc(cwd, name))
+    return result
+
+
+def bounded_token(value: Any, *, limit: int = 240) -> str:
+    if not isinstance(value, str):
+        return ''
+    text = value.strip()
+    return text if 0 < len(text) <= limit and '\n' not in text and '\r' not in text else ''
+
+
+def actor_metadata(args: dict[str, Any]) -> dict[str, str]:
+    provided = args.get('actor') if isinstance(args.get('actor'), dict) else {}
+    raw_agent = provided['agent'] if 'agent' in provided else os.environ.get('SDLC_AGENT') or ('pi' if os.environ.get('PI_SESSION_ID') else 'cli')
+    raw_session = provided['session'] if 'session' in provided else os.environ.get('SDLC_SESSION_ID') or os.environ.get('PI_SESSION_ID')
+    raw_source = provided['source'] if 'source' in provided else os.environ.get('SDLC_SESSION_FILE') or os.environ.get('PI_SESSION_FILE')
+    agent = bounded_token(raw_agent, limit=64)
+    session = bounded_token(raw_session, limit=160)
+    source = bounded_token(raw_source, limit=512)
+    result = {'agent': agent or 'cli'}
+    if session:
+        result['session'] = session
+    if source:
+        result['source'] = source
+    return result
+
+
+def append_jsonl(path: Path, item: dict[str, Any]) -> None:
+    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        stat = os.fstat(fd)
+        import stat as mode
+        require(mode.S_ISREG(stat.st_mode) and stat.st_nlink == 1, f'Unsafe document: {path}')
+        with os.fdopen(fd, 'a', encoding='utf-8', closefd=False) as stream:
+            stream.write(json.dumps(item, ensure_ascii=False) + '\n')
+            stream.flush()
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def locked_global(path: Path) -> Iterator[None]:
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        stat = os.fstat(fd)
+        import stat as mode
+        require(mode.S_ISREG(stat.st_mode) and stat.st_nlink == 1, 'Unsafe SDLC global lock')
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def external_references(state: dict[str, Any]) -> dict[str, Any]:
+    approvals = {}
+    raw_approvals = state.get('approvals')
+    for stage, item in (raw_approvals.items() if isinstance(raw_approvals, dict) else []):
+        if isinstance(item, dict) and bounded_token(item.get('reference')):
+            approvals[stage] = {'role': bounded_token(item.get('role'), limit=64), 'approver': bounded_token(item.get('approver'), limit=120),
+                                'reference': bounded_token(item.get('reference')), 'digest': item.get('digest'), 'at': item.get('at')}
+    refs: dict[str, Any] = {'approvals': approvals}
+    raw_receipts = state.get('receipts')
+    review = raw_receipts.get('review') if isinstance(raw_receipts, dict) else None
+    if isinstance(review, dict):
+        entry = {'digest': review.get('digest'), 'passed': review.get('passed'), 'at': review.get('at')}
+        if isinstance(review.get('policy'), dict):
+            entry['policy'] = review['policy']
+        reference = bounded_token(review.get('reference'))
+        if reference:
+            entry['reference'] = reference
+        if isinstance(review.get('fixes'), list):
+            entry['fixes'] = [bounded_token(v) for v in review['fixes'] if bounded_token(v)]
+        refs['review'] = entry
+    return refs
+
+
+def record_global_task(cwd: Path, state: dict[str, Any], *, action: str | None = None,
+                       previous_stage: str | None = None, actor: dict[str, str] | None = None,
+                       passed: bool | None = None, extra: dict[str, Any] | None = None) -> Path:
+    if not isinstance(state.get('method'), dict):
+        state['method'] = method_provenance()
+    home = global_home()
+    project = confined(home, 'projects/' + project_id(cwd))
+    with locked_global(project):
+        created = re.sub(r'[^0-9]', '', str(state.get('created', '')))[:14] or 'task'
+        record_id = str(state.get('recordId') or f"{state['task']}-{created}-{digest({'workspace': str(cwd), 'created': state.get('created')})[:8]}")
+        state['recordId'] = record_id
+        policy_ref = review_policy_ref(cwd, default_template=True)
+        if policy_ref is not None:
+            state['reviewPolicy'] = policy_ref
+        target = confined(project, 'tasks/' + record_id)
+        target.mkdir(parents=True, exist_ok=True, mode=0o700)
+        references = external_references(state)
+        reviewed_policy = references.get('review', {}).get('policy') if isinstance(references.get('review'), dict) else None
+        artifacts = artifact_digests(cwd)
+        write(project / 'project.json', {'version': 1, 'project': project.name, 'workspace': str(cwd), 'updated': stamp()})
+        write(target / 'task.json', {'version': 1, 'project': project.name, 'task': state['task'], 'recordId': record_id,
+                                     'workspace': str(cwd), 'stage': state['stage'], 'created': state['created'],
+                                     'updated': state.get('updated', state['created']), 'method': state['method'],
+                                     'reviewPolicy': state.get('reviewPolicy'), 'reviewedPolicy': reviewed_policy,
+                                     'artifacts': artifacts, 'references': references})
+        if action:
+            normalized_actor = actor_metadata({'actor': actor}) if isinstance(actor, dict) else {'agent': 'cli'}
+            event: dict[str, Any] = {'version': 1, 'at': state.get('updated', state['created']), 'project': project.name,
+                                     'task': state['task'], 'recordId': record_id, 'action': action, 'stage': state['stage'],
+                                     'method': {'name': state['method']['name'], 'version': state['method']['version'], 'digest': state['method']['digest']},
+                                     'actor': normalized_actor, 'artifacts': artifacts, 'references': references}
+            if previous_stage and previous_stage != state['stage']:
+                event['fromStage'] = previous_stage
+            if state.get('reviewPolicy') is not None:
+                event['reviewPolicy'] = state['reviewPolicy']
+            if reviewed_policy is not None:
+                event['reviewedPolicy'] = reviewed_policy
+            if passed is not None:
+                event['passed'] = passed
+            if extra:
+                event.update(extra)
+            append_jsonl(target / 'events.jsonl', event)
+    return target
 
 
 @contextmanager
@@ -258,6 +455,19 @@ def evaluate(cwd: Path, cfg: dict[str, Any]) -> list[dict[str, Any]]:
     for case in suite:
         require(all(k in case for k in ('name', 'from', 'prompt', 'mayChange', 'runner', 'checks')), 'Invalid evaluation case')
         require(bool(case['checks']) and isinstance(case['mayChange'], list), 'Evaluation checks and allowed paths are required')
+        self_test_exit = None
+        if 'selfTest' in case:
+            try:
+                probe = run(case['selfTest'], suite_path.parent, {'case': case['name']}, case.get('timeout', 120))
+                self_test_exit = probe['code']
+                error = probe['stderr']
+            except (OSError, ValueError, TypeError, subprocess.SubprocessError) as failure:
+                self_test_exit = -1
+                error = (type(failure).__name__ + ': ' + str(failure))[:32_000]
+            if self_test_exit != 0:
+                results.append({'name': case['name'], 'passed': False, 'selfTestExit': self_test_exit,
+                                'error': error, 'stray': [], 'runnerExit': None, 'checkExits': []})
+                continue
         with tempfile.TemporaryDirectory(prefix='sdlc-eval-') as folder:
             checkout = Path(folder) / 'work'
             git(cwd, 'worktree', 'add', '--detach', str(checkout), case['from'])
@@ -281,7 +491,7 @@ def evaluate(cwd: Path, cfg: dict[str, Any]) -> list[dict[str, Any]]:
                 stray = sorted(p for p in changed if p and not any(p == a or p.startswith(a.rstrip('/') + '/') for a in case['mayChange']))
                 checks = [run(command, checkout, {'baseline': baseline, 'case': case['name']}) for command in case['checks']]
                 results.append({'name': case['name'], 'passed': output['code'] == 0 and not stray and all(c['code'] == 0 for c in checks),
-                                'stray': stray, 'runnerExit': output['code'], 'checkExits': [c['code'] for c in checks]})
+                                'selfTestExit': self_test_exit, 'stray': stray, 'runnerExit': output['code'], 'checkExits': [c['code'] for c in checks]})
             finally:
                 git(cwd, 'worktree', 'remove', '--force', str(checkout))
     return results
@@ -319,7 +529,7 @@ def detect_metric(cwd: Path, args: dict[str, Any]) -> dict[str, Any]:
     return {**detection, 'actionsExecuted': False}
 
 
-def execute(cwd: Path, action: str, args: dict[str, Any]) -> dict[str, Any]:
+def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | None = None) -> dict[str, Any]:
     root = local(cwd)
     state_path = root / 'state.json'
     if action == 'init':
@@ -328,7 +538,8 @@ def execute(cwd: Path, action: str, args: dict[str, Any]) -> dict[str, Any]:
         task = args.get('task', datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S'))
         require(isinstance(task, str) and re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}', task), 'Invalid task id')
         require(not confined(root, 'tasks/' + task).exists(), 'This task id already has an archive')
-        state = {'version': 1, 'task': task, 'stage': 'intent', 'created': stamp(), 'approvals': {}, 'receipts': {}}
+        state = {'version': 1, 'task': task, 'stage': 'intent', 'created': stamp(), 'method': method_provenance(), 'approvals': {}, 'receipts': {}}
+        preserved = [name for name in DOCS if (cwd / name).exists()]
         for name in ('INTENT.md', 'HANDOFF.md'):
             if not (cwd / name).exists():
                 write(cwd / name, read(ASSETS / name))
@@ -336,12 +547,19 @@ def execute(cwd: Path, action: str, args: dict[str, Any]) -> dict[str, Any]:
             write(root / 'config.json', {'version': 1, 'checks': [], 'agentFiles': [], 'evalSuite': None})
         if not (root / '.gitignore').exists():
             write(root / '.gitignore', '*\n!.gitignore\n!config.json\n')
+        record = record_global_task(cwd, state, action='init', actor=actor_metadata(args), passed=True)
+        state['globalRecord'] = str(record)
         write(state_path, state)
-        return state
+        return {**state, 'workspace': str(cwd), 'preservedArtifacts': preserved,
+                'next': 'Refresh preserved artifact summaries for this task before requesting approval.' if preserved else 'Capture the current intent before requesting approval.'}
     if action == 'metric':
         return detect_metric(cwd, args)
     state = json.loads(read(state_path))
     require(state.get('version') == 1 and state.get('stage') in STAGES, 'Invalid workflow state')
+    if not isinstance(state.get('method'), dict):
+        state['method'] = method_provenance()
+    previous_stage = state['stage']
+    actor = actor_metadata(args)
     cfg = config(cwd)
     if action == 'guard':
         tool = args.get('tool', '')
@@ -354,15 +572,22 @@ def execute(cwd: Path, action: str, args: dict[str, Any]) -> dict[str, Any]:
             paths = [data.get('path', data.get('file_path', ''))]
         elif tool == 'apply_patch':
             paths = re.findall(r'^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$', data.get('command', data.get('patch', '')), re.M)
-        if paths and state['stage'] in ('intent', 'design', 'plan'):
+        if paths:
             for name in paths:
-                target = (cwd / name).resolve()
+                target = ((tool_cwd or cwd) / name).resolve()
                 require(target.is_relative_to(cwd), 'Write outside the active worktree is not allowed by the SDLC guard')
+                parent = target.parent
+                while not parent.exists():
+                    parent = parent.parent
+                require(workspace_root(parent) == cwd, 'Write into another Git worktree is not allowed by the SDLC guard')
                 relative = str(target.relative_to(cwd))
-                require(relative in DOCS or relative == '.sdlc/config.json', 'Approve the implementation plan before editing source files')
+                if state['stage'] in ('intent', 'design', 'plan'):
+                    require(relative in DOCS or relative == '.sdlc/config.json', 'Approve the implementation plan before editing source files')
         return {'passed': True}
     if action == 'status':
-        return {**state, 'currentDigest': binding(cwd, state['stage'])}
+        if os.environ.get('SDLC_HOME', '').strip():
+            global_home(create=False)
+        return {**state, 'workspace': str(cwd), 'currentDigest': binding(cwd, state['stage'])}
     if action == 'handoff':
         valid_doc(cwd, 'HANDOFF.md')
         return {'passed': True, 'digest': digest(doc(cwd, 'HANDOFF.md'))}
@@ -377,14 +602,19 @@ def execute(cwd: Path, action: str, args: dict[str, Any]) -> dict[str, Any]:
         valid_doc(cwd, 'HANDOFF.md')
         require(isinstance(state.get('task'), str) and re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}', state['task']), 'Invalid saved task id')
         target = confined(root, 'tasks/' + state['task'])
+        require(not target.exists(), 'This task id already has an archive')
+        state['updated'] = stamp()
+        state['globalRecord'] = str(record_global_task(cwd, state, action='archive', previous_stage=previous_stage,
+                                                       actor=actor, passed=True, extra={'archived': str(target)}))
         target.mkdir(parents=True, exist_ok=False)
-        for name in DOCS:
+        for name in TASK_DOCS:
             if (cwd / name).exists():
                 write(target / name, read(cwd / name))
         write(target / 'state.json', state)
         # Preserve working documents for human inspection. init never overwrites them.
         state_path.unlink()
-        return {'archived': str(target), 'next': 'Use a new worktree or explicitly replace the active artifact summaries before init.'}
+        return {'archived': str(target), 'globalRecord': state['globalRecord'], 'reviewPolicy': state.get('reviewPolicy'),
+                'next': 'Use a new worktree or explicitly replace the active artifact summaries before init.'}
     elif action in ('check', 'eval', 'review'):
         require(state['stage'] in ('build', 'test', 'review', 'deploy'), 'Evidence requires an approved implementation plan')
         check_approvals(cwd, state)
@@ -409,11 +639,23 @@ def execute(cwd: Path, action: str, args: dict[str, Any]) -> dict[str, Any]:
         else:
             current_receipt(cwd, state, 'check')
             current_receipt(cwd, state, 'eval')
-            request = {'task': state['task'], 'digest': before, 'passes': ['bugs', 'security', 'compliance'], 'artifacts': ['INTENT.md', 'SPEC.md', 'PLAN.md', 'REVIEW.md']}
+            policy_ref = review_policy_ref(cwd, default_template=True)
+            require(policy_ref is not None, 'Review policy is unavailable')
+            state['reviewPolicy'] = policy_ref
+            request = {'task': state['task'], 'digest': before, 'passes': ['bugs', 'security', 'compliance'],
+                       'artifacts': ['INTENT.md', 'SPEC.md', 'PLAN.md', 'REVIEW.md'], 'reviewPolicy': policy_ref}
             answer = run(policy(cwd).get('review', []), cwd, request)
             results = json.loads(answer['stdout']) if answer['code'] == 0 else {}
             passed = answer['code'] == 0 and results.get('digest') == before and results.get('passes') == request['passes'] and type(results.get('important')) is int and results.get('important') == 0 and isinstance(results.get('findings'), list)
         receipt = {'digest': before, 'passed': passed and before == binding(cwd, 'test'), 'at': stamp(), 'results': results}
+        if action == 'review':
+            receipt['policy'] = state.get('reviewPolicy')
+            reference = bounded_token(results.get('reference') if isinstance(results, dict) else None) or bounded_token(args.get('reference'))
+            if reference:
+                receipt['reference'] = reference
+            fixes = results.get('fixes') if isinstance(results, dict) and isinstance(results.get('fixes'), list) else args.get('fixes')
+            if isinstance(fixes, list):
+                receipt['fixes'] = [bounded_token(v) for v in fixes if bounded_token(v)]
         state['receipts'][action] = receipt
     elif action == 'advance':
         stage = state['stage']
@@ -485,6 +727,8 @@ def execute(cwd: Path, action: str, args: dict[str, Any]) -> dict[str, Any]:
     else:
         raise ValueError('Unknown action: ' + action)
     state['updated'] = stamp()
+    passed = state.get('receipts', {}).get(action, {}).get('passed') if action in ('check', 'eval', 'review', 'deploy') else True
+    state['globalRecord'] = str(record_global_task(cwd, state, action=action, previous_stage=previous_stage, actor=actor, passed=passed))
     write(state_path, state)
     return state
 
@@ -500,11 +744,12 @@ def main() -> int:
         raise KeyboardInterrupt('SDLC command interrupted')
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        cwd = options.cwd.resolve(strict=True)
+        tool_cwd = options.cwd.resolve(strict=True)
+        cwd = workspace_root(tool_cwd)
         args = json.loads(options.args)
         require(isinstance(args, dict), 'Action arguments must be an object')
         with locked(cwd):
-            result = execute(cwd, options.action, args)
+            result = execute(cwd, options.action, args, tool_cwd=tool_cwd)
         print(json.dumps(result, ensure_ascii=False))
         if options.action in ('check', 'eval', 'review', 'deploy') and result.get('receipts', {}).get(options.action, {}).get('passed') is not True:
             return 1

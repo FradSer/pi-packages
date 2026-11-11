@@ -43,8 +43,12 @@ Independent review checks bugs, security and intent/spec/plan compliance. Import
 findings block progression. Releases pin the committed version, verify current
 code owner and environment approvals, check health and roll back on failure.
 Metric detection uses deterministic bands and drift rules, with new intents in
-`.sdlc/inbox` for triage. A task archive keeps the artifact chain separate from
-the next change. Missing adapters leave a visible blocked stage.
+`.sdlc/inbox` for triage. A task archive keeps the task documents separate from
+the next change while referencing `REVIEW.md` by digest rather than duplicating a
+per-task review policy. `~/.sdlc` (or `SDLC_HOME`) stores the installed method
+version/source/digest, review-policy and external approval/review references, and
+metadata-only `events.jsonl` without a separate `methods/` tree or copied chat
+transcripts. Missing adapters leave a visible blocked stage.
 
 The native edit guard protects planning-stage writes and routes release tools
 through the engine. Shell, alternate APIs and disabled extensions still need

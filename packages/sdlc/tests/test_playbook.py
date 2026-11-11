@@ -1,8 +1,11 @@
 """Observable full-playbook behavior through the packaged CLI and real processes."""
 from __future__ import annotations
 import importlib.util
+import concurrent.futures
+import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,7 +20,7 @@ class PlaybookTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix='sdlc-playbook-')
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.cwd = self.base / 'project'
         self.cwd.mkdir()
         self.git('init', '-q')
@@ -48,7 +51,8 @@ else:
         self.policy_value = {'version':1, 'approve':commands('approve'), 'review':commands('review'), 'diagnose':commands('diagnose'),
             'environments':{env:{'release':commands('release')+[str(self.base/'released')], 'status':[str(self.status_adapter)], 'rollback':commands('rollback')+[str(self.base/'rolled-back')]} for env in ('dev','staging','production')}}
         self.policy.write_text(json.dumps(self.policy_value))
-        self.env = {**os.environ, 'SDLC_POLICY_FILE':str(self.policy)}
+        self.home = self.base / 'sdlc-home'
+        self.env = {**os.environ, 'SDLC_POLICY_FILE':str(self.policy), 'SDLC_HOME':str(self.home)}
         self.suite = self.base / 'evals.json'
         runner = self.base / 'runner.py'
         runner.write_text("import pathlib; pathlib.Path('code.txt').write_text('accepted\\n')")
@@ -65,8 +69,8 @@ else:
     def commit(self) -> None:
         self.git('add','-A'); self.git('commit','--allow-empty','-qm','fixture')
 
-    def cli(self, action: str, args: dict | None=None, passed: bool=True) -> dict:
-        result = subprocess.run([sys.executable,str(SCRIPT),action,'--cwd',str(self.cwd),'--args',json.dumps(args or {})], env=self.env, text=True,capture_output=True,timeout=30)
+    def cli(self, action: str, args: dict | None=None, passed: bool=True, *, cwd: Path | None=None) -> dict:
+        result = subprocess.run([sys.executable,str(SCRIPT),action,'--cwd',str(cwd or self.cwd),'--args',json.dumps(args or {})], env=self.env, text=True,capture_output=True,timeout=30)
         if passed:
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             return json.loads(result.stdout)
@@ -322,5 +326,159 @@ else:
         outside=self.base/'outside';outside.mkdir();(self.cwd/'.sdlc').symlink_to(outside,target_is_directory=True)
         self.cli('init',passed=False)
         self.assertEqual(list(outside.iterdir()),[])
+
+    def linked_worktree(self, name: str) -> Path:
+        path = self.base / name
+        self.git('worktree', 'add', '-b', name, str(path))
+        self.assertTrue((path / '.git').is_file())
+        return path
+
+    def test_shared_records_capture_method_provenance_without_methods_directory(self) -> None:
+        state = self.cli('init', {'task': 'provenance'})
+        self.assertIn('method', state)
+        self.assertEqual('pi-sdlc', state['method']['name'])
+        self.assertEqual('0.1.0', state['method']['version'])
+        self.assertEqual(str(SCRIPT.parents[1]), state['method']['source'])
+        self.assertRegex(state['method']['digest'], r'^[0-9a-f]{64}$')
+        self.assertFalse((self.home / 'methods').exists())
+        record = Path(state['globalRecord'])
+        self.assertTrue(record.is_relative_to(self.home / 'projects'))
+        saved = json.loads((record / 'task.json').read_text())
+        self.assertEqual(state['method'], saved['method'])
+
+    def test_review_policy_is_referenced_by_digest_and_not_duplicated_per_task(self) -> None:
+        self.adapter.write_text('''import json,sys,pathlib
+request=json.load(sys.stdin)
+kind=sys.argv[1]
+if kind=='approve':
+ print(json.dumps({**request,'approved':True,'approver':'independent human fixture','reference':'PR-123'}))
+elif kind=='review':
+ print(json.dumps({'digest':request['digest'],'passes':request['passes'],'important':0,'findings':[{'severity':'nit','title':'Sensitive finding detail'}],'reference':'https://github.example/pull/123#pullrequestreview-9','fixes':['commit:deadbeef']}))
+elif kind=='status': print('{"healthy":true}')
+else:
+ pathlib.Path(sys.argv[2]).write_text(kind)
+ print('{}')
+''')
+        self.deploy_stage()
+        self.cli('deploy', {'environment': 'production'})
+        self.cli('advance')
+        archived = self.cli('archive')
+        archive_dir = Path(archived['archived'])
+        self.assertFalse((archive_dir / 'REVIEW.md').exists())
+        self.assertTrue((self.cwd / 'REVIEW.md').is_file())
+        archived_state = json.loads((archive_dir / 'state.json').read_text())
+        expected_policy = hashlib.sha256(json.dumps((self.cwd / 'REVIEW.md').read_text(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        self.assertEqual({'source': 'REVIEW.md', 'digest': expected_policy}, archived_state['reviewPolicy'])
+        self.assertEqual('https://github.example/pull/123#pullrequestreview-9', archived_state['receipts']['review']['reference'])
+        self.assertEqual(['commit:deadbeef'], archived_state['receipts']['review']['fixes'])
+        record = Path(archived_state['globalRecord'])
+        self.assertFalse((record / 'REVIEW.md').exists())
+        saved = json.loads((record / 'task.json').read_text())
+        self.assertEqual(archived_state['reviewPolicy'], saved['reviewPolicy'])
+        self.assertEqual(expected_policy, saved['reviewedPolicy']['digest'])
+        self.assertEqual('https://github.example/pull/123#pullrequestreview-9', saved['references']['review']['reference'])
+        self.assertEqual(['commit:deadbeef'], saved['references']['review']['fixes'])
+        self.assertEqual('PR-123', saved['references']['approvals']['review']['reference'])
+
+    def test_global_events_record_metadata_and_source_references_without_transcripts(self) -> None:
+        self.env.update({'SDLC_AGENT': 'pi', 'SDLC_SESSION_ID': 'session-alpha', 'SDLC_SESSION_FILE': '/sessions/alpha.jsonl'})
+        self.adapter.write_text('''import json,sys,pathlib
+request=json.load(sys.stdin)
+kind=sys.argv[1]
+if kind=='approve':
+ print(json.dumps({**request,'approved':True,'approver':'independent human fixture','reference':'PR-789'}))
+elif kind=='review':
+ print(json.dumps({'digest':request['digest'],'passes':request['passes'],'important':0,'findings':[{'severity':'nit','title':'PRIVATE_REVIEW_FINDING_TEXT'}],'reference':'PR-789#review-2','fixes':['commit:abc123']}))
+elif kind=='status': print('{"healthy":true}')
+else:
+ pathlib.Path(sys.argv[2]).write_text(kind)
+ print('{}')
+''')
+        self.cli('init', {'task': 'events-task'})
+        (self.cwd / 'INTENT.md').write_text('# Intent: Example\nAuthor: A. User. Status: draft.\n\n' + '\n\n'.join('## ' + s + '\nPRIVATE_INTENT_PROSE_42.' for s in ['Problem', 'Proposed outcome', 'Affected users and systems', 'Constraints', 'Open questions']) + '\n\n<!-- intent:event:1 -->\n<details>\n<summary>User request 1 — 2026-11-09T00:00:00Z</summary>\n\n> PRIVATE_RAW_USER_PROMPT_99\n\n</details>\n')
+        (self.cwd / 'HANDOFF.md').write_text((ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'In progress: PRIVATE_HANDOFF_STATE_88.').replace('Not assessed.', 'No known blocker.'))
+        (self.cwd / 'SPEC.md').write_text((ASSETS / 'SPEC.md').read_text().replace('[REQUIRED]', 'PRIVATE_SPEC_BODY_77.'))
+        (self.cwd / 'PLAN.md').write_text((ASSETS / 'PLAN.md').read_text().replace('[REQUIRED]', 'PRIVATE_PLAN_STEP_66.'))
+        shutil.copyfile(ASSETS / 'REVIEW.md', self.cwd / 'REVIEW.md')
+        config = {'version': 1, 'checks': [{'name': 'fixture', 'argv': [sys.executable, '-c', 'print("PRIVATE_CHECK_STDOUT_55")']}], 'agentFiles': [], 'evalSuite': str(self.suite)}
+        (self.cwd / '.sdlc/config.json').write_text(json.dumps(config))
+        for _ in range(3):
+            self.cli('advance')
+        self.commit()
+        self.cli('advance')
+        self.cli('check')
+        self.cli('eval')
+        self.cli('advance')
+        self.cli('review')
+        self.cli('advance')
+        self.cli('deploy', {'environment': 'production'})
+        self.cli('advance')
+        archived = self.cli('archive')
+        record = Path(archived['globalRecord'])
+        events_file = record / 'events.jsonl'
+        self.assertTrue(events_file.is_file())
+        raw_store = '\n'.join(path.read_text() for path in self.home.rglob('*') if path.is_file())
+        for secret in ('PRIVATE_INTENT_PROSE_42', 'PRIVATE_RAW_USER_PROMPT_99', 'PRIVATE_HANDOFF_STATE_88',
+                       'PRIVATE_SPEC_BODY_77', 'PRIVATE_PLAN_STEP_66', 'PRIVATE_CHECK_STDOUT_55', 'PRIVATE_REVIEW_FINDING_TEXT'):
+            self.assertNotIn(secret, raw_store)
+        events = [json.loads(line) for line in events_file.read_text().splitlines()]
+        self.assertEqual(['init', 'advance', 'advance', 'advance', 'advance', 'check', 'eval', 'advance', 'review', 'advance', 'deploy', 'advance', 'archive'],
+                         [event['action'] for event in events])
+        self.assertTrue(all(event['actor'] == {'agent': 'pi', 'session': 'session-alpha', 'source': '/sessions/alpha.jsonl'} for event in events))
+        self.assertTrue(all('INTENT.md' in event['artifacts'] and re.fullmatch(r'[0-9a-f]{64}', event['artifacts']['INTENT.md']) for event in events))
+        review_event = next(event for event in events if event['action'] == 'review')
+        self.assertEqual('PR-789#review-2', review_event['references']['review']['reference'])
+        self.assertEqual(['commit:abc123'], review_event['references']['review']['fixes'])
+        self.assertEqual(review_event['reviewPolicy'], json.loads((record / 'task.json').read_text())['reviewPolicy'])
+        self.assertEqual('intent', events[1]['fromStage'])
+        self.assertEqual('design', events[1]['stage'])
+
+    def test_global_records_group_linked_worktrees_preserve_repeated_task_names_and_reject_symlinks(self) -> None:
+        first = self.cli('init', {'task': 'same-name'})
+        (self.cwd / 'HANDOFF.md').write_text((ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'Done.').replace('Not assessed.', 'None.'))
+        worktree = self.linked_worktree('linked-global')
+        second = self.cli('init', {'task': 'same-name'}, cwd=worktree)
+        first_record = Path(first['globalRecord'])
+        second_record = Path(second['globalRecord'])
+        self.assertEqual(first_record.parent, second_record.parent)
+        self.assertNotEqual(first_record, second_record)
+        self.assertTrue((first_record / 'task.json').is_file())
+        self.assertTrue((second_record / 'task.json').is_file())
+        outside = self.base / 'outside-home'
+        outside.mkdir()
+        symlink_home = self.base / 'symlink-home'
+        symlink_home.symlink_to(outside, target_is_directory=True)
+        for path in (self.cwd, worktree):
+            (path / 'INTENT.md').write_text('# Intent: Example\nAuthor: A. User. Status: draft.\n\n' + '\n\n'.join('## ' + s + '\nRequirement.' for s in ['Problem', 'Proposed outcome', 'Affected users and systems', 'Constraints', 'Open questions']) + '\n')
+            (path / 'HANDOFF.md').write_text((ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'Done.').replace('Not assessed.', 'None.'))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(lambda path: self.cli('advance', cwd=path), [self.cwd, worktree]))
+        self.assertEqual(2, len((first_record / 'events.jsonl').read_text().splitlines()))
+        self.assertEqual(2, len((second_record / 'events.jsonl').read_text().splitlines()))
+        absent_home = self.base / 'absent-home'
+        self.env['SDLC_HOME'] = str(absent_home)
+        self.cli('status')
+        self.assertFalse(absent_home.exists())
+        self.env['SDLC_HOME'] = str(symlink_home)
+        self.cli('status', passed=False)
+        self.cli('init', {'task': 'blocked-by-symlink'}, cwd=self.linked_worktree('symlink-check'), passed=False)
+        self.assertEqual([], list(outside.iterdir()))
+        self.env['SDLC_HOME'] = str(self.home)
+        fallback = self.linked_worktree('template-policy')
+        self.cwd = fallback
+        self.prepare()
+        (self.cwd / 'REVIEW.md').unlink()
+        for _ in range(3):
+            self.cli('advance')
+        self.commit()
+        self.cli('advance')
+        self.cli('check')
+        self.cli('eval')
+        self.cli('advance')
+        reviewed = self.cli('review')
+        expected_template = hashlib.sha256(json.dumps((ASSETS / 'REVIEW.md').read_text(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        self.assertEqual({'source': f'{ASSETS.name}/REVIEW.md', 'digest': expected_template}, reviewed['receipts']['review']['policy'])
+        saved = json.loads((Path(reviewed['globalRecord']) / 'task.json').read_text())
+        self.assertEqual(expected_template, saved['reviewedPolicy']['digest'])
 
 if __name__=='__main__': unittest.main()

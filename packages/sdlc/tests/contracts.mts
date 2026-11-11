@@ -7,7 +7,7 @@ import register from "../index.ts";
 const cwd = fs.mkdtempSync(path.join(tmpdir(), "pi-sdlc-contract-"));
 const hooks = new Map<string, Function>();
 const errors: string[] = [];
-const ctx = { cwd, hasUI: false, sessionManager: { getSessionId: () => "test-session" }, ui: { notify() {} } };
+const ctx = { cwd, hasUI: false, sessionManager: { getSessionId: () => "test-session", getSessionFile: () => "/sessions/pi-test.jsonl" }, ui: { notify() {} } };
 const pi = { registerTool() {}, exec: async () => { throw new Error("Fixture engine unavailable"); }, on: (name: string, handler: Function) => hooks.set(name, handler) };
 const invoke = async (name: string, event: object) => hooks.get(name)?.({ type: name, ...event }, ctx);
 const begin = async (prompt = "修复登录，不改变现有 API。") => {
@@ -171,6 +171,41 @@ try {
     await invoke("agent_settled", { aborted: false });
     assert.ok(errors.length > 0);
     assert.match(read("HANDOFF.md"), /Status: error/);
+  } else if (scenario === "global-events") {
+    const home = path.join(cwd, "sdlc-home");
+    process.env.SDLC_HOME = home;
+    const recordDir = path.join(home, "projects/p1/tasks/t1");
+    fs.mkdirSync(recordDir, { recursive: true });
+    fs.mkdirSync(path.join(cwd, ".sdlc"));
+    fs.writeFileSync(path.join(cwd, ".sdlc/state.json"), JSON.stringify({
+      version: 1, task: "t1", recordId: "t1", stage: "intent", created: "2026-11-09T00:00:00Z",
+      method: { name: "pi-sdlc", version: "0.1.0", source: "/pkg", digest: "a".repeat(64) },
+      globalRecord: recordDir, approvals: {}, receipts: {},
+    }));
+    await begin("PRIVATE_PI_USER_PROMPT_314");
+    await invoke("message_end", { message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "PRIVATE_PI_REPLY_271" }] } });
+    await invoke("agent_settled", { aborted: false });
+    const rawEvents = fs.readFileSync(path.join(recordDir, "events.jsonl"), "utf8");
+    assert.ok(!rawEvents.includes("PRIVATE_PI_USER_PROMPT_314"));
+    assert.ok(!rawEvents.includes("PRIVATE_PI_REPLY_271"));
+    const events = rawEvents.trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(events.map(e => [e.action, e.lifecycle]), [["turn", "started"], ["turn", "ended"]]);
+    assert.deepEqual(events[0].actor, { agent: "pi", session: "test-session", source: "/sessions/pi-test.jsonl" });
+    assert.match(events[0].artifacts["INTENT.md"], /^[0-9a-f]{64}$/);
+    const outsideRecord = path.join(cwd, "outside-record");
+    fs.mkdirSync(outsideRecord);
+    const uncreatedHome = path.join(cwd, "uncreated-home");
+    process.env.SDLC_HOME = uncreatedHome;
+    fs.writeFileSync(path.join(cwd, ".sdlc/state.json"), JSON.stringify({
+      version: 1, task: "t1", recordId: "t1", stage: "intent", created: "2026-11-09T00:00:00Z",
+      globalRecord: outsideRecord, approvals: {}, receipts: {},
+    }));
+    await begin("follow-up with outside global record");
+    await invoke("agent_settled", { aborted: false });
+    assert.equal(errors.length, 0);
+    assert.ok(!fs.existsSync(uncreatedHome));
+    assert.deepEqual(fs.readdirSync(outsideRecord), []);
+    assert.match(read("HANDOFF.md"), /Status: turn ended; not proof/);
   } else throw new Error(`Unknown scenario ${scenario}`);
   console.error = originalError;
 } finally { fs.rmSync(cwd, { recursive: true, force: true }); }

@@ -9,6 +9,8 @@ import { registerPlaybook } from "./playbook.ts";
 interface Run {
   identity: string;
   cwd: string;
+  session: string;
+  source?: string;
   prompt?: string;
   recordingError: boolean;
   modelError: boolean;
@@ -45,11 +47,14 @@ export default function sdlc(pi: ExtensionAPI): void {
   };
   const newRun = (ctx: ExtensionContext, prompt?: string): Run => ({
     identity: `${ctx.sessionManager.getSessionId()}:${instance}:${++sequence}`, cwd: ctx.cwd,
+    session: ctx.sessionManager.getSessionId(),
+    source: typeof ctx.sessionManager.getSessionFile === "function" ? ctx.sessionManager.getSessionFile() : undefined,
     prompt, recordingError: false, modelError: false,
   });
   const start = (run: Run, ctx: ExtensionContext): string => {
     try {
-      recordLifecycle(run.cwd, run.identity, "started", templates, run.prompt);
+      recordLifecycle(run.cwd, run.identity, "started", templates, run.prompt,
+        { agent: "pi", session: run.session, source: run.source });
       run.recordingError = false;
       return "";
     } catch (error) {
@@ -63,7 +68,7 @@ export default function sdlc(pi: ExtensionAPI): void {
     state.active = undefined;
     state.pending = [];
     if (!run) return;
-    try { recordLifecycle(run.cwd, run.identity, lifecycle, templates); }
+    try { recordLifecycle(run.cwd, run.identity, lifecycle, templates, undefined, { agent: "pi", session: run.session, source: run.source }); }
     catch (error) { report(ctx, error); }
   };
 

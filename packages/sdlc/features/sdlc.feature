@@ -52,3 +52,10 @@ Feature: User intent and current task handoff in Pi
     And a healthy release reaches maintain and produces a task archive
     And a metric breach produces a new intent for triage
     And failed or stale evidence blocks progression
+
+  Scenario: Shared records retain method provenance, review policy references and metadata-only events
+    Given a user SDLC home directory and an initialized Git worktree task
+    When Pi runs the sdlc workflow and stage engine through archive
+    Then the global task record stores the installed method version, source and digest without a methods directory
+    And the task and archive record the REVIEW.md policy version and external review or approval references without copying a second editable review policy
+    And global events.jsonl records stage transitions, artifact digests, actors and session references without copying prompts, assistant replies, artifact prose or findings

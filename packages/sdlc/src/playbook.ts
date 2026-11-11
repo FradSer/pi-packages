@@ -24,7 +24,29 @@ export function registerPlaybook(pi: ExtensionAPI): void {
       args: Type.Optional(Type.String({ description: "JSON object with action arguments" })),
     }),
     async execute(_id, params, signal, _update, ctx) {
-      const result = await pi.exec("python3", [engine, params.action, "--cwd", ctx.cwd, "--args", params.args ?? "{}"], { cwd: ctx.cwd, signal, timeout: 900_000 });
+      let rawArgs = params.args ?? "{}";
+      try {
+        const parsed = JSON.parse(rawArgs) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const session = ctx.sessionManager?.getSessionId?.();
+          const source = typeof ctx.sessionManager?.getSessionFile === "function" ? ctx.sessionManager.getSessionFile() : undefined;
+          const record = parsed as Record<string, unknown>;
+          rawArgs = JSON.stringify({
+            ...record,
+            actor: {
+              agent: "pi",
+              ...(session ? { session } : {}),
+              ...(source ? { source } : {}),
+              ...(record.actor && typeof record.actor === "object" && !Array.isArray(record.actor)
+                ? record.actor as Record<string, unknown>
+                : {}),
+            },
+          });
+        }
+      } catch {
+        // Keep malformed args unchanged so the Python engine reports its JSON error.
+      }
+      const result = await pi.exec("python3", [engine, params.action, "--cwd", ctx.cwd, "--args", rawArgs], { cwd: ctx.cwd, signal, timeout: 900_000 });
       return {
         content: [{ type: "text", text: result.stdout || result.stderr || "SDLC engine returned no evidence." }],
         details: { action: params.action, passed: result.code === 0, exit: result.code },

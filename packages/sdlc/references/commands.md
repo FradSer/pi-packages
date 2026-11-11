@@ -1,6 +1,13 @@
 # Engine and integration contract
 
 Run `python3 <skill-directory>/scripts/sdlc.py ACTION --cwd <worktree>`.
+Inside Git, `--cwd` may name a subdirectory: artifacts and state use that Git
+worktree's root, including linked worktrees whose `.git` is a file. Hooks use the
+same rule. Outside Git, hooks retain their directory-scoped recording behavior.
+The CI evaluator and GitHub approval adapter resolve the same worktree root.
+Relative native edit paths still resolve from the tool's original working
+directory. Recognized native edits cannot cross into another worktree at any
+stage; this guard does not restrict shell commands or replace host permissions.
 On Pi, use the `sdlc` tool with `action` and optional `args` (a JSON object string).
 Python 3.11+ and Git are required on both hosts. The runner adds no model call
 unless a configured review, eval or diagnosis adapter makes one.
@@ -8,7 +15,9 @@ unless a configured review, eval or diagnosis adapter makes one.
 ## Actions
 
 - `init --args '{"task":"claim-status"}'`: preserve root intent and handoff;
-  create `.sdlc/state.json`, a default config and a scoped ignore file.
+  create `.sdlc/state.json`, a default config and a scoped ignore file. Output
+  includes `workspace`, `preservedArtifacts` and the next action. Refresh any
+  inherited summaries for the new task; initialization never approves them.
 - `status`: show current stage, approvals and receipts.
 - `advance`: check the current stage and enter the next one. Order:
   intent, design, plan, build, test, review, deploy, maintain.
@@ -20,7 +29,27 @@ unless a configured review, eval or diagnosis adapter makes one.
 - `metric --args '{"event":"incident-123","readings":[...],"evidence":"metrics query reference"}'`:
   classify at least 25 finite hourly readings and write a triage intent at tier 2+.
 - `archive`: snapshot a task that reached maintain. Do not delete the active files.
-  Use another worktree for a new task, or replace summaries explicitly after archiving.
+  The archive copies task documents without duplicating `REVIEW.md`, and records
+  the review policy version and external review/approval references. Use another
+  worktree for a new task, or replace summaries explicitly after archiving.
+
+Each worktree owns one active task, its documents, `.sdlc/lock`, state, receipts
+and archives. `~/.sdlc` (or `SDLC_HOME`) stores non-authoritative project/task
+metadata under `projects/<project-id>/tasks/<record-id>/`: `task.json` records the
+installed method provenance (`name`, `version`, `source`, `digest`), the workspace
+`REVIEW.md` policy digest, artifact digests, and external approval/review/fix
+references; `events.jsonl` records stage transitions, artifact digests, actors and
+session source references without copying prompts, assistant replies, artifact
+prose or review findings. Do not create or edit a separate `~/.sdlc/methods/`
+document tree. Run separate sessions in separate worktrees; matching session or
+turn IDs do not share files across them. Engine commands do not create development
+worktrees, aggregate tasks or coordinate shared deployment environments. Create
+and manage development worktrees through Git. Prefer sibling directories; if
+worktrees live inside another checkout, ignore their container directory in that
+checkout so Git status and source verification exclude those nested repositories.
+Do not share `.sdlc` through a symlink or copy an active state file between tasks.
+Existing subdirectory task files created by older versions remain untouched;
+reconcile their intent and progress into the root artifacts before continuing.
 
 ## Project config
 
@@ -30,8 +59,8 @@ Commit `.sdlc/config.json`. A plan approves its exact digest. Example:
 {
   "version": 1,
   "checks": [
-    {"name":"tests", "argv":["bun","test"], "timeout":120},
-    {"name":"build", "argv":["bun","build"], "timeout":120}
+    {"name":"tests", "argv":["pnpm","test"], "timeout":120},
+    {"name":"build", "argv":["pnpm","build"], "timeout":120}
   ],
   "agentFiles": ["AGENTS.md"],
   "evalSuite": "/managed/sdlc/evals.json"
@@ -100,6 +129,7 @@ agent. Example case (`checks` run from the grader's external installation):
   "prompt":"Add request diagnostics without logging personal information.",
   "mayChange":["src/routes","tests/routes"],
   "runner":["/managed/sdlc/run-agent"],
+  "selfTest":["/managed/sdlc/check-no-pii", "--self-test"],
   "checks":[["/managed/sdlc/check-no-pii"]],
   "timeout":120
 }]
@@ -112,6 +142,27 @@ baseline, copies configured current agent files, and detects tracked, untracked,
 deleted and committed changes outside `mayChange`. It grades from the independent
 suite, records per-case exit codes and removes only the worktree it created.
 Do not point a grader at an agent-editable helper or use a fixture to claim model quality.
+
+`selfTest` is an optional argv command for backward compatibility; configure it
+for critical graders. It must verify that positive reference implementations pass
+and negative references with the targeted defect fail. It runs from the external
+suite directory, receives `{"case":"<name>"}` on stdin, and uses the case timeout
+(default 120 seconds). It must use disposable reference workspaces, not modify the
+active checkout, and require no model call. On nonzero exit, invalid command,
+startup failure or timeout, the case fails before its agent or graders run.
+Results record `selfTestExit` (null when not configured, -1 on invocation error),
+`runnerExit` (null when skipped), `checkExits`, and bounded error details on self-test
+failure. A zero exit establishes only that the configured self-test passed; the
+administrator must protect and review the references and assertions themselves.
+
+For skill changes, select cases covering existing behavior reuse, shared-cause fixes,
+complete renames, entry-point wiring and safe simplification. Assert observable
+outcomes rather than exact implementation text. Keep correctness, completeness and
+safety gates separate from size or cost observations. Static document tests prove
+instruction packaging; scripted fixtures prove runner behavior. Neither establishes
+model performance. Comparative model evaluations must document actual injected
+configuration for each arm, isolate unrelated skill/memory context and report run
+counts and limitations. Retain the current configuration in the treatment arm.
 
 ## Host guards and limits
 

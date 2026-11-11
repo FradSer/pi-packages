@@ -11,7 +11,7 @@ REPO = Path(__file__).resolve().parents[3]
 PACKAGE = REPO / "packages/sdlc"
 
 
-@pytest.mark.parametrize("scenario", ["playbook-guard", "format", "correction", "settlement", "interrupt", "custom", "custom-continuation", "unsafe", "markers", "lock", "bounded", "crlf", "shutdown", "error", "recovered-error", "carriage-return", "raw-input", "steer", "extension-input", "queued-input", "session-isolation", "streaming-error"])
+@pytest.mark.parametrize("scenario", ["playbook-guard", "format", "correction", "settlement", "interrupt", "custom", "custom-continuation", "unsafe", "markers", "lock", "bounded", "crlf", "shutdown", "error", "recovered-error", "carriage-return", "raw-input", "steer", "extension-input", "queued-input", "session-isolation", "streaming-error", "global-events"])
 def test_sdlc_contract(scenario: str) -> None:
     """Given real files and Pi events, when the workflow runs, then its public records satisfy the contract."""
     runner = ["bun"] if shutil.which("bun") else ["node", "--import", "tsx"]
