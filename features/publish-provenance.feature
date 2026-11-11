@@ -68,7 +68,7 @@ Feature: Release publishing without local provenance assumptions
     Given the release script is publishing an unpublished package
     When npm rejects the publish for any reason other than an existing version
     Then the release script re-emits the captured error output
-    And it propagates the error
+    And it propagates the error with the registry's own words
     And it does not publish the remaining packages
 
   Scenario: The main workflow does not publish the version PR working tree
@@ -107,3 +107,8 @@ Feature: Release publishing without local provenance assumptions
     Then the step reports the checked-out tree and the Changesets output
     And the reason is readable without workflow log access
 
+  Scenario: A failed publish run is readable from the run annotations
+    Given the release script fails inside GitHub Actions
+    When the run terminates with an error
+    Then it reports the failure as a workflow error command
+    And the message keeps the registry output that caused it

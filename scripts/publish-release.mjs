@@ -372,7 +372,14 @@ export function publishRelease(options = {}) {
       for (const text of [errorStdout(error), errorStderr(error)]) {
         if (text.trim()) logger.log(text.trim());
       }
-      if (!isRegistryConflict(error)) throw error;
+      if (!isRegistryConflict(error)) {
+        // Re-throw with the registry's own words: the bare spawn error carries
+        // only an exit status, which is unreadable without workflow-log access.
+        const detail = `${errorStdout(error)}\n${errorStderr(error)}`.trim();
+        throw new Error(
+          `Publishing ${target.name}@${target.version} failed${detail ? `: ${detail}` : `: ${error instanceof Error ? error.message : String(error)}`}`,
+        );
+      }
       logger.log(`${target.name}@${target.version} is already published; continuing.`);
     } finally {
       packed.cleanup();
@@ -389,6 +396,17 @@ export function publishRelease(options = {}) {
   return { checked: targets, published: publishable, skipped, firstRelease };
 }
 
+/**
+ * Report a failed run as a workflow error command under GitHub Actions.
+ * The runner renders `::error::` lines as annotations, which are the only
+ * failure text readable without repository admin rights.
+ */
+function reportRunFailure(message) {
+  console.error(
+    process.env.GITHUB_ACTIONS === "true" ? `::error::${message.replace(/\r?\n/g, "%0A")}` : message,
+  );
+}
+
 export function isMainModule() {
   return process.argv[1] !== undefined && resolve(process.argv[1]) === SCRIPT_PATH;
 }
@@ -397,7 +415,7 @@ if (isMainModule()) {
   try {
     await publishRelease({ checkOnly: process.argv.includes("--check") });
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    reportRunFailure(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   }
 }

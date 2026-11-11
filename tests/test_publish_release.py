@@ -331,8 +331,21 @@ def test_publish_failure_that_is_not_a_conflict_still_stops_the_release() -> Non
     assert result.returncode == 0, result.stderr
     values = json.loads(result.stdout)
     assert values["failure"] is not None, values
+    assert "403 Forbidden" in values["failure"], "the registry text must survive the re-throw"
     assert len(values["calls"]) == 1, values
     assert any("403 Forbidden" in message for message in values["messages"]), values
+
+
+def test_failed_ci_runs_report_a_workflow_error_annotation() -> None:
+    """A failed publish is only diagnosable through annotations: the runner hides
+    the step log behind repository admin rights, so the failure has to arrive as
+    a workflow error command that keeps npm's own words."""
+    feature = (REPO / "features" / "publish-provenance.feature").read_text(encoding="utf-8")
+    assert "Scenario: A failed publish run is readable from the run annotations" in feature
+    assert "function reportRunFailure" in SCRIPT
+    assert r'::error::${message.replace(/\r?\n/g, "%0A")}' in SCRIPT
+    assert 'process.env.GITHUB_ACTIONS === "true"' in SCRIPT
+    assert "reportRunFailure(error instanceof Error ? error.message : String(error))" in SCRIPT
 
 
 def test_pack_check_mode_covers_workspace_packages_without_registry_or_publish() -> None:
