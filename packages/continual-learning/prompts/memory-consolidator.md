@@ -135,10 +135,12 @@ Without a mechanically verifiable preservation target, keep or rewrite.
 
 For each new entry, write one minimal durable fact or closely related preference,
 with its project/context, duration and exceptions intact. Prefer one plain sentence
-when that fully expresses the original statement. Do not expand a requested test
-command into source layout, dependency-resolution advice, historical passing counts
-or transient environment lessons. A separate independently grounded finding may
-be its own candidate with its own exact citations; it must not inflate another fact.
+when that fully expresses the original statement. Do not fragment related findings:
+when multiple observed facts belong to the same feature, package, component or workflow,
+consolidate them into a single cohesive entry rather than creating multiple split files.
+Prefer updating or extending an existing selected entry for that topic over creating
+a new separate file. Do not expand a requested test command into source layout,
+dependency-resolution advice, historical passing counts or transient environment lessons.
 Do not remove existing durable knowledge merely to make rewrites shorter.
 The current invocation's tool restrictions, learning-file handling protocol and
 request for a concise final task report are not standing personal preferences.

@@ -3361,6 +3361,7 @@ async function spawnAsyncConsolidation(
   state.active = true;
   state.outcome = undefined;
   state.memoryReviewHeld = false;
+  state.newMemoryCapHeld = false;
   const generation = state.generation + 1;
   state.generation = generation;
   state.cancelled = false;
@@ -4997,13 +4998,25 @@ export function learningResultMarkdown(content: unknown): string[] {
   const agentsBody = agentsMarker < 0 ? "" : content.slice(agentsMarker + LEARNING_AGENTS_SEPARATOR.length);
   if ((memoryBody + agentsBody).split(/\r?\n/).length > MAX_DISPLAYED_MEMORY_ROWS) return [];
   const sections: string[] = [];
-  for (const entry of memoryBody ? memoryBody.split(/\r?\n\r?\n/) : []) {
-    const lines = entry.split(/\r?\n/);
-    // The first line is the parent-owned filename. Name each applied record so
-    // the user can tell which Memory files were written.
-    const name = lines[0]?.trim() ?? "";
-    const record = lines.slice(1).join("\n");
-    if (lines.length < 2 || !isMemoryFilename(name) || lines.some(line => containsSensitiveMemoryMaterial(line))) continue;
+  // Entries are delimited by their parent-owned filename line, not by blank
+  // lines: a real Memory record keeps blank lines after the frontmatter and
+  // between its body sections, which a blank-line split would shatter into
+  // frontmatter-only and filename-less fragments that both drop out.
+  const memoryLines = memoryBody ? memoryBody.split(/\r?\n/) : [];
+  for (let index = 0; index < memoryLines.length; ) {
+    // The first line of an entry is the parent-owned filename. Name each
+    // applied record so the user can tell which Memory files were written.
+    const name = memoryLines[index]?.trim() ?? "";
+    if (!isMemoryFilename(name) || containsSensitiveMemoryMaterial(name)) {
+      index += 1;
+      continue;
+    }
+    let end = index + 1;
+    while (end < memoryLines.length && !isMemoryFilename(memoryLines[end].trim())) end += 1;
+    // A following entry on the same filename would be a forged duplicate.
+    const record = memoryLines.slice(index + 1, end).join("\n");
+    index = end;
+    if (!record.trim() || containsSensitiveMemoryMaterial(record)) continue;
     const frontmatter = /^﻿?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(record);
     const description = frontmatter
       ? frontmatter[1].split(/\r?\n/).find(line => /^description\s*:/i.test(line))?.replace(/^description\s*:\s*/i, "").trim()
@@ -5058,6 +5071,7 @@ async function startConsolidationPipeline(
   // pi-kit mounts only for mode "tui" with a live ui; headless runs stay silent.
   state.activityWidget?.update(activityContext, [learningActivity]);
   state.cancelled = false;
+  state.newMemoryCapHeld = false;
   state.appliedMemoryDetails = [];
   state.appliedAgentDetails = [];
   const pipelineAttempts: LearningAttempt[] = [];

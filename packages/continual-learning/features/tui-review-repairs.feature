@@ -17,6 +17,7 @@ Feature: Readable and truthful learning management
     And no usage, cost, source, calls, status, summary or attempt details are shown
     When the user expands the result
     Then every applied Memory filename and body is readable, including harness-only private entries
+    And a body whose frontmatter is followed by a blank line is still readable with all its sections
     But credential-shaped content is never shown in the terminal
     And the complete receipt remains available to the model and stored on disk
     And no usage, cost, source, calls, status or attempt details are shown expanded

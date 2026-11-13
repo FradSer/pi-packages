@@ -1089,3 +1089,20 @@ def test_configured_new_memory_cap_is_honored_and_explicit_requests_are_exempt()
     assert explicit["registryReceipt"]["operations"] == 4, explicit["registryReceipt"]
     assert not any("new Memory files" in notice and "limit" in notice
                    for notice in explicit["notices"]), explicit["notices"]
+
+
+def test_cap_hold_state_does_not_leak_to_subsequent_runs_in_same_session() -> None:
+    # Given an automatic run whose 4 new files exceed cap 2 (held), followed by
+    # a second automatic run whose 1 new file is within cap on shared session state,
+    # Then the second pipeline's receipt and result row must NOT inherit the
+    # previous run's cap-hold routing marker, and must report its applied outcome.
+    value = run_bun_script(POLICY_HARNESS, "cap-sequence",
+                           env={"CL_NEW_MEMORY_COUNT_SEQUENCE": "4,1", "CL_MAX_NEW_MEMORIES": "2"})
+    assert len(value["notices"]) == 1, value["notices"]
+    assert "limit 2" in value["notices"][0]
+    # First run was held; second run applied. Exactly two result rows are emitted.
+    assert len(value["resultContents"]) == 2, value["resultContents"]
+    first_result = value["resultContents"][0].lower()
+    second_result = value["resultContents"][1].lower()
+    assert "held by per-run limit" in first_result, value["resultContents"]
+    assert "held by per-run limit" not in second_result, value["resultContents"]

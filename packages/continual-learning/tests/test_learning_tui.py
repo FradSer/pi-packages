@@ -75,6 +75,51 @@ def test_learning_result_expands_to_markdown_descriptions_and_bodies() -> None:
     assert output["messages"] == []
 
 
+def test_learning_result_expansion_keeps_a_body_with_blank_lines_after_frontmatter() -> None:
+    # Real applied Memory (batch_910b9f8d, 2026-11-12) has a blank line after
+    # the frontmatter and blank lines between the body, Why and How to apply
+    # sections. The expansion parser used to split entries on blank lines, so
+    # the record collapsed to frontmatter with no paragraph (dropped) and the
+    # sections became standalone fragments without a Memory filename (also
+    # dropped): the row showed "1 memory applied" with nothing to expand.
+    # Given content with that exact shape, When the result is rendered, Then
+    # the filename, body, and both purpose sections are all readable.
+    source = _result_fixture() + r'''
+      const appliedMemory = [
+        { name: 'project_pi_package_npm_publishing.md', classification: 'private', content: [
+          '---',
+          'name: pi-package-npm-publishing',
+          'description: Changesets and GitHub Actions OIDC release flow with a check gate',
+          'type: project',
+          '---',
+          '',
+          'Pi packages publish through the Changesets GitHub Actions workflow.',
+          '',
+          '**Why:**',
+          '',
+          'Version PRs keep versions reviewable.',
+          '',
+          '**How to apply:**',
+          '',
+          '- Keep id-token write in the release job.',
+        ].join('\n') },
+      ];
+      const message = { content: learningResultContent('Learning 1 memory applied', appliedMemory), details: receipt };
+      const collapsed = render(message, false);
+      const expanded = render(message, true);
+      console.log(JSON.stringify({ collapsed, expanded, messages }));
+    '''
+    output = run_bun(source)
+    assert "to expand" in output["collapsed"], output["collapsed"]
+    assert "project_pi_package_npm_publishing.md" in output["expanded"], output["expanded"]
+    assert "Changesets and GitHub Actions OIDC release flow" in output["expanded"], output["expanded"]
+    assert "Pi packages publish through the Changesets GitHub Actions workflow." in output["expanded"], output["expanded"]
+    assert "Version PRs keep versions reviewable." in output["expanded"], output["expanded"]
+    assert "Keep id-token write in the release job." in output["expanded"], output["expanded"]
+    # Frontmatter itself stays metadata: the description is the label, not the block.
+    assert "type: project" not in output["expanded"], output["expanded"]
+
+
 def test_learning_result_without_applied_memory_stays_one_unexpandable_line() -> None:
     # Given a legacy message with no expanded content, When rendered collapsed
     # and expanded, Then the row stays one compact line with no expand affordance

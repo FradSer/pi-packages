@@ -25,6 +25,10 @@ const isAgentPrivateConsent = scenario === "agent-memory-private-default";
 const fencedCoverage = process.env.CL_FENCED_COVERAGE === "1";
 const consentAccepted = false;
 const isModelFreeze = scenario === "model-freeze" || scenario === "session-model-freeze";
+/** Two automatic pipelines on shared session state: the first held by the
+ * per-run cap, the second within it. The second receipt must describe itself. */
+const isCapSequence = scenario === "cap-sequence";
+const isTwoPipeline = isModelFreeze || isCapSequence;
 const manualReplayProbe = process.env.CL_MANUAL_REPLAY_PROBE;
 let manualReplayObservation: unknown;
 let interruptManualRead: (() => Promise<void>) | undefined;
@@ -55,7 +59,7 @@ const policies = isAgentMemory
   ? (scenario === "agent-memory-all-phases"
     ? { memory: "apply", harness: "apply", agents: "apply" }
     : { memory: scenario === "agent-memory-propose" ? "propose" : "apply", harness: "off", agents: "off" })
-  : { memory: isModelFreeze ? "propose" : scenario === "all-off" || isHarness || isAgents ? "off" : scenario === "memory-apply" ? "apply" : "propose", harness: isModelFreeze ? "propose" : isHarness ? scenario === "harness-rejected" ? "apply" : "propose" : "off", agents: isModelFreeze ? "propose" : isAgents ? scenario === "agents-propose" ? "propose" : "apply" : "off" };
+  : { memory: isModelFreeze ? "propose" : isCapSequence ? "apply" : scenario === "all-off" || isHarness || isAgents ? "off" : scenario === "memory-apply" ? "apply" : "propose", harness: isModelFreeze ? "propose" : isHarness ? scenario === "harness-rejected" ? "apply" : "propose" : "off", agents: isModelFreeze ? "propose" : isAgents ? scenario === "agents-propose" ? "propose" : "apply" : "off" };
 if (laterAfterMemory) { policies.harness = "propose"; policies.agents = "propose"; }
 if (process.env.CL_JEV_FIXTURE?.startsWith("subset-name-collision")) {
   fs.mkdirSync(path.join(cwd,".memory"),{recursive:true});
@@ -156,6 +160,8 @@ const tamperFrozen = (dossier = false, runId?: string): void => {
   fs.appendFileSync(path.join(agent, "memory", "runs", String(file)), " ");
 };
 const planners: string[] = [];
+/** Counts Memory planner plans so a controlled sequence can vary per pipeline. */
+let memoryPlanIndex = 0;
 const initialMemoryInputs: {noTools:boolean;hasToolAllowlist:boolean;scopedReadExtension:boolean;completeInline:boolean;inlineDossierSha256?:string}[] = [];
 // Behavioral argv capture for EVERY planner child, not just Memory. A child
 // that runs without tools must never carry a --tools allowlist, a generated
@@ -417,7 +423,14 @@ mock.module("../../kit/src/index.ts", () => ({
     };
     // A controlled automatic-learning plan with several independent new files
     // exercises the parent's per-run cap without changing any other scenario.
-    const newMemoryCount = Number(process.env.CL_NEW_MEMORY_COUNT ?? "");
+    // CL_NEW_MEMORY_COUNT_SEQUENCE ("4,1") varies the count per Memory plan, so a
+    // second pipeline can follow a held first one on shared session state.
+    const countSequence = (process.env.CL_NEW_MEMORY_COUNT_SEQUENCE ?? "").split(",")
+      .map(value => value.trim()).filter(value => value !== "").map(Number).filter(Number.isInteger);
+    const newMemoryCount = countSequence.length
+      ? countSequence[Math.min(memoryPlanIndex, countSequence.length - 1)]
+      : Number(process.env.CL_NEW_MEMORY_COUNT ?? "");
+    if (!harness && !agents && !isManual && Array.isArray(plan.newMemories)) memoryPlanIndex += 1;
     if (Number.isInteger(newMemoryCount) && newMemoryCount >= 1 && !harness && !agents && !isManual && Array.isArray(plan.newMemories)) {
       const template = plan.newMemories[0];
       plan.newMemories = Array.from({length: newMemoryCount}, (_, index) => ({
@@ -910,7 +923,7 @@ try {
     await runHook("agent_settled", {});
   } else {
     await runHook("agent_settled", {});
-    if (isModelFreeze) {
+    if (isTwoPipeline) {
       await runHook("input", { source: "interactive" });
       await runHook("agent_settled", {});
     }

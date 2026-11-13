@@ -45,6 +45,13 @@ Feature: Memory management with automatic learning and manual consolidation
     And rewrites and deletes of existing records do not consume the limit
     And the limit is configurable and validated as a positive bounded integer
 
+  Scenario: An automatic rewrite that changes no bytes is not a learned change
+    Given an automatic task re-proposes a rewrite whose complete content is byte-identical to the stored record
+    When the parent applies the plan
+    Then no history row, applied receipt operation or result row claims a change was written
+    And mirrors and indexes are still verified
+    But a rewrite whose content actually differs records its change exactly once
+
   Scenario: Dedicated /consolidate command is a sibling of /memory
     Given the user types /consolidate
     Then the extension starts manual consolidation without opening the menu

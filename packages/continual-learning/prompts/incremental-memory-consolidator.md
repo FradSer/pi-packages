@@ -177,6 +177,15 @@ Preserve unrelated established knowledge and its material conditions; use the
 smallest substantive correction that resolves the actual problem. Selection
 identifies records to examine, not records that must change. Leave an already
 accurate record unchanged instead of rewriting its vocabulary, headings or style.
+A rewrite is a complete replacement of one bounded record, not an append: when
+a new observation extends the same subject, fold it into the existing structure
+by replacing superseded wording, not by adding another bullet or paragraph that
+restates the old one. Do not let one record grow across runs by accumulating
+each task's narration of the same procedure. A one-time incident narration
+(a specific failed run ID, error transcript, dated workaround or session story)
+stays out of durable how-to-apply guidance; record only the durable rule it
+established, with its still-relevant conditions, and drop resolved or
+superseded incident detail when the durable rule already covers it.
 Keep independently learned new knowledge separate from an existing record unless
 it directly corrects or extends that record's subject. Cite the necessary original
 sources for each changed claim and preservation decision, not a redundant union
@@ -211,10 +220,14 @@ Omit observations when no selected claim needs one.
 For each new entry, preserve one reusable fact or relationship with its evidenced
 dependencies, ownership, project/context, duration and exceptions intact.
 Deduplicate repeated statements, not independently applicable contract facts.
+Do not fragment related findings: when multiple observed facts belong to the same
+feature, package, component or workflow (for example, a component's rendering
+behavior and its test assertion requirements), consolidate them into a single cohesive
+entry rather than creating multiple split files. Prefer updating or extending an
+existing selected entry for that topic over creating a new separate file.
 Use a short sentence only when it keeps that complete meaning. Do not expand a requested test
 command into source layout, dependency-resolution advice, historical passing counts
-or transient environment lessons. A separate independently grounded finding may
-be its own candidate with its own exact citations; it must not inflate another fact.
+or transient environment lessons.
 Do not remove existing durable knowledge merely to make rewrites shorter.
 When the inspected source declaration is the knowledge requested, keep its exact complete
 syntax with brief source attribution. Avoid duplicating it as a long prose checklist
