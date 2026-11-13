@@ -60,7 +60,7 @@
     },
     "packages/continual-learning": {
       "name": "pi-continual-learning",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "dependencies": {
         "@babel/parser": "^7.29.9",
         "@fradser/pi-kit": "workspace:*",
