@@ -63,6 +63,7 @@ def test_registry_query_distinguishes_exact_404_from_auth_and_bad_versions() -> 
         const run = (_file, args) => {
           calls.push(args);
           if (args[1] === "@scope/pkg@1.2.3") return JSON.stringify("1.2.3");
+          if (args[1] === "@scope/pkg@1.2.10") return JSON.stringify(["1.2.10"]);
           if (args[1] === "@scope/pkg@1.2.4") {
             const error = new Error("not found");
             error.stderr = "npm error code E404\\n";
@@ -89,6 +90,7 @@ def test_registry_query_distinguishes_exact_404_from_auth_and_bad_versions() -> 
         const jsonAbsentVersion = queryExactVersion("@scope/pkg", "1.2.9", run);
         const values = {
           present: queryExactVersion("@scope/pkg", "1.2.3", run),
+          arrayVersion: queryExactVersion("@scope/pkg", "1.2.10", run),
           absent: absentVersion ?? null,
           jsonAbsent: jsonAbsentVersion ?? null,
         };
@@ -103,6 +105,7 @@ def test_registry_query_distinguishes_exact_404_from_auth_and_bad_versions() -> 
     assert result.returncode == 0, result.stderr
     values = json.loads(result.stdout)
     assert values["present"] == "1.2.3"
+    assert values["arrayVersion"] == "1.2.10"
     assert values["absent"] is None
     assert values["jsonAbsent"] is None
     assert "release stopped" in values["1.2.5"]

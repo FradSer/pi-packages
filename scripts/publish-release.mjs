@@ -134,6 +134,9 @@ function parseVersionOutput(output, name, version) {
   } catch {
     throw new Error(`npm returned an invalid version for ${name}@${version}; release stopped.`);
   }
+  if (Array.isArray(value)) {
+    value = value[0];
+  }
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`npm returned no usable version for ${name}@${version}; release stopped.`);
   }
