@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from sdlc import config, evaluate, snapshot, workspace_root
+from sdlc import resolve_context, config, evaluate, snapshot, workspace_root
 
 
 def main() -> int:
@@ -13,6 +13,7 @@ def main() -> int:
     parser.add_argument('--output', type=Path, default=Path('/tmp/sdlc-eval-report.json'))
     args = parser.parse_args()
     cwd = workspace_root(args.cwd)
+    resolve_context(cwd, {})
     before = snapshot(cwd)
     try:
         cases = evaluate(cwd, config(cwd))

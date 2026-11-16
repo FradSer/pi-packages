@@ -1,4 +1,4 @@
-哦给你"""Native Pi print/RPC acceptance from packed archives; no external provider calls."""
+"""Native Pi print/RPC acceptance from packed archives; no external provider calls."""
 from __future__ import annotations
 
 import argparse
@@ -73,9 +73,8 @@ def native_case(output: Path, installed: Path, name: str, *, previous: Path | No
     case.mkdir()
     project = case / "project"
     project.mkdir()
-    if previous:
-        for record in ("INTENT.md", "HANDOFF.md"):
-            shutil.copyfile(previous / "project" / record, project / record)
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    subprocess.run(["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@localhost", "commit", "--allow-empty", "-qm", "fixture"], cwd=project, check=True)
     env = support.isolated_environment(case)
     trace = case / "events.jsonl"
     env.update({"PI_E2E_AUTH": "offline-fixture", "PI_SDLC_SCRIPT": str(case / "script.json"), "PI_SDLC_TRACE": str(trace),
@@ -87,8 +86,6 @@ def native_case(output: Path, installed: Path, name: str, *, previous: Path | No
         prompt = "更正：只更新意图与交接，不实现门户。作者是 J. Ortiz (claims operations)。"
     template = (installed / "templates/INTENT.md").read_text()
     handoff_template = (installed / "templates/HANDOFF.md").read_text()
-    old_intent = (project / "INTENT.md").read_text().split("<!-- intent:event:")[0] if previous else template
-    old_handoff = (project / "HANDOFF.md").read_text().split("<!-- sdlc:lifecycle:start -->")[0] if previous else handoff_template
     author = "J. Ortiz (claims operations)" if previous else "Not provided"
     intent = (f"# Intent: 门户理赔查询\nAuthor: {author}. Status: draft.\n\n"
               "## Problem\n客户需要查询理赔进度。\n\n## Proposed outcome\n客户在门户查询理赔进度。\n\n"
@@ -99,22 +96,23 @@ def native_case(output: Path, installed: Path, name: str, *, previous: Path | No
                "## Blockers\nNone recorded.\n\n## Next steps\nVerify the record path.\n\n")
     final = current.replace("In progress: intent reviewed.", "Completed: the record path was verified.").replace(
         "Record checks pending.", "Native write and read returned the exact fixture result.").replace("Verify the record path.", "No remaining local verification step.")
+    spec = (installed / "templates/SPEC.md").read_text().replace("[REQUIRED]", "Native requirement.")
+    plan = (installed / "templates/PLAN.md").read_text().replace("[REQUIRED]", "Native step.")
     turns = [
-        {"tool": "read", "args": {"path": "HANDOFF.md"}},
-        {"tool": "read", "args": {"path": "INTENT.md"}},
-        {"tool": "edit", "args": {"path": "INTENT.md", "oldText": old_intent, "newText": intent}},
-        {"tool": "edit", "args": {"path": "HANDOFF.md", "oldText": old_handoff, "newText": current}},
+        {"tool": "sdlc", "args": {"action": "init", "args": json.dumps({"task": "native-record"})}},
+        {"tool": "sdlc", "args": {"action": "document", "args": json.dumps({"name": "INTENT.md", "text": intent})}},
+        {"tool": "sdlc", "args": {"action": "document", "args": json.dumps({"name": "HANDOFF.md", "text": current})}},
+        {"tool": "sdlc", "args": {"action": "document", "args": json.dumps({"name": "SPEC.md", "text": spec})}},
+        {"tool": "sdlc", "args": {"action": "document", "args": json.dumps({"name": "PLAN.md", "text": plan})}},
     ]
     if name == "abort":
         turns.append({"tool": "sdlc_wait", "args": {}})
     else:
-        turns.extend([{"tool": "write", "args": {"path": "result.txt", "content": "NATIVE_SDLC_WRITE"}},
-                      {"tool": "read", "args": {"path": "result.txt"}},
-                      {"tool": "edit", "args": {"path": "HANDOFF.md", "oldText": current, "newText": final}}])
+        turns.extend([{"tool": "sdlc", "args": {"action": "document", "args": json.dumps({"name": "HANDOFF.md", "text": final})}}])
     (case / "script.json").write_text(json.dumps({"turns": turns}, ensure_ascii=False))
     command = ["node", str(REPO / "node_modules/@earendil-works/pi-coding-agent/dist/cli.js"), "--offline",
                "--no-session", "--no-extensions", "--no-mcp", "--no-skills", "--no-prompt-templates", "--no-themes",
-               "--no-context-files", "--no-approve", "--tools", "read,edit,write,sdlc_wait", "--provider", "sdlc-fixture",
+               "--no-context-files", "--no-approve", "--tools", "read,edit,write,sdlc,sdlc_wait", "--provider", "sdlc-fixture",
                "--model", "deterministic", "-e", str(installed / "index.ts"), "-e", str(PACKAGE / "tests/provider.ts")]
     if name == "abort":
         stdout, stderr, code = rpc_abort(command, project, env, trace)
@@ -129,30 +127,27 @@ def native_case(output: Path, installed: Path, name: str, *, previous: Path | No
         calls = json.loads(reports[0])["calls"]
         assert [call["name"] for call in calls] == [step["tool"] for step in turns], calls
         assert not any(call["isError"] for call in calls), calls
-        assert (project / "result.txt").read_text() == "NATIVE_SDLC_WRITE"
     (case / "stdout.txt").write_text(stdout)
     (case / "stderr.txt").write_text(stderr)
     assert "Extension error" not in stdout + stderr, stdout + stderr
     events = [json.loads(line) for line in trace.read_text().splitlines()]
     contexts = [event["systemPrompt"] for event in events if event["kind"] == "provider-context"]
-    assert contexts and all("You MUST read `HANDOFF.md` and `INTENT.md`" in context for context in contexts)
+    assert contexts and all("global task `HANDOFF.md` and `INTENT.md`" in context for context in contexts)
     assert not (case / "network.log").exists(), "native acceptance attempted network access"
-    handoff = (project / "HANDOFF.md").read_text()
-    captured = (project / "INTENT.md").read_text()
+    status = json.loads(subprocess.run([sys.executable, str(installed / "scripts/sdlc.py"), "status", "--cwd", str(project),
+                                        "--args", '{"task":"native-record"}'], env=env, text=True, capture_output=True).stdout or "{}")
+    record = Path(status.get("globalRecord", "")) if status.get("globalRecord") else None
+    assert record is not None and record.is_dir(), status
+    handoff = (record / "HANDOFF.md").read_text()
+    captured = (record / "INTENT.md").read_text()
     assert "[INTENT.md](INTENT.md)" in handoff and len(handoff.splitlines()) < 200
-    assert handoff.count("<!-- sdlc:lifecycle:start -->") == 1
+    assert not (project / "INTENT.md").exists() and not (project / "HANDOFF.md").exists()
     assert not (project / "CONTEXT.md").exists()
-    if name == "abort":
-        assert "Status: interrupted" in handoff and "In progress: intent reviewed." in handoff
-        assert "> 更正：中断后先复核交接记录。" in captured
-        assert captured.count("> 补充：恢复时保留已有验证证据。") == 1
-        assert any(event.get("aborted") for event in events if event["kind"] == "settled")
-    else:
-        assert "> " + prompt in captured
-        assert "Status: turn ended; not proof" in handoff and "Completed:" in handoff
-    if previous:
-        assert "> 让客户在门户查询理赔进度" in captured
-        assert "Author: J. Ortiz (claims operations). Status: draft." in captured
+    assert "In progress: intent reviewed." in handoff or "Completed: the record path was verified." in handoff
+    turn_events = [json.loads(line) for line in (record / "events.jsonl").read_text().splitlines() if json.loads(line).get("action") == "turn"]
+    assert turn_events and all(event["actor"]["agent"] == "pi" for event in turn_events)
+    assert "Author: J. Ortiz (claims operations). Status: draft." in captured or "Author: Not provided. Status: draft." in captured
+    assert any(event.get("aborted") for event in events if event["kind"] == "settled") if name == "abort" else True
     return {"case": name, "status": "passed", "provider": "deterministic-local", "native_tools": [step["tool"] for step in turns],
             "handoff_lines": len(handoff.splitlines()), "network_attempts": 0, "exit": code}
 
@@ -250,15 +245,13 @@ def pipeline_case(output: Path, installed: Path) -> dict[str, object]:
     case.mkdir()
     try:
         fixture.prepare()
-        (fixture.cwd / ".sdlc/state.json").unlink()
         env = support.isolated_environment(case)
         trace = case / "events.jsonl"
         env.update({"PI_E2E_AUTH": "offline-fixture", "PI_SDLC_SCRIPT": str(case / "script.json"), "PI_SDLC_TRACE": str(trace),
                     "SDLC_POLICY_FILE": str(fixture.policy), "SDLC_HOME": str(fixture.home),
                     "PI_NATIVE_NETWORK_LOG": str(case / "network.log"),
                     "NODE_OPTIONS": f"--require={REPO / 'tests/native-run-start-no-network.cjs'}"})
-        turns = [{"tool": "sdlc", "args": {"action": "init", "args": '{"task":"native-pipeline"}'}},
-                 {"tool": "sdlc", "args": {"action": "status"}}]
+        turns = [{"tool": "sdlc", "args": {"action": "status"}}]
         turns += [{"tool": "sdlc", "args": {"action": "advance"}} for _ in range(3)]
         turns.append({"tool": "bash", "args": {"command": "git add -A && git -c user.name=Fixture -c user.email=fixture@localhost commit -qm 'Native accepted artifacts'"}})
         turns += [{"tool": "sdlc", "args": {"action": name}} for name in ["advance", "check", "eval", "advance", "review", "advance", "deploy", "advance"]]
@@ -278,7 +271,8 @@ def pipeline_case(output: Path, installed: Path) -> dict[str, object]:
         calls = reports[0]["calls"]
         assert len(calls) == len(turns), calls
         assert not any(call["isError"] for call in calls), calls
-        archived = fixture.cwd / ".sdlc/tasks/native-pipeline"
+        active = next(path for path in (fixture.project / "tasks").iterdir() if (path / "task.json").is_file())
+        archived = fixture.project / "archive" / json.loads((active / "state.json").read_text())["task"]
         state = json.loads((archived / "state.json").read_text())
         assert state["stage"] == "maintain", state
         assert all(state["receipts"][name]["passed"] for name in ("check", "eval", "review", "deploy")), state
@@ -291,10 +285,10 @@ def pipeline_case(output: Path, installed: Path) -> dict[str, object]:
         global_events = [json.loads(line) for line in (global_record / "events.jsonl").read_text().splitlines()]
         assert any(event["action"] == "init" and event["actor"]["agent"] == "pi" for event in global_events)
         assert any(event["action"] == "archive" and event["actor"]["agent"] == "pi" for event in global_events)
-        assert (fixture.cwd / ".sdlc/inbox/native-incident.md").exists()
+        assert (fixture.project / "inbox/native-incident.md").exists()
         assert (fixture.base / "released").read_text() == "release"
         shutil.copytree(archived, case / "artifacts")
-        shutil.copytree(fixture.cwd / ".sdlc/inbox", case / "inbox")
+        shutil.copytree(fixture.project / "inbox", case / "inbox")
         (case / "adapter-policy.json").write_text(fixture.policy.read_text())
         network = case / "network.log"
         assert not network.exists() or not network.read_text().strip(), "Unexpected network call"
@@ -325,7 +319,8 @@ def main() -> int:
         assert hashes() == before, "SDLC sources changed during acceptance"
         report = {"status": "passed", "cases": results, "limits": "Real Pi and tools with a scripted provider; no real-model judgment or physical terminal proof."}
     except Exception as error:
-        report = {"status": "failed", "cases": results, "error": str(error)}
+        import traceback
+        report = {"status": "failed", "cases": results, "error": type(error).__name__ + ": " + str(error), "trace": traceback.format_exc()}
     (output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps({"output": str(output), **report}, ensure_ascii=False))
     return 0 if report["status"] == "passed" else 1

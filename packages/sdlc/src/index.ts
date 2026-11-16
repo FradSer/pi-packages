@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { notifyPi } from "@fradser/pi-kit";
-import { recordLifecycle, type Lifecycle } from "./records.ts";
+import { globalHandoff, recordLifecycle, type Lifecycle } from "./records.ts";
 import { registerPlaybook } from "./playbook.ts";
 
 interface Run {
@@ -107,8 +107,10 @@ export default function sdlc(pi: ExtensionAPI): void {
     const run = input?.run ?? newRun(ctx, event.messageType === "user" && user ? event.prompt : undefined);
     state.active = run;
     const failure = start(run, ctx);
+    let currentHandoff: string | undefined;
+    try { currentHandoff = globalHandoff(ctx.cwd); } catch { currentHandoff = undefined; }
     Object.assign(options.sections, { sdlc: `Packaged SDLC references: ${fileURLToPath(new URL("../references/", import.meta.url))}.
-${workflow}\n\nRequired INTENT.md template:\n\n${templates.intent}\n\nRequired HANDOFF.md template:\n\n${templates.handoff}${failure ? `\n\nRecording failure: ${failure}\nDo not claim the task records were saved.\n` : ""}` });
+${workflow}\n\nCurrent global SDLC handoff (canonical; no worktree SDLC files):\n${currentHandoff ?? "No active global task record. Run sdlc init before SDLC work."}\n\nRequired INTENT.md template:\n\n${templates.intent}\n\nRequired HANDOFF.md template:\n\n${templates.handoff}${failure ? `\n\nRecording failure: ${failure}\nDo not claim the task records were saved.\n` : ""}` });
   });
   pi.on("message_end", (event, ctx) => {
     const active = stateFor(ctx).active;

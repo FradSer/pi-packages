@@ -1,7 +1,8 @@
 # SDLC package
 
 `index.ts` loads the native Pi lifecycle adapter in `src/index.ts`.
-`src/records.ts` owns checked Markdown writes and a single latest handoff checkpoint.
+`src/records.ts` owns checked Markdown writes to the global task record under
+`~/.sdlc` (or `SDLC_HOME`); worktrees hold no SDLC files.
 The package bundles `references/workflow.md` and both templates; no external
 dotcodex checkout is needed at runtime.
 
@@ -12,8 +13,6 @@ Keep this evidence separate from real-model instruction-following quality.
 
 Do not record custom extension messages as user intent. Use `agent_settled`, not
 `agent_end`, as the final lifecycle boundary. A stopped turn is not task completion.
-The model must read the handoff before work and refresh it before finishing or
-pausing. Keep source requests in INTENT.md and only current progress in HANDOFF.md.
 
 Use pi-kit for exclusive JSON lock publication and notifications. It has no checked
 Markdown writer; that package-specific gap is handled by `src/records.ts`.

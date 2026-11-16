@@ -1,11 +1,10 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { keyHint } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { bindLifecycleRenderers, eventToolLifecycle, fieldLine } from "@fradser/pi-kit";
 import { Type } from "typebox";
+import { activeRecord } from "./records.ts";
 
 const engine = fileURLToPath(new URL("../scripts/sdlc.py", import.meta.url));
 const rows = bindLifecycleRenderers({
@@ -62,7 +61,9 @@ export function registerPlaybook(pi: ExtensionAPI): void {
       })),
   });
   pi.on("tool_call", async (event, ctx) => {
-    if (!fs.existsSync(path.join(ctx.cwd, ".sdlc/state.json")) || event.toolName === "sdlc") return;
+    let active = false;
+    try { active = Boolean(activeRecord(ctx.cwd)); } catch { active = false; }
+    if (!active || event.toolName === "sdlc") return;
     if (!["edit", "write", "apply_patch"].includes(event.toolName) && !/(?:^|__)release$/.test(event.toolName)) return;
     try {
       const result = await pi.exec("python3", [engine, "guard", "--cwd", ctx.cwd, "--args", JSON.stringify({ tool: event.toolName, input: event.input })], { cwd: ctx.cwd, timeout: 10_000 });
@@ -72,7 +73,9 @@ export function registerPlaybook(pi: ExtensionAPI): void {
     }
   });
   pi.on("agent_before_settle", async (_event, ctx) => {
-    if (!fs.existsSync(path.join(ctx.cwd, ".sdlc/state.json"))) return;
+    let active = false;
+    try { active = Boolean(activeRecord(ctx.cwd)); } catch { active = false; }
+    if (!active) return;
     const result = await pi.exec("python3", [engine, "handoff", "--cwd", ctx.cwd], { cwd: ctx.cwd, timeout: 10_000 });
     if (result.code !== 0) {
       if (ctx.hasUI) ctx.ui.notify("SDLC handoff is incomplete: " + result.stderr, "warning");

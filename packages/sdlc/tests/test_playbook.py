@@ -69,6 +69,17 @@ else:
     def commit(self) -> None:
         self.git('add','-A'); self.git('commit','--allow-empty','-qm','fixture')
 
+    def set_doc(self, name: str, text: str) -> None:
+        (self.cwd / name).write_text(text)
+        try:
+            record = self.record if hasattr(self, 'record') else Path(self.cli('status')['globalRecord'])
+            (record / name).write_text(text)
+        except Exception:
+            pass
+
+    def set_policy(self, source: Path) -> None:
+        (self.project / 'REVIEW.md').write_text(source.read_text())
+
     def cli(self, action: str, args: dict | None=None, passed: bool=True, *, cwd: Path | None=None) -> dict:
         result = subprocess.run([sys.executable,str(SCRIPT),action,'--cwd',str(cwd or self.cwd),'--args',json.dumps(args or {})], env=self.env, text=True,capture_output=True,timeout=30)
         if passed:
@@ -78,14 +89,16 @@ else:
         return json.loads(result.stderr or result.stdout)
 
     def prepare(self) -> None:
-        self.cli('init',{'task':'fixture'})
-        (self.cwd/'INTENT.md').write_text('# Intent: Example\nAuthor: A. User. Status: draft.\n\n'+'\n\n'.join('## '+s+'\nEstablished requirement.' for s in ['Problem','Proposed outcome','Affected users and systems','Constraints','Open questions'])+'\n')
-        (self.cwd/'HANDOFF.md').write_text((ASSETS/'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.','In progress: artifacts reviewed.').replace('Not assessed.','No known blocker.'))
-        (self.cwd/'SPEC.md').write_text((ASSETS/'SPEC.md').read_text().replace('[REQUIRED]','Concrete reviewed decision.'))
-        (self.cwd/'PLAN.md').write_text((ASSETS/'PLAN.md').read_text().replace('[REQUIRED]','Concrete reviewed step.'))
-        shutil.copyfile(ASSETS/'REVIEW.md',self.cwd/'REVIEW.md')
+        initial = self.cli('init',{'task':'fixture'})
+        self.project = self.home / 'projects' / initial['project']
+        self.record = Path(initial['globalRecord'])
+        self.set_doc('INTENT.md', '# Intent: Example\nAuthor: A. User. Status: draft.\n\n'+'\n\n'.join('## '+s+'\nEstablished requirement.' for s in ['Problem','Proposed outcome','Affected users and systems','Constraints','Open questions'])+'\n')
+        self.set_doc('HANDOFF.md', (ASSETS/'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.','In progress: artifacts reviewed.').replace('Not assessed.','No known blocker.'))
+        self.set_doc('SPEC.md', (ASSETS/'SPEC.md').read_text().replace('[REQUIRED]','Concrete reviewed decision.'))
+        self.set_doc('PLAN.md', (ASSETS/'PLAN.md').read_text().replace('[REQUIRED]','Concrete reviewed step.'))
+        self.set_policy(ASSETS/'REVIEW.md')
         config = {'version':1,'checks':[{'name':'fixture','argv':[sys.executable,'-c','print("verified")']}],'agentFiles':[],'evalSuite':str(self.suite)}
-        (self.cwd/'.sdlc/config.json').write_text(json.dumps(config))
+        (self.project/'config.json').write_text(json.dumps(config))
 
     def build(self) -> None:
         self.prepare()
@@ -97,11 +110,32 @@ else:
         self.build(); self.cli('advance')
         self.cli('check'); self.cli('eval'); self.cli('advance'); self.cli('review'); self.cli('advance')
 
+    def test_global_document_edit_changes_binding_without_worktree_copy(self) -> None:
+        state = self.cli('init', {'task': 'binding'})
+        record = Path(state['globalRecord'])
+        before = self.cli('status')['currentDigest']
+        (record / 'INTENT.md').write_text((ASSETS / 'INTENT.md').read_text().replace('Not provided.', 'Global requirement.'))
+        self.assertNotEqual(before, self.cli('status')['currentDigest'])
+        self.assertFalse((self.cwd / 'INTENT.md').exists())
+
     def test_initialization_preserves_existing_intent(self) -> None:
-        (self.cwd/'INTENT.md').write_text('Human source\n')
+        self.set_doc('INTENT.md', 'Human source\n')
         self.assertEqual(self.cli('init')['stage'],'intent')
         self.assertEqual((self.cwd/'INTENT.md').read_text(),'Human source\n')
         self.cli('advance',passed=False)
+
+    def test_global_markdown_control_plane_writes_no_worktree_sdlc_files(self) -> None:
+        state = self.cli('init', {'task': 'global-md'})
+        record = Path(state['globalRecord'])
+        for name in ('INTENT.md', 'SPEC.md', 'PLAN.md', 'HANDOFF.md', 'state.json', 'events.jsonl'):
+            self.assertTrue((record / name).is_file(), name)
+        for name in ('INTENT.md', 'SPEC.md', 'PLAN.md', 'HANDOFF.md', 'REVIEW.md'):
+            self.assertFalse((self.cwd / name).exists(), name)
+        self.assertFalse((self.cwd / '.sdlc').exists())
+        updated = self.cli('document', {'name': 'SPEC.md', 'text': (ASSETS / 'SPEC.md').read_text().replace('[REQUIRED]', 'Global requirement.')})
+        self.assertIn('Global requirement.', (record / 'SPEC.md').read_text())
+        self.assertEqual('global-md', updated['task'])
+        self.assertFalse((self.cwd / 'SPEC.md').exists())
 
     def test_full_chain_records_actual_evidence_and_archives(self) -> None:
         self.deploy_stage()
@@ -126,7 +160,7 @@ else:
 
     def test_correction_invalidates_approval(self) -> None:
         self.prepare(); self.cli('advance')
-        path=self.cwd/'INTENT.md'; path.write_text(path.read_text().replace('Established requirement.','Corrected requirement.',1))
+        self.set_doc('INTENT.md', (self.record / 'INTENT.md').read_text().replace('Established requirement.','Corrected requirement.',1))
         self.assertIn('stale',self.cli('advance',passed=False)['error'])
         self.cli('rewind',{'stage':'intent'}); self.assertEqual(self.cli('advance')['stage'],'design')
 
@@ -137,12 +171,12 @@ else:
 
     def test_config_change_requires_new_plan_approval(self) -> None:
         self.build()
-        path=self.cwd/'.sdlc/config.json'; value=json.loads(path.read_text());value['checks']=[];path.write_text(json.dumps(value))
+        path=self.project/'config.json'; value=json.loads(path.read_text());value['checks']=[];path.write_text(json.dumps(value))
         self.assertIn('stale',self.cli('check',passed=False)['error'])
 
     def test_failed_check_receipt_is_not_success(self) -> None:
         self.prepare()
-        path=self.cwd/'.sdlc/config.json';value=json.loads(path.read_text());value['checks'][0]['argv']=[sys.executable,'-c','raise SystemExit(3)'];path.write_text(json.dumps(value))
+        path=self.project/'config.json';value=json.loads(path.read_text());value['checks'][0]['argv']=[sys.executable,'-c','raise SystemExit(3)'];path.write_text(json.dumps(value))
         for _ in range(3): self.cli('advance')
         result=self.cli('check',passed=False)
         self.assertFalse(result['receipts']['check']['passed'])
@@ -160,7 +194,7 @@ else:
         self.commit(); historical=self.git('rev-parse','HEAD')
         (self.cwd/'agent').unlink();(self.cwd/'agent').mkdir();(self.cwd/'agent/AGENTS.md').write_text('current config')
         self.prepare()
-        path=self.cwd/'.sdlc/config.json';value=json.loads(path.read_text());value['agentFiles']=['agent/AGENTS.md'];path.write_text(json.dumps(value))
+        path=self.project/'config.json';value=json.loads(path.read_text());value['agentFiles']=['agent/AGENTS.md'];path.write_text(json.dumps(value))
         self.suite_value[0]['from']=historical;self.suite.write_text(json.dumps(self.suite_value))
         for _ in range(3): self.cli('advance')
         self.cli('eval',passed=False)
@@ -238,7 +272,7 @@ else:
         result=self.cli('metric',{'event':'incident-1','readings':values,'evidence':'hourly fixture'})
         self.assertEqual(result['tier'],3)
         self.assertFalse(result['actionsExecuted'])
-        self.assertTrue((self.cwd/'.sdlc/inbox/incident-1.md').exists())
+        self.assertTrue((self.project/'inbox/incident-1.md').exists())
         self.assertEqual(result,self.cli('metric',{'event':'incident-1','readings':values}))
         self.assertFalse((self.base/'released').exists())
         self.cli('metric',{'event':'../escape','readings':values},passed=False)
@@ -247,7 +281,8 @@ else:
         result=self.cli('metric',{'event':'stateless-incident','readings':[1]*24+[2]})
         self.assertEqual(result['tier'],3)
         self.assertFalse((self.cwd/'.sdlc/state.json').exists())
-        self.assertTrue((self.cwd/'.sdlc/inbox/stateless-incident.md').exists())
+        project = next((self.home / 'projects').iterdir())
+        self.assertTrue((project/'inbox/stateless-incident.md').exists())
 
     def test_metric_rejects_short_or_nonfinite_readings(self) -> None:
         self.prepare()
@@ -257,7 +292,7 @@ else:
     def test_native_edit_guard_requires_plan_and_allows_artifacts(self) -> None:
         self.prepare()
         self.cli('guard',{'tool':'write','input':{'path':'code.txt'}},passed=False)
-        self.cli('guard',{'tool':'write','input':{'path':'SPEC.md'}})
+        self.cli('guard',{'tool':'write','input':{'path':'SPEC.md'}},passed=False)
         self.cli('guard',{'tool':'mcp__prod__release','input':{}},passed=False)
         for _ in range(3): self.cli('advance')
         self.cli('guard',{'tool':'edit','input':{'path':'code.txt'}})
@@ -276,7 +311,7 @@ else:
 
     def test_handoff_missing_or_oversized_fails(self) -> None:
         self.prepare()
-        path=self.cwd/'HANDOFF.md';path.write_text(path.read_text()+'\n'*200)
+        self.set_doc('HANDOFF.md', (self.record / 'HANDOFF.md').read_text()+'\n'*200)
         self.cli('handoff',passed=False)
 
     def test_codex_native_hook_protocol_denies_unapproved_patch(self) -> None:
@@ -322,8 +357,10 @@ else:
         denied=subprocess.run(command,cwd=self.cwd,input=json.dumps(request),env={**self.env,'PATH':str(fake)+os.pathsep+os.environ['PATH']},text=True,capture_output=True)
         self.assertNotEqual(denied.returncode,0)
 
-    def test_symlinked_state_directory_does_not_write_outside(self) -> None:
-        outside=self.base/'outside';outside.mkdir();(self.cwd/'.sdlc').symlink_to(outside,target_is_directory=True)
+    def test_symlinked_global_home_does_not_write_outside(self) -> None:
+        outside=self.base/'outside';outside.mkdir()
+        symlink_home=self.base/'symlink-home';symlink_home.symlink_to(outside,target_is_directory=True)
+        self.env['SDLC_HOME']=str(symlink_home)
         self.cli('init',passed=False)
         self.assertEqual(list(outside.iterdir()),[])
 
@@ -337,7 +374,7 @@ else:
         state = self.cli('init', {'task': 'provenance'})
         self.assertIn('method', state)
         self.assertEqual('pi-sdlc', state['method']['name'])
-        self.assertEqual('0.1.0', state['method']['version'])
+        self.assertEqual(json.loads((SCRIPT.parents[1] / 'package.json').read_text())['version'], state['method']['version'])
         self.assertEqual(str(SCRIPT.parents[1]), state['method']['source'])
         self.assertRegex(state['method']['digest'], r'^[0-9a-f]{64}$')
         self.assertFalse((self.home / 'methods').exists())
@@ -365,9 +402,9 @@ else:
         archived = self.cli('archive')
         archive_dir = Path(archived['archived'])
         self.assertFalse((archive_dir / 'REVIEW.md').exists())
-        self.assertTrue((self.cwd / 'REVIEW.md').is_file())
+        self.assertTrue((self.project / 'REVIEW.md').is_file())
         archived_state = json.loads((archive_dir / 'state.json').read_text())
-        expected_policy = hashlib.sha256(json.dumps((self.cwd / 'REVIEW.md').read_text(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        expected_policy = hashlib.sha256(json.dumps((ASSETS / 'REVIEW.md').read_text(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         self.assertEqual({'source': 'REVIEW.md', 'digest': expected_policy}, archived_state['reviewPolicy'])
         self.assertEqual('https://github.example/pull/123#pullrequestreview-9', archived_state['receipts']['review']['reference'])
         self.assertEqual(['commit:deadbeef'], archived_state['receipts']['review']['fixes'])
@@ -394,14 +431,15 @@ else:
  pathlib.Path(sys.argv[2]).write_text(kind)
  print('{}')
 ''')
-        self.cli('init', {'task': 'events-task'})
-        (self.cwd / 'INTENT.md').write_text('# Intent: Example\nAuthor: A. User. Status: draft.\n\n' + '\n\n'.join('## ' + s + '\nPRIVATE_INTENT_PROSE_42.' for s in ['Problem', 'Proposed outcome', 'Affected users and systems', 'Constraints', 'Open questions']) + '\n\n<!-- intent:event:1 -->\n<details>\n<summary>User request 1 — 2026-11-09T00:00:00Z</summary>\n\n> PRIVATE_RAW_USER_PROMPT_99\n\n</details>\n')
-        (self.cwd / 'HANDOFF.md').write_text((ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'In progress: PRIVATE_HANDOFF_STATE_88.').replace('Not assessed.', 'No known blocker.'))
-        (self.cwd / 'SPEC.md').write_text((ASSETS / 'SPEC.md').read_text().replace('[REQUIRED]', 'PRIVATE_SPEC_BODY_77.'))
-        (self.cwd / 'PLAN.md').write_text((ASSETS / 'PLAN.md').read_text().replace('[REQUIRED]', 'PRIVATE_PLAN_STEP_66.'))
-        shutil.copyfile(ASSETS / 'REVIEW.md', self.cwd / 'REVIEW.md')
+        initial = self.cli('init', {'task': 'events-task'})
+        self.project = self.home / 'projects' / initial['project']
+        self.set_doc('INTENT.md', '# Intent: Example\nAuthor: A. User. Status: draft.\n\n' + '\n\n'.join('## ' + s + '\nPRIVATE_INTENT_PROSE_42.' for s in ['Problem', 'Proposed outcome', 'Affected users and systems', 'Constraints', 'Open questions']) + '\n\n<!-- intent:event:1 -->\n<details>\n<summary>User request 1 — 2026-11-09T00:00:00Z</summary>\n\n> PRIVATE_RAW_USER_PROMPT_99\n\n</details>\n')
+        self.set_doc('HANDOFF.md', (ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'In progress: PRIVATE_HANDOFF_STATE_88.').replace('Not assessed.', 'No known blocker.'))
+        self.set_doc('SPEC.md', (ASSETS / 'SPEC.md').read_text().replace('[REQUIRED]', 'PRIVATE_SPEC_BODY_77.'))
+        self.set_doc('PLAN.md', (ASSETS / 'PLAN.md').read_text().replace('[REQUIRED]', 'PRIVATE_PLAN_STEP_66.'))
+        self.set_policy(ASSETS / 'REVIEW.md')
         config = {'version': 1, 'checks': [{'name': 'fixture', 'argv': [sys.executable, '-c', 'print("PRIVATE_CHECK_STDOUT_55")']}], 'agentFiles': [], 'evalSuite': str(self.suite)}
-        (self.cwd / '.sdlc/config.json').write_text(json.dumps(config))
+        (self.project / 'config.json').write_text(json.dumps(config))
         for _ in range(3):
             self.cli('advance')
         self.commit()
@@ -417,9 +455,8 @@ else:
         record = Path(archived['globalRecord'])
         events_file = record / 'events.jsonl'
         self.assertTrue(events_file.is_file())
-        raw_store = '\n'.join(path.read_text() for path in self.home.rglob('*') if path.is_file())
-        for secret in ('PRIVATE_INTENT_PROSE_42', 'PRIVATE_RAW_USER_PROMPT_99', 'PRIVATE_HANDOFF_STATE_88',
-                       'PRIVATE_SPEC_BODY_77', 'PRIVATE_PLAN_STEP_66', 'PRIVATE_CHECK_STDOUT_55', 'PRIVATE_REVIEW_FINDING_TEXT'):
+        raw_store = '\n'.join(path.read_text() for path in (record / 'events.jsonl', record / 'task.json') if path.is_file())
+        for secret in ('PRIVATE_CHECK_STDOUT_55', 'PRIVATE_REVIEW_FINDING_TEXT'):
             self.assertNotIn(secret, raw_store)
         events = [json.loads(line) for line in events_file.read_text().splitlines()]
         self.assertEqual(['init', 'advance', 'advance', 'advance', 'advance', 'check', 'eval', 'advance', 'review', 'advance', 'deploy', 'advance', 'archive'],
@@ -435,7 +472,7 @@ else:
 
     def test_global_records_group_linked_worktrees_preserve_repeated_task_names_and_reject_symlinks(self) -> None:
         first = self.cli('init', {'task': 'same-name'})
-        (self.cwd / 'HANDOFF.md').write_text((ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'Done.').replace('Not assessed.', 'None.'))
+        self.set_doc('HANDOFF.md', (ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'Done.').replace('Not assessed.', 'None.'))
         worktree = self.linked_worktree('linked-global')
         second = self.cli('init', {'task': 'same-name'}, cwd=worktree)
         first_record = Path(first['globalRecord'])
@@ -448,16 +485,16 @@ else:
         outside.mkdir()
         symlink_home = self.base / 'symlink-home'
         symlink_home.symlink_to(outside, target_is_directory=True)
-        for path in (self.cwd, worktree):
-            (path / 'INTENT.md').write_text('# Intent: Example\nAuthor: A. User. Status: draft.\n\n' + '\n\n'.join('## ' + s + '\nRequirement.' for s in ['Problem', 'Proposed outcome', 'Affected users and systems', 'Constraints', 'Open questions']) + '\n')
-            (path / 'HANDOFF.md').write_text((ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'Done.').replace('Not assessed.', 'None.'))
+        for record in (first_record, second_record):
+            (record / 'INTENT.md').write_text('# Intent: Example\nAuthor: A. User. Status: draft.\n\n' + '\n\n'.join('## ' + s + '\nRequirement.' for s in ['Problem', 'Proposed outcome', 'Affected users and systems', 'Constraints', 'Open questions']) + '\n')
+            (record / 'HANDOFF.md').write_text((ASSETS / 'HANDOFF.md').read_text().replace('No task progress has been recorded. The task outcome is unknown.', 'Done.').replace('Not assessed.', 'None.'))
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             list(pool.map(lambda path: self.cli('advance', cwd=path), [self.cwd, worktree]))
         self.assertEqual(2, len((first_record / 'events.jsonl').read_text().splitlines()))
         self.assertEqual(2, len((second_record / 'events.jsonl').read_text().splitlines()))
         absent_home = self.base / 'absent-home'
         self.env['SDLC_HOME'] = str(absent_home)
-        self.cli('status')
+        self.cli('status', {'recordId': first['recordId']}, passed=False)
         self.assertFalse(absent_home.exists())
         self.env['SDLC_HOME'] = str(symlink_home)
         self.cli('status', passed=False)
@@ -467,7 +504,6 @@ else:
         fallback = self.linked_worktree('template-policy')
         self.cwd = fallback
         self.prepare()
-        (self.cwd / 'REVIEW.md').unlink()
         for _ in range(3):
             self.cli('advance')
         self.commit()
@@ -477,7 +513,7 @@ else:
         self.cli('advance')
         reviewed = self.cli('review')
         expected_template = hashlib.sha256(json.dumps((ASSETS / 'REVIEW.md').read_text(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-        self.assertEqual({'source': f'{ASSETS.name}/REVIEW.md', 'digest': expected_template}, reviewed['receipts']['review']['policy'])
+        self.assertEqual({'source': 'REVIEW.md', 'digest': expected_template}, reviewed['receipts']['review']['policy'])
         saved = json.loads((Path(reviewed['globalRecord']) / 'task.json').read_text())
         self.assertEqual(expected_template, saved['reviewedPolicy']['digest'])
 

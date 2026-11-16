@@ -18,3 +18,12 @@ def test_sdlc_contract(scenario: str) -> None:
     result = subprocess.run([*runner, str(PACKAGE / "tests/contracts.mts"), scenario],
                             cwd=REPO, text=True, capture_output=True, timeout=25)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_non_git_probe_does_not_leak_git_stderr(tmp_path: Path) -> None:
+    """Given a directory outside a Git checkout, a record probe stays silent on stderr."""
+    runner = ["bun"] if shutil.which("bun") else ["node", "--import", "tsx"]
+    result = subprocess.run([*runner, str(PACKAGE / "tests/non-git-probe.mts"), str(tmp_path)],
+                            cwd=REPO, text=True, capture_output=True, timeout=25)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "fatal: not a git repository" not in result.stderr

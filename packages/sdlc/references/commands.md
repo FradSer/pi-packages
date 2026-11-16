@@ -15,7 +15,7 @@ unless a configured review, eval or diagnosis adapter makes one.
 ## Actions
 
 - `init --args '{"task":"claim-status"}'`: preserve root intent and handoff;
-  create `.sdlc/state.json`, a default config and a scoped ignore file. Output
+  create the global task record and default config under `~/.sdlc`. Output
   includes `workspace`, `preservedArtifacts` and the next action. Refresh any
   inherited summaries for the new task; initialization never approves them.
 - `status`: show current stage, approvals and receipts.
@@ -33,8 +33,10 @@ unless a configured review, eval or diagnosis adapter makes one.
   the review policy version and external review/approval references. Use another
   worktree for a new task, or replace summaries explicitly after archiving.
 
-Each worktree owns one active task, its documents, `.sdlc/lock`, state, receipts
-and archives. `~/.sdlc` (or `SDLC_HOME`) stores non-authoritative project/task
+The worktree owns no SDLC files. `INTENT.md`, `SPEC.md`, `PLAN.md` and `HANDOFF.md` live under
+`~/.sdlc/projects/<project-id>/tasks/<record-id>/`; `REVIEW.md` is one project-level policy.
+State, receipts, snapshots, events and locks are global. Use `document` to update task Markdown
+through the control plane and `turn` to append host lifecycle events. `~/.sdlc` (or `SDLC_HOME`) stores non-authoritative project/task
 metadata under `projects/<project-id>/tasks/<record-id>/`: `task.json` records the
 installed method provenance (`name`, `version`, `source`, `digest`), the workspace
 `REVIEW.md` policy digest, artifact digests, and external approval/review/fix
@@ -53,7 +55,7 @@ reconcile their intent and progress into the root artifacts before continuing.
 
 ## Project config
 
-Commit `.sdlc/config.json`. A plan approves its exact digest. Example:
+Store the project config in the global project record for local runs. A plan approves its exact digest. Example:
 
 ```json
 {

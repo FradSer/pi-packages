@@ -28,6 +28,8 @@ SECTIONS = {
     'HANDOFF.md': ['Current state', 'Decisions', 'Verification', 'Blockers', 'Next steps'],
 }
 ASSETS = Path(__file__).resolve().parents[1] / 'templates'
+_PROJECT: Path | None = None
+_RECORD: Path | None = None
 
 
 def require(condition: Any, message: str) -> None:
@@ -123,9 +125,93 @@ def confined(base: Path, name: str) -> Path:
 
 
 def local(cwd: Path) -> Path:
-    root = cwd / '.sdlc'
+    # All mutable task state lives under the global control plane. The legacy
+    # path is kept only as a lock fallback before a record is resolved.
+    root = _RECORD if _RECORD is not None else cwd / '.sdlc'
     require(not root.is_symlink(), '.sdlc must not be a symbolic link')
     return root
+
+
+def project_dir(cwd: Path, *, create: bool = True) -> Path:
+    root = confined(global_home(create=create), 'projects/' + project_id(cwd))
+    if create:
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return root
+
+
+def resolve_context(cwd: Path, args: dict[str, Any], *, create: bool = False) -> None:
+    global _PROJECT, _RECORD
+    if os.environ.get('SDLC_HOME', '').strip() and not create:
+        declared = global_home(create=False)
+        require(declared.is_dir(), 'SDLC_HOME does not exist: ' + str(declared))
+    _PROJECT = project_dir(cwd, create=create)
+    record_id = bounded_token(args.get('recordId')) or bounded_token(os.environ.get('SDLC_RECORD_ID'))
+    registry = _PROJECT / 'registry.json'
+    if not record_id and registry.exists():
+        data = json.loads(read(registry))
+        worktrees = data.get('worktrees') if isinstance(data, dict) else None
+        if isinstance(worktrees, dict):
+            record_id = bounded_token(worktrees.get(str(cwd)))
+    _RECORD = confined(_PROJECT, 'tasks/' + record_id) if record_id else None
+
+
+def ensure_record(cwd: Path, args: dict[str, Any], task: str) -> Path:
+    global _RECORD
+    if _RECORD is None:
+        created = stamp()
+        suffix = digest({'workspace': str(cwd), 'created': created})[:8]
+        _RECORD = confined(_PROJECT, 'tasks/' + f'{task}-{re.sub(r"[^0-9]", "", created)[:14]}-{suffix}')
+    _RECORD.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return _RECORD
+
+
+def doc(cwd: Path, name: str) -> str:
+    # Existing worktree documents are accepted only as a migration bridge.
+    source = (_RECORD / name) if _RECORD is not None and name in TASK_DOCS else None
+    if source is None:
+        source = (_PROJECT / name) if _PROJECT is not None and name == 'REVIEW.md' else cwd / name
+    if source.is_file() and not source.is_symlink():
+        text = read(source)
+    elif source == (_PROJECT / 'REVIEW.md') and (ASSETS / 'REVIEW.md').is_file():
+        text = read(ASSETS / 'REVIEW.md')
+    else:
+        raise FileNotFoundError(source)
+    return text.split('<!-- intent:event:', 1)[0].rstrip() if name == 'INTENT.md' else text
+
+
+def write_doc(cwd: Path, name: str, text: str) -> Path:
+    require(_RECORD is not None, 'No active SDLC record')
+    require(name in TASK_DOCS, 'Unsupported SDLC document')
+    target = confined(_RECORD, name)
+    write(target, text)
+    return target
+
+
+def checkpoint_text(text: str, lifecycle: str, reference: str, at: str) -> str:
+    start, end = '<!-- sdlc:lifecycle:start -->', '<!-- sdlc:lifecycle:end -->'
+    status = {'started': 'started; refresh the current state before task work',
+              'ended': 'turn ended; not proof of task completion',
+              'interrupted': 'interrupted; work may remain',
+              'error': 'error; task outcome is unverified'}[lifecycle]
+    block = f'{start}\n## Latest lifecycle checkpoint\nTurn: {reference}\nUpdated: {at}\nStatus: {status}.\n{end}\n'
+    starts = [match for match in re.finditer(r'(?m)^' + re.escape(start) + r'\r?$', text)]
+    ends = [match for match in re.finditer(r'(?m)^' + re.escape(end) + r'\r?$', text)]
+    if not starts and not ends:
+        return text.rstrip('\n') + '\n\n' + block
+    require(text.count(start) == 1 and text.count(end) == 1 and len(starts) == 1 and len(ends) == 1 and starts[0].start() < ends[0].start(),
+            'HANDOFF.md has malformed lifecycle markers; preserve and repair them')
+    head = text[:starts[0].start()]
+    tail = text[ends[0].end():].lstrip('\n')
+    return head + block + (('\n' + tail) if tail else '')
+
+
+def append_intent_source(text: str, prompt: str, marker: str, reference: str, at: str) -> str:
+    if marker in text.split('\n'):
+        return text
+    escaped = json.dumps(prompt, ensure_ascii=False) if '\r' in prompt else prompt.replace('\n', '\n> ')
+    prefix = '> Source as a JSON string (preserves carriage returns):\n> ' if '\r' in prompt else '> '
+    source = f'\n{marker}\n<details>\n<summary>User request {reference} — {at}</summary>\n\n{prefix}{escaped}\n\n</details>\n'
+    return text.rstrip('\n') + '\n' + source
 
 
 def global_home(*, create: bool = True) -> Path:
@@ -175,8 +261,9 @@ def method_provenance() -> dict[str, str]:
 
 
 def review_policy_ref(cwd: Path, *, default_template: bool = False) -> dict[str, str] | None:
-    if (cwd / 'REVIEW.md').exists():
-        return {'source': 'REVIEW.md', 'digest': digest(doc(cwd, 'REVIEW.md'))}
+    project_policy = (_PROJECT / 'REVIEW.md') if _PROJECT is not None else None
+    if project_policy is not None and project_policy.is_file() and not project_policy.is_symlink():
+        return {'source': 'REVIEW.md', 'digest': digest(read(project_policy))}
     if default_template and (ASSETS / 'REVIEW.md').is_file():
         return {'source': f'{ASSETS.name}/REVIEW.md', 'digest': digest(read(ASSETS / 'REVIEW.md'))}
     return None
@@ -185,9 +272,11 @@ def review_policy_ref(cwd: Path, *, default_template: bool = False) -> dict[str,
 def artifact_digests(cwd: Path) -> dict[str, str]:
     result = {}
     for name in DOCS:
-        path = cwd / name
+        path = (_PROJECT / name if _PROJECT is not None else cwd / name) if name == 'REVIEW.md' else (_RECORD / name if _RECORD is not None else cwd / name)
         if path.is_file() and not path.is_symlink():
             result[name] = digest(doc(cwd, name))
+        elif name in TASK_DOCS:
+            result[name] = 'missing'
     return result
 
 
@@ -269,20 +358,25 @@ def record_global_task(cwd: Path, state: dict[str, Any], *, action: str | None =
                        passed: bool | None = None, extra: dict[str, Any] | None = None) -> Path:
     if not isinstance(state.get('method'), dict):
         state['method'] = method_provenance()
-    home = global_home()
-    project = confined(home, 'projects/' + project_id(cwd))
+    require(_PROJECT is not None and _RECORD is not None, 'No active SDLC record')
+    project, target = _PROJECT, _RECORD
     with locked_global(project):
-        created = re.sub(r'[^0-9]', '', str(state.get('created', '')))[:14] or 'task'
-        record_id = str(state.get('recordId') or f"{state['task']}-{created}-{digest({'workspace': str(cwd), 'created': state.get('created')})[:8]}")
+        record_id = str(state.get('recordId') or target.name)
         state['recordId'] = record_id
         policy_ref = review_policy_ref(cwd, default_template=True)
         if policy_ref is not None:
             state['reviewPolicy'] = policy_ref
-        target = confined(project, 'tasks/' + record_id)
-        target.mkdir(parents=True, exist_ok=True, mode=0o700)
         references = external_references(state)
         reviewed_policy = references.get('review', {}).get('policy') if isinstance(references.get('review'), dict) else None
         artifacts = artifact_digests(cwd)
+        registry = project / 'registry.json'
+        data = json.loads(read(registry)) if registry.exists() else {'version': 1, 'worktrees': {}}
+        worktrees = data.get('worktrees') if isinstance(data.get('worktrees'), dict) else {}
+        if action == 'archive':
+            worktrees.pop(str(cwd), None)
+        else:
+            worktrees[str(cwd)] = record_id
+        write(registry, {'version': 1, 'project': project.name, 'worktrees': worktrees, 'updated': stamp()})
         write(project / 'project.json', {'version': 1, 'project': project.name, 'workspace': str(cwd), 'updated': stamp()})
         write(target / 'task.json', {'version': 1, 'project': project.name, 'task': state['task'], 'recordId': record_id,
                                      'workspace': str(cwd), 'stage': state['stage'], 'created': state['created'],
@@ -306,24 +400,32 @@ def record_global_task(cwd: Path, state: dict[str, Any], *, action: str | None =
             if extra:
                 event.update(extra)
             append_jsonl(target / 'events.jsonl', event)
+            snapshot = confined(target, 'snapshots/' + str(len((target / 'events.jsonl').read_text().splitlines())))
+            snapshot.mkdir(parents=True, exist_ok=True, mode=0o700)
+            for name in TASK_DOCS:
+                source = target / name
+                if source.is_file() and not source.is_symlink():
+                    write(snapshot / name, read(source))
     return target
 
 
 @contextmanager
 def locked(cwd: Path) -> Iterator[None]:
-    root = local(cwd)
-    root.mkdir(exist_ok=True)
-    fd = os.open(root / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    root = _RECORD if _RECORD is not None else (_PROJECT if _PROJECT is not None else local(cwd))
+    require(root.is_dir(), 'SDLC task or project directory does not exist')
+    fd = os.open(root / 'engine.lock', os.O_CREAT | os.O_EXCL | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         require(os.fstat(fd).st_nlink == 1, 'Unsafe SDLC lock')
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         yield
     finally:
         os.close(fd)
+        os.unlink(root / 'engine.lock')
 
 
 def config(cwd: Path) -> dict[str, Any]:
-    value = json.loads(read(local(cwd) / 'config.json'))
+    global_config = (_PROJECT / 'config.json') if _PROJECT is not None else None
+    path = global_config if global_config is not None and global_config.is_file() else cwd / '.sdlc/config.json'
+    value = json.loads(read(path))
     require(isinstance(value, dict) and value.get('version') == 1, 'Unsupported SDLC configuration')
     return value
 
@@ -336,14 +438,6 @@ def policy(cwd: Path) -> dict[str, Any]:
     value = json.loads(read(path))
     require(value.get('version') == 1, 'Unsupported managed policy')
     return value
-
-
-def doc(cwd: Path, name: str) -> str:
-    text = read(cwd / name)
-    # Raw source requests are retained but are not approval-bearing requirements.
-    if name == 'INTENT.md':
-        text = text.split('<!-- intent:event:', 1)[0].rstrip()
-    return text
 
 
 def valid_doc(cwd: Path, name: str) -> None:
@@ -390,8 +484,8 @@ def snapshot(cwd: Path) -> dict[str, str]:
     head = run(['git', 'rev-parse', 'HEAD'], cwd)
     result['head'] = head['stdout'].strip() if head['code'] == 0 else 'unborn'
     for name in ('INTENT.md', 'SPEC.md', 'PLAN.md', 'REVIEW.md'):
-        if (cwd / name).exists():
-            result[name] = digest(doc(cwd, name))
+        path = (_PROJECT / name if _PROJECT is not None else cwd / name) if name == 'REVIEW.md' else (_RECORD / name if _RECORD is not None else cwd / name)
+        result[name] = digest(doc(cwd, name)) if path.is_file() and not path.is_symlink() else 'missing'
     return result
 
 
@@ -507,7 +601,7 @@ def metric_tier(values: list[float]) -> dict[str, Any]:
 
 
 def detect_metric(cwd: Path, args: dict[str, Any]) -> dict[str, Any]:
-    root = local(cwd)
+    root = _PROJECT if _PROJECT is not None else local(cwd)
     detection = metric_tier(args.get('readings'))
     if detection['tier'] >= 2:
         # The diagnostic adapter is read-only by deployment policy. It returns a proto-spec.
@@ -530,30 +624,41 @@ def detect_metric(cwd: Path, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | None = None) -> dict[str, Any]:
-    root = local(cwd)
-    state_path = root / 'state.json'
     if action == 'init':
         git(cwd, 'rev-parse', '--show-toplevel')
-        require(not state_path.exists(), 'An active task exists; archive it before starting another')
         task = args.get('task', datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S'))
         require(isinstance(task, str) and re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}', task), 'Invalid task id')
-        require(not confined(root, 'tasks/' + task).exists(), 'This task id already has an archive')
+        root = ensure_record(cwd, args, task)
+        state_path = root / 'state.json'
+        require(not state_path.exists(), 'An active task exists; archive it before starting another')
         state = {'version': 1, 'task': task, 'stage': 'intent', 'created': stamp(), 'method': method_provenance(), 'approvals': {}, 'receipts': {}}
-        preserved = [name for name in DOCS if (cwd / name).exists()]
-        for name in ('INTENT.md', 'HANDOFF.md'):
-            if not (cwd / name).exists():
-                write(cwd / name, read(ASSETS / name))
-        if not (root / 'config.json').exists():
-            write(root / 'config.json', {'version': 1, 'checks': [], 'agentFiles': [], 'evalSuite': None})
-        if not (root / '.gitignore').exists():
-            write(root / '.gitignore', '*\n!.gitignore\n!config.json\n')
+        preserved = [name for name in TASK_DOCS if (cwd / name).is_file()]
+        for name in TASK_DOCS:
+            target = confined(root, name)
+            if not target.exists():
+                if (cwd / name).is_file() and not (cwd / name).is_symlink():
+                    write(target, read(cwd / name))
+                else:
+                    write(target, read(ASSETS / name))
+        review_policy = confined(_PROJECT, 'REVIEW.md')
+        if not review_policy.exists():
+            legacy_policy = cwd / 'REVIEW.md'
+            write(review_policy, read(legacy_policy) if legacy_policy.is_file() and not legacy_policy.is_symlink() else read(ASSETS / 'REVIEW.md'))
+        config_path = confined(_PROJECT, 'config.json')
+        if not config_path.exists():
+            legacy_config = cwd / '.sdlc/config.json'
+            write(config_path, json.loads(read(legacy_config)) if legacy_config.is_file() else {'version': 1, 'checks': [], 'agentFiles': [], 'evalSuite': None})
         record = record_global_task(cwd, state, action='init', actor=actor_metadata(args), passed=True)
         state['globalRecord'] = str(record)
+        state['project'] = _PROJECT.name
         write(state_path, state)
         return {**state, 'workspace': str(cwd), 'preservedArtifacts': preserved,
                 'next': 'Refresh preserved artifact summaries for this task before requesting approval.' if preserved else 'Capture the current intent before requesting approval.'}
     if action == 'metric':
         return detect_metric(cwd, args)
+    require(_RECORD is not None, 'No active SDLC task in this worktree; pass recordId or run init')
+    root = local(cwd)
+    state_path = root / 'state.json'
     state = json.loads(read(state_path))
     require(state.get('version') == 1 and state.get('stage') in STAGES, 'Invalid workflow state')
     if not isinstance(state.get('method'), dict):
@@ -561,6 +666,34 @@ def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | No
     previous_stage = state['stage']
     actor = actor_metadata(args)
     cfg = config(cwd)
+    if action == 'document':
+        name = args.get('name')
+        text = args.get('text')
+        require(name in TASK_DOCS and isinstance(text, str), 'document requires a name and text')
+        write_doc(cwd, name, text)
+        state['updated'] = stamp()
+        state['globalRecord'] = str(record_global_task(cwd, state, action='document', previous_stage=previous_stage, actor=actor, passed=True, extra={'document': name}))
+        write(state_path, state)
+        return state
+    if action == 'turn':
+        reference = bounded_token(args.get('reference'), limit=80) or digest({'actor': actor, 'at': stamp()})[:16]
+        lifecycle = args.get('lifecycle')
+        require(lifecycle in ('started', 'ended', 'interrupted', 'error'), 'Invalid lifecycle')
+        prompt = args.get('prompt')
+        if isinstance(prompt, str) and prompt.strip():
+            current = doc(cwd, 'INTENT.md')
+            marker = '<!-- intent:event:' + digest({'identity': reference, 'prompt': prompt}) + ' -->'
+            write_doc(cwd, 'INTENT.md', append_intent_source(current, prompt, marker, reference, stamp()))
+        handoff = doc(cwd, 'HANDOFF.md')
+        write_doc(cwd, 'HANDOFF.md', checkpoint_text(handoff, lifecycle, reference, stamp()))
+        state['updated'] = stamp()
+        state['globalRecord'] = str(record_global_task(cwd, state, action='turn', previous_stage=previous_stage, actor=actor, passed=lifecycle == 'ended', extra={'lifecycle': lifecycle, 'turn': reference}))
+        write(state_path, state)
+        return state
+    if action == 'handoff':
+        valid_doc(cwd, 'HANDOFF.md')
+        packet = f"# SDLC handoff\nTask: {state['task']}\nStage: {state['stage']}\nRecord: {state['globalRecord']}\n\n" + doc(cwd, 'HANDOFF.md')
+        return {'passed': True, 'digest': digest(doc(cwd, 'HANDOFF.md')), 'packet': packet}
     if action == 'guard':
         tool = args.get('tool', '')
         data = args.get('input', {})
@@ -582,7 +715,7 @@ def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | No
                 require(workspace_root(parent) == cwd, 'Write into another Git worktree is not allowed by the SDLC guard')
                 relative = str(target.relative_to(cwd))
                 if state['stage'] in ('intent', 'design', 'plan'):
-                    require(relative in DOCS or relative == '.sdlc/config.json', 'Approve the implementation plan before editing source files')
+                    raise ValueError('Approve the implementation plan before editing worktree files; use the sdlc document action for SDLC documents')
         return {'passed': True}
     if action == 'status':
         if os.environ.get('SDLC_HOME', '').strip():
@@ -601,18 +734,16 @@ def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | No
         require(state['stage'] == 'maintain', 'Only a task that reached maintain can be archived')
         valid_doc(cwd, 'HANDOFF.md')
         require(isinstance(state.get('task'), str) and re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}', state['task']), 'Invalid saved task id')
-        target = confined(root, 'tasks/' + state['task'])
+        target = confined(_PROJECT, 'archive/' + state['task'])
         require(not target.exists(), 'This task id already has an archive')
         state['updated'] = stamp()
         state['globalRecord'] = str(record_global_task(cwd, state, action='archive', previous_stage=previous_stage,
                                                        actor=actor, passed=True, extra={'archived': str(target)}))
         target.mkdir(parents=True, exist_ok=False)
         for name in TASK_DOCS:
-            if (cwd / name).exists():
-                write(target / name, read(cwd / name))
+            if (root / name).exists():
+                write(target / name, read(root / name))
         write(target / 'state.json', state)
-        # Preserve working documents for human inspection. init never overwrites them.
-        state_path.unlink()
         return {'archived': str(target), 'globalRecord': state['globalRecord'], 'reviewPolicy': state.get('reviewPolicy'),
                 'next': 'Use a new worktree or explicitly replace the active artifact summaries before init.'}
     elif action in ('check', 'eval', 'review'):
@@ -735,7 +866,7 @@ def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | No
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['init', 'status', 'guard', 'handoff', 'advance', 'rewind', 'archive', 'check', 'eval', 'review', 'deploy', 'metric'])
+    parser.add_argument('action', choices=['init', 'status', 'guard', 'handoff', 'document', 'turn', 'advance', 'rewind', 'archive', 'check', 'eval', 'review', 'deploy', 'metric'])
     parser.add_argument('--cwd', type=Path, default=Path.cwd())
     parser.add_argument('--args', default='{}', help='JSON action arguments; adapter input is sent through stdin')
     options = parser.parse_args()
@@ -748,6 +879,7 @@ def main() -> int:
         cwd = workspace_root(tool_cwd)
         args = json.loads(options.args)
         require(isinstance(args, dict), 'Action arguments must be an object')
+        resolve_context(cwd, args, create=options.action in ('init', 'metric') or not os.environ.get('SDLC_HOME', '').strip())
         with locked(cwd):
             result = execute(cwd, options.action, args, tool_cwd=tool_cwd)
         print(json.dumps(result, ensure_ascii=False))

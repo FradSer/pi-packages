@@ -7,13 +7,13 @@ for Codex and Pi. Keep organization policy and existing authorization in force.
 
 ## Artifacts and ownership
 
-One working directory or Git worktree owns one active change. INTENT.md states
+One global task record under `~/.sdlc` owns one active change; a Git worktree only holds product code. INTENT.md states
 what and why. SPEC.md records requirements and design. PLAN.md records how.
 HANDOFF.md states the latest execution state and evidence. REVIEW.md is review
 policy, not findings. Findings and approvals belong in the PR or change system.
 Use `init` to create the task record without overwriting existing documents.
 Update existing artifacts in place. Archive a finished task before starting the
-next one. `.sdlc/tasks/<task>` snapshots the task documents (`INTENT.md`, `SPEC.md`,
+next one. `global task archive` snapshots the task documents (`INTENT.md`, `SPEC.md`,
 `PLAN.md`, `HANDOFF.md`) and `state.json`; it records `REVIEW.md` by source and
 digest instead of copying a second editable review policy per task. `~/.sdlc`
 (or `SDLC_HOME`) stores the installed method version/source/digest, policy and
@@ -170,7 +170,7 @@ Pass the diagnosis through an independent deterministic check or adversarial
 review before the next stage. Escalate low-confidence or conflicting results.
 
 The diagnosis adapter returns an intent proto-spec. The engine writes a deduplicated
-`.sdlc/inbox/<event>.md` and evidence JSON for product owner/on-call triage.
+`global project inbox/<event>.md` and evidence JSON for product owner/on-call triage.
 A scheduled job, webhook, ticket or channel adapter can call the same command.
 Route accepted findings into a new worktree and the same intent-to-maintain flow.
 Dismiss, schedule or fix with a recorded owner decision. Tune noisy detection.
