@@ -34,15 +34,16 @@ bun pm pack --destination /tmp --quiet --cwd packages/agent-teams
   durable identity. Inline roles are session-only. No persistence/Memory/worktree
   switches, model-created disk definitions, Git workspace or automatic commits.
   Durable data uses one private home; children edit the original project cwd.
-- **Task Lifecycle**: `task` owns create/list/update/complete/reopen. Participants
-  take work with `update status=in_progress`; a task declares no assignee. Failed
-  results require explicit failed completion, and configured verification gates
-  must not be bypassed by callback ordering or draining a report.
+- **Task Lifecycle**: Leader task tools are retired; Work Items live in the
+  internal `src/task-domain/`. A spawned teammate claims and submits its Work
+  with its own `task` tool, and a Task declares no assignee. Failed results
+  require explicit failed submission, and configured verification gates must not
+  be bypassed by callback ordering or draining a report.
 - **Communication**: `message` is communication-only (`inform` or `request`) and
   changes no execution ownership or acceptance. Results arrive automatically;
   continue independent work or end the turn, never poll to wait.
 - **Persistence**: Communication snapshots belong to `statefile.ts`; the durable
-  task storage belongs to pi-tasks. Do not duplicate either record in child identity
+  Work Item storage is internal to `src/task-domain/`. Do not duplicate either record in child identity
   or use presence as acceptance evidence.
 
 ## Testing Guidelines

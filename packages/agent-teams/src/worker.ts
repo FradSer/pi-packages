@@ -1,4 +1,4 @@
-import { isTaskReplaced } from "@fradser/pi-tasks";
+import { isTaskReplaced } from "./task-domain/index.ts";
 /**
  * Agent capabilities. A single addressed agent_event primitive covers
  * leader reports and peer mail. Task-list registration is shared by leader
@@ -10,12 +10,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { truncateTail, type ExtensionAPI, type MessageEndEvent } from "@earendil-works/pi-coding-agent";
 import { setOwnedTools } from "@fradser/pi-kit";
-import { isTaskStatus, resourcesConflict, type TaskStatus } from "@fradser/pi-tasks";
+import { isTaskStatus, resourcesConflict, type TaskStatus } from "./task-domain/index.ts";
 import { messageRow, workerWorkRow } from "./tool-copy.ts";
 import { emptyToolCall, renderCoordinationRow, textOf } from "./tool-render.ts";
 import { resolveRecipient } from "./recipient.ts";
 import { appendInboxMessage, appendWorkerEvent, readRoster } from "./statefile.ts";
-import { createTaskIntent, readTasksFile } from "@fradser/pi-tasks";
+import { createTaskIntent, readTasksFile } from "./task-domain/index.ts";
 import {
   AgentEventParams,
   LEADER_RECIPIENT,

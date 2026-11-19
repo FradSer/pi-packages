@@ -23,7 +23,7 @@ const { initTeamMachine, processTaskIntents, shutdownTeamMachine } = await impor
 const { createTask, getState, registerAgent, resetState } = await import("../src/state.ts");
 const { registerChildCapabilities } = await import("../src/worker.ts");
 const { inboxPath, rosterPath, stateFilePath, workerOutboxPath, writeRoster } = await import("../src/statefile.ts");
-        const { tasksFilePath, claimsDir, submissionsDir, writeTasksFile } = await import("@fradser/pi-tasks");
+        const { tasksFilePath, claimsDir, submissionsDir, writeTasksFile } = await import("../src/task-domain/index.ts");
 const { WorkerWorkToolParams } = await import("../src/types.ts");
 
 const root = process.env.PI_TEST_DIR;

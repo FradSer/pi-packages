@@ -1,5 +1,9 @@
 # @fradser/pi-tasks
 
+> **已弃用。** 这个插件已经不适合现在的 SOTA 模型。源码已归档到
+> [`deprecated/tasks`](../README.md)；原因与兼容说明见
+> [DEPRECATED.md](DEPRECATED.md)。不要在新工作中安装它。
+
 Tasks 是支持依赖关系和完成证据的持久化工作列表。目标是持续追求的一个结果；任务是列表中可以排序、领取和完成的一项工作。
 
 [English](README.md)

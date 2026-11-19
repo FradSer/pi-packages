@@ -71,9 +71,9 @@ Identity, data provisioning and offline list entries belong to
 [@fradser/pi-subagents](../subagents/VISION.md); team coordination does not create,
 promote or clear that package's role registry.
 
-`task` is activated only in valid assignment/tasks contexts and owns create/list/
-update/complete/reopen. A Task describes what must be done, not who must do it;
-participants take available Tasks with `update status=in_progress`.
+Leader task tools are retired. Work Items are kept in the internal
+`src/task-domain/`; a spawned teammate claims and submits its Work with its own
+`task` tool. A Work Item describes what must be done, not who must do it.
 
 Failed, interrupted, or crash-released Work returns to the tasks as
 `pending/recovery-required`: the evidence stays available for inspection, and the
@@ -151,7 +151,7 @@ Historical report filtering and report delivery remain separate from these promp
 
 Leader guidance uses the same delivery contract before and after a team starts:
 
-- Delegate separable work with a task-scoped baseline, acceptance criteria and safe local checks. Use `task create` with `dependsOn` for prerequisites and shared `resources` tags for conflicting writes; participants take eligible Tasks. Independent delegation is not a substitute for dependencies.
+- Delegate separable work with a Work-Item baseline, acceptance criteria and safe local checks. Pass `dependsOn` prerequisites and shared `resources` in the child brief; the runtime records Work internally. Independent delegation is not a substitute for dependencies.
 - Implementers own assigned local checks. One integration owner checks shared behavior against the integrated candidate. Determine isolation needs before verification; commands running locally may still access user data or production credentials.
 - Record a revision or scoped snapshot for the candidate and exclude unrelated dirty changes. Review and integration checks judge that same candidate; later edits invalidate affected evidence rather than automatically requiring every Agent to rerun every suite.
 - A completed review Work Item can report REWORK. It is not a PASS on the implementation. Review-only work ends with that report, without editing the implementation or waiting for repairs; the implementation owner owns remediation. Implementation delivery stays pending until required Work and blocking reviews have returned, findings are resolved, and applicable evidence matches the final candidate. If only results remain outstanding, yield without announcing completion.

@@ -30,7 +30,6 @@ const rowRenderer = (spec: { createSpec: Parameters<typeof createStaticToolLifec
     expandHint: keyHint("app.tools.expand", "to expand"),
   });
 import { registerLeaderTools } from "../src/tools.ts";
-import { registerTaskTools } from "@fradser/pi-tasks";
 import { registerChildCapabilities } from "../src/worker.ts";
 import {
   createTask,
@@ -113,7 +112,6 @@ setAgentHost({
   stop: (name, spawnId) => runtime.shutdownAgentExact(name, spawnId),
 });
 registerIntentTools(capture("leader") as unknown as ExtensionAPI, { renderResult: rowRenderer } as never);
-registerTaskTools(capture("leader") as unknown as ExtensionAPI, { renderResult: rowRenderer } as never);
 registerChildCapabilities(capture("worker") as unknown as ExtensionAPI);
 
 interface RenderPayload {
@@ -315,87 +313,6 @@ assert.equal(escapeName.structuredContent.operation, "start");
 assert.match(escapeName.content[0].text, /Parameter "name" must start with a letter/,
   `the executor's own name guard must still reject an escape:\n${escapeName.content[0].text}`);
 
-// ── work: subjects lead, identifiers stay model-facing ─────────────
-const taskCreated = await tools.get("leader:create_task").execute(
-  "row",
-  { subject: "Fix the spacing under the started row", resources: ["packages/context"] },
-  undefined,
-  undefined,
-  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
-);
-assert.equal(taskCreated.details.ok, true, taskCreated.content[0].text);
-const createdRow = render("leader:create_task", { subject: "Fix the spacing under the started row" }, {
-  details: taskCreated.details,
-  text: taskCreated.content[0].text,
-  expanded: true,
-});
-assert.ok(createdRow.includes("Fix the spacing under the started row"), `task create row missing the subject:\n${createdRow}`);
-// The old row carried a ROUTING line naming the residents that were notified.
-// The task tools cannot know a participant exists, and the row carries no
-// notification list. It also used to end with a "NEXT · take it with update
-// status=in_progress" line, which was model-facing call syntax painted into a
-// transcript a person reads; that went with the single-tool surface, and how to
-// spell the next call lives in each tool's declared description. So a creation
-// row is its headline and nothing else: the work, and the state it is in.
-assert.ok(!/take it with|status=in_progress/.test(createdRow),
-  `a creation row must not carry model-facing call syntax:\n${createdRow}`);
-assert.ok(!/ROUTING|notified/.test(createdRow),
-  `a creation row must not carry a notification list:\n${createdRow}`);
-
-assert.ok(!/eligible residents notified/.test(createdRow),
-  "the tasks tool must not claim to know which residents exist");
-expectReadable(createdRow, "task create row");
-
-// A held task, so the row has state to show. Taken by this session, which is the
-// same thing any participant does. Ownership stays in the structured result and
-// the persisted data; the row itself names no holder.
-await tools.get("leader:update_task").execute(
-  "row",
-  { id: taskCreated.details.id, status: "in_progress" },
-  undefined,
-  undefined,
-  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
-);
-const taskListed = await tools.get("leader:list_tasks").execute(
-  "row",
-  {},
-  undefined,
-  undefined,
-  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
-);
-const listedRow = render("leader:list_tasks", {}, { details: taskListed.details, text: taskListed.content[0].text, expanded: true });
-expectReadable(listedRow, "task list row");
-assert.ok(listedRow.includes("Fix the spacing under the started row"), `task list row missing the subject:\n${listedRow}`);
-assert.ok(listedRow.includes("(in progress)"), `task list row missing state:\n${listedRow}`);
-assert.ok(!listedRow.includes("@main"), `task list row must not name a holder:\n${listedRow}`);
-
-// A long Work subject stays whole in the row: the row fits it to the terminal
-// and expansion reveals it, so the renderer may not clip it. The model-facing
-// create tool caps a subject at 60 characters, so this seeds the store directly:
-// the rendering contract covers every stored subject, not only tool-created ones.
-const longSubject = `${"keep the widget aligned ".repeat(5)}TAIL-SUBJECT`.trim();
-assert.ok(longSubject.length > 110, "the long-subject regression must exceed the removed 90-character cap");
-const longTask = createTask({ subject: longSubject });
-assert.equal(longTask.ok, true, longTask.ok ? longTask.task.id : longTask.reason);
-const longTaskId = longTask.ok ? longTask.task.id : "";
-const longTaskStatus = longTask.ok ? longTask.task.status : "pending";
-const longDetails = {
-  tool: "create_task", ok: true, id: longTaskId, status: longTaskStatus,
-  ...(longTask.ok ? { task: longTask.task } : {}),
-};
-const longText = `TASK · ${longTaskId} · ${longTaskStatus}`;
-const longCreatedRow = render("leader:create_task", { subject: longSubject }, { details: longDetails, text: longText });
-expectReadable(longCreatedRow, "long-subject task create row");
-assert.ok(longCreatedRow.includes("TAIL-SUBJECT"), `collapsed work row clipped the subject at a fixed width:\n${longCreatedRow}`);
-const longCreatedExpanded = render("leader:create_task", { subject: longSubject }, { details: longDetails, text: longText, expanded: true });
-assert.ok(longCreatedExpanded.includes(longSubject), `expanded work row lost the complete subject:\n${longCreatedExpanded}`);
-const narrowLongRow = stripVTControlCharacters(renderComponent("leader:create_task", { subject: longSubject }, {
-  details: longDetails,
-  text: longText,
-}).render(80).join("\n"));
-assert.ok(!narrowLongRow.includes("to expand"), `Task titles are complete by default:\n${narrowLongRow}`);
-assert.ok(narrowLongRow.includes("TAIL-SUBJECT"), `default Task title lost its tail:\n${narrowLongRow}`);
-
 // ── agent_event: the message itself, not the routing record ─────────
 
 const messageRow = render("leader:message", { to: "@ui-auditor", body: "Also check the widget spacing, then report.", kind: "request" }, {
@@ -417,18 +334,20 @@ expectReadable(teammateMessageRow, "agent message row");
 assert.ok(teammateMessageRow.includes("Done: spacing fixed and tests pass."), `agent message row missing the report text:\n${teammateMessageRow}`);
 
 // ── agent work rows name the task, not the id ─────────────────────
+const workItem = createTask({ subject: "Fix the spacing under the started row" });
+assert.equal(workItem.ok, true);
 
-const claimRow = render("worker:task", { action: "claim", id: taskCreated.details.id }, {
-  details: { action: "claim", outcome: "queued", id: taskCreated.details.id, subject: "Fix the spacing under the started row", agent: "ui-auditor" },
-  text: `WORK · current session\nCLAIM INTENT QUEUED · ${taskCreated.details.id} · Fix the spacing under the started row\nREQUESTER · @ui-auditor\nNEXT · wait for harness claim acceptance`,
+const claimRow = render("worker:task", { action: "claim", id: workItem.task.id }, {
+  details: { action: "claim", outcome: "queued", id: workItem.task.id, subject: "Fix the spacing under the started row", agent: "ui-auditor" },
+  text: `WORK · current session\nCLAIM INTENT QUEUED · ${workItem.task.id} · Fix the spacing under the started row\nREQUESTER · @ui-auditor\nNEXT · wait for harness claim acceptance`,
   expanded: true,
 });
 expectReadable(claimRow, "agent claim row");
 assert.ok(claimRow.includes("Fix the spacing under the started row · claim queued"), `agent claim row missing the subject:\n${claimRow}`);
 
 const submitRow = render("worker:task", { action: "submit", outcome: "success" }, {
-  details: { action: "submit", outcome: "queued", id: taskCreated.details.id, subject: "Fix the spacing under the started row", status: "success", verify: false },
-  text: `WORK · current session\nSUBMISSION INTENT QUEUED · ${taskCreated.details.id} · success\nVERIFY · none configured\nNEXT · wait for the harness result`,
+  details: { action: "submit", outcome: "queued", id: workItem.task.id, subject: "Fix the spacing under the started row", status: "success", verify: false },
+  text: `WORK · current session\nSUBMISSION INTENT QUEUED · ${workItem.task.id} · success\nVERIFY · none configured\nNEXT · wait for the harness result`,
   expanded: true,
 });
 expectReadable(submitRow, "agent submit row");

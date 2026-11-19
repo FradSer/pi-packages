@@ -11,7 +11,7 @@ def test_incompatible_tasks_snapshot_raises_explicit_error(tmp_path):
     tasks.write_text(json.dumps({"runtimeVersion": 1, "tasks": {"old": {}}}))
     result = subprocess.run(
         ["node", "--input-type=module", "--eval", textwrap.dedent(f'''
-        import {{ readTasksFile }} from "@fradser/pi-tasks";
+        import {{ readTasksFile }} from "./src/task-domain/index.ts";
         try {{ readTasksFile({str(tasks)!r}); }} catch (error) {{ console.log(error.message); }}
         ''')],
         cwd=PACKAGE,
@@ -19,7 +19,7 @@ def test_incompatible_tasks_snapshot_raises_explicit_error(tmp_path):
         text=True,
     )
     assert result.returncode == 0, result.stderr
-    # Wording changed when the tasks moved to @fradser/pi-tasks: the file is a Work
+    # The file is a Work
     # snapshot, and this package may be installed without the team runtime, so
     # naming Agent Teams in the error would be wrong. The version numbers and
     # the refusal to treat an incompatible tasks as empty are unchanged.

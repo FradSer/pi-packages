@@ -354,7 +354,7 @@ def test_inconclusive_verify_retries_once_for_each_submission(tmp_path: Path) ->
 def test_task_intent_requires_nonempty_identity_and_finite_timestamp() -> None:
     payload = run_node(
         f'''\
-        import {{ takeTaskIntent }} from "@fradser/pi-tasks";
+        import {{ takeTaskIntent }} from "./src/task-domain/index.ts";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -377,7 +377,7 @@ def test_task_intent_requires_nonempty_identity_and_finite_timestamp() -> None:
 def test_invalid_submission_status_is_consumed_before_state_machine() -> None:
     payload = run_node(
         f'''\
-        import {{ takeTaskIntent }} from "@fradser/pi-tasks";
+        import {{ takeTaskIntent }} from "./src/task-domain/index.ts";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -1025,7 +1025,7 @@ def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> No
         const afterRelease = signal ? signal.aborted : null;
         const failed = {{ ok: getTask(task.id)?.status === "blocked" }};
         // Retrying needs a stated reason, and the re-take is what the coordinator
-        // reacts to on `pi-tasks:task-taken`.
+        // reacts to the internal task-taken hook.
         const silent = takeTask(task.id, "w");
         const released = takeTask(task.id, "w", {{ reason: "scope changed" }});
         onTaskTaken({{ id: task.id }});

@@ -1,4 +1,4 @@
-import { isTaskReplaced } from "@fradser/pi-tasks";
+import { isTaskReplaced } from "./task-domain/index.ts";
 /**
  * pi-agent-teams-fradser — Pi extension for Claude-style resident agent
  * teams. Composition only: worker capability registration, session lifecycle,
@@ -10,7 +10,7 @@ import { getMarkdownTheme, keyHint, ToolExecutionComponent } from "@earendil-wor
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
 import { publishAgentHost } from "./agent-host.ts";
-import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onTaskChanged, onTaskCreated, onTaskTaken, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownAgents } from "./team-machine.ts";
+import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownAgents } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
 import { getTask, getAgent, livingAgents, listTasks, resetState } from "./state.ts";
 import { configureTeamActivity } from "./activity.ts";
@@ -197,26 +197,6 @@ export default function (pi: ExtensionAPI) {
   });
   registerLeaderTools(pi);
   registerTeamCommand(pi);
-
-  // The tasks belongs to @fradser/pi-tasks, which registers the `task` tool
-  // itself. This package subscribes to what the tasks announces rather than
-  // being called by it, so pi-tasks never has to know a resident exists and a
-  // standalone tasks with nobody listening still works.
-  //
-  // Guarded because subscribing is optional: a host without an event bus must
-  // degrade to no coordination, not to a failed load. Tasks transitions still
-  // record correctly; only the noticing is skipped.
-  if (typeof pi.events?.on === "function") {
-    pi.events.on("pi-tasks:task-created", (payload) => {
-      onTaskCreated(payload as { id: string; replaced?: string[] });
-    });
-    pi.events.on("pi-tasks:task-taken", (payload) => {
-      onTaskTaken(payload as { id: string });
-    });
-    for (const channel of ["pi-tasks:task-completed", "pi-tasks:task-reopened", "pi-tasks:task-updated"]) {
-      pi.events.on(channel, () => onTaskChanged());
-    }
-  }
 
   // Pi cannot retract one already-queued steer. The persisted record stays for
   // audit, and this projection keeps a retired attempt's nonterminal text from

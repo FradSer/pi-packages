@@ -1,4 +1,4 @@
-import { isTaskReplaced } from "@fradser/pi-tasks";
+import { isTaskReplaced } from "./task-domain/index.ts";
 /** Passive team widget and the /agent-teams management console
  * (session agents + persistent agent roles + tasks). */
 

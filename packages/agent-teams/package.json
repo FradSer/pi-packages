@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-agent-teams",
   "version": "1.0.0",
-  "description": "Agent-to-Agent communication for Pi — point-to-point messaging, notices, Agent Presence, and the Team Console. A bundle: it registers `message` and loads the pi-subagents and pi-tasks extensions, so installing it gives the subagent intent tools plus `task` and `message` with one registrant per tool.",
+  "description": "Agent-to-Agent communication for Pi — point-to-point messaging, notices, Agent Presence, and the Team Console. A bundle: it registers `message` and loads the pi-subagents extension, so installing it gives the subagent intent tools plus `message` with one registrant per tool. Team coordination uses an internal task domain; there is no leader task tool.",
   "keywords": [
     "pi-package",
     "teammates",
@@ -36,14 +36,12 @@
   "pi": {
     "extensions": [
       "./index.ts",
-      "./node_modules/@fradser/pi-subagents/index.ts",
-      "./node_modules/@fradser/pi-tasks/index.ts"
+      "./node_modules/@fradser/pi-subagents/index.ts"
     ]
   },
   "dependencies": {
     "@fradser/pi-kit": "workspace:*",
-    "@fradser/pi-subagents": "workspace:*",
-    "@fradser/pi-tasks": "workspace:*"
+    "@fradser/pi-subagents": "workspace:*"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.5.0",

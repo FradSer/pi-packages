@@ -20,10 +20,10 @@ def test_bundle_kickoff_has_native_ack_and_all_session_controls(tmp_path: Path) 
     assert started["details"]["session"].startswith("session:")
     assert started["details"]["label"] == "scout"
     assert started["details"]["grant"] == ["message", "task"]
-    # The surfaces are the tool names this install registered: the intent family,
-    # the mail tool, and the four task tools; there is no tool named `task`.
-    assert set(run.surfaces()) >= {"agent_start", "agent_input", "agent_stop", "agent_list",
-                                   "message", "create_task", "get_task", "list_tasks", "update_task"}
+    # The surfaces are the tool names this install registers: the intent family
+    # and mail. The retired task tools must not reappear through the bundle.
+    assert set(run.surfaces()) >= {"agent_start", "agent_input", "agent_stop", "agent_list", "message"}
+    assert not {"create_task", "get_task", "list_tasks", "update_task"} & set(run.surfaces())
     assert run.live_children == [], "parent shutdown must close its child"
     spawn, = [event for event in run.rpc_events if event["type"] == "spawn"]
     assert "--no-session" in spawn["args"]

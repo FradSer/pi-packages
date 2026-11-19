@@ -360,37 +360,18 @@ def test_agent_tool_guidance_explains_push_delivery(tmp_path: Path) -> None:
     assert "explicit user request" in guidance
 
 
-def test_work_list_exposes_accepted_evidence_in_model_content(tmp_path: Path) -> None:
-    """The list text is one line per task, and a list carries no evidence.
+def test_task_domain_retains_acceptance_evidence(tmp_path: Path) -> None:
+    """No model-facing task tool remains, so evidence is checked in the domain.
 
-    A list is bounded, so the body and the evidence stay behind `get_task`.
-    Dropping evidence out of `get_task` would be a real loss, so that is
-    asserted directly rather than through a rendered row.
+    A bounded list and `get_task` were the old tool surface. The property that
+    still matters is that a submission's evidence reaches the stored Work Item
+    and survives settlement.
     """
-    payload = machine_case(tmp_path, '''
-        attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Audit evidence");
-        processTaskIntents(); settle();
-        const listed = await call("list_tasks", {});
-        const read = await call("get_task", { id: task.id });
-        console.log(JSON.stringify({ content: listed.content[0].text, tasks: listed.details.tasks, result: read.details.task.result }));
-    ''')
-    assert "work:review" in payload["content"]
-    assert "Audit evidence" not in payload["content"], "the row is one line, not an evidence dump"
-    assert "result" not in payload["tasks"][0], "a bounded list omits the evidence"
-    assert payload["result"] == "Audit evidence"
-
-
-def test_work_list_bounds_long_evidence_without_losing_details(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
         const evidence = "Result evidence\\n".repeat(600);
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", evidence);
         processTaskIntents(); settle();
-        const listed = await call("list_tasks", {});
-        const read = await call("get_task", { id: task.id });
-        // Reading one task is what pays for its evidence, and it pays in full
-        // whatever its length, which is what makes the bounded list safe.
-        assert.equal(read.details.task.result, evidence);
-        console.log(JSON.stringify({ content: listed.content[0].text, count: listed.details.count }));
+        console.log(JSON.stringify({ status: getTask(task.id).status, result: getTask(task.id).result }));
     ''')
-    assert payload["content"].count("\\n") == payload["count"] - 1
-    assert len(payload["content"]) < 4500
+    assert payload["status"] == "completed"
+    assert payload["result"] == "Result evidence\n" * 600

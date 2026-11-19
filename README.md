@@ -177,15 +177,12 @@ Reports this machine's Pi sessions and their operating events to Open DeskOS ove
 pi install npm:pi-open-deskos
 ```
 
-### [`@fradser/pi-tasks`](packages/tasks/)
+### `@fradser/pi-tasks` (archived)
 
-A durable work list with four states: pending, in_progress, blocked and completed. Replacements remain historical relations. The four task tools show complete wrapped results by default and list tasks with explicit cursors. Automatic continuation requires new effective work and a runnable task; exhausted allowance waits for input.
-
-[All TUI triggers and examples](packages/tasks/TUI.zh-CN.md).
-
-```bash
-pi install npm:@fradser/pi-tasks
-```
+Deprecated: this plugin is no longer suitable for current SOTA models. It is not
+installed or published from this repository; see the
+[archive notice](deprecated/tasks/DEPRECATED.md). The previously published
+version remains available for existing consumers.
 
 ### [`@fradser/pi-goal`](packages/goal/)
 
@@ -342,7 +339,7 @@ Each package keeps behavior scenarios in `features/` and tests in `tests/`.
 
 The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixtures. The CI workflows install both runtimes before running `bun run check`. Bun owns installation, testing, and packing; the npm CLI (11.5.1 or newer) performs the publish itself, because only npm can attach a provenance statement and use OIDC Trusted Publishing.
 
-The `kit` / `subagents` / `tasks` / `agent-teams` development chain selects the root Pi 1.5.0 cohort explicitly. Published Pi core imports remain `"*"` peers supplied by the host, never runtime dependencies. @features/pi-core-cohort.feature and @tests/test_pi_core_cohort.py check both installed resolution and manifests.
+The `kit` / `subagents` / `agent-teams` development chain selects the root Pi 1.5.0 cohort explicitly. Published Pi core imports remain `"*"` peers supplied by the host, never runtime dependencies. @features/pi-core-cohort.feature and @tests/test_pi_core_cohort.py check both installed resolution and manifests.
 
 Use `bun pm pack --destination /tmp --quiet --cwd packages/<name>` to inspect one package's contents before publishing.
 

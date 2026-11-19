@@ -21,9 +21,13 @@ try {
   initTeamMachine(ctx, { notifyChange() {}, sendUpdate(report) {
     if (report.finished) { reports.push(report); done.resolve(report); }
   } });
-  registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} } as unknown as ExtensionAPI);
-  registerIntentTools({ registerTool(tool) { tools.set(tool.name);
-  registerTaskTools({ registerTool(tool) { tools.set(tool.name);
+  const host = {
+    registerTool(tool: { name: string }) { tools.set(tool.name, tool); },
+    getActiveTools: () => [],
+    setActiveTools() {},
+  } as unknown as ExtensionAPI;
+  registerLeaderTools(host);
+  registerIntentTools(host);
   const result = await tools.get("agent")!.execute("live", {
     action: "delegate", name: "capability-blocker", model,
     prompt: "Read the local file evidence.txt using a file tool and report its content. Do not invent evidence. If required tools are absent, follow your Agent Protocol and explicitly submit failed with the missing capabilities. Do not send an agent_event or ordinary final instead of failed submission.",

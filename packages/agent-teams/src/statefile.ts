@@ -1,7 +1,7 @@
 /**
  * Shared session files for the leader-owned snapshot, teammate outboxes and
- * inboxes. The persistent task storage lives in @fradser/pi-tasks; `sessionKey` comes from
- * pi-kit so both packages agree on which session a directory belongs to.
+ * inboxes. Persistent task storage is internal to this package; `sessionKey` comes
+ * from pi-kit so both halves agree on which session a directory belongs to.
  *
  * Runtime layout (removed at session shutdown):
  *   ~/.pi/agent/teammate/<sessionKey>/state.json      leader-owned snapshot

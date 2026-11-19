@@ -148,22 +148,15 @@ audit, Harness run, or learning study.
 
 ## Task Records
 
-Record work in `packages/tasks` when a request has several steps or several
-files, or when the work outlives the turn. A single edit is not a task.
+The task plugin is deprecated and archived in `deprecated/tasks`. It is no
+longer installed or used for new work. Do not record work through `create_task`
+or its sibling tools; track multi-step work in the conversation, and use the
+project's handoff file when work must survive a session. `@fradser/pi-agent-teams`
+may still load the published plugin for compatibility; that does not make task
+records the convention here.
 
-- `create_task` records the work, its `dependsOn`, and its completion gate.
-- `update_task` moves it: `in_progress` takes it, `completed` delivers it with
-  its evidence, `pending` reopens it, and `blocked` records the blocker as its
-  reason. Blocked work waits for deliberate recovery; read its saved evidence
-  before reopening it with a reason. One call may carry both a content edit and
-  a status change; a refused status keeps the edit.
-- `get_task` reads one task in full. `list_tasks` reads the list.
-
-A goal is not a task. A goal is one objective that keeps running until it is
-met. A task is one unit of work in a list you order, take, and finish.
-
-The task tools do not reach a child process. A subagent cannot take or complete
-a task, so the leader records the outcome from the child's report.
+A goal is not a task list. A goal is one objective that keeps running until it
+is met.
 
 ## Decision Boundaries & Completion
 

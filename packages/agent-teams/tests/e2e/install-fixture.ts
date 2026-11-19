@@ -115,7 +115,7 @@ const RESIDENT_TAKES: ScriptedTurn[] = [
 ];
 
 /**
- * All three packages, and a message that reaches a live peer.
+ * The bundle: a message that reaches a live peer.
  *
  * The recipient is the resident this scenario started, addressed by the exact
  * session route the start receipt returned, so the assertion is that a request was
@@ -130,16 +130,6 @@ const BUNDLE: ScriptedTurn[] = [
   // receipt directly above it, so the message names the child that really exists.
   { tool: "agent_start", args: { label: "scout", prompt: "Audit the parser changes" } },
   { tool: "message", args: { to: "$prev.session", body: "Take the parser first", kind: "request" } },
-  { tool: "create_task", args: { subject: "Coordinate the release" } },
-  { tool: "update_task", args: { id: "$prev.id", status: "in_progress" } },
-  // The scenario settles the task it created before it ends. A run that leaves
-  // unfinished work makes the task reminder request a continuation, and a
-  // settlement handler that returns a result on the settle that ends the run
-  // leaves `pi --print` with nothing to print: the exit is clean and stdout is
-  // empty, so the report this suite reads never arrives. That interaction is a
-  // separate defect tracked on its own; a scenario about bundle kickoff has no
-  // reason to depend on it, and every assertion below is unaffected.
-  { tool: "update_task", args: { id: "$prev.id", status: "completed", outcome: "success", result: "The release coordinator is set" } },
   // An identity with no saved definition. The intent tool refuses it before any
   // spawn, because a label only names the display and cannot select a role. A
   // label the caller invented would succeed instead, and that difference is what
@@ -196,7 +186,7 @@ for (const parameter of ["persistent", "memory", "worktree"]) {
 async function seedSecondParticipant(pi: ExtensionAPI): Promise<void> {
   if (process.env.PI_E2E_HOST !== "peer") return;
   const { registerAgent } = await import("@fradser/pi-subagents");
-  const { createTask, takeTask } = await import("@fradser/pi-tasks");
+  const { createTask, takeTask } = await import("../../src/task-domain/index.ts");
   registerAgent({
     name: "peer",
     role: "peer",

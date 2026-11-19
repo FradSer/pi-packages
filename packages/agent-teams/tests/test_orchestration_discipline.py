@@ -76,28 +76,28 @@ def test_work_recheck_needs_explicit_refreshed_context(tmp_path: Path) -> None:
     from test_accepted_work_reporting import machine_case
 
     payload = machine_case(tmp_path, '''
-      const { completeTaskWithOutcome } = await import("''' + (SRC / "state.ts").as_uri() + '''");
+      const { completeTaskWithOutcome, reopenTask } = await import("''' + (SRC / "state.ts").as_uri() + '''");
       task.description = "Inspect candidate v1 against baseline B0";
       const priorReport = "Spec REWORK: reviewer scope and stale candidate brief";
       assert.ok(completeTaskWithOutcome(task.id, "reviewer", "success", priorReport).ok);
-      const before = await call("list_tasks", {});
-      const savedResult = (await call("get_task", { id: task.id })).details.task.result;
+      const savedResult = getTask(task.id).result;
       assert.equal(savedResult, priorReport);
-      await call("update_task", { id: task.id, status: "pending", reason: "Inspect candidate v2 instead" });
-      const reopened = (await call("get_task", { id: task.id })).details.task;
+      assert.equal(reopenTask(task.id).ok, true);
+      const reopened = getTask(task.id);
       assert.equal(reopened.description, "Inspect candidate v1 against baseline B0");
       assert.equal(reopened.result, priorReport);
       // This synthetic original is completed again only to exercise a linked follow-up.
       assert.ok(takeTask(task.id, "reviewer").ok);
       assert.ok(completeTaskWithOutcome(task.id, "reviewer", "success", savedResult).ok);
       const description = `Bounded recheck: baseline B0; candidate v2; delta fixes two findings. Prior findings: ${savedResult}. Safe checks: prompt contract only.`;
-      const followUp = await call("create_task", { subject: "Recheck review corrections",
+      const followUp = createTask({ subject: "Recheck review corrections",
         description, dependsOn: [task.id] });
       // A created task is pending; whether it can be taken right now is a task set
-      // question answered by `list claimable`, not a property of the creation.
-      assert.equal(followUp.details.status, "pending");
+      // question answered by `claimableTasks`, not a property of the creation.
+      assert.equal(followUp.ok, true);
+      assert.equal(followUp.task.status, "pending");
       console.log(JSON.stringify({ oldDescription: reopened.description, retainedResult: reopened.result ?? null,
-        followUp: followUp.details.task }));
+        followUp: followUp.task }));
     ''')
     assert payload["retainedResult"] == "Spec REWORK: reviewer scope and stale candidate brief"
     assert payload["oldDescription"].startswith("Inspect candidate v1")

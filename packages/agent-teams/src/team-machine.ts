@@ -1,4 +1,4 @@
-import { isTaskReplaced } from "@fradser/pi-tasks";
+import { isTaskReplaced } from "./task-domain/index.ts";
 /**
  * Team machine — resident teammate lifecycle, peer mail routing, task-intent
  * processing, verify gating, and the harness poll loop that wakes idle
@@ -73,7 +73,7 @@ import {
   TASK_HOLDER_ENV,
   type Task,
   type TaskRefusalResult,
-} from "@fradser/pi-tasks";
+} from "./task-domain/index.ts";
 import {
   appendInboxMessage,
   inboxPath,
@@ -916,8 +916,8 @@ export function buildSuccessorHandoff(kickoff: string | undefined, handoffFrom: 
     .map((message) => `${message.subject}: ${truncated(message.body, 1000)}`);
   const assignment = prior?.assignment ?? prior?.lastAssignment;
   const taskId = prior?.currentTaskId ?? prior?.lastTaskId;
-  // A structured brief rather than concatenated prose. @fradser/pi-tasks owns the shape, so
-  // a successor handoff, a recheck, and a standalone tasks all produce the same
+  // A structured brief rather than concatenated prose. The internal task domain
+  // owns the shape, so a successor handoff and a recheck produce the same
   // sections, and an oversized brief is clipped and marked instead of silently
   // truncated. Prior reports go in `priorFindings` deliberately: that is the field
   // a recheck must not lose when a reopen clears the result.
@@ -2594,9 +2594,9 @@ export interface TaskCreationResult {
 
 /** Run the coordination side effects of superseding work.
  *
- * Split out because the tasks transition itself belongs to @fradser/pi-tasks
- * now, and this package hears about it on `pi-tasks:task-created` rather than
- * performing it. A superseded holder keeps its assignment and resource lease
+ * Split out because the task transition itself is a domain operation, and this
+ * package reacts to it instead of performing it inline. A superseded holder keeps
+ * its assignment and resource lease
  * until it acknowledges cancellation, so its feedback has to be routable before
  * the replacement is announced.
  *
@@ -2632,13 +2632,12 @@ export function settleSupersededWork(replaced: readonly Task[], replacementId: s
   return replaced.map((task) => task.id);
 }
 
-/** A task was created by @fradser/pi-tasks' own `task` tool.
+/** React to a task creation in the internal domain.
  *
  * This is the whole of the leader's response to a task set transition: settle what
  * the supersession displaced, offer the new task to idle residents, and refresh
  * what the console shows. It arrives as an event rather than a call so
- * `@fradser/pi-tasks` never has to know a resident exists, and so a standalone
- * tasks with nobody listening still works.
+ * The domain never has to know a resident exists.
  */
 export function onTaskCreated(input: { id: string; replaced?: string[] }): void {
   const replaced = (input.replaced ?? []).map((id) => getState().tasks[id]).filter(Boolean) as Task[];

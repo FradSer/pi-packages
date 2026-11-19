@@ -30,7 +30,7 @@ verification limits rather than imply whole-workspace acceptance.
 | --- | --- | --- |
 | `packages/kit` | Shared extension infrastructure and worker transport | `packages/kit/README.md` |
 | `packages/subagents` | Agent execution, durable identity, isolated sessions and Session Results | `packages/subagents/VISION.md`, `packages/subagents/AUTHORITY.md` |
-| `packages/tasks` | Durable tasks, attempts, submissions and acceptance | `packages/tasks/README.md` |
+| `deprecated/tasks` | Archived task plugin; no longer installed or published | `deprecated/tasks/DEPRECATED.md` |
 | `packages/agent-teams` | Addressed communication, presence and coordination | `packages/agent-teams/README.md` |
 | `packages/loop` | Scheduled repetition of one real user message within a session | `packages/loop/README.md`, `packages/loop/AGENTS.md` |
 | `packages/continual-learning` | Memory, Harness and project AGENTS.md learning | `packages/continual-learning/CONTEXT.md`, `packages/continual-learning/AGENTS.md` |

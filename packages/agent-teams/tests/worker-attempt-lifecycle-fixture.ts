@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ExtensionAPI, ExtensionContext, ExtensionEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { assistant } from "./automatic-results-fixture.ts";
 import { readJsonlBatch, readRoster, writeRoster } from "../src/statefile.ts";
-        import { writeTasksFile } from "@fradser/pi-tasks";
+        import { writeTasksFile } from "../src/task-domain/index.ts";
 import { registerChildCapabilities, workerBinding } from "../src/worker.ts";
 
 export { assistant };

@@ -5,28 +5,6 @@ import { syncBuiltinESMExports } from "node:module";
 import { PassThrough, Writable } from "node:stream";
 import { mock } from "node:test";
 
-/** No task tool may name a participant to hand a task to.
- *
- *  The single `task` tool used to be callable with `action: "assign"` and refuse.
- *  With four tools and no verb for it, the property is stronger and is asserted
- *  over the task surface: no parameter on any of the four names a participant.
- *  Scoped to those four on purpose — the `agent` tool has a `session` handle of
- *  its own, which is a different tool's business. */
-function assertNoParticipantDirective(): void {
-  const names = [...TASK_CAPABILITY_TOOLS].filter((name) => tools.has(name));
-  const banned = ["assign", "assignee", "owner", "target", "participant", "agent", "spawnId", "session"];
-  assert.deepEqual(names, [...TASK_CAPABILITY_TOOLS], "the four task tools are registered");
-  for (const name of names) {
-    const properties = (tools.get(name)!.parameters as { properties?: Record<string, unknown> }).properties ?? {};
-    for (const key of Object.keys(properties)) {
-      for (const word of banned) {
-        assert.equal(key.toLowerCase().includes(word), false, `${name} must not offer ${key}`);
-      }
-    }
-  }
-}
-
-
 const commands: Array<{ type: string; id?: string; message?: string }> = [];
 const child = Object.assign(new EventEmitter(), {
   pid: 1, stdout: new PassThrough(), stderr: new PassThrough(),
@@ -46,11 +24,10 @@ const child = Object.assign(new EventEmitter(), {
 mock.method(childProcess, "spawn", () => child);
 syncBuiltinESMExports();
 const { registerLeaderTools } = await import("../src/tools.ts");
-const { TASK_CAPABILITY_TOOLS, registerTaskTools } = await import("@fradser/pi-tasks");
 const { registerIntentTools } = await import("@fradser/pi-subagents");
 const { exactSessionRoute, setAgentHost } = await import("@fradser/pi-subagents");
 const { initTeamMachine, shutdownTeamMachine, wakeIdleTeammates, deliverFeedback, routePeerInboxes, spawnAgent, sendResidentSequence, interruptResidentSequence, shutdownAgentExact } = await import("../src/team-machine.ts");
-const { getState, resetState, takeTask } = await import("../src/state.ts");
+const { createTask, getState, resetState, takeTask } = await import("../src/state.ts");
 const root = process.env.PI_TEST_DIR;
 assert.ok(root);
 resetState();
@@ -59,7 +36,6 @@ const tools = new Map();
 const host = { registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} };
 registerLeaderTools(host);
 registerIntentTools(host);
-registerTaskTools(host);
 // The `agent` tool belongs to @fradser/pi-subagents, so the team spawn path
 // reaches it the only way it can: by publishing itself as the coordinator. These
 // assertions are about the team behaviour, so they have to drive the real host
@@ -89,7 +65,8 @@ setAgentHost({
 });
 const ctx = { cwd: root };
 try {
-  const created = await tools.get("create_task").execute("create", { subject: "Recover existing work" }, undefined, undefined, ctx);
+  const created = createTask({ subject: "Recover existing work" });
+  assert.equal(created.ok, true);
   const mode = process.env.PI_TEST_MODE;
   if (["timeout", "exit", "not-ready", "rejected"].includes(mode ?? "")) {
     // The intent family addresses children by their own tools; a label is display text.
@@ -138,7 +115,7 @@ try {
   if (mode === "notice" || mode === "inbox") {
     if (mode === "inbox") {
       // Prevent a task set notice from masking the ordinary first-wake path.
-      getState().agents.recovery.noticedTaskIds = [created.details.id];
+      getState().agents.recovery.noticedTaskIds = [created.task.id];
       deliverFeedback("recovery", "Context", "Read-only context, no new assignment");
       routePeerInboxes();
     }
@@ -150,23 +127,21 @@ try {
       assert.match(wake?.message ?? "", /Read-only context/);
       assert.doesNotMatch(wake?.message ?? "", /=== TASK NOTICE ===/);
     }
-    assert.equal(getState().tasks[created.details.id].status, "pending");
+    assert.equal(getState().tasks[created.task.id].status, "pending");
     console.log("UNASSIGNED_START_OK");
   } else if (mode === "in_progress") {
-    takeTask(created.details.id, "recovery");
-    assert.equal(getState().agents.recovery.currentTaskId, created.details.id);
+    takeTask(created.task.id, "recovery");
+    assert.equal(getState().agents.recovery.currentTaskId, created.task.id);
     // Nothing may direct the assignment at a named participant. The task states
     // what must be done; the participant takes it. With four tools there is no
     // verb to call at all, so the property is asserted over the whole surface
     // rather than as one refusal.
-    assertNoParticipantDirective();
-    assert.equal(getState().tasks[created.details.id].status, "in_progress", "a refused assign changes nothing");
+      assert.equal(getState().tasks[created.task.id].status, "in_progress", "a refused assign changes nothing");
     console.log("UNASSIGNED_START_OK");
   } else {
     // The same rule in the plain case: the resident takes the task itself, and
     // there is no leader-side verb that can hand it over.
-    assertNoParticipantDirective();
-    assert.equal(getState().tasks[created.details.id].status, "pending");
+      assert.equal(getState().tasks[created.task.id].status, "pending");
     assert.equal(getState().agents.recovery.currentTaskId, undefined, "an unstarted resident holds nothing");
     assert.equal(commands.some((command) => command.type === "new_session"), false, "no fresh session is created by a refused assignment");
     console.log("UNASSIGNED_START_OK");

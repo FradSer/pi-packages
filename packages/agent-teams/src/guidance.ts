@@ -6,9 +6,10 @@ const LEADER_DELIVERY_GUIDANCE = `
 ### Delivery contract
 
 Delegate only separable Work: name scope, task baseline (including prior dirty changes),
-acceptance criteria, dependencies, and safe local checks. Represent prerequisites with
-\`work create\` \`dependsOn\` before assignment; use shared \`resources\` tags for conflicting
-writes. Parallel work against a changing shared module is provisional until integrated.
+acceptance criteria, dependencies, and safe local checks. State \`dependsOn\` prerequisites and
+conflicting \`resources\` in the assignment itself; the runtime records Work internally, with no
+leader task tool. A reopened Work Item needs a stated reason. Parallel work against a changing
+shared module is provisional until integrated.
 
 Assign local checks to implementers and shared checks to one integration owner. Establish
 verification safety before execution; isolate home, credentials, or test data when needed.
@@ -26,25 +27,26 @@ matches the final candidate. If only required results remain, yield without decl
 or ending the workflow. Review-only requests end with the report, including REWORK; remediation
 belongs to the implementation owner. Group related findings by root cause and test adjacent cases together.
 
-For a recheck, preserve prior findings outside the Work result. Reopening does not update the description
-or forward the cleared result; its reason is not a refreshed brief. Prepare the retained baseline,
+For a recheck, preserve prior findings outside the Work result. This is a bounded follow-up:
+reopening does not update the description or forward the cleared result, and its reason is not a
+refreshed brief. Prepare the retained baseline,
 new candidate fingerprint, correction delta, prior findings and safe checks before assignment.
 If the description already references an authoritative brief for the current attempt, update that brief
-before reopening and assigning an idle exact session. Otherwise a fixed conflicting description
-needs bounded follow-up Work via \`work create\` with the refreshed description and \`dependsOn\`
-on the completed review. A message to a closed assignment does not restart review. A linked recheck
+before reopening and assigning an idle exact session. Otherwise send the refreshed brief to a new
+exact session and name the completed review as its prerequisite. A message to a closed assignment
+does not restart review. A linked recheck
 is not a new broad review; broaden only when scope or risk changes.
 `;
 
 export const WORKER_GUIDANCE = `
 ## Agent Teams Worker Protocol
 
-You execute one current Task at a time. Use \`task\` to list what is available, take
-what you will do with \`update status=in_progress\`, and deliver the outcome with
-\`complete\`. A queued request is not ownership or completion; the harness is
-authoritative.
+You execute one Work Item at a time. Use \`task({ action: "list" })\` to see
+what is available, \`task({ action: "claim", id })\` to take it, and
+\`task({ action: "submit", outcome, result })\` to deliver the outcome. A queued request
+is not ownership or completion; the harness is authority.
 
-Use \`message\` only for \`inform\` or \`request\` communication with the
+Use \`message\` for \`inform\` or \`request\` communication with the
 leader or an exact peer session. It arrives at the next safe tool boundary or wakes an idle recipient. It cannot take, complete, reopen, or reassign
 a Task. Communication and submission bind to the attempt that started your turn; a different
 attempt, Work Item, or incarnation is rejected, not retargeted. After a submission or
@@ -52,7 +54,7 @@ cancellation acknowledgement, end the turn.
 The runtime delivers ordinary final answers automatically for the current Work
 when execution settles as a successful candidate, not an independently verified result.
 If you cannot perform the requested work (including missing tools), you must use
-\`task({ action: "complete", outcome: "failed", result: "Blocker and unverified work" })\`.
+\`task({ action: "submit", outcome: "failed", result: "Blocker and unverified work" })\`.
 Do not substitute an ordinary final answer describing the blocker: prose is not classified
 as failure. Ungated acceptance is not independently verified. Send intermediate events only for blockers needing a decision, changed
 constraint, or decision request; never bare
@@ -84,7 +86,8 @@ Delegate concrete acceptance criteria and an explicit verification gate where ap
 ungated completion is not independently verified. An inform needs no acknowledgment unless
 a decision or action changes. Do not narrate repeated reports.
 
-Use \`task\` for the Task lifecycle (create, list, update, complete, reopen) and \`message\` for communication. A Task never names who must do it: record what must be done, and a participant takes it with \`update status=in_progress\`.
+There is no leader task tool. Work Items are recorded internally; hand a child concrete
+acceptance criteria through \`agent_start\`. Use \`message\` for communication with exact sessions.
 ${LEADER_DELIVERY_GUIDANCE}
 Available agents:
 ${formatAgentGuidance(cwd)}`;
@@ -93,10 +96,12 @@ ${formatAgentGuidance(cwd)}`;
 export function buildTeamLeaderGuidance(cwd?: string): string {
   return `## Agent Teams Orchestration
 
-The current session coordinates through three tool families:
+The current session coordinates through two tool families:
 - Subagents: \`agent_start\`, \`agent_input\` (delivery next or steer), \`agent_stop\`, and \`agent_list\`. Disk \`agent.md\` supplies identity. Use exact sessions and reuse them for dependent follow-ups.
-- \`task\`: create (subject, optional dependsOn, resources, verify, supersedes), list, update (id, status=in_progress|pending, or content), complete (id, outcome, result), and reopen (id). One vocabulary for every participant.
 - \`message\`: \`inform\` or \`request\` messages.
+
+Work Items are internal. There is no leader task tool: a start with a prompt hands Work to a
+child, and the child claims and submits its own Work.
 
 Delegate independent Work once with concrete acceptance criteria and an explicit verification gate
 where appropriate. Ungated completion is not independently verified. Check the returned effective
@@ -106,27 +111,27 @@ Send a Work Session new information that changes its assignment; each message is
 The worker autonomously completes its assignment. Results, verification outcomes and actionable failures
 arrive as messages; keep working on your own assignment while they come.
 
-Agent session handles are incarnation-bound. Task IDs are stable, and a Task names
-no owner: whoever acts on it holds it, and holding ends at \`complete\`, at process
-exit, or at exact-session stop — there is no release verb. Automatic final answers and
-\`task complete\` share one acceptance pipeline. \`message\` carries peer and Leader
+Agent session handles are incarnation-bound. Work Item IDs are stable, and a Work Item names
+no owner: whoever claims it holds it, and holding ends at submission, at process
+exit, or at exact-session stop. Automatic final answers and a child's
+\`task submit\` share one acceptance pipeline. \`message\` carries peer and Leader
 talk and grants no lifecycle authority.
 
 ${LEADER_DELIVERY_GUIDANCE}
 ### Teammates are autonomous: recover, never punish
 
-For recovery, keep the existing Task ID. Nothing is released by request: stop the
-stale session, or wait for the attempt to end, and its lease is released with it. Do
-not create a competing duplicate through another startup. A started
+For recovery, keep the existing Work Item and exact session. Nothing is released
+by request: stop the stale session, or wait for the attempt to end, and its lease is
+released with it. Do not create a competing duplicate through another startup. A started
 resident with no prompt has no initial work and no model kickoff, but remains
-eligible for later tasks notices and takes work itself; it is not permanently idle.
+eligible for later Work and claims it itself; it is not permanently idle.
 
 Observe stalled sessions in \`/agent-teams\`; the harness leaves every child to its Leader. Exact-session
 stop ends a child whose Work is delivered or abandoned — completion lives in the Work Item.
 
-A failed Task returns to pending under a recovery hold and waits: it cannot be taken
-until somebody proceeds with a stated reason. Retired attempts' reports stop
-instructing you.
+A failed submission returns the Work Item to pending under a recovery hold and waits:
+it cannot be claimed until somebody proceeds with a stated reason. Retired attempts'
+reports stop instructing you.
 
 ### Yield while agents work
 

@@ -18,25 +18,12 @@ from pathlib import Path
 PACKAGE = Path(__file__).resolve().parents[1]
 SRC = PACKAGE / "src"
 REPO = PACKAGE.parents[1]
-TASK_TOOL = REPO / "packages" / "tasks" / "src" / "tool.ts"
 SUBAGENT_TOOL = REPO / "packages" / "subagents" / "src" / "child-execution.ts"
 PACKAGES = REPO / "packages"
 
 # Verb -> what replaced it. `reopen` and `supersede` are still reachable, as a
 # `status` value and as a `supersedes` field on an existing action, so a caller
 # that remembers the verb has somewhere to be pointed.
-REMOVED_LEADER_VERBS = {
-    "assign": "update status=in_progress",
-    "claim": "update status=in_progress",
-    "release": "completion, process exit, or agent stop",
-    "abandon": "complete outcome=failed",
-    "reclaim": "agent stop",
-    "submit": "complete outcome=success",
-    "reopen": "update status=pending",
-    "supersede": "create with supersedes",
-    "get": "list with id",
-}
-
 REMOVED_AGENT_VERBS = {
     "delegate": "start with a prompt",
     "team": "list",
@@ -83,55 +70,6 @@ def package_sources() -> list[Path]:
 # ── No removed verb is offered ──
 
 
-def test_no_removed_verb_appears_in_any_schema() -> None:
-    """Only the action enum matters. A removed verb may still appear in a comment
-    explaining why it is gone, and must not be banned from doing so."""
-    for path, verbs in ((TASK_TOOL, REMOVED_LEADER_VERBS), (SUBAGENT_TOOL, REMOVED_AGENT_VERBS)):
-        text = path.read_text(encoding="utf-8")
-        for verb in verbs:
-            if path is TASK_TOOL and verb in REMOVED_VERBS_REACHABLE_AS_FIELDS:
-                continue
-            offered = next(
-                (line for line in text.splitlines() if "enum:" in line and f'"{verb}"' in line),
-                None,
-            )
-            assert offered is None, f"{path.name} still offers removed verb {verb}: {offered}"
-
-
-def test_the_two_absorbed_verbs_are_reachable_as_fields() -> None:
-    """Deleting a verb is only half a cutover: the capability has to survive under
-    a name that works. Reopening is `status: "pending"` on update_task; superseding
-    is a `supersedes` field on create_task. Each now lives on the one tool that
-    performs it, rather than both on an `update` that meant three things."""
-    result = run_node(
-        f"""
-        import {{ TASK_UPDATE_PARAMS, TASK_CREATE_PARAMS }} from {json.dumps(TASK_TOOL.as_uri())};
-        console.log(JSON.stringify({{
-          reopenAsStatus: TASK_UPDATE_PARAMS.properties.status.enum,
-          supersedeAsField: "supersedes" in TASK_CREATE_PARAMS.properties,
-          supersededIsNotAStatus: !TASK_UPDATE_PARAMS.properties.status.enum.includes("superseded"),
-        }}));
-        """
-    )
-    assert result["reopenAsStatus"] == ["in_progress", "completed", "pending", "blocked", "cancelled"]
-    assert result["supersedeAsField"] is True
-    assert result["supersededIsNotAStatus"] is True, (
-        "supersession is a creation, not something a caller moves a task to"
-    )
-
-
-def test_the_task_surface_is_exactly_four_tools() -> None:
-    """The action enum is gone with the single tool it belonged to. What is pinned
-    now is the four names, read from the package rather than restated here."""
-    result = run_node(
-        f"""
-        import {{ TASK_CAPABILITY_TOOLS }} from {json.dumps(TASK_TOOL.as_uri())};
-        console.log(JSON.stringify([...TASK_CAPABILITY_TOOLS]));
-        """
-    )
-    assert result == ["create_task", "get_task", "list_tasks", "update_task"]
-
-
 def test_the_child_operation_enum_is_exactly_four() -> None:
     """The set the executor implements, no more and no less: one operation per
     intent tool, with `agent_input` carrying its own delivery. The vocabulary is
@@ -146,31 +84,6 @@ def test_the_child_operation_enum_is_exactly_four() -> None:
 
 
 # ── And a caller passing one anyway is told, not ignored ──
-
-
-def test_every_removed_leader_verb_is_refused_by_a_live_call() -> None:
-    """Silence reads as success to a model, which is how a removed action comes
-    back. Each refusal has to name the surviving path."""
-    result = run_node(
-        f"""
-        import {{ executeTaskUpdate }} from {json.dumps(TASK_TOOL.as_uri())};
-        const removed = {json.dumps(sorted(REMOVED_LEADER_VERBS))};
-        const out = {{}};
-        for (const action of removed) {{
-          const r = await executeTaskUpdate({{ id: "whatever", status: action }});
-          out[action] = {{ refused: r.details.ok === false, text: r.content[0].text }};
-        }}
-        console.log(JSON.stringify(out));
-        """
-    )
-    for verb in REMOVED_LEADER_VERBS:
-        assert result[verb]["refused"] is True, f"{verb} was not refused"
-    # A status outside the three routes names them, so a model that remembers an
-    # older verb learns what replaced it.
-    for verb in ("release", "abandon", "assign"):
-        assert verb in result[verb]["text"], f"the {verb} refusal does not quote it"
-    for route in ("in_progress", "completed", "pending"):
-        assert route in result["release"]["text"], f"the release refusal omits {route}"
 
 
 def test_every_removed_agent_verb_is_refused_by_a_live_call() -> None:
@@ -231,8 +144,8 @@ def test_the_removed_coordinator_wrappers_have_no_callers() -> None:
 
 
 def test_this_package_registers_exactly_one_tool() -> None:
-    """`task` now belongs to @fradser/pi-tasks and `agent` to
-    @fradser/pi-subagents. What is left here is `message`."""
+    """`agent` belongs to @fradser/pi-subagents and the leader task tools are
+    retired. What is left here is `message`."""
     text = (SRC / "tools.ts").read_text(encoding="utf-8")
     assert text.count("pi.registerTool(") == 1
     assert 'name: "message"' in text

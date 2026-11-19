@@ -103,7 +103,7 @@ def test_refused_failure_keeps_active_verification(tmp_path: Path) -> None:
 def test_worker_pass_verdict_cannot_bypass_independent_review(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
         getTask(task.id).verify = "Check evidence";
-        const { createTaskIntent, submissionsDir, tasksFilePath } = await import("@fradser/pi-tasks");
+        const { createTaskIntent, submissionsDir, tasksFilePath } = await import("./src/task-domain/index.ts");
         const path = await import("node:path");
         let fail;
         let reviews = 0;

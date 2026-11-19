@@ -15,7 +15,7 @@ def test_worker_binding_and_assignment_use_task_vocabulary(tmp_path: Path) -> No
     env.update({"HOME": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent")})
     script = r'''
     import assert from "node:assert/strict";
-    import * as tasks from "@fradser/pi-tasks";
+    import * as tasks from "./src/task-domain/index.ts";
     import { workerBinding } from "./src/worker.ts";
     Object.assign(process.env, {
       PI_TEAMMATE_WORKER_NAME: "fixture", PI_TEAMMATE_SPAWN_ID: "fixture-1",

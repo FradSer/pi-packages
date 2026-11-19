@@ -171,15 +171,10 @@ pi install npm:@fradser/pi-monitor
 pi install npm:pi-open-deskos
 ```
 
-### [`@fradser/pi-tasks`](packages/tasks/)
+### `@fradser/pi-tasks`（已归档）
 
-持久化工作清单，仅使用 pending、in_progress、blocked、completed 四种状态。替换以历史关系保留。四个任务工具默认完整换行显示结果，列表提供明确分页。自动续跑需要新有效工作和可执行任务；额度耗尽等待用户输入。
-
-[全部 TUI 场景和触发条件](packages/tasks/TUI.zh-CN.md)。
-
-```bash
-pi install npm:@fradser/pi-tasks
-```
+已弃用：这个插件已经不适合现在的 SOTA 模型。仓库不再安装或发布它；见
+[归档说明](deprecated/tasks/DEPRECATED.md)。先前发布的版本仍供既有消费者使用。
 
 ### [`@fradser/pi-goal`](packages/goal/)
 
@@ -311,7 +306,7 @@ bun run check
 
 测试需要 Python 3、`pytest` 以及供子进程测试使用的 Bun 1.4.1。CI 工作流会在运行 `bun run check` 前安装这两个运行时。安装、测试和打包全部由 Bun 负责；发布本身交给 npm CLI（11.5.1 或更新），因为只有 npm 能附带 provenance 证明并使用 OIDC Trusted Publishing。
 
-`kit` / `subagents` / `tasks` / `agent-teams` 开发链显式选用根仓库的 Pi 1.0.0 验证版本；发布清单中的 Pi core 仍是由宿主提供的 `"*"` peers，不是运行时依赖。@features/pi-core-cohort.feature 和 @tests/test_pi_core_cohort.py 同时检查实际模块解析与清单。
+`kit` / `subagents` / `agent-teams` 开发链显式选用根仓库的 Pi 1.5.0 验证版本；发布清单中的 Pi core 仍是由宿主提供的 `"*"` peers，不是运行时依赖。@features/pi-core-cohort.feature 和 @tests/test_pi_core_cohort.py 同时检查实际模块解析与清单。
 
 在仓库根目录执行 `bun pm pack --destination /tmp --quiet --cwd packages/<name>` 可以检查单个包将要发布的文件。
 

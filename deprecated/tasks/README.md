@@ -1,5 +1,10 @@
 # @fradser/pi-tasks
 
+> **Deprecated.** This plugin is no longer suitable for current SOTA models. It
+> is archived in [`deprecated/tasks`](../README.md); see
+> [DEPRECATED.md](DEPRECATED.md) for the reason and compatibility notes. Do not
+> install it for new work.
+
 Tasks is a durable work list with dependencies and completion evidence. A goal is one objective pursued until achieved; a task is one unit of work to order, take, and finish.
 
 [简体中文](README.zh-CN.md)

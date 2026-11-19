@@ -24,7 +24,6 @@ LEADER_TOOLS = {
     "agent_list",
     "agent_list",
     "message",
-    "task",
 }
 WORKER_TOOLS = {
     "message",
@@ -110,14 +109,13 @@ def test_manifest_declares_a_bundle_of_three_extension_packages() -> None:
         "extensions": [
             "./index.ts",
             "./node_modules/@fradser/pi-subagents/index.ts",
-            "./node_modules/@fradser/pi-tasks/index.ts",
         ]
     }
     assert "skills" not in manifest["files"]
     assert "references" in manifest["files"] and not (PACKAGE / "agents").exists()
     # The two bundled packages must be real runtime dependencies, not peers: a
     # peer is supplied by the host and would be absent in a plain install.
-    for dependency in ("@fradser/pi-subagents", "@fradser/pi-tasks"):
+    for dependency in ("@fradser/pi-subagents",):
         assert dependency in manifest["dependencies"], dependency
         assert dependency not in manifest.get("peerDependencies", {}), dependency
 
@@ -187,7 +185,7 @@ def test_leader_tool_surface_is_exact() -> None:
 
     The task store is single-writer, so a spawned child cannot take a task by writing
     the tasks; it queues an intent and the leader applies it. That means `task`
-    has two registrations by necessity — pi-tasks' in the leader, the worker
+    has two registrations by necessity — the worker
     slice's in the child — and they never load into the same process. Asserting
     one registrant per *file* would be asserting something false, and asserting
     nothing would let a second leader-side registrant in unnoticed, which is the
@@ -198,7 +196,7 @@ def test_leader_tool_surface_is_exact() -> None:
     """
     shipped = [
         path
-        for package in ("agent-teams", "subagents", "tasks")
+        for package in ("agent-teams", "subagents")
         for path in (REPO / "packages" / package).rglob("*.ts")
         if "node_modules" not in path.parts and "tests" not in path.parts
         and path != PACKAGE / "src" / "worker.ts"
@@ -214,13 +212,9 @@ def test_leader_tool_surface_is_exact() -> None:
     assert [path for path, text in shipped_text.items() if "export const INTENT_TOOL_SCHEMAS" in text] == [
         "packages/subagents/src/intent-tools.ts"
     ], "the intent schemas must have exactly one home"
-    # The task surface is four tools, so it contributes four entries: each name
-    # has to have exactly one registrant, and that is now checked per name.
+    # The leader registers exactly one tool. The retired task tools have no
+    # registrant anywhere in the shipped source.
     leader_owners = {
-        "create_task": REPO / "packages" / "tasks" / "src" / "tool.ts",
-        "get_task": REPO / "packages" / "tasks" / "src" / "tool.ts",
-        "list_tasks": REPO / "packages" / "tasks" / "src" / "tool.ts",
-        "update_task": REPO / "packages" / "tasks" / "src" / "tool.ts",
         "message": PACKAGE / "src" / "tools.ts",
     }
     worker_owners = {
@@ -261,7 +255,7 @@ def test_worker_claim_uses_exclusive_create_marker_files() -> None:
     assert "createTaskIntent" in worker
     payload = run_node(
         f'''\
-        import {{ createTaskIntent, takeTaskIntent }} from "@fradser/pi-tasks";
+        import {{ createTaskIntent, takeTaskIntent }} from "./src/task-domain/index.ts";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -288,7 +282,7 @@ def test_worker_claim_uses_exclusive_create_marker_files() -> None:
 def test_task_intent_publishes_complete_records_without_leftover_temporaries() -> None:
     payload = run_node(
         f'''\
-        import {{ createTaskIntent, takeTaskIntent }} from "@fradser/pi-tasks";
+        import {{ createTaskIntent, takeTaskIntent }} from "./src/task-domain/index.ts";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -363,7 +357,7 @@ def test_fully_consumed_inbox_rotates_instead_of_destroying_records(tmp_path: Pa
 def test_take_task_intent_skips_malformed_records() -> None:
     payload = run_node(
         f'''\
-        import {{ takeTaskIntent, INTENT_PUBLISH_GRACE_MS }} from "@fradser/pi-tasks";
+        import {{ takeTaskIntent, INTENT_PUBLISH_GRACE_MS }} from "./src/task-domain/index.ts";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -400,7 +394,7 @@ def test_inbox_roundtrip_offsets_and_diagnostics() -> None:
     payload = run_node(
         f'''\
         import {{ appendInboxMessage, inboxPath, readJsonlBatch, writeRoster, readRoster, rosterPath, stateFilePath, writeStateFile }} from "{(SRC / "statefile.ts").as_uri()}";
-        import {{ readTasksFile, writeTasksFile }} from "@fradser/pi-tasks";
+        import {{ readTasksFile, writeTasksFile }} from "./src/task-domain/index.ts";
         import fs from "node:fs";
         import os from "node:os";
         import path from "node:path";
@@ -1573,7 +1567,7 @@ def test_peer_traffic_stays_out_of_leader_context() -> None:
 def test_tasks_path_is_stable_only_for_the_same_session_file(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ tasksFilePath, sessionKey }} from "@fradser/pi-tasks";
+        import {{ tasksFilePath, sessionKey }} from "./src/task-domain/index.ts";
         const cwd = {str(tmp_path)!r};
         const first = "/sessions/first.jsonl";
         const second = "/sessions/second.jsonl";
@@ -1897,7 +1891,7 @@ def test_snapshots_write_only_what_changed(tmp_path: Path) -> None:
         import {{ initTeamMachine, shutdownTeamMachine, publishStateSnapshot, applyProgress, STATE_SNAPSHOT_MIN_INTERVAL_MS }} from "{(SRC / "team-machine.ts").as_uri()}";
         import {{ resetState, registerAgent, createTask, updateAgent }} from "{(SRC / "state.ts").as_uri()}";
         import {{ stateFilePath, rosterPath }} from "{(SRC / "statefile.ts").as_uri()}";
-        import {{ tasksFilePath }} from "@fradser/pi-tasks";
+        import {{ tasksFilePath }} from "./src/task-domain/index.ts";
         import fs from "node:fs";
         const root = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});

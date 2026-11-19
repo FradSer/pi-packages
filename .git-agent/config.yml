@@ -12,7 +12,7 @@ scopes:
     - name: sa
       description: subagent definitions, child spawn, workspace isolation, and report channels in packages/subagents/; does not cover team coordination
     - name: tasks
-      description: task data model, status machines, dependency-graph rules, and durable board persistence in packages/tasks/; does not cover processes
+      description: archived task data model, status machines, dependency-graph rules, and durable board persistence in deprecated/tasks/; does not cover processes
     - name: goal
       description: durable goal runtime, ledger storage, and completion auditing in packages/goal/; does not cover shared kit internals
     - name: loop

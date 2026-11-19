@@ -65,24 +65,11 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
   });
 }
 
-// The `task` tool is registered by @fradser/pi-tasks' own extension entry. This
-// package loads it through its manifest rather than calling its registrar, so
-// there is exactly one registrant of that tool in every install combination.
-// The leader learns about tasks transitions on `pi-tasks:*` events instead.
-
-/** Temporary seam. Each registrar moves to its owning package; this keeps the
- *  existing entry point and its test fixtures intact until that lands. */
 /** Register this package's own tool, and only that one.
  *
- * `agent` is registered by @fradser/pi-subagents and `task` by
- * @fradser/pi-tasks. This package's manifest loads those two extension entries
- * alongside its own, which is how one install ends up with three tools and each
- * tool still has exactly one registrant. A tool with two registrants either
- * collides or is silently dropped depending on load order, and neither failure is
- * visible from here.
- *
- * The leader learns about tasks transitions on `pi-tasks:*` events rather than
- * being called by pi-tasks, so the domain never has to know a resident exists.
+ * `agent` is registered by @fradser/pi-subagents. Task tools are retired: the
+ * internal task domain coordinates residents without exposing a model-facing
+ * task tool, so this package registers only `message`.
  */
 export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnAgent, shutdownAgentExact, sendLeaderMessage }): void {
   registerMessageTool(pi, runtime);

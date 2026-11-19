@@ -12,15 +12,15 @@ export type { Agent, AgentStatus, AgentUsage } from "@fradser/pi-subagents";
 import type { Agent } from "@fradser/pi-subagents";
 
 // ── Task tasks ────────────────────────────────────────────────────
-// The Work Item data model lives in @fradser/pi-tasks. Re-exported here because the
-// coordination vocabulary below (Agent, TeamState) references it and callers
+// The Work Item data model is internal to this package. Re-exported here because
+// the coordination vocabulary below (Agent, TeamState) references it and callers
 // read this module as the package's type surface.
 
-export type { Task, TaskIntent, TaskStatus } from "@fradser/pi-tasks";
+export type { Task, TaskIntent, TaskStatus } from "./task-domain/index.ts";
 // The assignment a teammate holds is the task domain's own shape. Re-exported
 // under the historical name so the coordination vocabulary stays readable.
-export type { WorkAssignment as WorkerAssignment } from "@fradser/pi-tasks";
-import type { Task } from "@fradser/pi-tasks";
+export type { WorkAssignment as WorkerAssignment } from "./task-domain/index.ts";
+import type { Task } from "./task-domain/index.ts";
 
 /**
  * The result shape every coordination tool returns.

@@ -63,7 +63,6 @@ mock.method(childProcess, "spawn", () => {
 syncBuiltinESMExports();
 
 const { registerLeaderTools } = await import("../src/tools.ts");
-const { registerTaskTools } = await import("@fradser/pi-tasks");
 const { clearSessionAgents, registerIntentTools, registerSessionAgent } = await import("@fradser/pi-subagents");
 const { resetState } = await import("../src/state.ts");
 const { initTeamMachine, shutdownTeamMachine } = await import("../src/team-machine.ts");
@@ -87,7 +86,6 @@ try {
   } as unknown as ExtensionAPI;
   registerLeaderTools(host);
   registerIntentTools(host);
-  registerTaskTools(host);
   /** The intent tool each child operation belongs to; the retired single tool is gone. */
   const childTool = (operation: string): ToolDefinition => {
     const name = operation === "input" || operation === "steer" ? "agent_input"

@@ -133,7 +133,7 @@ def test_guidance_requires_failed_blockers_and_quiet_leader_handling() -> None:
 def test_public_submit_settlement_keeps_blocked_dependents(tmp_path: Path, outcome: str) -> None:
     payload = machine_case(tmp_path, f'''
       const {{ createWorkerFixture, assistant }} = await import("{(PACKAGE / 'tests' / 'automatic-results-fixture.ts').as_uri()}");
-      const {{ tasksFilePath, submissionsDir }} = await import("@fradser/pi-tasks");
+      const {{ tasksFilePath, submissionsDir }} = await import("./src/task-domain/index.ts");
       const path = await import("node:path");
       const fixture = createWorkerFixture(root, "direct", "reviewer");
       const tasksSubmissions = submissionsDir(path.dirname(tasksFilePath(undefined, root)));

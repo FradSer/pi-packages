@@ -1,15 +1,12 @@
 /**
  * Test-side composition of the bundle.
  *
- * In production the agent-teams manifest loads the pi-subagents and pi-tasks
- * extension entries alongside its own, which is how one package ends up with
- * three tools while each tool still has exactly one registrant. A test that
- * needs more than `message` has to compose the same way, or it would be asserting
- * against a hand-built surface no install can produce.
+ * In production the agent-teams manifest loads the pi-subagents extension
+ * alongside its own. The task domain is internal and registers no model-facing
+ * tool, so a test composes exactly the two tool owners a real install has.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerTaskTools } from "@fradser/pi-tasks";
 import { exactSessionRoute, registerIntentTools, setAgentHost, type AgentStartRequest } from "@fradser/pi-subagents";
 import { registerLeaderTools } from "../src/tools.ts";
 import type { AgentActionRuntime } from "../src/agent-actions.ts";
@@ -20,15 +17,14 @@ export interface FakeTeamRuntime extends AgentActionRuntime {
   shutdownAgentExact(name: string, spawnId: string): Promise<{ ok: true; body?: string } | { ok: false; error: string }>;
 }
 
-/** Register all three tools, each by its owning package. */
+/** Register the tools a real install exposes: `message` and the agent family. */
 export function registerComposedTools(
   pi: Pick<ExtensionAPI, "registerTool">,
   runtime?: FakeTeamRuntime & { sendLeaderMessage: (...args: never[]) => never },
-  options: { agent?: boolean; task?: boolean } = {},
+  options: { agent?: boolean } = {},
 ): void {
   registerLeaderTools(pi as ExtensionAPI, runtime as never);
   if (options.agent !== false) registerIntentTools(pi as ExtensionAPI);
-  if (options.task !== false) registerTaskTools(pi as ExtensionAPI);
 }
 
 /**

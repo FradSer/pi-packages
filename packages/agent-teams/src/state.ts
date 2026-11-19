@@ -1,4 +1,4 @@
-import { isTaskReplaced } from "@fradser/pi-tasks";
+import { isTaskReplaced } from "./task-domain/index.ts";
 /**
  * Team state management for the current session only: the teammate roster,
  * the in-memory task storage, and the single leader inbox. The leader process
@@ -28,8 +28,8 @@ import {
   rosterRevision as currentRosterRevision,
   type Agent,
 } from "@fradser/pi-subagents";
-// The Work Item graph and resource rules are pure and live in @fradser/pi-tasks, so the
-// leader, the worker, and any tasks-only consumer share one implementation.
+// The Work Item graph and resource rules are internal to this package now, so
+// leader and worker share one implementation without a separate plugin.
 // `activeAssignmentConflict` below is the roster-backed policy on top of
 // `resourcesConflict`, and stays here because it reads the roster.
 import {
@@ -40,7 +40,7 @@ import {
   resourcesConflict,
   tasks as storedTasks,
   type WorkAssignment as WorkerAssignment,
-} from "@fradser/pi-tasks";
+} from "./task-domain/index.ts";
 
 export const MAX_LEADER_MAILBOX_MESSAGES = 4096;
 /** Total mailbox body bytes retained for forensics. A count cap alone lets a few
@@ -269,7 +269,7 @@ export function activeAssignmentConflict(
   });
 }
 
-// ── Tasks (delegated to pi-tasks) ────────────────────────────────
+// ── Tasks (internal domain) ─────────────────────────────────────
 //
 // There is deliberately no `release` here. A lease is given back on completion,
 // on process exit, and on stop; the runtime's own half-start reverts go through
@@ -282,8 +282,8 @@ export {
   applyClaimIntent, revertUndeliveredTake, bindTask, discardTask,
   acknowledgeSupersession, completeTaskWithOutcome,
   applySubmissionIntent, loadTasks, setTaskContext,
-} from "@fradser/pi-tasks";
-export type { WorkAssignment as WorkerAssignment } from "@fradser/pi-tasks";
+} from "./task-domain/index.ts";
+export type { WorkAssignment as WorkerAssignment } from "./task-domain/index.ts";
 
 /**
  * Create a Task and bind it to a named holder in one step, rolling the creation
@@ -302,7 +302,7 @@ export function createBoundWork(input: {
     verify?: string;
     holder: string;
     assignment: WorkerAssignment;
-  }): { ok: true; task: import("@fradser/pi-tasks").Task } | { ok: false; reason: string } {
+  }): { ok: true; task: import("./task-domain/index.ts").Task } | { ok: false; reason: string } {
     const created = createTask({
       id: input.id,
       recordKind: "execution",
