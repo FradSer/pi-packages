@@ -25,6 +25,13 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[3]
 PACKAGES = REPO / "packages"
+# The task plugin's source is archived but still resolves as a workspace
+# dependency of the agent-teams bundle, so its entry stays loadable.
+ARCHIVED = {"tasks": REPO / "deprecated" / "tasks"}
+
+
+def package_root(package: str) -> Path:
+    return ARCHIVED.get(package, PACKAGES / package)
 # The fixture lives inside the package whose dependencies the install resolves
 # through, so a bare specifier in it names the same module instance the
 # packages themselves use. A fixture elsewhere would register a role in a
@@ -75,7 +82,7 @@ def isolated_environment(tmp_path: Path) -> dict[str, str]:
 
 
 def manifest(package: str) -> dict[str, object]:
-    return json.loads((PACKAGES / package / "package.json").read_text(encoding="utf-8"))
+    return json.loads((package_root(package) / "package.json").read_text(encoding="utf-8"))
 
 
 def loaded_entries(installed: list[str]) -> list[str]:
@@ -97,7 +104,7 @@ def loaded_entries(installed: list[str]) -> list[str]:
             parts = Path(entry).parts
             name = parts[2] if parts[1].startswith("@") else parts[1]
             local = name[3:] if name.startswith("pi-") else name
-            assert (PACKAGES / local / "index.ts").is_file(), (
+            assert (package_root(local) / "index.ts").is_file(), (
                 f"{package} bundles {local}, which has no root index to load"
             )
             assert local not in resolved, f"{package} bundles {local} twice"

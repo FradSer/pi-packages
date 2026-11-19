@@ -46,6 +46,7 @@ import {
 import { DEFAULT_RULES, evaluateBash, evaluateSkill, evaluateText, mergeLayers, ruleRevision, validateRuleDeclaration } from "./guardrail-engine";
 import { assertHarnessTargetContained } from "./guardrails";
 import { assertHarnessConfigContainers, compareHarnessLayers, configPaths, loadLayers } from "./guardrail-config";
+import { removeTransactionFile, withOwnedFileTransaction } from "./file-transaction";
 import type { RuleLayer } from "./guardrail-types";
 import { legacyReservedNames } from "./legacy-harness";
 import { buildHarnessConsolidatorPrompt, learningPlannerArgs } from "./planner-prompts";
@@ -683,10 +684,21 @@ function builtInDefaultsLayer(): RuleLayer {
   return { source: "built-in defaults", rules: DEFAULT_RULES as unknown as Array<Record<string, unknown>> };
 }
 
-async function prepareHarnessOps(target: string, ops: readonly HarnessOp[], requested: HarnessPlanValidationOptions): Promise<{ before: Buffer | null; next: string; applied: string[] }> {
+interface PreparedHarness {
+  before: Buffer | null;
+  beforeMode: number;
+  next: string;
+  nextMode: number;
+  applied: string[];
+}
+
+async function prepareHarnessOps(target: string, ops: readonly HarnessOp[], requested: HarnessPlanValidationOptions): Promise<PreparedHarness> {
   const workspace = path.basename(path.dirname(target)) === ".pi" ? path.dirname(path.dirname(target)) : undefined;
   await assertHarnessTargetContained(target, workspace);
   const before = await readLayerFileBytes(target);
+  const beforeStat = before ? await fs.lstat(target) : undefined;
+  if (beforeStat && (beforeStat.isSymbolicLink() || !beforeStat.isFile())) throw new Error(`Harness target is not a regular file: ${target}`);
+  const beforeMode = beforeStat ? beforeStat.mode & 0o777 : 0o600;
   let base: Record<string, unknown> = { rules: [] };
   if (before) {
     try { const parsed: unknown = JSON.parse(before.toString("utf8")); assertHarnessConfigContainers(parsed); base = parsed; }
@@ -720,38 +732,45 @@ async function prepareHarnessOps(target: string, ops: readonly HarnessOp[], requ
   if (effective.errors.length) throw new Error(`invalid effective harness configuration: ${effective.errors.join("; ")}`);
   const next = JSON.stringify({ ...base, rules, ...(options.automatic ? { learnedRules } : {}) }, null, 2) + "\n";
   if (Buffer.byteLength(next, "utf8") > 1_000_000) throw new Error("candidate harness configuration exceeds 1000000 bytes");
-  return { before, next, applied };
+  return { before, beforeMode, next, nextMode: 0o600, applied };
 }
 
 /** Called under the target mutation queue. Only byte-identifiable candidate
  * content belongs to this transaction; a newer external edit is never restored
  * over. Unreadable content is not proof of ownership and must fail explicitly. */
-async function rollbackPreparedHarness(target: string, prepared: { before: Buffer | null; next: string }): Promise<void> {
+async function rollbackPreparedHarness(target: string, prepared: PreparedHarness): Promise<void> {
   await assertHarnessTargetContained(target);
   const now = await readLayerFileBytes(target);
-  if (now?.equals(Buffer.from(prepared.next))) {
-    if (prepared.before) await writeFileAtomic(target, prepared.before, 0o600);
-    else await fs.rm(target, { force: true });
-  }
+  const stat = now ? await fs.lstat(target) : undefined;
+  if (!now?.equals(Buffer.from(prepared.next)) || !stat?.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== prepared.nextMode) return;
+  await withOwnedFileTransaction([{file: target, existed: true, content: now}], async () => {
+    if (prepared.before) await writeFileAtomic(target, prepared.before, prepared.beforeMode);
+    else await removeTransactionFile(target);
+  }, async () => {
+    const current = await fs.lstat(target);
+    if (!current.isFile() || current.isSymbolicLink() || (current.mode & 0o777) !== prepared.nextMode) throw new Error("Concurrent Harness permission change preserved during rollback");
+  });
 }
 
-async function writePreparedHarness(target: string, prepared: { before: Buffer | null; next: string }): Promise<void> {
+async function writePreparedHarness(target: string, prepared: PreparedHarness): Promise<void> {
   await assertHarnessTargetContained(target);
   const current = await readLayerFileBytes(target);
   if (current?.toString("base64") !== prepared.before?.toString("base64")) throw new Error("Harness target changed before atomic application");
-  // The boundary begins before replacement, not after readback: an atomic write
-  // can succeed and still throw while verifying or finalizing its result.
-  try {
-    await writeFileAtomic(target, prepared.next, 0o600);
-    const verified = await readLayerFileBytes(target);
-    if (!verified?.equals(Buffer.from(prepared.next))) throw new Error("Harness readback does not match the complete candidate");
-  } catch (error) {
-    try { await rollbackPreparedHarness(target, prepared); }
-    catch (rollbackError) {
-      throw new Error(`${(error as Error).message}; rollback could not verify or restore the target: ${(rollbackError as Error).message}`, { cause: error });
+  await withOwnedFileTransaction([{ file: target, existed: prepared.before !== null, content: prepared.before ?? undefined }], async () => {
+    try {
+      await writeFileAtomic(target, prepared.next, prepared.nextMode);
+      const verified = await readLayerFileBytes(target);
+      if (!verified?.equals(Buffer.from(prepared.next))) throw new Error("Harness readback does not match the complete candidate");
+    } catch (error) {
+      try { await rollbackPreparedHarness(target, prepared); }
+      catch (rollbackError) {
+        throw new Error(`${(error as Error).message}; rollback could not verify or restore the target: ${(rollbackError as Error).message}`, { cause: error });
+      }
+      throw error;
     }
-    throw error;
-  }
+  }, async () => {
+    if (prepared.before !== null && ((await fs.lstat(target)).mode & 0o777) !== prepared.beforeMode) throw new Error("Harness predecessor permissions changed before application");
+  });
 }
 
 export async function applyHarnessOps(target: string, ops: readonly HarnessOp[], argument?: HarnessApplyArgument): Promise<{ ok: true; applied: string[] } | { ok: false; error: string }> {
@@ -1582,8 +1601,9 @@ export async function applyHarnessConsolidationPlan(
         const rollback = () => rollbackPreparedHarness(target, prepared);
         if (!current()) { await rollback(); return { outcome: "cancelled" as const, operations: ops.length }; }
         const receipt = buildHarnessReceipt({ ...receiptInput, phase: "post", digestAfter: sha256Digest(prepared.next), applied: prepared.applied });
-        try { await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`); }
-        catch (error) { await rollback(); throw error; }
+        try {
+          await writeFileAtomic(path.join(runDir, "harness-post-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
+        } catch (error) { await rollback(); throw error; }
         return { outcome: "applied" as const, operations: ops.length, applied: prepared.applied };
       }, plan);
     });

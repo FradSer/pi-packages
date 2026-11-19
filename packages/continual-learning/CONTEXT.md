@@ -52,9 +52,10 @@ the AGENTS.md budget, Jev and the capability flags. The retired
 `<agent-dir>/memory.json` and `<agent-dir>/memory/settings.json` are neither
 read nor written. Learning triggers:
 `autoSettledLearning` runs the settled-task learner after `agent_settled`, and
-`autoContinualLearning` exposes the parent `learn` tool so the
-agent can request current-task Memory learning once before its answer. Both
-default off; the retired `autoMemory` field is ignored. Both share the
+Agent-triggered learning is always on: the parent `learn` tool lets the agent
+request current-task Memory learning once before its answer. Only
+`autoSettledLearning` defaults off; the retired `autoMemory` and
+`autoContinualLearning` fields are ignored. Both share the
 `automaticPhases` Memory policy and the same parent pipeline: agent-requested
 runs use the automatic policy, floor Memory routing without supplying content,
 and never run Harness or AGENTS.md phases. A terminal agent attempt records the

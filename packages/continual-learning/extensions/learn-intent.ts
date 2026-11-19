@@ -17,6 +17,12 @@ const HARNESS_REQUEST = /以后(?:禁止|不得|严禁|不要)|永久(?:禁止|�
 /** Explicit requests to organize or remember Memory. */
 const MEMORY_REQUEST = /整理记忆|梳理记忆|整理一下记忆|记住这个|记住以下|把这些记住|\bremember\s+this\b|\bconsolidate\s+memory\b|\borganize\s+memory\b|\btidy\s+(?:the\s+)?memory\b/iu;
 
+/** Durable personal preferences belong in Memory, not executable rules. */
+const PERSONAL_PREFERENCE_REQUEST = /i\s+prefer\b|\bmy\s+(?:progress\s+updates?|replies|responses|communication|writing\s+style|preferred)\b|\bprefer\s+(?:concise|short|brief|terse)\b|请记住[^\n]{0,40}(?:偏好|希望|喜欢)|我(?:偏好|希望)[^\n]{0,40}(?:进度更新|回复|回答|沟通|写作)/iu;
+
+/** Rule words that outrank a preference phrase and still route to Harness. */
+const EXPLICIT_RULE_REQUEST = /以后(?:禁止|不得|严禁|不要)|永久(?:禁止|约束|规则|生效)|今后(?:禁止|不得)|给后续(?:加|添加)规则|添加规则|加一条规则|纠正(?:旧|现有)?规则|退役(?:旧|现有)?规则|撤销(?:旧|现有)?规则|要求[^\n]{0,24}(?:回归测试|检查|验证)|\bretire\s+(?:the\s+)?(?:old\s+)?rule\b|\bcorrect\s+(?:the\s+)?(?:old\s+)?rule\b|\badd\s+(?:a\s+)?(?:lasting\s+|permanent\s+|durable\s+)?rule\b|\brequire\s+a\s+regression\s+test\s+before\s+publishing\b|\bpermanently\s+(?:constrain|prohibit|block)\b/iu;
+
 /** A negation that governs the request phrase itself, not an unrelated
  * privacy caveat elsewhere in the same message. */
 const NEGATED_HARNESS = /不(?:要|用|必)(?:加|添加|纠正|退役|撤销|约束|禁止)|别(?:加|禁止|约束)|无需(?:加|禁止)|do\s+not\s+(?:add|correct|retire|require|permanently)|don['’]t\s+(?:add|correct|retire|require)|no\s+need\s+to\s+(?:add|correct|require)/iu;
@@ -67,8 +73,9 @@ function onlyQuoted(text: string, pattern: RegExp): boolean {
 export function classifyLearnRoute(text: string): LearnRoute {
   const value = text.trim();
   if (!value) return "none";
-  const harness = HARNESS_REQUEST.test(value);
-  const memory = MEMORY_REQUEST.test(value);
+  const personalPreference = PERSONAL_PREFERENCE_REQUEST.test(value) && !EXPLICIT_RULE_REQUEST.test(value);
+  const harness = !personalPreference && HARNESS_REQUEST.test(value);
+  const memory = personalPreference || MEMORY_REQUEST.test(value);
   if (EXPLANATION.test(value)) {
     if (harness && !memory && onlyQuoted(value, HARNESS_REQUEST)) return "none";
     if (memory && !harness && onlyQuoted(value, MEMORY_REQUEST)) return "none";

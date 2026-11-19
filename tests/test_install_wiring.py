@@ -91,13 +91,13 @@ def test_the_install_check_script_passes(declared_install: Install) -> None:
     assert not declared_install.records("network-attempts.jsonl")
 
 
-@pytest.mark.parametrize("fault,finding", [("missing", "MISSING  packages/tasks"), ("dead", "DEAD     settings.packages")])
+@pytest.mark.parametrize("fault,finding", [("missing", "MISSING  packages/btw"), ("dead", "DEAD     settings.packages")])
 def test_missing_declarations_and_dead_sources_fail(
     declared_install: Install, fault: str, finding: str,
 ) -> None:
     data = json.loads(declared_install.settings.read_text(encoding="utf-8"))
     if fault == "missing":
-        data["packages"].remove(str(REPO / "packages" / "tasks"))
+        data["packages"].remove(str(REPO / "packages" / "btw"))
     else:
         data["packages"].append(str(declared_install.root / "nonexistent-package"))
     declared_install.settings.write_text(json.dumps(data), encoding="utf-8")
@@ -158,10 +158,7 @@ def test_real_loader_does_not_load_ambient_personal_or_project_extensions(
 
 INSTALLS = {
     ("subagents",): set(PACKAGE_TOOLS["subagents"]),
-    ("tasks",): set(PACKAGE_TOOLS["tasks"]),
-    ("subagents", "tasks"): COORDINATION - {"message"},
     ("agent-teams",): COORDINATION,
-    ("subagents", "tasks", "agent-teams"): COORDINATION,
 }
 
 
@@ -351,17 +348,6 @@ def test_the_configured_install_runs_the_tools_end_to_end(smoke_install: tuple) 
     install, requests = smoke_install
     report = pi_report(install, scenario="smoke")
     calls = report["calls"]
-    tasks = [call for call in calls if call["name"] in ("create_task", "list_tasks", "update_task")]
-    assert [call["name"] for call in tasks] == [
-        "create_task", "list_tasks", "update_task", "update_task", "update_task",
-    ], tasks
-    assert all(not call["isError"] for call in tasks[:4]), tasks
-    assert [call["details"].get("status") for call in tasks[:4]] == ["pending", None, "in_progress", "completed"]
-    task_id = tasks[0]["details"]["id"]
-    assert tasks[1]["details"]["tasks"][0]["id"] == task_id
-    assert tasks[2]["details"]["id"] == tasks[3]["details"]["id"] == task_id
-    assert tasks[2]["details"]["task"]["holder"] == "main"
-    assert tasks[4]["isError"] and "assign" in tasks[4]["text"]
     message = next(call for call in calls if call["name"] == "message")
     assert "nobody-here" in message["text"] and message["isError"], message
     agents = [call for call in calls if call["name"].startswith("agent_")]

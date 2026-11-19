@@ -12,11 +12,11 @@ from support import REPO, run_bun as _run_bun
 run_bun = partial(_run_bun, timeout=30, temp_dirs=("TMPDIR",))
 
 
-def test_automatic_pipeline_does_not_request_routine_result_rows() -> None:
+def test_learning_reports_one_final_result_row() -> None:
     source = (REPO / 'packages/continual-learning/extensions/inject-memory.ts').read_text(encoding='utf-8')
-    assert 'mode: "automatic",\n        reportResult: false' in source
     assert 'registerMessageRenderer(LEARNING_RESULT_MESSAGE' in source
     assert 'eventToolLifecycle("learning", subject' in source
+    assert 'LEARNING_PROCEDURE_MESSAGE' not in source
 
 
 def test_memory_management_reports_shipped_incremental_planner() -> None:
@@ -797,23 +797,21 @@ def test_harness_repair_does_not_preserve_unauthorized_generated_positive_cases(
     assert 'while retaining\nthe required positives' not in prompt
 
 
-def test_shutdown_while_reading_settings_cannot_start_old_session_backfill() -> None:
+def test_settled_learning_never_starts_automatic_backfill() -> None:
+    # Given one settle learns its own task only, When the settled handler runs
+    # to completion, Then it never invokes replayPending: pending backlog
+    # references cannot start memory tasks by themselves. The explicit
+    # /consolidate backfill command remains the only replay trigger.
     result = run_bun(r'''
       import fs from 'node:fs';
       const source=fs.readFileSync('./packages/continual-learning/extensions/inject-memory.ts','utf8');
       const end=source.indexOf('\n    reportError: (error, ctx) => {');
-      const start=source.lastIndexOf('} finally { release(); }',end)+'} finally { release(); }'.length;
-      const body=source.slice(start,end).replace(/\n    },\s*$/,'');
-      const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
-      const run=new AsyncFunction('runtimeSettings','replayPending','ctx',`let sessionGeneration=1;const generation=1;${body}`);
-      let calls=0;
-      // Complete the settings await only after the old session is invalidated.
-      const interrupted=new AsyncFunction('replayPending',`let sessionGeneration=1;const generation=1;const ctx={};const runtimeSettings=async()=>{sessionGeneration++;return {autoSettledLearning:true,autoContinualLearning:false};};${body}`);
-      await interrupted(async()=>calls++);
-      const interruptedCalls=calls;await run(async()=>({autoSettledLearning:true,autoContinualLearning:false}),async()=>calls++,{});
-      console.log(JSON.stringify({interruptedCalls,normalCalls:calls-interruptedCalls}));
+      const start=source.lastIndexOf('} finally { release(); }',end);
+      const settledRun=source.slice(start,end);
+      console.log(JSON.stringify({replayCalls:(settledRun.match(/replayPending\(/g)??[]).length,
+        explicitBackfill:/args === "backfill"[\s\S]{0,200}replayPending\(ctx, true/.test(source)}));
     ''')
-    assert result == {'interruptedCalls': 0, 'normalCalls': 1}
+    assert result == {'replayCalls': 0, 'explicitBackfill': True}
 
 
 @pytest.mark.parametrize('failure', ['shutdown', 'settings-error'])
@@ -841,3 +839,35 @@ def test_settled_task_is_retained_before_asynchronous_settings(failure: str) -> 
     assert result['retainedBeforeSettings'] == 1
     assert result['runs'] == []
     assert len(result['errors']) == (failure == 'settings-error')
+
+
+def test_memory_planner_prompts_balance_scarcity_with_durable_knowledge() -> None:
+    # Given repeated automatic runs with routine tool activity and a durable fact,
+    # When the planner prompt is built, Then it rejects routine noise but still
+    # asks for the grounded durable fact or preference.
+    planner = (REPO / "packages/continual-learning/prompts/incremental-memory-consolidator.md").read_text()
+    selector = (REPO / "packages/continual-learning/prompts/memory-selector.md").read_text()
+    assert "An empty delta is a normal outcome" in planner
+    assert "Explicit durable preferences" in planner
+    assert "alone" in planner and "does not qualify" in planner
+    assert "A passing check" in planner
+    assert "new Memory for that subject" in planner
+    assert "one entry per subject" in planner
+    assert "no new record" in selector
+    assert "new knowledge can use" not in selector
+
+
+def test_memory_planner_prompts_prefer_updating_existing_records() -> None:
+    # Given repeated task sessions that revisit the same host or workflow,
+    # When the selector and planner prompts are built,
+    # Then they require the existing entry to be selected and updated instead
+    # of fragmenting the knowledge into a new file for each session.
+    selector = (REPO / "packages/continual-learning/prompts/memory-selector.md").read_text(encoding="utf-8")
+    planner = (REPO / "packages/continual-learning/prompts/incremental-memory-consolidator.md").read_text(encoding="utf-8")
+    assert "select that entry so the planner updates it" in selector
+    assert "an empty selection for continuing" in selector
+    assert "A new Memory file is the last option" in planner
+    assert "fold" in planner and "rewrite" in planner
+    assert "One record per subject is the norm" in planner
+    assert "Do not turn a troubleshooting session into its own entry" in planner
+    assert "host-name, address or lease change" in planner

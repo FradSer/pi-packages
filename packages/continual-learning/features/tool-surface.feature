@@ -5,14 +5,12 @@ Feature: One tool surface owns parent tool names and active transitions
   Parent authoring tools and the dynamic current-source collector keep their
   own activation paths.
 
-  Scenario: Parent learning tool activation preserves foreign tools
+  Scenario: Parent learning tool is always active and preserves foreign tools
     Given a parent session exposes read, bash, edit and write
-    When agent-triggered Memory learning is enabled
+    When the prompt is built for any session settings
     Then learn is active
     And read, bash, edit and write remain active
-    When agent-triggered Memory learning is disabled
-    Then learn is inactive
-    And read, bash, edit and write remain active
+    And the tool remains active without waiting for the first model request
 
   Scenario: Harness authoring activates and resets its declared tools
     Given a parent session exposes read and write

@@ -30,7 +30,7 @@ def test_memory_menu_has_three_first_level_actions_and_safe_browse(tmp_path: Pat
           }};
           const writes = [];
           await openMemoryMenu(ctx, {
-            status: async () => ({ autoSettledLearning: false, autoContinualLearning: true, model: 'provider/model', entries: 2 }),
+            status: async () => ({ autoSettledLearning: false, model: 'provider/model', entries: 2 }),
             loadMemories: async () => ({ entries: [
               { filename: 'preference.md', source: 'harness', readPath: '/private/preference.md', content: 'Keep changes small', description: 'Keep changes small' },
               // Canonical/private root ownership does not imply private data.
@@ -49,7 +49,7 @@ def test_memory_menu_has_three_first_level_actions_and_safe_browse(tmp_path: Pat
     )
     assert len(result["menus"]) == 5
     assert result["menus"][0]["options"] == ["Browse memories", "Learning settings", "Recent learning", "Close"]
-    assert "settled off · agent on" in result["menus"][0]["title"]
+    assert "settled off · agent always on" in result["menus"][0]["title"]
     assert "provider/model" in result["menus"][0]["title"]
     assert "2 entries" in result["menus"][0]["title"]
     assert result["menus"][1]["options"] == ["Private · preference.md · Keep changes small", "Shared · fact.md · Project fact", "Back"]
@@ -60,14 +60,14 @@ def test_memory_menu_settings_and_advanced_policy_delegate_without_writes(tmp_pa
     result = run_menu(
         r'''
           import { openMemoryMenu } from './packages/continual-learning/extensions/memory-menu.ts';
-          const choices = ['Learning settings', 'Toggle agent-triggered learning', 'Advanced phase policies', 'Harness policy', 'propose — save for review'];
+          const choices = ['Learning settings', 'Advanced phase policies', 'Harness policy', 'propose — save for review'];
           const menus = []; const delegated = []; const writes = [];
           const ctx = { cwd: process.env.MEMORY_MENU_TEST_ROOT, hasUI: true, ui: {
             select: async (title, options) => { menus.push({ title, options }); return choices.shift(); },
             notify: () => {},
           }};
           await openMemoryMenu(ctx, {
-            status: async () => ({ autoSettledLearning: true, autoContinualLearning: true, model: 'provider/model', entries: 0 }),
+            status: async () => ({ autoSettledLearning: true, model: 'provider/model', entries: 0 }),
             loadMemories: async () => ({ entries: [], totalEntries: 0, omittedEntries: 0, limitedEntries: 0, unavailableEntries: 0, indexes: [], maxTotalChars: 6000 }),
             listHistory: async () => [],
             manage: async (command) => { delegated.push(command); return true; },
@@ -79,12 +79,12 @@ def test_memory_menu_settings_and_advanced_policy_delegate_without_writes(tmp_pa
         ''',
         tmp_path,
     )
-    assert result["menus"][1]["options"] == ["Select learning model", "Toggle settled-task learning", "Toggle agent-triggered learning", "Advanced phase policies"]
-    assert result["menus"][2]["options"] == ["Select learning model", "Toggle settled-task learning", "Toggle agent-triggered learning", "Advanced phase policies"]
-    assert result["menus"][3]["options"] == ["Memory policy", "Harness policy", "Agents policy"]
-    assert result["menus"][4]["options"] == ["apply — save validated changes", "propose — save for review", "off — skip automatic phase"]
+    assert result["menus"][1]["options"] == ["Select learning model", "Toggle settled-task learning", "Advanced phase policies"]
+    assert "agent always on" in result["menus"][1]["title"]
+    assert result["menus"][2]["options"] == ["Memory policy", "Harness policy", "Agents policy"]
+    assert result["menus"][3]["options"] == ["apply — save validated changes", "propose — save for review", "off — skip automatic phase"]
     assert result["delegated"] == ["policy harness propose"]
-    assert result["writes"] == ["autoContinualLearning"]
+    assert result["writes"] == []
 
 
 def test_memory_menu_recent_learning_does_not_offer_undo_for_proposals(tmp_path: Path) -> None:
@@ -276,3 +276,36 @@ def test_memory_menu_duplicate_index_records_are_canonical_not_shared(tmp_path: 
     )
     assert result["options"][-1] == "Back"
     assert result["options"][:-1] == ["Canonical · duplicate.md · unknown"]
+
+
+def test_memory_menu_root_uses_the_shared_native_selector(tmp_path: Path) -> None:
+    # Given an interactive /memory menu, When its root level opens, Then it uses
+    # the same managementUI/selectMenu path as each submenu instead of a plain
+    # ctx.ui.select with different key, viewport and resize behavior.
+    result = run_bun(
+        r'''
+          import fs from 'node:fs';
+          const source = fs.readFileSync('./packages/continual-learning/extensions/memory-menu.ts','utf8');
+          const root = source.slice(source.indexOf('export async function openMemoryMenu'));
+          console.log(JSON.stringify({selectMenu: root.includes('selectMenu(managementUI(ctx.ui, ctx.mode)'),
+            rawSelect: /ctx\.ui\.select\(/.test(root)}));
+        ''',
+        {"MEMORY_MENU_TEST_ROOT": str(tmp_path)},
+    )
+    assert result == {"selectMenu": True, "rawSelect": False}
+
+
+def test_memory_menu_has_no_agent_trigger_toggle(tmp_path: Path) -> None:
+    # The agent trigger is always available, so settings must not offer a toggle.
+    result = run_bun(
+        r'''
+          import fs from 'node:fs';
+          const source=fs.readFileSync('./packages/continual-learning/extensions/memory-menu.ts','utf8');
+          const settings=source.slice(source.indexOf('async function learningSettings'),source.indexOf('async function learningChanges'));
+          console.log(JSON.stringify({toggle:/agent-triggered learning/i.test(settings),
+            field:/autoContinualLearning/.test(settings),
+            settled:/Toggle settled-task learning/.test(settings)}));
+        ''',
+        {"MEMORY_MENU_TEST_ROOT": str(tmp_path)},
+    )
+    assert result == {"toggle": False, "field": False, "settled": True}

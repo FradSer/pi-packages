@@ -333,12 +333,12 @@ explicit request that the parent handles through the `learn` tool. Its
 rule-management option opens the same guarded Harness procedure directly,
 owning exact candidate bytes, fixture validation and the native confirmation.
 No advanced command form is offered to users; internal frozen-protocol
-bindings remain for research and recovery scripts only. Each run shows two transcript rows: one
-`[learning] started · <subject>` line and one final `[learning]` outcome line.
-While a run is active, one spinner activity row sits above the editor (the
-same live widget language as subagents): its identity names the agent
-`learner`, while the bounded run topic is the row's activity. It is cleared
-when the run ends, is cancelled or fails. The final row collapses
+bindings remain for research and recovery scripts only. Each run shows one final
+`[learning]` outcome row after it settles; no separate started transcript row is
+emitted. While a run is active, one spinner activity row sits above the editor
+(the same live widget language as subagents): its identity names the agent
+`learner`, while it reports a bounded run activity. It is cleared when the run
+ends, is cancelled or fails. The final row collapses
 to one outcome line; when the run applied safe Memory, expanding it shows each
 entry's description and body as Markdown. Frontmatter, filenames and receipt
 metadata (usage, cost, source, calls, per-phase attempts and diagnostics) are
@@ -406,14 +406,13 @@ verified (`extensions/incremental-memory-plan.ts`).
 ## Learning pipeline
 
 All user-level configuration lives in one file,
-`<agent-dir>/continual-learning.json`: the learning model, the two learning
-triggers, phase policies, AGENTS.md budget, Jev, and the capability flags.
-Both triggers are disabled by default: `autoSettledLearning` runs the
-settled-task learner after a user task settles, and `autoContinualLearning`
-exposes the parent `learn` tool so the agent can request
+`<agent-dir>/continual-learning.json`: the learning model, the settled-learning setting, phase policies, AGENTS.md budget, Jev, and the
+capability flags. `autoSettledLearning` is off by default and runs the
+settled-task learner after a user task settles. Agent-triggered learning is
+always on: the parent `learn` tool is available for the agent to request
 current-task Memory learning once before its final answer. The retired
-`autoMemory` field is ignored. Both triggers share the `automaticPhases`
-Memory policy: `apply` writes validated changes, `propose` saves them for
+`autoMemory` and `autoContinualLearning` fields are ignored. Both triggers share
+the `automaticPhases` Memory policy: `apply` writes validated changes, `propose` saves them for
 review, and `off` refuses to run.
 
 `maxNewMemoriesPerRun` caps how many **new** Memory files one automatic task
@@ -427,7 +426,6 @@ file or applied mutation receipt. Invalid values fail the configuration closed.
 {
   "model": "cliproxyapi/gpt-6-luna",
   "autoSettledLearning": true,
-  "autoContinualLearning": true,
   "automaticPhases": { "memory": "apply", "harness": "apply", "agents": "apply" },
   "agentsMd": { "budgetBytes": 16384 },
   "maxNewMemoriesPerRun": 2,

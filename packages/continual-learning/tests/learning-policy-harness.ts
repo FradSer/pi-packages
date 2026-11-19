@@ -506,7 +506,6 @@ let reviewWireCalls = 0;
 let receiptDelivered: (() => void) | undefined;
 const receiptDelivery = new Promise<void>(resolve => {receiptDelivered=resolve;});
 const resultContents: string[] = [];
-const startedSubjects: string[] = [];
 if (privateAccepted) {
   const production = await import("../extensions/jev-learning.ts");
   const productionFactory = production.createJevJudge;
@@ -810,7 +809,7 @@ try {
   const notices: string[] = [];
   register({ on: (name, fn) => hooks.set(name, [...(hooks.get(name) ?? []), fn]),
     registerCommand: (name, definition) => commands.set(name, definition.handler),
-    sendMessage: (message) => {if(message.customType==="continual-learning-result"){receiptDelivered?.();resultContents.push(String(message.content ?? ""));} if(message.customType==="learning-procedure")startedSubjects.push(String((message.details as {subject?:string}|undefined)?.subject ?? ""));}, appendEntry: (kind,data) => {if(manualReplayProbe !== "unpersisted-marker")manualReplayManager?.appendCustomEntry(kind,data);}, getCommands: () => [],
+    sendMessage: (message) => {if(message.customType==="continual-learning-result"){receiptDelivered?.();resultContents.push(String(message.content ?? ""));} }, appendEntry: (kind,data) => {if(manualReplayProbe !== "unpersisted-marker")manualReplayManager?.appendCustomEntry(kind,data);}, getCommands: () => [],
     registerEntryRenderer: () => {},
     registerTool: (tool: { name: string }) => registeredTools.set(tool.name, tool as never),
     getActiveTools: () => activeToolWrites.at(-1) ?? [], setActiveTools: (names: string[]) => { activeToolWrites = [...activeToolWrites, names]; },
@@ -918,12 +917,64 @@ try {
   else if (isAgentMemory) {
     const tool = registeredTools.get("learn");
     const call = async () => tool ? await tool.execute("agent-test", {}, undefined, undefined, ctx) : undefined;
-    globalThis.agentFirst = await call();
-    globalThis.agentSecond = await call();
-    await runHook("agent_settled", {});
+    if (scenario === "agent-memory-settled-first") {
+      // The settled learner runs first, then the task keeps growing and the
+      // agent asks for Memory learning before answering.
+      await runHook("agent_settled", {});
+      entries.push({ message: { role: "toolResult", toolName: "bash", isError: false, content: "Verified later work in the same task." } } as typeof entries[number]);
+      globalThis.agentFirst = await call();
+      globalThis.agentSecond = await call();
+      await runHook("agent_settled", {});
+    } else if (scenario === "agent-memory-foreign-backlog") {
+      // An older session left a pending reference. Automatic learning after
+      // this session's settle must not start that memory task by itself; only
+      // the explicit /consolidate backfill may process it.
+      const {SessionManager} = await import("@earendil-works/pi-coding-agent");
+      const {enqueueBacklog, backlogStatus} = await import("../extensions/learning-backlog");
+      const {currentTaskSlice} = await import("../extensions/incremental-learning");
+      const oldDir = path.join(agent, "sessions", "old"); fs.mkdirSync(oldDir, {recursive: true});
+      const oldManager = SessionManager.create(cwd, oldDir);
+      oldManager.appendMessage({role: "user", content: "An older task from another session.", timestamp: 1});
+      oldManager.appendMessage({role: "assistant", content: [{type: "text", text: "Older result."}],
+        api: "openai-completions", provider: "fixture", model: "fixture",
+        usage: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}},
+        stopReason: "stop", timestamp: 2});
+      const oldSource = oldManager.buildContextEntries();
+      enqueueBacklog({cwd, agentDir: agent, sessionFile: oldManager.getSessionFile()!, from: 0, to: oldSource.length - 1,
+        digest: createHash("sha256").update(JSON.stringify(currentTaskSlice(oldSource))).digest("hex"), reason: "learning-failed"});
+      const rowSummary = async () => {
+        const {readBacklog} = await import("../extensions/learning-backlog");
+        return readBacklog(cwd, agent).pendingEntries.map(({entry}) => ({file: path.basename(entry.sessionFile), from: entry.from, to: entry.to, reason: entry.reason}));
+      };
+      const oldId = (await import("../extensions/learning-backlog")).backlogIdentity(
+        (await import("../extensions/memory-paths")).resolveMemoryPaths(cwd, agent).scopeKey,
+        {sessionFile: oldManager.getSessionFile()!, from: 0, to: oldSource.length - 1,
+          digest: createHash("sha256").update(JSON.stringify(currentTaskSlice(oldSource))).digest("hex")});
+      const foreignAttempts = async () => {
+        const f = path.join(agent, "learning", (await import("../extensions/memory-paths")).resolveMemoryPaths(cwd, agent).scopeKey, `replay-${oldId}.json`);
+        return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")).attempts.length : 0;
+      };
+      const before = planners.length;
+      await runHook("agent_settled", {});
+      const settledPlanners = planners.length - before;
+      const pendingAfterSettle = backlogStatus(cwd, agent).pending;
+      const rowsAfterSettle = await rowSummary();
+      const foreignAttemptsAfterSettle = await foreignAttempts();
+      await commands.get("consolidate")!("backfill", ctx);
+      globalThis.foreignBacklog = {settledPlanners, pendingAfterSettle, rowsAfterSettle, foreignAttemptsAfterSettle,
+        backfillPlanners: planners.length - before - settledPlanners, pendingAfterBackfill: backlogStatus(cwd, agent).pending,
+        rowsAfterBackfill: await rowSummary(), foreignAttemptsAfterBackfill: await foreignAttempts()};
+    } else {
+      globalThis.agentFirst = await call();
+      globalThis.agentSecond = await call();
+      await runHook("agent_settled", {});
+    }
   } else {
     await runHook("agent_settled", {});
     if (isTwoPipeline) {
+      // A real second user task adds a new role:user entry, which changes the
+      // stable task anchor; the hook alone does not mutate the branch.
+      entries.push({ message: { role: "user", content: "A new durable task: use the workspace build cache." } } as typeof entries[number]);
       await runHook("input", { source: "interactive" });
       await runHook("agent_settled", {});
     }
@@ -964,12 +1015,10 @@ try {
     return {file:name,responseSha256:fixtureDigest(response),response};
   })) : [];
   if (isRemember) requestCaptured = runs.some(run => run.dossier?.taskSlice?.entries[run.dossier?.memoryRequest?.entryIndex]?.message?.content === quote);
-  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
   const agentOutcome = (value: { content?: Array<{ text?: string }>; details?: Record<string, unknown>; isError?: boolean } | undefined) => value === undefined ? undefined
     : { text: value.content?.[0]?.text, status: value.details?.status, operations: value.details?.operations ?? null,
-        settledSubject: value.details ? learningOutcomeSpec(value as never).subject : undefined,
         replayBound: value.details?.replayBound, isError: value.isError === true };
-  console.log(JSON.stringify({ agentFirst: agentOutcome((globalThis as { agentFirst?: never }).agentFirst), agentSecond: agentOutcome((globalThis as { agentSecond?: never }).agentSecond), agentActiveTools: activeToolWrites, coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:(()=>{const j=JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev;return !(/^object$/.test(typeof j)&&j!==null&&'allowPrivateMemory' in j)})(),newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,plannerArgv,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" || process.env.CL_NEW_MEMORY_COUNT ? {proposal:record.proposal} : {})})),
+  console.log(JSON.stringify({ agentFirst: agentOutcome((globalThis as { agentFirst?: never }).agentFirst), agentSecond: agentOutcome((globalThis as { agentSecond?: never }).agentSecond), foreignBacklog: (globalThis as { foreignBacklog?: unknown }).foreignBacklog, agentActiveTools: activeToolWrites, coverageRepairTransports, coverageRepairReviews, coverageRepairResponses, manualReplayObservation, coverageDiagnosticProofs, originAuditArtifacts:fs.existsSync(paths.runsDir)?fs.readdirSync(paths.runsDir,{recursive:true}).filter(p=>String(p).endsWith("independent-memory-review.json")):[], consentCount,reviewWireCalls,consentConfigUnchanged:(()=>{const j=JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev;return !(/^object$/.test(typeof j)&&j!==null&&'allowPrivateMemory' in j)})(),newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,plannerArgv,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" || process.env.CL_NEW_MEMORY_COUNT ? {proposal:record.proposal} : {})})),
     privateFiles: fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir) : [],
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
     numericUsageLedgers: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("memory-task-usage.json")).map(name=>{const file=path.join(paths.runsDir,String(name));return {mode:fs.statSync(file).mode & 0o777,...JSON.parse(fs.readFileSync(file,"utf8"))};}) : [],
@@ -993,6 +1042,6 @@ try {
     replacementMemory: fs.existsSync(path.join(paths.harnessDir,"replacement.md")) ? fs.readFileSync(path.join(paths.harnessDir,"replacement.md"),"utf8") : undefined,
     memoryMirrored: fs.existsSync(path.join(paths.harnessDir,'concise.md')) && fs.existsSync(path.join(paths.publicDir!,'concise.md')) && fs.readFileSync(path.join(paths.harnessDir,'concise.md')).equals(fs.readFileSync(path.join(paths.publicDir!,'concise.md'))),
     harnessExists:fs.existsSync(path.join(cwd,".pi","harness.json")), agentsUnchanged: !(isAgents || isRemember || laterAfterMemory) || fs.readFileSync(path.join(cwd,"AGENTS.md"),"utf8") === oldAgents, lock:fs.existsSync(paths.lockFile),
-    resultContents, widgetEvents, startedSubjects, quote,
+    resultContents, widgetEvents, quote,
   }));
 } finally { fs.rmSync(root,{recursive:true,force:true}); }

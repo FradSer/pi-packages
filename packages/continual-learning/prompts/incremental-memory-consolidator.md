@@ -217,6 +217,36 @@ Omit observations when no selected claim needs one.
 
 ## Content and new proposals
 
+An empty delta is a normal outcome for an ordinary coding task; do not fill it
+with task narration. But a clearly durable user preference explicitly meant for
+future tasks, or a stable project fact that changes later implementation,
+debugging or configuration decisions, is useful and should be proposed with its
+original evidence. Do not demand an existing Memory entry or an advanced source
+relationship for these direct cases.
+
+A passing check, a completed command, a routine file edit, a one-time parameter,
+an existing project tool name, or a restatement of what the task requested alone
+does not qualify. Explicit durable preferences and independently stated
+stable project facts do qualify even when they are short. Rewrites require a
+specific obsolete, contradicted or misleading claim in a selected record,
+corrected by original evidence; style, emphasis, freshness or an added example
+alone never justify a write.
+
+A new Memory file is the last option. Before proposing one, name the selected
+entry that covers the same host, service, package, component or workflow and fold
+the new knowledge into that entry with a rewrite; a task that merely continues an
+existing topic does not justify a second file for it. Create a separate file only
+when no selected entry shares the subject and the knowledge changes a future
+decision. One record per subject is the norm: keep one entry per subject, not new Memory for that subject in every session that touches it.
+
+Do not turn a troubleshooting session into its own entry. Exact commands, raw
+outputs, dates, run IDs and step logs are incident narration: keep only the
+reusable rule (what to do, when, and what not to assume) and attach it to the
+existing record for that host or service. A host-name, address or lease change is
+a condition on the durable record for that host, not a new memory, and a repeated
+observation that adds no durable fact beyond what the record already states leaves
+the record unchanged instead of restating it.
+
 For each new entry, preserve one reusable fact or relationship with its evidenced
 dependencies, ownership, project/context, duration and exceptions intact.
 Deduplicate repeated statements, not independently applicable contract facts.

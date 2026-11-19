@@ -39,6 +39,13 @@ Feature: One model-facing learning tool
         atomic readback and rollback
     And the settled learner does not author a second rule for the task
 
+  Scenario: Lasting preferences are Memory, not executable Harness rules
+    Given the user asks to remember a durable personal preference for future replies
+    When the learn tool classifies the real user entry
+    Then it routes the request to Memory
+    And it does not open an executable-rule authoring procedure
+    And an explicitly temporary, no-remember or one-turn instruction remains unstored
+
   Scenario: A constraint prompt keeps its frozen both-surface evidence screen
     Given the user prompt is "以后禁止 npm"
     When screenLearningEntries screens the frozen task slice
@@ -52,37 +59,46 @@ Feature: One model-facing learning tool
     Then the parent organizes in process without a planner or review worker
     And the result is reported honestly as organized, not as applied
 
-  Scenario: A Memory call produces one started row and one final result row
+  Scenario: A Memory call produces one final result row
     Given a learn call starts exactly one Memory pipeline
     When the run ends
-    Then the transcript shows one [learning] started row
-    And one final outcome row that expands to Markdown descriptions and bodies of applied safe Memory
+    Then the transcript shows exactly one [learning] outcome row for that run
+    And that row expands to Markdown descriptions and bodies of applied safe Memory
     And the expansion names each applied Memory so the user can tell which records were written
     And the complete receipt stays unchanged in message details and on disk
     And an applied write has an undoable learning-history record
     And no settled or early-correction hook starts a second pipeline for the task
 
-  Scenario: A started run always reports its outcome, including a no-change result
-    Given a learn call emits a [learning] started row but writes no changes, screens nothing, or organizes in process
-    When the parent finishes that pipeline and returns a receipt
+  Scenario: A no-change run still reports one final result row
+    Given a learn call finishes a pipeline that writes no changes, screens nothing, or organizes in process
+    When the parent returns a receipt
     Then the transcript shows exactly one final [learning] outcome row for that batch
     And the row names the no-change, screened, skipped or organized outcome honestly
-    And no started row is left without its paired outcome row
     And the tool result text and the outcome row describe the same receipt
 
-  Scenario: A cancelled started run still reports its terminal outcome
-    Given a learn call emitted a [learning] started row
-    And the session shuts down or changes while the pipeline is still running
+  Scenario: A cancelled run reports its terminal outcome
+    Given the session shuts down or changes while a pipeline is running
     When the parent writes the cancelled receipt
     Then the transcript shows one [learning] outcome row naming the cancellation
-    And no started row is left without a paired outcome row
     And the tool result reports the session change honestly without claiming applied knowledge
 
-  Scenario: The learn tool result row names the applied Memory count
+  Scenario: Backfill replay reports one final result row
+    Given an explicit /consolidate backfill processes a verified pending reference
+    When the replay finishes
+    Then the transcript shows one [learning] outcome row for that batch
+    And the replay result is not duplicated by the tool result row
+
+  Scenario: The learn tool result stays model-facing for a paired run
+    Given a learn call produced a pipeline receipt and its final receipt row
+    When its tool result is rendered
+    Then no second [learning] tool result row appears in the transcript
+    And the full outcome text stays available to the model
+    And a non-pipeline outcome still reports itself as a tool result row
+
+  Scenario: The learn tool result names the applied Memory count
     Given a learn call applied two validated Memory records
-    When its tool result is rendered as a settled row
-    Then the row says "learned 2 Memory changes", not "learned 0 Memory changes"
-    And the count comes from the same receipt that produced the final outcome row
+    When the model receives its tool result text
+    Then the text names the same applied count as the final outcome row
     And a no-change result still names zero changes honestly
 
   Scenario: Held, disabled and failed outcomes are reported honestly
@@ -106,6 +122,40 @@ Feature: One model-facing learning tool
     Then the applied write emits a learning receipt and an undoable history record
     And the learn outcome still reports authoring-started, not a terminal rule write
     And the legacy two-step native write remains a separate, still-available path
+
+  Scenario: Every authoring writer preserves existing execution protection
+    Given a valid preview and an existing legacy write policy
+    When harness_write evaluates the same target and content as native write
+    Then the existing block or confirmation applies to both paths
+    And native authoring without UI never consumes its preview or writes
+    And invalid inherited layers prevent a successful authoring write
+    And inherited confirmation is decided before the final write confirmation
+    And policy evaluation preserves the submitted native path spelling
+    And only policies matching this write require inherited confirmation
+    And every raw inherited layer is rechecked after confirmation and before replacement
+    And confirmation shows the complete candidate and effective rule sources
+
+  Scenario: A failed authoring readback rolls back only its own write
+    Given the authoring writer replaced an unchanged predecessor atomically
+    When its readback fails with a local I/O error and no external edit
+    Then the exact predecessor bytes and permissions are restored before history closes
+    And no applied receipt or pending mutation remains
+    But an external byte or permission change during rollback remains untouched and pending
+
+  Scenario: Explicit authoring shares mutation ownership
+    Given an approved candidate bound to predecessor bytes and permissions
+    When the shared target queue or project consolidation lock is occupied
+    Then the writer cannot mutate outside those boundaries
+    And predecessor drift after confirmation is preserved
+    And a foreign edit during readback is never overwritten by rollback
+
+  Scenario: Cancellation follows the actual authoring commit boundary
+    Given a confirmed authoring write with successful readback
+    When cancellation arrives after the mutation commits
+    Then the file and applied history remain consistent with the applied receipt
+    And the outcome reports the actual applied change
+    And receipt metadata, if saved, agrees with the applied history
+    And a receipt save failure is reported as missing evidence, not as a saved receipt
 
   Scenario: An ordinary task does not start learning
     Given the user asks a one-off question that merely mentions "remember"

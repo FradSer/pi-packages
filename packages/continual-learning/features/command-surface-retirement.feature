@@ -30,9 +30,9 @@ Feature: One documented learning command and one model tool
     And the learning_read evidence marker survives byte-identical
 
   Scenario: Active parent tools still work without worker loadouts
-    Given learn and harness_write are defaultActive false
-    When an agent request enables learning and opens Harness authoring
-    Then learn and the guarded Harness write tool are activated by the parent
+    Given learn is defaultActive true and harness_write is defaultActive false
+    When an agent opens Harness authoring
+    Then learn is already active and the guarded Harness write tool is activated by the parent
     And the dynamic current-source collector keeps its own scoped read tool
     And no planner child receives a tool allowlist
 

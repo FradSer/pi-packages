@@ -19,6 +19,23 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PACKAGES = REPO / "packages"
+# The task plugin's source is archived, but the published npm package is still
+# bundled by agent-teams, so ownership is measured against the archived source.
+ARCHIVED = {"tasks": REPO / "deprecated" / "tasks"}
+
+
+def package_dir(package: str) -> Path:
+    return ARCHIVED.get(package, PACKAGES / package)
+
+
+def module_key(path: Path) -> str:
+    """A registration's package-relative name, including archived packages."""
+    for root in (PACKAGES, REPO / "deprecated"):
+        try:
+            return str(path.relative_to(root))
+        except ValueError:
+            continue
+    return str(path)
 
 # Owners are read from the code, not maintained here, so this test cannot drift
 # from reality by being edited alongside it.
@@ -29,7 +46,6 @@ PACKAGES = REPO / "packages"
 # the tasks is single-writer, so a child cannot take a task by writing the tasks.
 LEADER_BODIES = {
     "subagents": "src/extension.ts",
-    "tasks": "src/extension.ts",
     "agent-teams": "index.ts",
 }
 
@@ -42,11 +58,11 @@ def leader_sources(package: str) -> list[Path]:
     followed to where the name is written. Transitively, because a barrel between
     the entry and the registrar is exactly what a package-root convention produces.
     """
-    start = (PACKAGES / package / LEADER_BODIES[package]).resolve()
+    start = (package_dir(package) / LEADER_BODIES[package]).resolve()
     seen: set[Path] = set()
     files: list[Path] = []
     queue = [start]
-    root = (PACKAGES / package).resolve()
+    root = package_dir(package).resolve()
     while queue:
         current = queue.pop(0)
         if current in seen or not current.is_file() or not str(current).startswith(str(root)):
@@ -93,7 +109,7 @@ SUBAGENTS_FAMILY = re.compile(r"INTENT_TOOL_NAMES\s*=\s*\[([^\]]*)\]")
 SUBAGENTS_LOADER = re.compile(r'const\s+LOADER\s*=\s*"([a-z_]+)"')
 for package in LEADER_BODIES:
     for path in leader_sources(package):
-        if str(path.relative_to(PACKAGES)) in CHILD_REGISTRATION_MODULES:
+        if module_key(path) in CHILD_REGISTRATION_MODULES:
             continue
         text = path.read_text(encoding="utf-8")
         declared = set(re.findall(r'name:\s*"([a-z_]+)"', text))
@@ -109,16 +125,14 @@ TASK_TOOLS = {"create_task", "get_task", "list_tasks", "update_task"}
 EXPECTED_OWNERS = {
     "agent_start": "subagents", "agent_input": "subagents", "agent_stop": "subagents",
     "agent_list": "subagents", "agent_list": "subagents", "subagents_enable": "subagents",
-    **{tool: "tasks" for tool in TASK_TOOLS},
     "message": "agent-teams",
 }
 
 # A package's own extension entry, and the siblings it loads with it.
 OWN_EXTENSION: dict[str, set[str]] = {
     "subagents": set(),
-    "tasks": set(),
     # The bundle loads its two dependencies, so installing it alone is enough.
-    "agent-teams": {"@fradser/pi-subagents", "@fradser/pi-tasks"},
+    "agent-teams": {"@fradser/pi-subagents"},
 }
 
 LEADER_ONLY = {"agent_start", "agent_input", "agent_stop", "agent_list", "subagents_enable"}
@@ -132,7 +146,7 @@ def loaded_packages(installed: set[str]) -> set[str]:
     """Every package whose extension Pi loads, following the bundle's manifest."""
     resolved = set(installed)
     for package in list(resolved):
-        manifest = json.loads((PACKAGES / package / "package.json").read_text(encoding="utf-8"))
+        manifest = json.loads((package_dir(package) / "package.json").read_text(encoding="utf-8"))
         for entry in manifest.get("pi", {}).get("extensions", []):
             if "node_modules" not in entry:
                 continue
@@ -161,7 +175,7 @@ def test_every_child_side_registration_module_is_genuinely_child_side() -> None:
     coordination tool" different facts.
     """
     leader_entries = {
-        str((PACKAGES / package / relative).resolve())
+        str((package_dir(package) / relative).resolve())
         for package, relative in LEADER_BODIES.items()
     }
     for relative in sorted(CHILD_REGISTRATION_MODULES):
@@ -178,29 +192,13 @@ def test_every_child_side_registration_module_is_genuinely_child_side() -> None:
         )
 
 
-def test_the_task_tools_serve_both_processes() -> None:
-    """pi-tasks registers one tool that a leader and a child both use, differing
-    only in which identity it derives from the environment.
-
-    That is why it is not on the exclusion list even though it reads the worker
-    role binding: the same registration is correct in both processes, so counting
-    it as a child-side module would be wrong in the other direction.
-    """
-    tasks = (PACKAGES / "tasks" / "src" / "tool.ts").read_text(encoding="utf-8")
-    assert TASK_HOLDER_BINDING in tasks, "the tasks tool must be able to run in a child"
-    assert "tasks/src/tool.ts" not in CHILD_REGISTRATION_MODULES
-    assert TOOL_OWNER["create_task"] == "tasks"
-
-
 def test_each_tool_has_exactly_one_owning_package() -> None:
     assert TOOL_OWNER == EXPECTED_OWNERS, TOOL_OWNER
 
 
 COMBINATIONS = [
     ({"subagents"}, LEADER_ONLY),
-    ({"tasks"}, TASK_TOOLS),
-    ({"subagents", "tasks"}, LEADER_ONLY | TASK_TOOLS),
-    ({"agent-teams"}, LEADER_ONLY | TASK_TOOLS | {"message"}),
+    ({"agent-teams"}, LEADER_ONLY | {"message"}),
 ]
 
 
@@ -250,7 +248,7 @@ def test_a_bundled_sibling_is_a_runtime_dependency_not_a_peer() -> None:
     """A peer is supplied by the host and would be absent in a plain install, so a
     bundle that declared one would silently load two of its three tools."""
     for package, bundled in OWN_EXTENSION.items():
-        manifest = json.loads((PACKAGES / package / "package.json").read_text(encoding="utf-8"))
+        manifest = json.loads((package_dir(package) / "package.json").read_text(encoding="utf-8"))
         for dependency in bundled:
             assert dependency in manifest.get("dependencies", {}), (
                 f"{package} bundles {dependency} but does not depend on it"

@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-CHAIN = ("kit", "subagents", "tasks", "agent-teams")
+CHAIN = ("kit", "subagents", "agent-teams")
 CORE = ("@earendil-works/pi-coding-agent", "@earendil-works/pi-tui")
 EXPECTED_PI_VERSION = "1.5.0"
 

@@ -3,6 +3,15 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
   exhaustive validation shape from the immutable consolidation run and exact
   selected Memory names before existing validation or mutation can occur.
 
+  Scenario: Incremental generation keeps durable proposals while suppressing routine noise
+    Given an automatic task contains routine tool activity plus a clearly durable preference or project fact
+    When the incremental Memory planner reviews the frozen evidence
+    Then its instructions allow that grounded durable proposal while skipping routine noise
+    And it must not create separate records for repeated incidents on one subject
+    And rewrites must correct a specific obsolete, contradicted or misleading claim
+    And a continuation of an existing subject must update that subject instead of fragmenting it
+    And the parent's semantic, privacy and write gates still apply to every remaining proposal
+
   Scenario: Parent expands a valid delta without model-authored unchanged state
     Given a ConsolidationRun whose private MEMORY.md classifies one safe and one private selected Memory
     And a delta plan with matching identity fields, one selected rewrite, and one new Memory proposal
@@ -137,3 +146,11 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     Then the planner retains that proxy route and local bypass list
     And unrelated credentials, arbitrary Node preloads and TLS-verification overrides are not inherited
     And source validation, semantic thresholds and retry budgets remain unchanged
+
+  Scenario: Revisiting a known subject updates its record instead of creating another
+    Given the selector index already describes the host, service or workflow in the task
+    And the new observations merely continue or extend that same subject
+    When the selector and planner prepare an incremental Memory delta
+    Then the existing entry is selected for an update rather than a new file
+    And repeated session narration and transient command output are not stored as knowledge
+    And a new file is reserved for knowledge with no matching selected entry

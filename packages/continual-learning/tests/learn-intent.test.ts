@@ -33,6 +33,14 @@ test("an unrelated privacy caveat does not cancel an explicit request", () => {
   for (const [prompt, expected] of cases) expect(classifyLearnRoute(prompt), prompt).toBe(expected);
 });
 
+test("a lasting personal preference routes to Memory, not executable rules", () => {
+  for (const prompt of [
+    'I prefer concise progress updates in all future tasks',
+    'From now on, always keep my progress updates concise',
+    '请记住：我以后希望所有进度更新都简短',
+  ]) expect(classifyLearnRoute(prompt), prompt).toBe("memory");
+});
+
 test("generic lasting-rule wording routes to Harness", () => {
   for (const prompt of [
     "Never allow direct database writes in future tasks",

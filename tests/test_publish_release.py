@@ -647,7 +647,7 @@ def test_root_quality_feature_and_scripts_are_declared() -> None:
     assert manifest["scripts"]["typecheck"] == "bun x tsc --noEmit -p tsconfig.extensions.json"
     assert manifest["scripts"]["pack:check"] == "bun scripts/publish-release.mjs --check"
     assert manifest["scripts"]["publish"] == "bun run check && bun scripts/publish-release.mjs"
-    assert manifest["workspaces"] == ["packages/*"]
+    assert manifest["workspaces"] == ["packages/*", "deprecated/tasks"]
     assert manifest["packageManager"].startswith("bun@")
     for documentation in [REPO / "README.md", REPO / "README.zh-CN.md", REPO / "AGENTS.md"]:
         text = documentation.read_text(encoding="utf-8")

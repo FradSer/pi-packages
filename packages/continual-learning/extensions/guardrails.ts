@@ -20,8 +20,10 @@ import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionConte
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { bindLifecycleRenderers, eventToolLifecycle, fieldLine, notifyPi, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
 import { createParentToolSurface, TOOL_NAMES } from "./tool-surface";
-import { writeFileAtomic } from "./consolidation-run";
-import { currentLearningBatch, recordLearningMutation, withLearningBatch } from "./learning-history";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { acquireConsolidationLock, resolveConsolidationRunPaths, writeFileAtomic } from "./consolidation-run";
+import { assertTransactionPredecessor, removeTransactionFile, withOwnedFileTransaction } from "./file-transaction.ts";
+import { currentLearningBatch, readLearningFile, recordLearningMutation, withLearningBatch } from "./learning-history";
 import { buildLearningReceipt, writeLearningReceipt } from "./learning-efficiency";
 import { resolveMemoryPaths } from "./memory-paths";
 
@@ -384,6 +386,16 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     authoring = undefined;
     parentToolSurface.resetSession();
   };
+  const effectiveForCandidate = (candidate: Record<string, unknown>, cwd: string, target: string) => {
+    const skills = new Set(pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")));
+    const source = target === path.resolve(configPaths(cwd).user) ? "user"
+      : target === path.resolve(configPaths(cwd).project) ? "project" : "project.local";
+    const layers = loadLayers(cwd).filter(layer => layer.source !== source);
+    layers.push({...candidate, source} as RuleLayer);
+    layers.sort(compareHarnessLayers);
+    const config = mergeLayers([{source: "built-in defaults", rules: DEFAULT_RULES as unknown as Array<Record<string, unknown>>}, ...layers], skills);
+    return {config, skills, layers};
+  };
   // An authoring request outlives one agent turn: the model may need a user
   // answer, a second target, or a later follow-up before it can preview and
   // write the exact candidate. The request ends with the session, or when
@@ -406,7 +418,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     parameters: Type.Object({content: Type.String({maxLength:128000}), cases: Type.Array(Type.Object({ruleId: Type.String(), input: Type.String({maxLength:8000}), matches: Type.Boolean()}), {maxItems:64})}),
     async execute(_id, params, signal, _update, ctx) {
       const current = authoring;
-      if (!current || current.cwd !== (ctx.cwd || process.cwd()) || signal?.aborted) return {content:[{type:"text", text:"No active Harness authoring request"}], details:{passed:false}, isError:true};
+      if (!current || current.cwd !== (ctx.cwd || process.cwd()) || signal?.aborted || !ctx.hasUI) return {content:[{type:"text", text:"No active Harness authoring request"}], details:{passed:false}, isError:true};
       current.previewed = undefined;
       await assertHarnessTargetContained(current.target, current.target === path.resolve(configPaths(current.cwd).user) ? undefined : current.cwd);
       const bytes = await readHarnessTarget(current.target);
@@ -455,7 +467,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const stillCurrent = (): boolean => generation === sessionGeneration && !signal?.aborted
         && authoring === undefined && JSON.stringify(params) === inputSnapshot;
       const inputSnapshot = JSON.stringify(params);
-      if (!current || current.cwd !== cwd || signal?.aborted) return inert("No active Harness authoring request. Report this and continue.");
+      if (!current || current.cwd !== cwd) return inert("No active Harness authoring request. Report this and continue.");
       if (!ctx.hasUI) return inert("Harness authoring requires an interactive confirmation. No file was written.");
       const target = harnessTargetPath(params.path, cwd);
       const paths = configPaths(cwd);
@@ -477,57 +489,107 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         const candidate = errors.length ? undefined : JSON.parse(params.content) as Record<string, unknown>;
         const priorConfig = previous && typeof previous === "object" && !Array.isArray(previous) ? previous as Record<string, unknown> : {};
         const removedLegacy = candidate ? LEGACY_FIELDS.filter(field => Object.hasOwn(priorConfig, field) && !Object.hasOwn(candidate, field)) : [];
-        // validateHarnessWrite rejects changed legacy values, not silent removal.
         if (removedLegacy.length) return reject(`Removing legacy protection containers (${removedLegacy.join(", ")}) requires the two-step native protection-loss confirmation; use the native write path. No file was written.`);
         if (errors.length) return reject(`Invalid Harness candidate: ${errors.join("; ")}. No file was written.`);
+        const layerBytes = new Map<string, Buffer | null>();
+        for (const file of Object.values(paths)) layerBytes.set(file, file === target ? priorBytes : await readHarnessTarget(file));
+        const approval: HarnessWriteApproval = {target, workspace: cwd, input: inputSnapshot, files: layerBytes};
+        const evaluated = candidate ? effectiveForCandidate(candidate, cwd, target) : undefined;
+        const effective = evaluated?.config;
+        if (effective?.errors.length || effective?.configReadIncomplete || !effective?.bashEvaluationComplete) {
+          return reject(`Invalid effective Harness configuration: ${[...(effective?.errors ?? []), ...(effective?.configReadIncomplete ? ["configuration read incomplete"] : []), ...(effective?.bashEvaluationComplete ? [] : ["Bash evaluation incomplete"])].join("; ")}. No file was written.`);
+        }
+        const legacy = evaluateLegacyTools(resolveHarnessConfig(cwd, undefined, skills).config.legacy, "write", {path: params.path, content: params.content});
+        if (legacy.incomplete.length) return reject(`Existing write protection is incomplete: ${legacy.incomplete.join("; ")}. No file was written.`);
+        const blocking = legacy.matches.filter(match => match.action === "block");
+        if (blocking.length) return reject(`Existing write protection blocks this candidate: ${blocking.map(match => match.cleanReason).join("; ")}. No file was written.`);
+        const needsConfirmation = legacy.matches.filter(match => match.action === "confirm").map(match => `Legacy ${match.policyName}: ${match.cleanReason}`);
+        if (needsConfirmation.length) {
+          const confirmed = await ctx.ui.confirm("Authorize inherited Harness write protection?", needsConfirmation.join("\n"), { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS, signal });
+          if (!confirmed || !stillCurrent()) return reject("Inherited write protection was not authorized. No file was written.");
+        }
         const preview = previewHarnessCandidate(params.content, params.cases, skills, previous, current.commandExamples);
         if (!preview.passed) return reject(`Harness case validation failed: ${preview.errors.join("; ")}. No file was written.`);
         if (!stillCurrent()) return reject("Harness write arguments changed or were cancelled during validation. No file was written.");
-        const approved = await ctx.ui.confirm("Apply the validated Harness rule?", target, { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS, signal });
+        const approvalNotice = [
+          target,
+          `Complete candidate:\n${params.content}`,
+          `Effective rule sources:\n${(evaluated?.layers ?? []).map((layer: RuleLayer) => `${layer.source}: ${JSON.stringify(layer.rules ?? [])}`).join("\n")}`,
+          ...(effective?.notices ?? []),
+        ].join("\n\n");
+        const approved = await ctx.ui.confirm("Apply the validated Harness rule?", approvalNotice, { timeout: GUARDRAILS_CONFIRM_TIMEOUT_MS, signal });
         if (!approved || !stillCurrent()) return reject("Harness write was not authorized or the session changed. No file was written.");
-        const bytes = await readHarnessTarget(target);
-        if (!isDeepStrictEqual(bytes, priorBytes) || !stillCurrent()) return reject("Harness predecessor or session changed during confirmation. No file was written.");
+        const changed = await recheckHarnessWriteApproval(approval, () => params, signal);
+        if (changed || !stillCurrent()) return reject(changed ?? "Harness session changed during confirmation. No file was written.");
         // Restore exact predecessor BEFORE recordLearningMutation's finally runs,
         // so a failed write leaves no net change and its pending row is unlinked
         // instead of blocking all later learning runs.
-        const priorMode = priorBytes === null ? undefined : Number((await fs.promises.lstat(target, { bigint: true })).mode & 0o777n);
+        const priorMode = priorBytes === null ? 0o600 : Number((await fs.promises.lstat(target, { bigint: true })).mode & 0o777n);
+        let ownedWrite = false;
         const restore = async () => {
-          if (priorBytes === null) await fs.promises.unlink(target).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; });
-          else {
-            await writeFileAtomic(target, priorBytes, priorMode ?? 0o600);
-            await fs.promises.chmod(target, priorMode ?? 0o600);
+          if (!ownedWrite) return;
+          const mode = Number((await fs.promises.lstat(target, {bigint: true})).mode & 0o777n);
+          if (mode !== 0o600 || !(await readLearningFile(target, 1_000_000)).equals(Buffer.from(params.content))) {
+            throw new Error("Concurrent Harness edit preserved; rollback requires reconciliation");
           }
+          await assertTransactionPredecessor(target);
+          if (priorBytes === null) await removeTransactionFile(target);
+          else await writeFileAtomic(target, priorBytes, priorMode);
         };
-        await withLearningBatch(async () => {
-          await recordLearningMutation(cwd, "harness", [target], async () => {
-            try {
-              await writeFileAtomic(target, params.content, 0o600);
-              const readback = await readHarnessTarget(target);
-              if (!readback || readback.toString("utf8") !== params.content) throw new Error("Harness write readback mismatch");
-            } catch (error) {
-              await restore();
-              throw error;
-            }
-            return { outcome: "applied" as const };
+        const lock = await acquireConsolidationLock(resolveConsolidationRunPaths(cwd));
+        try {
+          const writeResult = await withFileMutationQueue(target, async () => {
+            await assertHarnessTargetContained(target, cwd);
+            const queuedChange = await recheckHarnessWriteApproval(approval, () => params, signal);
+            if (queuedChange || !stillCurrent()) return reject(queuedChange ?? "Harness session changed before the write. No file was written.");
+            let receiptSaved = false;
+            await withOwnedFileTransaction([{file: target, existed: priorBytes !== null, content: priorBytes ?? undefined}], async () => {
+              await withLearningBatch(async () => {
+                await recordLearningMutation(cwd, "harness", [target], async () => {
+                  try {
+                    await writeFileAtomic(target, params.content, 0o600);
+                    ownedWrite = true;
+                    const readback = await readHarnessTarget(target);
+                    if (!readback || readback.toString("utf8") !== params.content) throw new Error("Harness write readback mismatch");
+                    if (!stillCurrent()) throw new Error("Harness write cancelled before commit");
+                  } catch (error) {
+                    await restore();
+                    throw error;
+                  }
+                  return { outcome: "applied" as const };
+                });
+                const batchId = currentLearningBatch();
+                const receipt = buildLearningReceipt("manual",
+                  { memory: false, harness: true, agents: false, reasons: ["explicit-harness-authoring"] },
+                  [{ phase: "harness", attempt: 0, outcome: "applied", durationMs: 0, operations: 1 }],
+                  { source: "current-session", entryCount: 0 }, batchId);
+                try {
+                  await writeLearningReceipt(resolveMemoryPaths(cwd).runsDir, receipt);
+                  receiptSaved = true;
+                } catch {
+                  // The validated write is already committed. Keep the applied
+                  // outcome and undo history, but never claim a saved receipt.
+                }
+              });
+            }, async (file) => {
+              if (path.resolve(file) !== path.resolve(target)) return;
+              if (JSON.stringify(params) !== inputSnapshot || (!ownedWrite && !stillCurrent())) throw new Error("Harness write cancelled or arguments changed before replacement");
+              for (const [layer, bytes] of layerBytes) {
+                if (layer !== target && !isDeepStrictEqual(await readHarnessTarget(layer), bytes)) throw new Error("Harness layer changed before replacement; no stale approval was used");
+              }
+              const mode = priorBytes === null && !ownedWrite ? undefined : Number((await fs.promises.lstat(target, {bigint: true})).mode & 0o777n);
+              if (mode !== (ownedWrite ? 0o600 : priorBytes === null ? undefined : priorMode)) throw new Error("Concurrent Harness permission change preserved");
+            });
+            finishAuthoring();
+            return inert(`Harness rule written to ${target}; readback verified. ${receiptSaved ? "Receipt and undo recorded." : "Applied, but the receipt could not be saved; undo history remains."}`, true);
           });
-          const batchId = currentLearningBatch();
-          const receipt = buildLearningReceipt("manual",
-            { memory: false, harness: true, agents: false, reasons: ["explicit-harness-authoring"] },
-            [{ phase: "harness", attempt: 0, outcome: "applied", durationMs: 0, operations: 1 }],
-            { source: "current-session", entryCount: 0 }, batchId);
-          // A receipt failure after a committed write is reported honestly as
-          // applied-with-missing-receipt, never as "failed, do not retry".
-          await writeLearningReceipt(resolveMemoryPaths(cwd).runsDir, receipt).catch(() => undefined);
-        });
-        if (!stillCurrent()) {
-          await restore();
-          return reject("Harness session changed before the write completed. No file was written.");
+          return writeResult;
+        } finally {
+          await lock.release();
         }
-        finishAuthoring();
-        return inert(`Harness rule written to ${target}; readback verified, receipt and undo recorded.`, true);
       } catch (error) {
         finishAuthoring();
-        return inert(`Harness write failed and the original bytes were restored: ${(error as Error).message}. No change was applied.`);
+        return inert(`Harness write failed: ${(error as Error).message}. No applied outcome was recorded; any pending mutation requires reconciliation.`);
       }
     },
   });

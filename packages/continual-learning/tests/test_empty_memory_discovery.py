@@ -23,17 +23,16 @@ def test_empty_memory_discovery_is_explicit_with_or_without_an_empty_index(tmp_p
         assert result[state] is not None, 'Empty Memory discovery was omitted'
         assert 'message' not in result[state], 'Empty discovery must not append a placeholder reference'
         assert result[state]['sections']['other'] == 'KEEP'
-        assert set(result[state]['sections']) == {'other', 'project_memory_protocol'}
+        assert set(result[state]['sections']) == {'other', 'project_memory_protocol', 'project_memory_auto_learning'}
         assert 'If no established entries are available' in ' '.join(result[state]['guidance'])
         assert 'use the read tool to inspect relevant indexed Memory entries' in result[state]['sections']['project_memory_protocol']
         assert 'do not search guessed or alternative Memory locations' in ' '.join(result[state]['guidance'])
         protocol = result[state]['sections']['project_memory_protocol']
         assert "Respect the task's read and write scope" in protocol
-        # Single-learn-tool: the disabled branch names the learn tool's state
-        # instead of pointing users at the retired /memory, /consolidate,
-        # /harness commands. The enabled branch keeps the Pi-input note.
-        assert 'The learn tool is registered but disabled by settings' in protocol
-        assert 'explicit learning request reports that state' in protocol
+        # The agent trigger is always on: the protocol advertises learn and
+        # keeps the Pi-input note, never a retired slash command.
+        assert 'uses the learn tool' in protocol
+        assert 'slash commands are Pi input for the user' in protocol
         assert 'never a suggestion to type /memory' not in protocol
         assert 'The parent performs automatic maintenance when enabled' in protocol
         assert 'Memory retrieval alone does not authorize configuration discovery or launching another agent' in protocol
@@ -62,7 +61,6 @@ def test_automatic_learning_owns_durable_writes_and_remember_does_not_expand_tas
     assert 'explicit authoring requests take precedence' in guidance
     protocol = result['project_memory_protocol']
     assert "Respect the task's read and write scope" in protocol
-    # autoContinualLearning is false here, so the protocol uses the disabled
-    # single-learn-tool branch (no retired slash-command suggestions).
-    assert 'The learn tool is registered but disabled by settings' in protocol
+    # The agent trigger is always on, so the protocol advertises learn.
+    assert 'uses the learn tool' in protocol
     assert 'never a suggestion to type /memory' not in protocol

@@ -5,7 +5,7 @@ import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls"
 import { listLearningHistory, previewLearningUndo, readLearningFile, readLearningHistory, undoLearningChange, type LearningHistory } from "./learning-history";
 import { evaluateLearningRules } from "./learning-evaluation";
 
-interface ManagedSettings { autoSettledLearning: boolean; autoContinualLearning: boolean; automaticPhases?: Partial<PhasePolicies>; agentsMd?: { disabled?: boolean }; invalid?: string }
+interface ManagedSettings { autoSettledLearning: boolean; automaticPhases?: Partial<PhasePolicies>; agentsMd?: { disabled?: boolean }; invalid?: string }
 interface ManagementDependencies<T extends ManagedSettings> {
   readSettings: (cwd: string) => Promise<T>;
   writeSettings: (settings: T) => Promise<void>;

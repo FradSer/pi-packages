@@ -15,9 +15,9 @@ REPO = Path(__file__).resolve().parents[2]
 SUPPORT = Path(__file__).resolve().parent
 PACKAGE_TOOLS: dict[str, tuple[str, ...]] = {
     "subagents": ("agent_start", "agent_input", "agent_stop", "agent_list", "subagents_enable"),
-    "tasks": ("create_task", "get_task", "list_tasks", "update_task"),
     "agent-teams": ("message",),
 }
+# Task tools are retired: the agent domain is internal and registers no model-facing tool.
 COORDINATION = {tool for tools in PACKAGE_TOOLS.values() for tool in tools}
 PROVIDER = "install-wiring"
 REPORT_PREFIX = "INSTALL_WIRING_REPORT "

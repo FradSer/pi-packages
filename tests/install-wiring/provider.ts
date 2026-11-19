@@ -25,13 +25,6 @@ export default function installWiringProvider(pi: ExtensionAPI): void {
   const root = resolve(process.env.HOME!, "..");
   const auth = JSON.parse(readFileSync(resolve(process.env.PI_CODING_AGENT_DIR!, "auth.json"), "utf8")) as Record<string, { key: string }>;
   const turns: Turn[] = process.env.INSTALL_WIRING_SCENARIO?.startsWith("smoke") ? [
-    { tool: "create_task", args: { subject: "Isolated install smoke" } },
-    { tool: "list_tasks", args: { claimable: true } },
-    { tool: "update_task", args: { id: "$prev.id", status: "in_progress" } },
-    { tool: "update_task", args: { id: "$prev.id", status: "completed", outcome: "success", result: "smoke passed" } },
-    // A control the four task tools do not carry. Naming it as an extra property
-    // keeps the negative surface on the real schema rather than on a removed verb.
-    { tool: "update_task", args: { id: "$prev.id", action: "assign" } },
     ...(process.env.INSTALL_WIRING_SCENARIO === "smoke" ? [
       { tool: "message", args: { to: "nobody-here", body: "status?", kind: "inform" } },
     ] : []),

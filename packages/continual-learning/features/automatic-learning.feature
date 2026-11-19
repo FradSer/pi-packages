@@ -2,16 +2,16 @@ Feature: Learn from settled user tasks without a memory command
   Automatic learning is controlled by the persisted auto-memory setting.
   Children propose bounded changes and only the parent validates and applies them.
 
-  Scenario: Settled learning and agent-triggered learning are independently disabled by default
+  Scenario: Agent learning is always on and settled learning is off by default
     Given no learning settings have been stored
     When a new session starts
-    Then automatic learning before the agent answers is unavailable
+    Then the agent's learn tool is available before its final answer
     And settled-task learning does not start
 
-  Scenario: Both learning triggers can be independently enabled
-    Given the user enables autoSettledLearning and autoContinualLearning
+  Scenario: Settled learning can be enabled independently
+    Given the user enables autoSettledLearning
     When each learning trigger reaches its respective lifecycle
-    Then each trigger runs only at that lifecycle
+    Then the agent trigger is already available and settled learning starts on settle
 
   Scenario: Retired autoMemory does not enable either learning trigger
     Given settings contain only the retired autoMemory field
@@ -19,7 +19,7 @@ Feature: Learn from settled user tasks without a memory command
     Then both current learning triggers remain disabled
 
   Scenario: An explicit request to organize Memory calls the agent tool
-    Given autoContinualLearning is enabled in a fresh session
+    Given a fresh session where the agent trigger is always available
     And the user asks to organize Memory without describing new project knowledge
     When the agent receives its prompt and guidance
     Then the guidance requires calling learn once before answering
@@ -27,7 +27,7 @@ Feature: Learn from settled user tasks without a memory command
     And learn is active when the prompt is built
 
   Scenario: An explicit organize request completes inside the plugin
-    Given autoContinualLearning is enabled and the current task contains no new durable knowledge
+    Given the agent trigger is always available and the current task contains no new durable knowledge
     When the agent calls the parent Memory-learning tool
     Then the plugin organizes mirrors, indexes and consistency in-process
     And no selector, planner or review worker starts and no proposal is saved for later action
@@ -41,14 +41,14 @@ Feature: Learn from settled user tasks without a memory command
     And the explicit request is recorded as a routing decision
 
   Scenario: Credential-shaped frozen evidence is ordinary learning input
-    Given autoContinualLearning is enabled and the frozen task evidence contains credential-shaped text
+    Given the agent trigger is always available and the frozen task evidence contains credential-shaped text
     When the agent calls the parent Memory-learning tool
     Then the parent starts the normal selector and planner workers on that evidence
     And the receipt reports the ordinary pipeline outcome with no screening reason
     And storage, display and semantic-review guards still refuse credential-shaped writes
 
   Scenario: An agent can request current-task Memory learning before answering
-    Given autoContinualLearning is enabled and the current task contains source evidence
+    Given the agent trigger is always available and the current task contains source evidence
     When the agent calls the parent Memory-learning tool
     Then the tool runs only current-task Memory learning under the configured automatic Memory policy
     And the tool returns its verified outcome before the agent writes its final answer
@@ -60,10 +60,10 @@ Feature: Learn from settled user tasks without a memory command
     Then no second Memory pipeline runs for that task
     And enabled settled learning can still process Harness and AGENTS.md without repeating Memory
 
-  Scenario: A disabled agent trigger cannot be revived by autoMemory
-    Given autoContinualLearning is disabled and settings contain retired autoMemory set to true
-    When the agent attempts to request Memory learning
-    Then the request is rejected without starting a pipeline
+  Scenario: The agent trigger cannot be disabled by retired settings
+    Given settings contain retired autoMemory or autoContinualLearning set to false
+    When the agent requests Memory learning
+    Then the request runs the normal parent-owned Memory pipeline
 
   Scenario: Learning settings independently control both triggers
     Given the user opens Learning settings
@@ -75,6 +75,24 @@ Feature: Learn from settled user tasks without a memory command
     When the task settles after its retries and queued continuations
     Then one learning pipeline runs against a frozen copy of that context
     And repeated settled events do not start another pipeline
+
+  Scenario: Settled learning consumes the task's one agent Memory trigger
+    Given autoSettledLearning is enabled and the agent trigger is always available
+    And the settled learner has already run this task's Memory pipeline
+    When the agent later calls the parent Memory-learning tool for the same task
+    Then the tool reports the earlier outcome without starting a second pipeline
+    And the settled run's Memory result is echoed honestly to the agent
+    And the task's growing backlog references do not start a second
+        agent-triggered Memory pipeline
+
+  Scenario: Settling a task never starts pending backlog work
+    Given the project backlog holds pending references, including earlier sessions
+    And the current task settles with automatic learning enabled
+    When the settled run finishes its own learning
+    Then no learning run starts for any pending backlog reference
+    And one settle starts at most one memory pipeline, for its own task
+    And those pending references remain available for an explicit backfill
+    And only an explicit /consolidate backfill may process them
 
   Scenario: Extension continuations do not train themselves
     Given only an extension-generated continuation has run
@@ -233,3 +251,9 @@ Feature: Learn from settled user tasks without a memory command
     And verify the other existing edited sources without inventing an absence fact
     And missing-only source sets remain failed with no worker call
     And symlinks sensitive paths and out-of-scope hints remain failed
+
+  Scenario: Agent learning has no configuration surface
+    Given the user opens learning settings in any terminal
+    Then no menu or command offers an agent-triggered learning toggle
+    And the settings file ignores autoContinualLearning if it is present
+    And the learn tool stays available with only the automatic Memory policy as its gate

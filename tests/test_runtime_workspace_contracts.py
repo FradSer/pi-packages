@@ -14,7 +14,7 @@ PACKAGE = REPO / "packages" / "kit"
 SRC = PACKAGE / "src"
 CONSUMERS = ["agent-teams", "btw", "context", "continual-learning", "keyboard", "matt-pocock", "monitor", "plan-mode", "recap", "skill-router", "utils", "vision"]
 CORE_PACKAGES = ("@earendil-works/pi-ai", "@earendil-works/pi-agent-core", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui", "typebox")
-SPLIT_CHAIN = ("packages/kit", "packages/subagents", "packages/tasks", "packages/agent-teams")
+SPLIT_CHAIN = ("packages/kit", "packages/subagents", "packages/agent-teams")
 
 
 def run_typescript(script: str) -> dict[str, object]:
@@ -218,8 +218,11 @@ def test_publish_allowlist_orders_split_layers_before_their_consumer() -> None:
     versions, so neither may publish after it."""
     script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
     teams = script.index('"@fradser/pi-agent-teams"')
-    for name in ('"@fradser/pi-kit"', '"@fradser/pi-subagents"', '"@fradser/pi-tasks"'):
+    for name in ('"@fradser/pi-kit"', '"@fradser/pi-subagents"'):
         assert script.index(name) < teams, f"{name} must publish before @fradser/pi-agent-teams"
+    # The archived task plugin is still a runtime dependency of the bundle, but it
+    # must no longer be published from this repository.
+    assert '"@fradser/pi-tasks"' not in script
 
 
 def test_pending_changesets_reference_workspace_package_names() -> None:

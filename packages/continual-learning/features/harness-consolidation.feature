@@ -123,10 +123,26 @@ Feature: Harness consolidation alongside memory consolidation
     Given a complete validated candidate replaces an existing or missing target atomically
     When readback fails before a verified result or post receipt
     Then both direct application and pipeline application report failure
-    And if the current bytes still equal that candidate the exact predecessor is restored
+    And if the current bytes and permissions still equal that candidate the exact predecessor bytes and permissions are restored
     And a previously missing target is removed instead of left partially applied
     And an external replacement is preserved rather than overwritten during rollback
     And a failed pipeline creates no post receipt
+
+  Scenario: Failed post receipt restores the Harness predecessor without pending mutation drift
+    Given the project Harness file has exact predecessor bytes and permissions 0644 or 0600
+    And a validated Harness plan atomically writes its candidate
+    When writing the post-apply receipt fails
+    Then the pipeline reports rejection and restores the predecessor bytes and permissions
+    And no pending or applied history remains for the rolled-back change
+    And pending-learning validation permits another run
+    But externally changed bytes or permissions remain untouched and pending for reconciliation
+
+  Scenario: A concurrent edit during Harness rollback is preserved
+    Given a failed post receipt still has the complete parent-owned candidate on disk
+    When an external edit happens after rollback checks but before its atomic replacement
+    Then the transaction refuses the stale restoration
+    And preserves the external bytes and permissions
+    And keeps pending recovery evidence until exact predecessor reconciliation
 
   Scenario: Harness planner termination is awaited before the phase finishes
     Given the harness planner child has been spawned

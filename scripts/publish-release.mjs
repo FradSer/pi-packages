@@ -15,7 +15,6 @@ export const PUBLISH_SCOPE = Object.freeze([
   "pi-sdlc",
   "@fradser/pi-loop",
   "@fradser/pi-subagents",
-  "@fradser/pi-tasks",
   "@fradser/pi-impeccable",
   "pi-continual-learning",
   "@fradser/pi-btw",

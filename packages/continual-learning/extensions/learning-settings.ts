@@ -26,7 +26,6 @@ export function exceedsNewMemoryCap(
 
 export interface MemorySettings {
   autoSettledLearning: boolean;
-  autoContinualLearning: boolean;
   automaticPhases?: Partial<PhasePolicies>;
   agentsMd?: { disabled?: boolean; budgetBytes?: number };
   maxNewMemoriesPerRun?: number;
@@ -35,11 +34,10 @@ export interface MemorySettings {
 }
 
 function normalizeSettings(raw: Record<string, unknown>): MemorySettings {
-  // `autoMemory` is retired and deliberately ignored: it controls neither current trigger.
+  // `autoMemory` and `autoContinualLearning` are retired and deliberately ignored:
+  // agent-triggered learning is always available and has no configuration.
   // Unrelated sections (model, jev, capability flags) live in the same file and are ignored here.
-  for (const key of ["autoSettledLearning", "autoContinualLearning"] as const) {
-    if (raw[key] !== undefined && typeof raw[key] !== "boolean") throw new Error(`${key} must be a boolean`);
-  }
+  if (raw.autoSettledLearning !== undefined && typeof raw.autoSettledLearning !== "boolean") throw new Error("autoSettledLearning must be a boolean");
   let agentsMd: MemorySettings["agentsMd"];
   if (raw.agentsMd !== undefined) {
     if (!raw.agentsMd || typeof raw.agentsMd !== "object" || Array.isArray(raw.agentsMd)) throw new Error("agentsMd must be an object");
@@ -63,14 +61,13 @@ function normalizeSettings(raw: Record<string, unknown>): MemorySettings {
   automaticPhasePolicies({ automaticPhases: raw.automaticPhases, agentsMd }, "automatic");
   return {
     autoSettledLearning: raw.autoSettledLearning === true,
-    autoContinualLearning: raw.autoContinualLearning === true,
     ...(raw.automaticPhases !== undefined ? { automaticPhases: raw.automaticPhases as Partial<PhasePolicies> } : {}),
     ...(agentsMd ? { agentsMd } : {}),
     ...(maxNewMemoriesPerRun !== undefined ? { maxNewMemoriesPerRun } : {}),
   };
 }
 
-const DEFAULTS: MemorySettings = { autoSettledLearning: false, autoContinualLearning: false };
+const DEFAULTS: MemorySettings = { autoSettledLearning: false };
 
 export async function readLearningSettings(cwd = process.cwd()): Promise<MemorySettings> {
   void cwd; // The unified configuration is user-level, never project-scoped.
@@ -90,7 +87,6 @@ export async function writeLearningSettings(settings: MemorySettings): Promise<v
   // Merge only the fields this module owns; model, Jev and capability flags stay.
   writeUnifiedConfig({
     autoSettledLearning: normalized.autoSettledLearning,
-    autoContinualLearning: normalized.autoContinualLearning,
     ...(normalized.automaticPhases !== undefined ? { automaticPhases: normalized.automaticPhases } : {}),
     ...(normalized.agentsMd !== undefined ? { agentsMd: normalized.agentsMd } : {}),
     ...(normalized.maxNewMemoriesPerRun !== undefined ? { maxNewMemoriesPerRun: normalized.maxNewMemoriesPerRun } : {}),

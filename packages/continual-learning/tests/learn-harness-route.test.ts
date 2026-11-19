@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 
 interface Message { customType?: string; content?: unknown; display?: boolean; details?: unknown }
-interface RegisteredTool { name: string; execute: (...args: any[]) => any }
+interface RegisteredTool { name: string; defaultActive?: boolean; execute: (...args: any[]) => any }
 
 async function setup() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cl-learn-route-"));
@@ -59,15 +59,8 @@ function ctx(cwd: string, prompt: string): Record<string, unknown> {
 test("exactly one learning tool named learn is registered in this slice", async () => {
   const { tools } = await setup();
   expect(tools.has("learn")).toBe(true);
+  expect(tools.get("learn")?.defaultActive).toBe(true);
   expect(tools.has("learn_current_memory")).toBe(false);
-});
-
-test("an in-process organize outcome renders as a success, not a failure", async () => {
-  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
-  const spec = learningOutcomeSpec({ details: { status: "organized" }, content: [] } as never) as Record<string, unknown>;
-  expect(spec.label).toBe("settled");
-  expect(spec.tone).toBe("success");
-  expect(String(spec.subject)).not.toContain("failed");
 });
 
 test("two hosts in one process cannot share a Harness procedure bridge", async () => {
@@ -116,25 +109,13 @@ test("a Memory request keeps the existing Memory-only pipeline outcome", async (
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test("an applied outcome names its real operation count", async () => {
-  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
-  const spec = learningOutcomeSpec({ details: { status: "applied", operations: 2 }, content: [] } as never) as Record<string, unknown>;
-  expect(spec.label).toBe("settled");
-  expect(spec.tone).toBe("success");
-  expect(String(spec.subject)).toBe("learned 2 Memory changes");
+test("a learn tool outcome reports one honest model-facing text", async () => {
+  const { tools, cwd, root } = await setup();
+  try {
+    const tool = tools.get("learn")!;
+    const organized = await tool.execute("call", {}, undefined, undefined, ctx(cwd, "整理记忆"));
+    expect(organized.content[0].text).toContain("Memory organized in-process");
+    expect(organized.details?.status).toBe("organized");
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test("an applied outcome with no operation count reports zero honestly", async () => {
-  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
-  const spec = learningOutcomeSpec({ details: { status: "applied" }, content: [] } as never) as Record<string, unknown>;
-  expect(String(spec.subject)).toBe("learned 0 Memory changes");
-});
-
-test("a no-change settled row stays short, factual and jargon-free", async () => {
-  const { learningOutcomeSpec } = await import("../extensions/inject-memory.ts");
-  const spec = learningOutcomeSpec({ details: { status: "no-change" }, content: [] } as never) as Record<string, unknown>;
-  expect(spec.label).toBe("settled");
-  expect(spec.tone).toBe("success");
-  expect(String(spec.subject)).toBe("no Memory changes written");
-  expect(String(spec.subject)).not.toContain("durable");
-});

@@ -16,13 +16,27 @@
         "typescript": "^7.0.2",
       },
     },
+    "deprecated/tasks": {
+      "name": "@fradser/pi-tasks",
+      "version": "0.2.0",
+      "dependencies": {
+        "@fradser/pi-kit": "workspace:*",
+      },
+      "devDependencies": {
+        "@earendil-works/pi-coding-agent": "1.5.0",
+        "@earendil-works/pi-tui": "1.5.0",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+      },
+    },
     "packages/agent-teams": {
       "name": "@fradser/pi-agent-teams",
       "version": "1.0.0",
       "dependencies": {
         "@fradser/pi-kit": "workspace:*",
         "@fradser/pi-subagents": "workspace:*",
-        "@fradser/pi-tasks": "workspace:*",
       },
       "devDependencies": {
         "@earendil-works/pi-coding-agent": "1.5.0",
@@ -266,21 +280,6 @@
         "@earendil-works/pi-tui": "*",
       },
     },
-    "packages/tasks": {
-      "name": "@fradser/pi-tasks",
-      "version": "0.2.0",
-      "dependencies": {
-        "@fradser/pi-kit": "workspace:*",
-      },
-      "devDependencies": {
-        "@earendil-works/pi-coding-agent": "1.5.0",
-        "@earendil-works/pi-tui": "1.5.0",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": "*",
-        "@earendil-works/pi-tui": "*",
-      },
-    },
     "packages/utils": {
       "name": "@fradser/pi-utils",
       "version": "0.6.0",
@@ -504,7 +503,7 @@
 
     "@fradser/pi-subagents": ["@fradser/pi-subagents@workspace:packages/subagents"],
 
-    "@fradser/pi-tasks": ["@fradser/pi-tasks@workspace:packages/tasks"],
+    "@fradser/pi-tasks": ["@fradser/pi-tasks@workspace:deprecated/tasks"],
 
     "@fradser/pi-utils": ["@fradser/pi-utils@workspace:packages/utils"],
 

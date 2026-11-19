@@ -92,10 +92,11 @@ test("the agent tool is active synchronously when the prompt is built", async ()
   expect(activeTools).toContain("learn");
 });
 
-test("a disabled agent trigger does not advertise the tool", async () => {
-  const { hooks, activeTools, cwd } = await setup({ autoSettledLearning: false, autoContinualLearning: false });
+test("the agent tool is advertised even when settled learning is off", async () => {
+  // Agent-triggered learning has no setting; the prompt always activates learn.
+  const { hooks, activeTools, cwd } = await setup({ autoSettledLearning: false });
   const options = { sections: {} as Record<string, string>, promptGuidelines: [] as string[], skills: [] };
   await hooks.get("before_agent_start")?.(
     { prompt: "整理记忆", systemPrompt: "", systemPromptOptions: options }, ctx(cwd));
-  expect(activeTools).not.toContain("learn");
+  expect(activeTools).toContain("learn");
 });

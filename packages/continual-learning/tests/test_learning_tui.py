@@ -180,67 +180,6 @@ def test_learning_result_expansion_shows_private_memory_but_never_secrets() -> N
     assert "to expand" in output["collapsed"]
 
 
-def test_learning_start_is_one_user_transcript_row() -> None:
-    # Given a learning run, When it starts, Then the user sees one compact
-    # started row and the model keeps the full procedure in message content.
-    source = r'''
-      import { initTheme } from '@earendil-works/pi-coding-agent';
-      import register from './packages/continual-learning/extensions/inject-memory.ts';
-      initTheme('dark');
-      const renderers = new Map(), messages = [];
-      const pi = {
-        on: () => {},
-        registerCommand: () => {},
-        registerMessageRenderer: (name, renderer) => renderers.set(name, renderer),
-        registerEntryRenderer: () => {},
-        appendEntry: () => {},
-        sendMessage: (message, options) => messages.push({ message, options }),
-        getCommands: () => [],
-      };
-      register(pi);
-      const renderer = renderers.get('learning-procedure');
-      const theme = { fg: (_c, text) => text, bg: (_c, text) => text, bold: text => text };
-      const render = (expanded) => renderer(
-        { content: 'Complete procedure for the model.', details: { subject: 'remember this request' } },
-        { expanded }, theme).render(100).join('\n');
-      console.log(JSON.stringify({ collapsed: render(false), expanded: render(true), registered: [...renderers.keys()] }));
-    '''
-    output = run_bun(source)
-    assert "[learning] started" in output["collapsed"]
-    assert "remember this request" in output["collapsed"]
-    assert output["collapsed"] == output["expanded"], output["expanded"]
-    assert "to expand" not in output["collapsed"]
-    assert "Complete procedure" not in output["collapsed"]
-    assert "learning-procedure" in output["registered"]
-
-
-def test_started_row_names_the_real_task_topic_not_a_generic_placeholder() -> None:
-    # Given a real user entry naming a specific topic, When a learning run
-    # starts, Then both the started row and the spinner use that bounded topic,
-    # never the generic "learn from this task" or a claim of knowledge learned.
-    from pathlib import Path
-    from support import run_bun_script
-
-    value = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "manual-constraint")
-    subjects = value["startedSubjects"]
-    assert subjects, value
-    assert value["quote"] == "Never run the retired compiler.", value["quote"]
-    assert all("Never run the retired compiler." in subject for subject in subjects), subjects
-    assert all("learn from this task" not in subject for subject in subjects), subjects
-    assert all("learned" not in subject.lower() for subject in subjects), subjects
-
-
-def test_started_row_falls_back_when_no_real_user_topic_exists() -> None:
-    from pathlib import Path
-    from support import run_bun_script
-
-    value = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "empty-full")
-    subjects = value["startedSubjects"]
-    assert subjects, value
-    assert all(subject and "\n" not in subject for subject in subjects), subjects
-    assert all(subject == "maintain all knowledge" for subject in subjects), subjects
-
-
 def test_applied_agents_md_edits_are_named_in_the_expanded_result() -> None:
     # Given a run that applied both a Memory and one AGENTS.md change, When the
     # user expands the result, Then both are identifiable: the Memory by name

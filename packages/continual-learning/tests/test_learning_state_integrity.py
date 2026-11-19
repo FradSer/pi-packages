@@ -20,8 +20,8 @@ def test_shutdown_during_preparation_never_starts_a_worker() -> None:
 
 def test_shutdown_during_zero_screen_receipt_retains_prequeued_recovery_reference() -> None:
     result = run_bun_script(PREPARATION, "shutdown-zero-receipt")
-    # A cancelled run that emitted a started row still gets exactly one paired
-    # terminal result row; the receipt stays cancelled, never a success.
+    # A cancelled run still gets exactly one terminal result row; the receipt
+    # stays cancelled, never a success.
     assert result["selectors"] == 0 and result["reported"] == 1, result
     assert result["backlog"]["pending"] == 1 and result["lock"] is False, result
     copies=result['receiptCopies']
@@ -31,7 +31,7 @@ def test_shutdown_during_zero_screen_receipt_retains_prequeued_recovery_referenc
 
 def test_shutdown_during_selector_receipt_pairs_one_cancelled_result() -> None:
     result = run_bun_script(PREPARATION, "shutdown-current-receipt")
-    # See above: cancellation closes its started row with one terminal row.
+    # Cancellation reports one terminal row with the cancelled receipt.
     assert result["selectors"] == 1 and result["reported"] == 1, result
     assert result["backlog"]["pending"] == 0 and result["lock"] is False, result
     copies=result['receiptCopies']
@@ -55,7 +55,7 @@ def test_status_reports_the_loop_without_starting_a_learner() -> None:
     result = run_bun_script(PREPARATION, "disabled-status")
     text = "\n".join(result["notices"])
     assert result["selectors"] == 0, result
-    for value in ("Settled learning: off", "Agent-triggered: off", "Knowledge entries:", "Automatic phases:", "Skipped task references: 1", "Learning pipeline: idle"):
+    for value in ("Settled learning: off", "Agent-triggered: always on", "Knowledge entries:", "Automatic phases:", "Skipped task references: 1", "Learning pipeline: idle"):
         assert value in text, result
 
 
@@ -136,12 +136,12 @@ def test_invalid_learning_settings_fail_closed_with_a_diagnostic() -> None:
       const agent=process.env.PI_CODING_AGENT_DIR,cwd=path.join(agent,'project');fs.mkdirSync(cwd);
       const file=path.join(agent,'continual-learning.json');
       const values=['{','null','[]','{"autoSettledLearning":"false"}','{"autoContinualLearning":false,"automaticPhases":{"memory":"invalid"}}'];
-      const states=[];for(const raw of values){fs.writeFileSync(file,raw);const state=await readLearningSettings(cwd);states.push({settled:state.autoSettledLearning,continual:state.autoContinualLearning,diagnostic:Boolean(state.invalid)});}
+      const states=[];for(const raw of values){fs.writeFileSync(file,raw);const state=await readLearningSettings(cwd);states.push({settled:state.autoSettledLearning,diagnostic:Boolean(state.invalid)});}
       fs.unlinkSync(file);const missing=await readLearningSettings(cwd);
-      console.log(JSON.stringify({states,missing:{settled:missing.autoSettledLearning,continual:missing.autoContinualLearning}}));
+      console.log(JSON.stringify({states,missing:{settled:missing.autoSettledLearning}}));
     """)
-    assert result == {"states": [{"settled": False, "continual": False, "diagnostic": True}] * 5,
-                     "missing": {"settled": False, "continual": False}}
+    assert result == {"states": [{"settled": False, "diagnostic": True}] * 5,
+                     "missing": {"settled": False}}
 
 
 def test_learning_settings_split_triggers_and_ignore_retired_auto_memory() -> None:
@@ -153,14 +153,14 @@ def test_learning_settings_split_triggers_and_ignore_retired_auto_memory() -> No
       fs.writeFileSync(file,'{"autoMemory":true}');const retired=await readLearningSettings(cwd);
       fs.writeFileSync(file,'{"autoSettledLearning":true,"autoContinualLearning":false}');const split=await readLearningSettings(cwd);
       fs.writeFileSync(file,'{"autoSettledLearning":"yes"}');const invalid=await readLearningSettings(cwd);
-      console.log(JSON.stringify({retired:{settled:retired.autoSettledLearning,continual:retired.autoContinualLearning,invalid:Boolean(retired.invalid)},
-        split:{settled:split.autoSettledLearning,continual:split.autoContinualLearning,invalid:Boolean(split.invalid)},
-        invalid:{settled:invalid.autoSettledLearning,continual:invalid.autoContinualLearning,diagnostic:Boolean(invalid.invalid)}}));
+      console.log(JSON.stringify({retired:{settled:retired.autoSettledLearning,invalid:Boolean(retired.invalid)},
+        split:{settled:split.autoSettledLearning,invalid:Boolean(split.invalid)},
+        invalid:{settled:invalid.autoSettledLearning,diagnostic:Boolean(invalid.invalid)}}));
     ''')
     assert result == {
-        "retired": {"settled": False, "continual": False, "invalid": False},
-        "split": {"settled": True, "continual": False, "invalid": False},
-        "invalid": {"settled": False, "continual": False, "diagnostic": True},
+        "retired": {"settled": False, "invalid": False},
+        "split": {"settled": True, "invalid": False},
+        "invalid": {"settled": False, "diagnostic": True},
     }
 
 
@@ -173,11 +173,11 @@ def test_learning_settings_never_read_a_symlinked_config() -> None:
       fs.symlinkSync(target,path.join(agent,'continual-learning.json'));
       // The single configuration file may never be read or written through a symlink.
       const state=await readLearningSettings(cwd);
-      let refused=false;try{await writeLearningSettings({autoSettledLearning:false,autoContinualLearning:false},cwd)}catch{refused=true}
-      console.log(JSON.stringify({settled:state.autoSettledLearning,continual:state.autoContinualLearning,diagnostic:Boolean(state.invalid),refused,
+      let refused=false;try{await writeLearningSettings({autoSettledLearning:false},cwd)}catch{refused=true}
+      console.log(JSON.stringify({settled:state.autoSettledLearning,diagnostic:Boolean(state.invalid),refused,
         target:fs.readFileSync(target,'utf8')}));
     """)
-    assert result == {"settled": False, "continual": False, "diagnostic": True, "refused": True,
+    assert result == {"settled": False, "diagnostic": True, "refused": True,
                       "target": '{"autoSettledLearning":true,"autoContinualLearning":true}'}
 
 
@@ -248,21 +248,21 @@ def test_learning_settings_live_in_the_single_unified_configuration() -> None:
       const legacyFallback=await readLearningSettings(cwd);
       // When settings are written, Then they merge into the unified file and preserve other sections.
       fs.writeFileSync(unified,JSON.stringify({model:'p/m',jev:{scopes:['memory']}}));
-      await writeLearningSettings({autoSettledLearning:true,autoContinualLearning:true},cwd);
+      await writeLearningSettings({autoSettledLearning:true},cwd);
       const merged=JSON.parse(fs.readFileSync(unified,'utf8'));
       const reread=await readLearningSettings(cwd);
       // And a broken predecessor is never clobbered.
       fs.writeFileSync(unified,'{ broken');
-      let refused=false;try{await writeLearningSettings({autoSettledLearning:false,autoContinualLearning:false},cwd)}catch{refused=true}
-      console.log(JSON.stringify({preferred:{settled:preferred.autoSettledLearning,continual:preferred.autoContinualLearning},
-        legacyFallback:{settled:legacyFallback.autoSettledLearning,continual:legacyFallback.autoContinualLearning},
-        merged,reread:{settled:reread.autoSettledLearning,continual:reread.autoContinualLearning},refused,broken:fs.readFileSync(unified,'utf8')}));
+      let refused=false;try{await writeLearningSettings({autoSettledLearning:false},cwd)}catch{refused=true}
+      console.log(JSON.stringify({preferred:{settled:preferred.autoSettledLearning},
+        legacyFallback:{settled:legacyFallback.autoSettledLearning},
+        merged,reread:{settled:reread.autoSettledLearning},refused,broken:fs.readFileSync(unified,'utf8')}));
     ''')
-    assert result["preferred"] == {"settled": True, "continual": False}
-    assert result["legacyFallback"] == {"settled": False, "continual": False}
+    assert result["preferred"] == {"settled": True}
+    assert result["legacyFallback"] == {"settled": False}
     assert result["merged"] == {"model": "p/m", "jev": {"scopes": ["memory"]},
-                                "autoSettledLearning": True, "autoContinualLearning": True}
-    assert result["reread"] == {"settled": True, "continual": True}
+                                "autoSettledLearning": True, }
+    assert result["reread"] == {"settled": True}
     assert result["refused"] is True
     assert result["broken"] == "{ broken"
 
@@ -279,14 +279,14 @@ def test_learning_settings_reject_invalid_unified_values_without_writing() -> No
           ? {autoSettledLearning:true,agentsMd:value}
           : name==='badPhase' ? {autoContinualLearning:true,automaticPhases:{memory:value}} : {autoSettledLearning:value}));
         const state=await readLearningSettings(cwd);
-        states[name]={settled:state.autoSettledLearning,continual:state.autoContinualLearning,diagnostic:Boolean(state.invalid)};
+        states[name]={settled:state.autoSettledLearning,diagnostic:Boolean(state.invalid)};
       }
       console.log(JSON.stringify(states));
     ''')
     assert result == {
-        "wrongType": {"settled": False, "continual": False, "diagnostic": True},
-        "badPhase": {"settled": False, "continual": False, "diagnostic": True},
-        "badAgents": {"settled": False, "continual": False, "diagnostic": True},
+        "wrongType": {"settled": False, "diagnostic": True},
+        "badPhase": {"settled": False, "diagnostic": True},
+        "badAgents": {"settled": False, "diagnostic": True},
     }
 
 
@@ -305,7 +305,7 @@ def test_new_memory_cap_setting_is_a_positive_bounded_integer() -> None:
         '{"autoSettledLearning":true,"maxNewMemoriesPerRun":"3"}','{"autoSettledLearning":true,"maxNewMemoriesPerRun":null}'];
       const states=[];for(const raw of raws){fs.writeFileSync(file,raw);const s=await readLearningSettings(cwd);states.push({cap:s.maxNewMemoriesPerRun??null,invalid:Boolean(s.invalid)});}
       fs.writeFileSync(file,'{"autoSettledLearning":true,"autoContinualLearning":false}');
-      await writeLearningSettings({autoSettledLearning:true,autoContinualLearning:false,maxNewMemoriesPerRun:5});
+      await writeLearningSettings({autoSettledLearning:true,maxNewMemoriesPerRun:5});
       const persisted=JSON.parse(fs.readFileSync(file,'utf8'));
       console.log(JSON.stringify({states,default:DEFAULT_MAX_NEW_MEMORIES_PER_RUN,persisted:persisted.maxNewMemoriesPerRun}));
     ''')

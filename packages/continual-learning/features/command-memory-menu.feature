@@ -39,3 +39,10 @@ Feature: Compact /memory management menu
     When the user opens Memory in TUI or headless mode
     Then the model state is shown as configuration invalid rather than unconfigured
     And no learning worker starts
+
+  Scenario: Every menu level uses the same native selector
+    Given the user opens /memory or /learning in an interactive terminal
+    When any menu level is displayed, including the root level
+    Then it uses one focus-owning native selector with the same viewport,
+        navigation and resize behavior
+    And no top-level menu falls back to a plain prompt with different input handling

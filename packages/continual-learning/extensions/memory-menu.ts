@@ -10,7 +10,6 @@ import { parseMemoryIndexLine } from "./consolidation-run";
  * so the menu does not need to know where the runtime gets its model from. */
 export interface MemoryMenuStatus {
   autoSettledLearning: boolean;
-  autoContinualLearning: boolean;
   model: string;
   entries: number;
   invalid?: string;
@@ -28,7 +27,7 @@ export interface MemoryMenuDependencies {
   listHistory: (cwd: string) => Promise<LearningHistory[]>;
   manage: (command: string, ctx: ExtensionCommandContext) => Promise<boolean>;
   selectModel: (ctx: ExtensionCommandContext) => Promise<void>;
-  toggleLearningSetting: (setting: "autoSettledLearning" | "autoContinualLearning", ctx: ExtensionCommandContext, cwd: string) => Promise<void>;
+  toggleLearningSetting: (setting: "autoSettledLearning", ctx: ExtensionCommandContext, cwd: string) => Promise<void>;
   isBusy: () => boolean;
   policies?: (cwd: string) => Promise<{ policies: Record<"memory" | "harness" | "agents", string>; agentsDisabled: boolean }>;
 }
@@ -41,7 +40,7 @@ function bounded(value: string, limit: number): string {
 }
 
 function statusTitle(status: MemoryMenuStatus): string {
-  const state = status.invalid ? "learning unavailable" : `settled ${status.autoSettledLearning ? "on" : "off"} · agent ${status.autoContinualLearning ? "on" : "off"}`;
+  const state = status.invalid ? "learning unavailable" : `settled ${status.autoSettledLearning ? "on" : "off"} · agent always on`;
   const count = `${status.entries} ${status.entries === 1 ? "entry" : "entries"}`;
   return `Memory · ${state} · ${safeDisplayText(status.model)} · ${count}`;
 }
@@ -180,17 +179,16 @@ async function editPolicies(ctx: ExtensionCommandContext, dependencies: MemoryMe
 }
 
 async function learningSettings(ctx: ExtensionCommandContext, dependencies: MemoryMenuDependencies, cwd: string): Promise<void> {
-  const actions = ["Select learning model", "Toggle settled-task learning", "Toggle agent-triggered learning", "Advanced phase policies"];
+  const actions = ["Select learning model", "Toggle settled-task learning", "Advanced phase policies"];
   let selectedIndex = 0;
   for (;;) {
     const current = await dependencies.status(cwd);
     const choice = await selectMenu(managementUI(ctx.ui, ctx.mode), "Learning settings", actions, selectedIndex,
-      [`Settled ${current.autoSettledLearning ? "on" : "off"} · agent ${current.autoContinualLearning ? "on" : "off"} · ${safeDisplayText(current.model)}`, "Existing Memory retrieval stays on"]);
+      [`Settled ${current.autoSettledLearning ? "on" : "off"} · agent always on · ${safeDisplayText(current.model)}`, "Existing Memory retrieval stays on"]);
     if (!choice) return;
     selectedIndex = Math.max(0, actions.indexOf(choice));
     if (choice === "Select learning model") await dependencies.selectModel(ctx);
     else if (choice === "Toggle settled-task learning") await dependencies.toggleLearningSetting("autoSettledLearning", ctx, cwd);
-    else if (choice === "Toggle agent-triggered learning") await dependencies.toggleLearningSetting("autoContinualLearning", ctx, cwd);
     else if (choice === "Advanced phase policies") await editPolicies(ctx, dependencies);
   }
 }
@@ -265,7 +263,10 @@ export async function openMemoryMenu(ctx: ExtensionCommandContext, dependencies:
         notifyPi(ctx.ui, `${statusTitle(status)}. Use /learning with a requirement to add a memory.`, "info");
         return;
       }
-      const choice = await ctx.ui.select(statusTitle(status), [...FIRST_LEVEL, "Close"]);
+      // Use the same focus-owning list as every submenu and the /learning menu.
+      // ctx.ui.select is a plain native prompt with different input, viewport
+      // and resize behavior, which made the root menu feel inconsistent.
+      const choice = await selectMenu(managementUI(ctx.ui, ctx.mode), statusTitle(status), [...FIRST_LEVEL, "Close"]);
       if (!choice || choice === "Close") return;
       if (choice === "Browse memories") await browseMemories(ctx, dependencies, cwd);
       else if (choice === "Learning settings") await learningSettings(ctx, dependencies, cwd);

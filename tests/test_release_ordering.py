@@ -24,9 +24,9 @@ PACKAGES = REPO / "packages"
 CHANGESETS = REPO / ".changeset"
 SCOPE = REPO / "scripts" / "publish-release.mjs"
 
-# The four whose relative order is load-bearing: the two shared foundations, the
-# domain, and the bundle that loads all three.
-ORDER = ["@fradser/pi-kit", "@fradser/pi-subagents", "@fradser/pi-tasks", "@fradser/pi-agent-teams"]
+# The three active packages whose relative order is load-bearing: the shared
+# foundations and the bundle that loads them. The task package is archived.
+ORDER = ["@fradser/pi-kit", "@fradser/pi-subagents", "@fradser/pi-agent-teams"]
 
 # Bumps the split requires, and why.
 REQUIRED_BUMPS = {
@@ -35,7 +35,6 @@ REQUIRED_BUMPS = {
     "@fradser/pi-agent-teams": "major",
     # Both are new on the registry; the internal shape still moved.
     "@fradser/pi-subagents": "minor",
-    "@fradser/pi-tasks": "minor",
     "@fradser/pi-kit": "minor",
 }
 
@@ -129,7 +128,7 @@ def test_the_bundle_declares_the_packages_it_loads() -> None:
     versions. A dependency that is a peer is supplied by the host and would be
     absent in a plain install."""
     manifest = json.loads((PACKAGES / "agent-teams" / "package.json").read_text(encoding="utf-8"))
-    for name in ("@fradser/pi-subagents", "@fradser/pi-tasks"):
+    for name in ("@fradser/pi-subagents",):
         assert name in manifest.get("dependencies", {}), f"{name} must be a runtime dependency"
         assert name not in manifest.get("peerDependencies", {}), f"{name} as a peer would be absent in an install"
 

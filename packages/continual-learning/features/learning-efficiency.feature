@@ -84,7 +84,7 @@ Feature: Spend learning tokens only when durable value is plausible
     When its terminal result row is shown
     Then the collapsed row is one short line stating that no changes were written
     And it uses no engineering jargon or success framing for an empty result
-    And every started row still has its exactly one paired result row
+    And the run emits exactly one final result row
     And the complete receipt and checked-scope note remain available on expansion
     But a failed, held or cancelled run never claims a completed zero-write check
 
@@ -152,3 +152,4 @@ Feature: Spend learning tokens only when durable value is plausible
     And failed Memory attempts are persisted when later phases cannot start
     And the user receives a compact totals summary with every token category displayed separately
     But nonzero usage with zero provider-reported cost is displayed as cost unavailable rather than a zero-dollar cost
+

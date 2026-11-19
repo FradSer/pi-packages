@@ -59,9 +59,8 @@ def test_the_bundle_declares_its_two_dependencies() -> None:
     assert manifest["pi"]["extensions"] == [
         "./index.ts",
         "./node_modules/@fradser/pi-subagents/index.ts",
-        "./node_modules/@fradser/pi-tasks/index.ts",
     ]
-    for dependency in ("@fradser/pi-subagents", "@fradser/pi-tasks"):
+    for dependency in ("@fradser/pi-subagents",):
         assert manifest["dependencies"][dependency].startswith("workspace:")
         # A peer is supplied by the host, so a bundled peer would be absent in a
         # plain install and the bundle would load two of its three tools.

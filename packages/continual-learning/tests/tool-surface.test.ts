@@ -34,6 +34,14 @@ test("parent learning activation preserves foreign tools", () => {
   expect(host.activeTools).toEqual(PARENT_TOOLS);
 });
 
+test("parent learning tool is active on session start", () => {
+  const host = new FakeHost(PARENT_TOOLS);
+  const surface = createParentToolSurface(host);
+  surface.resetSession();
+  surface.refreshAgentMemory(true);
+  expect(host.activeTools).toContain(TOOL_NAMES.learn);
+});
+
 test("Harness authoring activates and resets its declared tools", () => {
   const host = new FakeHost(["read", "write"]);
   const surface = createParentToolSurface(host);

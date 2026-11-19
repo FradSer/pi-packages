@@ -682,7 +682,7 @@ def test_agent_triggered_memory_learns_once_before_the_answer_and_deduplicates_s
     assert value["agentFirst"] == {
         "text": "Memory learning finished: Learning 1 memory applied · usage unavailable · cost unavailable",
         "status": "applied", "operations": 1,
-        "settledSubject": "learned 1 Memory change", "replayBound": True, "isError": False,
+        "replayBound": True, "isError": False,
     }, value["agentFirst"]
     assert value["agentSecond"]["text"] == value["agentFirst"]["text"], value["agentSecond"]
     assert value["agentSecond"]["status"] == "already-learned" and value["agentSecond"]["isError"] is False, value["agentSecond"]
@@ -699,16 +699,9 @@ def test_agent_triggered_memory_learns_once_before_the_answer_and_deduplicates_s
     assert [phase for phase in value["planners"] if phase == "memory"] == ["memory"], value["planners"]
 
 
-def test_started_no_change_run_still_reports_its_outcome_row() -> None:
-    # Given the real open-deskos failure: `[learning] started · <topic>` was
-    # emitted, the tool result honestly said "Learning no changes written" (or
-    # "Memory organized in-process"), but no terminal transcript row followed.
-    # An automatic noop/screened receipt was filtered out of reporting while
-    # its started row was not. When that pipeline finishes, Then every started
-    # row has its paired result row describing the same receipt.
+def test_in_process_organize_reports_one_final_outcome_row() -> None:
     value = run_bun_script(POLICY_HARNESS, "agent-memory-organize")
-    assert value["startedSubjects"], value
-    assert len(value["resultContents"]) == len(value["startedSubjects"]), value
+    assert len(value["resultContents"]) == 1, value
     receipt = value["registryReceipt"]
     assert receipt is not None, value
     assert "organized" in value["resultContents"][0].lower(), value["resultContents"]
@@ -739,16 +732,17 @@ def test_agent_triggered_memory_propose_saves_a_reviewable_outcome() -> None:
     assert [record["status"] for record in value["history"]] == ["proposed"], value["history"]
 
 
-def test_disabled_agent_trigger_never_starts_a_pipeline() -> None:
-    value = run_bun_script(POLICY_HARNESS, "agent-memory-disabled")
-    assert value["agentFirst"] == {
-        "text": "Agent-triggered Memory learning is disabled by settings. Report this accurately and continue the task; do not retry.",
-        "status": "disabled", "operations": None,
-        "settledSubject": "agent-triggered learning is disabled", "isError": False,
-    }, value["agentFirst"]
-    assert value["selectors"] == 0 and value["planners"] == [], value
-    assert "registryReceipt" not in value or value["registryReceipt"] is None, value
-    assert "concise.md" not in value["privateFiles"], value
+def test_agent_trigger_is_unaffected_by_the_retired_setting() -> None:
+    # Given the retired autoContinualLearning field is false or absent, When
+    # the agent requests learning, Then the parent still runs its one validated
+    # Memory pipeline: the agent trigger is always on and has no setting.
+    for scenario in ("agent-memory-apply", "agent-memory-disabled"):
+        value = run_bun_script(POLICY_HARNESS, scenario)
+        first = value["agentFirst"]
+        assert first["status"] == "applied" and first["isError"] is False, first
+        assert "Memory learning finished" in first["text"], first
+        assert value["planners"] == ["memory"], value["planners"]
+        assert "concise.md" in value["privateFiles"], value
 
 
 def test_agent_trigger_never_runs_harness_or_agents_even_when_configured_to_apply() -> None:
@@ -954,18 +948,12 @@ def test_legacy_backlog_reason_does_not_block_replay_binding(tmp_path: Path) -> 
                       "statusMalformed": 0, "pending": 1, "bound": True}, result
 
 
-def test_cancelled_started_run_reports_a_terminal_outcome_row() -> None:
+def test_cancelled_run_reports_a_terminal_outcome_row() -> None:
     # Given a session_shutdown during an agent-triggered pipeline, When the
-    # parent writes its cancelled receipt, Then every started row still has a
-    # paired terminal row. The cancelled `finally` branch used to write the
-    # receipt to disk but never report it to the transcript.
+    # parent writes its cancelled receipt, Then the transcript still reports
+    # the cancellation instead of leaving only a disk-only receipt.
     value = run_bun_script(POLICY_HARNESS, "agent-memory-apply",
                            env={"CL_JEV_FIXTURE": "repair-cancel"})
-    assert value["startedSubjects"], value
-    # Two distinct started runs in this fixture each get exactly one terminal
-    # row. Equal totals prove neither the cancelled finally nor the error
-    # handler doubled or dropped a report for a single started run.
-    assert len(value["resultContents"]) == len(value["startedSubjects"]), value
     assert any("cancel" in text.lower() for text in value["resultContents"]), value["resultContents"]
 
 
@@ -979,10 +967,6 @@ def test_applied_tool_result_row_names_the_real_memory_count() -> None:
     first = applied["agentFirst"]
     assert first["status"] == "applied", first
     assert first["operations"] == applied["registryReceipt"]["operations"] == 1, first
-    assert first["settledSubject"] == "learned 1 Memory change", first
-    # The renderer's zero/missing-count path is covered directly in
-    # learn-harness-route.test.ts; a proposed or failed outcome carries 0.
-    assert "learned 0 Memory changes" not in first["settledSubject"], first
 
 
 def test_zero_write_result_row_states_what_was_checked_but_failures_do_not() -> None:
@@ -1037,8 +1021,7 @@ def test_automatic_run_holds_a_plan_with_too_many_new_memory_files() -> None:
     # was silently discarded or written.
     assert [entry["name"] for entry in held[0]["proposal"]["newMemories"]] == [
         "candidate-0.md", "candidate-1.md", "candidate-2.md", "candidate-3.md"], held[0]
-    # A held run still closes every started row with exactly one terminal row.
-    assert len(value["resultContents"]) == len(value["startedSubjects"]), value
+    assert len(value["resultContents"]) == 1, value["resultContents"]
     # But it must not be dressed up as a normally completed zero-write check:
     # the cap held a grounded plan for review, so the result row says so and
     # never claims mirrors/indexes/consistency were verified.
@@ -1106,3 +1089,53 @@ def test_cap_hold_state_does_not_leak_to_subsequent_runs_in_same_session() -> No
     second_result = value["resultContents"][1].lower()
     assert "held by per-run limit" in first_result, value["resultContents"]
     assert "held by per-run limit" not in second_result, value["resultContents"]
+
+
+def test_settled_learning_consumes_the_agent_memory_trigger() -> None:
+    # Given the real Home Lab duplicate-learning sequence: the settled learner
+    # runs first, the task keeps growing, then the agent calls learn() twice
+    # and the task settles again, Then Memory learning runs exactly once and
+    # the agent calls echo the settled outcome instead of starting a second
+    # pipeline for the same task.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-settled-first")
+    assert value["selectors"] == 0, value
+    # Exactly one Memory pipeline ran: the settled run.
+    assert value["planners"] == ["memory"], value["planners"]
+    first = value["agentFirst"]
+    assert first is not None and first["status"] == "already-learned", first
+    assert first["isError"] is False, first
+    assert "did not complete" not in (first["text"] or ""), first
+    assert value["agentSecond"]["status"] == "already-learned", value["agentSecond"]
+    # The growing task produced no second agent-triggered pipeline: only one
+    # planner child ran and the two learn() calls returned the same echo.
+    assert value["agentSecond"]["text"] == first["text"], value
+    # The single settled receipt completed and applied its Memory record.
+    assert value["registryReceipt"] is not None, value
+    assert value["registryReceipt"]["operations"] == 1, value["registryReceipt"]
+    assert value["history"][-1]["status"] == "applied", value["history"]
+    assert value["lock"] is False, value
+
+
+def test_backfill_replay_reports_one_final_outcome_row() -> None:
+    value = run_bun_script(POLICY_HARNESS, "manual-backfill")
+    assert len(value["resultContents"]) == 1, value
+    assert value["lock"] is False, value
+
+
+def test_settling_a_task_never_starts_pending_backlog_work() -> None:
+    # Given a pending backlog reference from an earlier session and a current
+    # task that settles with automatic learning, When the settled run finishes,
+    # Then that reference is untouched by automatic work, stays pending, and
+    # is processed only by an explicit /consolidate backfill. This is the Home
+    # Lab "memory tasks run by themselves" case.
+    value = run_bun_script(POLICY_HARNESS, "agent-memory-foreign-backlog")
+    result = value["foreignBacklog"]
+    assert result is not None, value
+    # The settle learned only its own task.
+    assert result["settledPlanners"] == 1, result
+    # The settle never touched the older session's reference.
+    assert result["foreignAttemptsAfterSettle"] == 0, result
+    assert any(row["file"] != "session.jsonl" for row in result["rowsAfterSettle"]), result
+    # Only the explicit backfill attempts that reference.
+    assert result["foreignAttemptsAfterBackfill"] == 1, result
+    assert value["lock"] is False, value

@@ -57,14 +57,10 @@ def test_learning_command_menu_routes_to_parent_owned_handlers() -> None:
 
 
 
-def test_learning_start_has_a_user_transcript_row_and_a_shared_activity_widget() -> None:
-    # The started row stays in the user transcript, while the running state
-    # uses pi-kit's shared live activity widget (the same primitive subagents
-    # use) rather than any package-private widget implementation.
+def test_learning_uses_a_shared_activity_widget() -> None:
+    # Running state uses pi-kit's shared live activity widget (the same
+    # primitive subagents use), not a package-private widget implementation.
     content = source()
-    assert 'learning-procedure' in content
-    assert '"started"' in content
-    assert 'display: true' in content
     assert 'createLiveActivityWidget' in content
     assert 'key: "continual-learning-activity"' in content
     assert 'placement: "aboveEditor"' in content

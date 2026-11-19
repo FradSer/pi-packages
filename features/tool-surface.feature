@@ -1,6 +1,9 @@
 # The final three-tool surface: one tool per package, one meaning per action,
 # and no ownership field on a task.
 #
+# Leader task tools are retired. The task-only scenarios below describe the
+# archived plugin; the active bundle exposes only the agent family and message.
+#
 # This file is the contract the split is executed against. Every scenario here is
 # currently RED against `work` / `agent_event` and goes GREEN when the tool
 # surface lands. Assertions are updated to the new names, never weakened, and the
@@ -9,7 +12,7 @@
 Feature: Agent Teams tool surface
 
   Background:
-    Given the installed package set is one of: subagents, tasks, or the agent-teams bundle
+    Given the installed package set is one of: subagents, the archived tasks package, or the agent-teams bundle
 
   # ── One tool per package ────────────────────────────────────────────────
 
@@ -241,11 +244,11 @@ Feature: Agent Teams tool surface
 
   # ── Bundle ──────────────────────────────────────────────────────────────
 
-  Scenario: the bundle installs all three tools
+  Scenario: the bundle installs the active tool families
     Given only "@fradser/pi-agent-teams" is installed
     When the extension loader reports the registered tools
-    Then "agent", "task", and "message" are all present
-    And each is registered exactly once
+    Then the agent intent family and "message" are present
+    And none of "create_task", "get_task", "list_tasks", "update_task" is present
 
   Scenario: a dependency is loaded through its extension entry, not its barrel
     When the bundle manifest is read
