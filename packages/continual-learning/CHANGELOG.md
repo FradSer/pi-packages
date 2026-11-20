@@ -1,5 +1,11 @@
 # pi-continual-learning
 
+## 1.0.2
+
+### Patch Changes
+
+- 2686f5c: Harden Harness authoring writes: apply inherited native write protection to the declared writer, revalidate raw configuration after confirmation, preserve mutation ownership and exact predecessor modes on rollback, and report commit results and receipt failures honestly.
+
 ## 1.0.1
 
 ### Patch Changes

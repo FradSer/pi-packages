@@ -1,5 +1,11 @@
 # pi-sdlc
 
+## 0.3.0
+
+### Minor Changes
+
+- 9735ae7: Move SDLC documents and state to a global control plane under `~/.sdlc`; worktrees no longer contain SDLC files.
+
 ## 0.2.0
 
 ### Minor Changes
