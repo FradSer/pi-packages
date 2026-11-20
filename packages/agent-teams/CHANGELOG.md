@@ -1,5 +1,11 @@
 # @fradser/pi-agent-teams
 
+## 2.0.0
+
+### Major Changes
+
+- 2686f5c: Remove the task plugin dependency and its leader task tools. Work Items now use an internal task domain; spawned teammates keep their own claim/submit tool. Installations no longer load or register `create_task`, `get_task`, `list_tasks`, or `update_task`.
+
 ## 1.0.0
 
 ### Major Changes
