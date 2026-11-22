@@ -166,6 +166,54 @@ export async function auditMemoryMaintenanceSources(input: {
   }
   const nonce = randomUUID();
   const usageLedgerId = randomUUID();
+  // For settled-task audits, readScope.files is already the exact parent-validated
+  // set of edited files. Reading them directly in the parent avoids spawning an
+  // extra LLM worker (0 model calls, ~2 ms, no out-of-scope refusal risk).
+  if (input.purpose === "settled-task") {
+    const hashes = new Map<string, string>();
+    const entries: unknown[] = [];
+    let totalBytes = 0;
+    let valid = !input.signal?.aborted;
+    try {
+      for (const [index, file] of readScope.files.slice(0, MAX_AUDIT_READS).entries()) {
+        input.signal?.throwIfAborted();
+        const exact = await readPlannerFileSnapshot(file, readScope, 1, 200, input.signal);
+        if (exact.sha256 === undefined) continue;
+        totalBytes += Buffer.byteLength(exact.text, "utf8");
+        if (totalBytes > MAX_AUDIT_BYTES) break;
+        hashes.set(file, exact.sha256);
+        const id = `maintenance-source-${nonce}-${index}`;
+        entries.push(
+          {type: "message", message: {role: "assistant", content: [{type: "toolCall", id, name: TOOL_NAMES.learningRead, arguments: {path: file, offset: 1, limit: 200}}]}},
+          {type: "message", message: {role: "toolResult", toolCallId: id, toolName: TOOL_NAMES.learningRead, isError: false, content: [{type: "text", text: exact.text}], details: {sourcePath: file, sourceSha256: exact.sha256, readOnlyMaintenanceAudit: true}}},
+        );
+      }
+    } catch { valid = false; }
+    if (!entries.length || input.signal?.aborted) valid = false;
+    const outcome = input.signal?.aborted ? "cancelled" : valid ? "observed" : "failed";
+    const usage: PiWorkerUsage = {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: 0};
+    const assertClaimsUnchanged = async (): Promise<void> => { input.signal?.throwIfAborted(); };
+    const assertSourcesUnchanged = async (): Promise<void> => {
+      input.signal?.throwIfAborted();
+      for (const [file, digest] of hashes) {
+        if ((await readPlannerFileSnapshot(file, readScope, 1, 1, input.signal)).sha256 !== digest) {
+          throw new Error("Maintenance source changed before Memory application");
+        }
+      }
+    };
+    await writeFileAtomic(path.join(directory, "receipt.json"), JSON.stringify({version: 1, outcome,
+      sourceHashes: Object.fromEntries(hashes), ...(unavailableEditPaths.length ? {unavailableEditPaths} : {}),
+      claimHashes: {}, observedSourceEntries: entries.length, durationMs: Date.now() - started,
+      workerOutcome: outcome === "cancelled" ? "cancelled" : outcome === "observed" ? "completed" : "failed",
+      sourceEvidenceStatus: valid ? "verified-observations" : "hold", modelCalls: 0,
+      usage, usageLedgerId, usageAvailable: true, usageComplete: true, mutationAuthorized: false, remoteSourceCalls: 0}));
+    recordLearningDebug("extensions/memory-maintenance-audit.ts", "source-collector:closed", { outcome, directory,
+      observedEntries: entries.length, usageLedgerId, usageComplete: true, workerOutcome: valid ? "completed" : outcome,
+      workerTerminal: undefined, controlledStopReason: null });
+    return {outcome, entries: valid ? entries : [], usage, usageLedgerId, usageComplete: true,
+      workerOutcome: valid ? "completed" : outcome === "cancelled" ? "cancelled" : "failed",
+      durationMs: Date.now() - started, directory, assertSourcesUnchanged, assertClaimsUnchanged};
+  }
   const extension = path.join(directory, "source-reader.mjs");
   await fs.writeFile(extension, [
     `import {registerMaintenanceCollector} from ${JSON.stringify(fileURLToPath(new URL("./maintenance-collection-stop.ts", import.meta.url)))};`,

@@ -14,6 +14,7 @@ def test_parent_bound_template_covers_same_project_wrappers_only() -> None:
       const re = new RegExp(template);
       for (const command of ['git push --dry-run', 'cd /work/mitt && git push --dry-run',
         "cd '/work/mitt' && git push origin topic", 'cd "/work/mitt" && git -C . push --dry-run',
+        'git -C /work/mitt push --dry-run', "git -C '/work/mitt' push --dry-run",
         'cd . && git --no-pager push --dry-run']) {
         if (!re.test(command)) throw new Error('Missing current-project coverage');
       }

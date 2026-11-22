@@ -3434,6 +3434,9 @@ async function spawnAsyncConsolidation(
     ...(incremental
       ? [
           `- Authoritative selected Memory names: ${JSON.stringify(selectedScope)}`,
+          ...(opts.mode === "automatic"
+            ? [`- Automatic per-run new Memory cap: at most ${state.maxNewMemoriesPerRun ?? DEFAULT_MAX_NEW_MEMORIES_PER_RUN} new file(s) in newMemories (consolidate related project facts into one cohesive file; exceeding this cap holds the whole plan without writing).`]
+            : []),
         ]
       : [
           `- Pre-run mirror normalization: ${JSON.stringify({ repaired: run.normalization.repaired, removed: run.normalization.removed })}`,
