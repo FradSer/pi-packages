@@ -328,5 +328,5 @@ Never include credentials, tokens, passwords, API keys, private keys, or secrets
 in content or evidence, even in private files. Without usable context evidence,
 emit no new proposals.
 
-Limits: 16 proposals, 8 evidence items per proposal, 2,000 characters per quote,
+Limits: obey the automatic per-run `newMemories` cap stated in the task header above (hard ceiling 16 proposals for manual runs; exceeding the automatic cap holds the entire plan with zero writes), 8 evidence items per proposal, 2,000 characters per quote,
 64,000 UTF-8 bytes per body, and 256,000 combined body bytes.
