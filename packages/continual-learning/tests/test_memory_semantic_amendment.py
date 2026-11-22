@@ -45,7 +45,7 @@ def test_explicit_optional_draft_refusal_survives_native_framing_and_rechecks_ab
           withdrawals:mode==='empty'?[]:[{candidateRef:data.repairCandidates[0].candidateRef,reason:'not-reusable'}]};
         if(NATIVE && mode==='valid'){
           const cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
-          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.5.0')throw Error('Pi1.5 required');
           const r=spawnSync('node',[cli,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
             '--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json','--bound-candidate-response',JSON.stringify(reply),input.prompt],
             {cwd:ROOT,env:{PATH:process.env.PATH,HOME:ROOT,PI_CODING_AGENT_DIR:path.join(ROOT,'agent'),PI_OFFLINE:'1'},encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
@@ -249,7 +249,7 @@ def test_real_candidate_copy_failure_uses_exact_parent_bound_refs(tmp_path, nati
         reply.replacements=reply.replacements.map((patch,i)=>{const {candidateId,...rest}=patch;return {...rest,candidateRef:data.repairCandidates[i].candidateRef}});
         if(NATIVE){
           const root=ROOT,cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
-          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.5.0')throw Error('Pi1.5 required');
           const native=spawnSync('node',[cli,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
             '--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json','--bound-candidate-response',JSON.stringify(reply)],{input:input.prompt,cwd:root,env:{PATH:process.env.PATH,HOME:root,PI_CODING_AGENT_DIR:path.join(root,'agent'),PI_OFFLINE:'1'},encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
           fs.writeFileSync(path.join(root,'native-prompt.txt'),input.prompt);fs.writeFileSync(path.join(root,'native-pi-output.jsonl'),native.stdout);fs.writeFileSync(path.join(root,'native-version.txt'),version.stdout);
@@ -363,7 +363,7 @@ def test_real_stale_repair_can_select_exact_parent_audited_source_without_regene
         calls++;prompt=input.prompt;const context=JSON.parse(prompt.split('\n').at(-1)),candidate=context.repairCandidates[0];
         if(NATIVE && calls<=2){
           const cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
-          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.5.0')throw Error('Pi1.5 required');
           const env={PATH:process.env.PATH,HOME:root,PI_CODING_AGENT_DIR:path.join(root,'agent'),PI_OFFLINE:'1'};
           const native=spawnSync('node',[cli,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-tools','-e',path.resolve('packages/continual-learning/tests/memory-amendment-live-fixture.ts'),
             '--provider','amendment-fixture','--model','fixed','--thinking','off','--no-session','--print','--mode','json','--source-excerpt-selection',JSON.stringify({ref:'e56.b0.l146',endRef:'e56.b0.l149'})],{input:input.prompt,cwd:root,env,encoding:'utf8',timeout:40000,maxBuffer:32*1024*1024});
@@ -673,7 +673,7 @@ def test_actual_pi_semantic_content_patch_retains_real_original_sources():
           piVersion:JSON.parse(fs.readFileSync('./node_modules/@earendil-works/pi-coding-agent/package.json','utf8')).version,externalRequests:0}));
       }finally{server.stop(true)}
     ''',timeout=45)
-    assert value=={'outcome':'repaired','calls':1,'tools':0,'unchanged':True,'sourceCount':3,'piVersion':'1.3.0','externalRequests':0}
+    assert value=={'outcome':'repaired','calls':1,'tools':0,'unchanged':True,'sourceCount':3,'piVersion':'1.5.0','externalRequests':0}
 
 
 @pytest.mark.parametrize("mode", ["no-entry", "no-entry-final-held", "no-entry-required"])

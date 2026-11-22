@@ -58,13 +58,18 @@ Feature: One model-facing learning tool
     When no durable knowledge signal is present
     Then the parent organizes in process without a planner or review worker
     And the result is reported honestly as organized, not as applied
+    And its plain-text outcome describes file checks, not semantic organization
 
   Scenario: A Memory call produces one final result row
     Given a learn call starts exactly one Memory pipeline
     When the run ends
-    Then the transcript shows exactly one [learning] outcome row for that run
-    And that row expands to Markdown descriptions and bodies of applied safe Memory
-    And the expansion names each applied Memory so the user can tell which records were written
+    Then the transcript shows one plain-text learning result for that run
+    And the result uses Pi's native plain Text component without a lifecycle label or expansion hint
+    And applied Memory filenames, descriptions and bodies are readable without expanding
+    And Ctrl+O does not change the learning result
+    And private entries remain visible to their owner while sensitive text stays hidden
+    And applied body paragraphs, filename-like lines and literal separators stay inside their original record
+    And display JSON is byte-bounded before decoding and refuses invalid Memory filenames
     And the complete receipt stays unchanged in message details and on disk
     And an applied write has an undoable learning-history record
     And no settled or early-correction hook starts a second pipeline for the task
@@ -72,28 +77,29 @@ Feature: One model-facing learning tool
   Scenario: A no-change run still reports one final result row
     Given a learn call finishes a pipeline that writes no changes, screens nothing, or organizes in process
     When the parent returns a receipt
-    Then the transcript shows exactly one final [learning] outcome row for that batch
-    And the row names the no-change, screened, skipped or organized outcome honestly
+    Then the transcript shows one plain-text outcome for that batch
+    And the no-model organization outcome says "Memory files checked. No changes."
+    And it shows no frozen-entry count, generic verification paragraph or usage metadata
     And the tool result text and the outcome row describe the same receipt
 
   Scenario: A cancelled run reports its terminal outcome
     Given the session shuts down or changes while a pipeline is running
     When the parent writes the cancelled receipt
-    Then the transcript shows one [learning] outcome row naming the cancellation
+    Then the transcript shows one plain-text result naming the cancellation
     And the tool result reports the session change honestly without claiming applied knowledge
 
   Scenario: Backfill replay reports one final result row
     Given an explicit /consolidate backfill processes a verified pending reference
     When the replay finishes
-    Then the transcript shows one [learning] outcome row for that batch
+    Then the transcript shows one plain-text result for that batch
     And the replay result is not duplicated by the tool result row
 
   Scenario: The learn tool result stays model-facing for a paired run
     Given a learn call produced a pipeline receipt and its final receipt row
     When its tool result is rendered
-    Then no second [learning] tool result row appears in the transcript
+    Then no duplicate learn tool result row appears in the transcript
     And the full outcome text stays available to the model
-    And a non-pipeline outcome still reports itself as a tool result row
+    And no additional learn tool result row repeats a non-pipeline outcome
 
   Scenario: The learn tool result names the applied Memory count
     Given a learn call applied two validated Memory records

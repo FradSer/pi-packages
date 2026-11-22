@@ -1,6 +1,25 @@
 import pytest
 from support import isolated_run_bun
-from test_jev_independent_subset_research import SETUP as LEGACY_SETUP
+LEGACY_SETUP = r'''
+import {simulateIndependentMemorySubset} from './packages/continual-learning/tests/independent-memory-subset-bounded-replay.ts';
+import {createHash} from 'node:crypto';
+const digest=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
+const evidence={contextEnabled:true,entries:[{role:'user',content:'Use pnpm. Report in Chinese.'}]};
+const candidates=[
+ {name:'tools.md',kind:'project',classification:'safe',content:'---\nname: tools\ndescription: Use pnpm.\ntype: project\n---\nUse pnpm.',evidence:[{index:0,role:'user',quote:'Use pnpm.'}]},
+ {name:'report.md',kind:'preference',classification:'private',content:'---\nname: report\ndescription: Report in Chinese.\ntype: preference\n---\nReport in Chinese.',evidence:[{index:0,role:'user',quote:'Report in Chinese.'}]}
+];
+const existing=[];
+const checks=i=>[`supported_${i}`,`supported_description_${i}`,`counter_${i}_0`,`counter_description_${i}_0`];
+const review={version:1,purpose:'diagnostic-only',complete:true,sameBatchIndependenceReviewed:false,maxRequestBytes:64000,
+ evidenceDigest:digest(evidence),existingDigest:digest(existing),candidatesDigest:digest(candidates),model:'jev-1.13.0',
+ candidates:candidates.map((c,index)=>({index,candidateDigest:digest(c),outcome:index?'held':'passed',
+ passedChecks:checks(index).filter(k=>!index||k!==`supported_description_${index}`),heldChecks:index?[`supported_description_${index}`]:[]}))};
+const answer=label=>({type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(['independent','duplicate','conflict','dependent','unclear'].map(k=>[k,k===label?1:0]))});
+const pair={a:0,b:1,model:'jev-1.13.0',evidenceDigest:digest(evidence),existingDigest:digest(existing),
+ candidatesDigest:digest(candidates),candidateDigests:[digest(candidates[0]),digest(candidates[1])],answer:answer('independent')};
+const input={evidence,candidates,existing,operations:[],review,pairs:[pair],windows:1};
+'''
 
 # Current production review adds body coherence; preserve the frozen research setup.
 SETUP = LEGACY_SETUP.replace("const checks=i=>[", "const checks=i=>[`coherence_${i}`,")

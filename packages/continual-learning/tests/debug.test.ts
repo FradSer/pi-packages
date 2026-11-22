@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
+import { inspectDebug } from "../../../.agents/skills/continual-learning-debug/scripts/inspect-debug.ts";
 import { createLearningDebug, debugDirectory, sanitizeDebugValue } from "../extensions/debug.ts";
 import { readDebugConfigState, writeUnifiedConfig } from "../extensions/config.ts";
 import { buildLearningReceipt, writeLearningReceipt } from "../extensions/learning-efficiency.ts";
@@ -460,4 +461,218 @@ test("separate writers and rotation preserve earlier complete JSONL evidence", (
   other.events.get("input")?.({}, ctx);
   expect(readdirSync(debugDirectory(cwd, agent)).length).toBeGreaterThan(files.length);
   expect(records()).toHaveLength(2402);
+});
+
+describe("debug inspector", () => {
+  function fixture() {
+    const fRoot = realpathSync(mkdtempSync(path.join(os.tmpdir(), "cl-debug-inspector-")));
+    const project = path.join(fRoot, "project"), agentDir = path.join(fRoot, "agent");
+    mkdirSync(project); mkdirSync(agentDir, { mode: 0o700 });
+    const directory = debugDirectory(project, agentDir); mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const row = (id: string, phase = "started", session = "one") => ({ kind: "continual-learning-debug", version: 1,
+      timestamp: "2026-11-10T00:00:00.000Z", invocationId: id, parentInvocationId: null,
+      source: "extensions/example.ts", event: "tool:learn", phase, outcome: phase === "failed" ? "failed" : phase,
+      context: { cwd: project, sessionId: session, entries: [], omittedEntries: 0 }, data: { result: "fixture" } });
+    return { root: fRoot, project, agentDir, directory, row };
+  }
+
+  test("本地检查器按项目和 session 关联失败、未闭合调用及原始行位置", () => {
+    const f = fixture();
+    try {
+      const rows = [f.row("failed"), f.row("failed", "failed"), f.row("open"), f.row("other", "started", "two"),
+        { ...f.row("foreign"), context: { cwd: path.join(f.root, "foreign"), sessionId: "one" } }];
+      writeFileSync(path.join(f.directory, "fixture.jsonl"), rows.map(row => JSON.stringify(row)).join("\n") + "\n", { mode: 0o600 });
+      const report = inspectDebug({ project: f.project, agentDir: f.agentDir, session: "one" });
+      expect(report.recordsRead).toBe(3);
+      expect(report.issues).toHaveLength(1);
+      expect(report.issues[0].line).toBe(2);
+      expect(report.unclosedInvocations).toEqual(["open"]);
+      expect(report.incomplete).toBe(true);
+      expect(report.diagnostics.some(item => item.reason === "foreign-project-record")).toBe(true);
+      expect(readFileSync(path.join(f.directory, "fixture.jsonl"), "utf8")).toContain('"foreign"');
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
+  test("日志采样、损坏和脱敏不会产生完整证据或泄露敏感值", () => {
+    const f = fixture();
+    try {
+      const secret = "sk-" + "inspector-synthetic-credential-12345";
+      const row = { ...f.row("bad", "failed"), data: { error: "api_key: " + secret } };
+      writeFileSync(path.join(f.directory, "a.jsonl"), JSON.stringify(row) + "\n", { mode: 0o600 });
+      writeFileSync(path.join(f.directory, "z.jsonl"), JSON.stringify(row) + "\n{broken}\n{", { mode: 0o600 });
+      const report = inspectDebug({ project: f.project, agentDir: f.agentDir, maxFiles: 1 });
+      expect(report.omittedFiles).toBe(1);
+      expect(report.incomplete).toBe(true);
+      expect(report.diagnostics.map(item => item.reason)).toContain("unterminated-record");
+      expect(report.diagnostics.map(item => item.reason)).toContain("malformed-record");
+      expect(JSON.stringify(report)).not.toContain(secret);
+      expect(JSON.stringify(report)).toContain("redacted");
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
+  test("重叠 writer 按实际事件时间选择最近记录", () => {
+    const f = fixture();
+    try {
+      const newest = { ...f.row("newest", "failed"), timestamp: "2026-11-10T12:00:00.000Z" };
+      const oldest = { ...f.row("oldest", "failed"), timestamp: "2026-11-10T01:00:00.000Z" };
+      writeFileSync(path.join(f.directory, "a.jsonl"), JSON.stringify(newest) + "\n", { mode: 0o600 });
+      writeFileSync(path.join(f.directory, "z.jsonl"), JSON.stringify(oldest) + "\n", { mode: 0o600 });
+      const report = inspectDebug({ project: f.project, agentDir: f.agentDir, limit: 1 });
+      expect(report.recent[0].file).toBe("a.jsonl");
+      expect(report.issues[0].file).toBe("a.jsonl");
+      expect(report.incomplete).toBe(false);
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
+  test("agent 根目录别名和已脱敏项目仍能找到同一组私有记录", () => {
+    const f = fixture();
+    try {
+      const alias = path.join(f.root, "alias"); symlinkSync(f.agentDir, alias);
+      const projectId = path.basename(f.directory);
+      writeFileSync(path.join(f.directory, "fixture.jsonl"), JSON.stringify({ ...f.row("safe", "completed"),
+        context: { projectId, cwd: { omitted: "redacted" }, sessionId: "one" } }) + "\n", { mode: 0o600 });
+      const report = inspectDebug({ project: f.project, agentDir: alias });
+      expect(report.directory).toBe(f.directory);
+      expect(report.recordsRead).toBe(1);
+      expect(report.incomplete).toBe(false);
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
+  test("检查器汇总采样覆盖、退出缺口、context 引用和批量 handler 身份", () => {
+    const f = fixture();
+    try {
+      const snapshot = { ...f.row("snapshot", "observed"), event: "context:snapshot", contextDigest: "context-digest" };
+      const nested = { ...f.row("nested", "completed"), contextRef: "context-digest" };
+      const missing = { ...f.row("missing", "completed"), contextRef: "missing-digest" };
+      const batch = { ...f.row("batch", "completed"), event: "lifecycle:batch", data: { handlers: [
+        { invocationId: "h1", outcome: "started" }, { invocationId: "h1", outcome: "completed" },
+        { invocationId: "h2", outcome: "started" }, { invocationId: "h2", outcome: "completed" },
+        { invocationId: "h3", outcome: "failed" },
+      ] } };
+      const start = { ...f.row("start", "started"), event: "event:session_start" };
+      const exit = { ...f.row("exit", "observed"), event: "process:exit", data: { reason: "quit", exitCode: 0 } };
+      writeFileSync(path.join(f.directory, "a.jsonl"), [snapshot, nested, missing, batch, start, exit].map(row => JSON.stringify(row)).join("\n") + "\n", { mode: 0o600 });
+      writeFileSync(path.join(f.directory, "z.jsonl"), [snapshot, { ...f.row("snapshot-2", "observed"), event: "context:snapshot", contextDigest: "other-digest" }].map(row => JSON.stringify(row)).join("\n") + "\n", { mode: 0o600 });
+      const all = inspectDebug({ project: f.project, agentDir: f.agentDir, maxFiles: 2 });
+      const report = inspectDebug({ project: f.project, agentDir: f.agentDir, maxFiles: 1 });
+      expect(all.missingContextRefs).toEqual(["missing-digest"]);
+      expect(all.contextSnapshots).toBe(3);
+      expect(report.totalFiles).toBe(2);
+      expect(report.sampledFiles).toBe(1);
+      expect(report.totalBytes).toBeGreaterThan(report.sampledBytes);
+      expect(report.coverageFrom).toBe("2026-11-10T00:00:00.000Z");
+      expect(report.incomplete).toBe(true);
+      expect(all.handlerCounts["lifecycle:batch"]).toBe(3);
+      expect(all.sessionLifecycle).toMatchObject({ sessionsStarted: 1, shutdownEvents: 0, processExits: 1, missingShutdown: ["undefined:one"], possibleAbnormalExit: true });
+      expect(all.unclosedInvocations).toEqual(["start"]);
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
+  test("关闭 debug 只收束显式绑定的在途调用，旧的未闭合调用仍如实保留", () => {
+    const f = fixture();
+    try {
+      const started = (id: string) => ({ ...f.row(id, "started"), timestamp: "2026-11-10T00:00:00.000Z" });
+      const disabled = { ...f.row("config", "completed"), event: "debug:configuration", outcome: "disabled",
+        timestamp: "2026-11-10T01:00:00.000Z", data: { enabled: false, truncatedInvocations: ["inflight"] } };
+      const rows = [started("crashed"), started("inflight"), disabled];
+      writeFileSync(path.join(f.directory, "fixture.jsonl"), rows.map(row => JSON.stringify(row)).join("\n") + "\n", { mode: 0o600 });
+      const report = inspectDebug({ project: f.project, agentDir: f.agentDir });
+      expect(report.unclosedInvocations).toContain("crashed");
+      expect(report.unclosedInvocations).not.toContain("inflight");
+      expect(report.closedByDebugShutdown).toEqual(["inflight"]);
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
+  test("检查器拒绝 symlink 和不安全文件，缺失日志保留未知状态", () => {
+    const f = fixture();
+    try {
+      const outside = path.join(f.root, "outside"); writeFileSync(outside, JSON.stringify(f.row("outside")) + "\n", { mode: 0o600 });
+      symlinkSync(outside, path.join(f.directory, "linked.jsonl"));
+      writeFileSync(path.join(f.directory, "public.jsonl"), JSON.stringify(f.row("public")) + "\n", { mode: 0o644 });
+      const report = inspectDebug({ project: f.project, agentDir: f.agentDir });
+      expect(report.recordsRead).toBe(0);
+      expect(report.incomplete).toBe(true);
+      expect(report.diagnostics.filter(item => item.reason === "unsafe-or-changed-log")).toHaveLength(2);
+      expect(report.diagnostics.some(item => item.reason === "no-matching-records")).toBe(true);
+      expect(report.issues).toEqual([]);
+      expect(inspectDebug({ project: f.project, agentDir: path.join(f.root, "missing") }).incomplete).toBe(true);
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+});
+
+describe("debug native Pi print", () => {
+  const repo = path.resolve(import.meta.dir, "../../..");
+
+  test("实际 Pi print 记录门禁和工具结果，关闭 debug 后不再落盘", async () => {
+    const fRoot = realpathSync(mkdtempSync(path.join(os.tmpdir(), "cl-debug-native-")));
+    const project = path.join(fRoot, "project"), fAgent = path.join(fRoot, "agent");
+    mkdirSync(project); mkdirSync(fAgent, { mode: 0o700 }); mkdirSync(path.join(project, ".pi"));
+    writeFileSync(path.join(project, ".pi/harness.json"), JSON.stringify({ rules: [{ id: "fixture", bash: "^debug-forbidden$", action: "block", message: "Controlled debug denial." }] }));
+    writeFileSync(path.join(fAgent, "settings.json"), JSON.stringify({ packages: [], retry: { enabled: false } }));
+    writeFileSync(path.join(fAgent, "continual-learning.json"), JSON.stringify({ autoSettledLearning: false, autoContinualLearning: false, jev: false }));
+    let calls = 0, organize = false, organizeCalls = 0;
+    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
+      await request.json();
+      const call = ++calls;
+      const useTool = organize ? ++organizeCalls === 1 : call <= 2;
+      const delta = useTool ? { tool_calls: [{ index: 0, id: `call-${call}`, type: "function", function: {
+        name: organize ? "learn" : "bash", arguments: JSON.stringify(organize ? {} : { command: call === 1 ? "debug-forbidden" : "printf debug-native-success" }),
+      } }] } : { content: "Controlled debug probe complete." };
+      const frames = [{ id: "fixture", object: "chat.completion.chunk", model: "fixed", choices: [{ index: 0, delta, finish_reason: null }] },
+        { id: "fixture", object: "chat.completion.chunk", model: "fixed", choices: [{ index: 0, delta: {}, finish_reason: useTool ? "tool_calls" : "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }];
+      return new Response(frames.map(frame => "data: " + JSON.stringify(frame) + "\n\n").join("") + "data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } });
+    } });
+    writeFileSync(path.join(fAgent, "models.json"), JSON.stringify({ providers: { fixture: {
+      baseUrl: `http://127.0.0.1:${server.port}/v1`, api: "openai-completions", apiKey: "public-loopback-fixture",
+      models: [{ id: "fixed", reasoning: false, input: ["text"], contextWindow: 100000, maxTokens: 4096, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+    } } }));
+    const cli = path.join(repo, "node_modules/.bin/pi"), session = path.join(fRoot, "session.jsonl");
+    const run = async (prompt: string, tools = "bash") => {
+      const child = Bun.spawn([cli, "--offline", "--no-extensions", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-approve", "--thinking", "off", "--tools", tools,
+        "-e", path.join(repo, "packages/continual-learning/index.ts"), "--model", "fixture/fixed", "--session", session, "--print", "--mode", "json", prompt],
+      { cwd: project, env: { PATH: process.env.PATH, HOME: fRoot, PI_CODING_AGENT_DIR: fAgent, PI_OFFLINE: "1", PI_TELEMETRY: "0" }, stdout: "pipe", stderr: "pipe" });
+      const timeout = setTimeout(() => child.kill(), 20000);
+      try {
+        const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+        expect(code, stderr + "\n" + stdout.slice(-2000)).toBe(0);
+        return { stdout, stderr };
+      } finally { clearTimeout(timeout); }
+    };
+    try {
+      await run("Run the controlled debug probe.");
+      expect(calls).toBe(3);
+      const directory = debugDirectory(project, fAgent);
+      const logs = () => readdirSync(directory).filter(name => name.endsWith(".jsonl")).flatMap(name => readFileSync(path.join(directory, name), "utf8").trim().split("\n").map(line => JSON.parse(line)));
+      const rows = logs();
+      expect(rows.some(row => row.event === "event:tool_call" && row.outcome === "blocked")).toBe(true);
+      expect(JSON.stringify(rows)).toContain("debug-native-success");
+      expect(rows.some(row => row.event === "appendEntry" && row.data[0] === "harness-behavior-observation")).toBe(true);
+      expect(rows.some(row => row.source === "extensions/harness-guidance.ts")).toBe(true);
+      expect(rows.some(row => row.source === "extensions/output-checks.ts")).toBe(true);
+      const snapshots = rows.filter(row => row.event === "context:snapshot");
+      expect(snapshots.length).toBeGreaterThan(0);
+      expect(rows.every(row => row.context.projectId === path.basename(directory))).toBe(true);
+      expect(rows.filter(row => !["process:exit", "context:snapshot", "lifecycle:batch"].includes(row.event) && !row.event.startsWith("event:"))
+        .every(row => typeof row.context.sessionId === "string")).toBe(true);
+      expect(rows.some(row => typeof row.context.sessionId === "string" && row.data.context?.sessionFile === session)).toBe(true);
+      if (existsSync(path.join(fAgent, "auth.json"))) expect(JSON.parse(readFileSync(path.join(fAgent, "auth.json"), "utf8"))).toEqual({});
+      writeFileSync(path.join(fAgent, "continual-learning.json"), JSON.stringify({ autoSettledLearning: false, autoContinualLearning: true, jev: false }));
+      organize = true;
+      await run("整理记忆", "bash,learn");
+      expect(organizeCalls).toBe(2);
+      const learning = logs();
+      const receipt = learning.find(row => row.event === "receipt:written" && row.data.receipt.screen.routing?.includes("organized-in-process"));
+      expect(receipt?.data.receipt.operations, JSON.stringify(learning.filter(row => /^(?:tool:learn|receipt:|pipeline:)/.test(row.event)))).toBe(0);
+      expect(learning.some(row => row.event === "pipeline:started" && row.data.batchId === receipt?.data.receipt.batchId)).toBe(true);
+      expect(learning.some(row => row.event === "pipeline:closed" && row.data.batchId === receipt?.data.receipt.batchId)).toBe(true);
+      expect(learning.some(row => row.event === "tool:learn" && row.phase === "completed" && row.data.result.details.status === "organized")).toBe(true);
+      organize = false;
+      await run("/learning debug off");
+      expect(JSON.parse(readFileSync(path.join(fAgent, "continual-learning.json"), "utf8")).debug).toBe(false);
+      const before = JSON.stringify(logs());
+      await run("Observe the completed local probe.");
+      expect(JSON.stringify(logs())).toBe(before);
+      expect(calls).toBe(6);
+    } finally { server.stop(true); rmSync(fRoot, { recursive: true, force: true }); }
+  }, 60000);
 });

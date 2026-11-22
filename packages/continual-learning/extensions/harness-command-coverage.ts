@@ -5,7 +5,7 @@ export function projectPushTemplate(repoRoot: string): string | undefined {
   if (!/^\/[A-Za-z0-9_./-]+$/.test(repoRoot) || repoRoot.includes("//")
     || repoRoot.split("/").some(part => part === "." || part === "..")) return undefined;
   const root = repoRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return String.raw`^(?:cd[ \t]+(?:${root}|'${root}'|"${root}"|\.)[ \t]+&&[ \t]+)?git(?:[ \t]+(?:-C[ \t]+\.|-c[ \t]+core\.quotePath=false|--no-pager))*[ \t]+push(?:[ \t]|$(?![\s\S]))`;
+  return String.raw`^(?:cd[ \t]+(?:${root}|'${root}'|"${root}"|\.)[ \t]+&&[ \t]+)?git(?:[ \t]+(?:-C[ \t]+(?:${root}|'${root}'|"${root}"|\.)|-c[ \t]+core\.quotePath=false|--no-pager))*[ \t]+push(?:[ \t]|$(?![\s\S]))`;
 }
 
 /** Literal tabs and escaped tabs are equivalent only in these exact template

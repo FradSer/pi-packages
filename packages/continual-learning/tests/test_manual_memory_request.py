@@ -42,21 +42,23 @@ def test_explicit_request_is_grounded_applied_and_memory_only(scenario: str) -> 
     assert len(dossiers) == 1 and dossiers[0]["memoryRequest"] == {"entryIndex": 1}, result
 
 
-def test_applied_safe_memory_reaches_the_expandable_result_without_changing_the_receipt() -> None:
+def test_applied_safe_memory_reaches_the_plain_result_without_changing_the_receipt() -> None:
     # Given an applied safe Memory entry, When the parent reports the result,
-    # Then the terminal-only expansion carries its filename and body, while
-    # the stored receipt (and therefore the model context) stays unchanged.
+    # Then display JSON carries its filename and body without altering the receipt.
     result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "remember-shared")
     contents = result["resultContents"]
     assert contents, contents
     delivered = contents[-1]
-    assert "generated Memory" in delivered, delivered
-    assert "concise.md" in delivered, delivered
-    assert "CL_MANUAL_SHARED" in delivered, delivered
     import json
+    display = json.loads(delivered.split("\n\n--- learning-display ---\n", 1)[1])
+    assert display["version"] == 1 and display["agents"] == []
+    assert len(display["memory"]) == 1
+    entry = display["memory"][0]
+    assert entry["name"] == "concise.md" and entry["classification"] == "safe"
+    assert "CL_MANUAL_SHARED" in entry["content"], entry
     receipt_text = json.dumps(result["registryReceipt"])
     assert "CL_MANUAL_SHARED" not in receipt_text, "receipt must not carry Memory bodies"
-    assert "generated Memory" not in receipt_text
+    assert "learning-display" not in receipt_text
 
 
 def test_applied_private_memory_is_never_in_the_expandable_result() -> None:

@@ -177,7 +177,7 @@ def test_semantic_feedback_gets_one_frozen_read_only_repair_and_revalidation() -
     assert [a['jev']['reason'] for a in value['attempts']] == ['uncertain', 'supported']
 
 
-@pytest.mark.parametrize('scenario', ['semantic-dossier', 'structural-dossier', 'coverage-dossier'])
+@pytest.mark.parametrize('scenario', ['semantic-dossier', 'structural-dossier'])
 def test_semantic_repair_can_read_its_required_original_snapshot_and_dossier_only(scenario) -> None:
     # Given a semantic repair outside the repository root, When it follows the
     # required snapshot/dossier protocol, Then both exact original paths work

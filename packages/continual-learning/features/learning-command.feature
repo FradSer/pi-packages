@@ -22,8 +22,8 @@ Feature: One learning command entry
   Scenario: A final row names the applied knowledge
     Given a current-task learning run applied one Memory record
     When the run ends
-    Then the transcript shows one final [learning] outcome row naming the applied Memory
-    And the user can expand that row to read the applied Memory's description and body
+    Then the transcript shows one plain-text outcome naming the applied Memory
+    And its filename, description and body are visible without expansion
     And the row never claims that knowledge was applied before the run ended
 
   Scenario: Headless use keeps its explicit form

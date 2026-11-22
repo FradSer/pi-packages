@@ -12,13 +12,6 @@ from support import REPO, run_bun as _run_bun
 run_bun = partial(_run_bun, timeout=30, temp_dirs=("TMPDIR",))
 
 
-def test_learning_reports_one_final_result_row() -> None:
-    source = (REPO / 'packages/continual-learning/extensions/inject-memory.ts').read_text(encoding='utf-8')
-    assert 'registerMessageRenderer(LEARNING_RESULT_MESSAGE' in source
-    assert 'eventToolLifecycle("learning", subject' in source
-    assert 'LEARNING_PROCEDURE_MESSAGE' not in source
-
-
 def test_memory_management_reports_shipped_incremental_planner() -> None:
     result = run_bun(r'''
       import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';

@@ -40,11 +40,9 @@ def verify_expanded(row: dict) -> None:
     text = "".join("".join(lines).split())
     data = row["data"]
     if row["customType"] == "continual-learning-result":
-        # Learning shows its final outcome; expanding names each applied
-        # Memory and AGENTS.md edit, and renders their content as Markdown.
-        # Frontmatter fields and receipt usage/cost/source/calls details stay
-        # out; `---` now also separates the two rendered sections.
-        assert lines[0].startswith("[learning]"), lines
+        # Learning uses the same plain text before and after Ctrl+O. Applied
+        # contents stay visible; frontmatter and receipt metadata remain hidden.
+        assert not lines[0].startswith("[learning]"), lines
         assert "1AGENTS.mdchangeapplied" in text, lines
         assert "Releasecheckscope" in text, lines
         assert "release-notes.md" in text, lines
@@ -125,6 +123,8 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
                 continue
             assert all("\n" not in line and len(line) <= row["width"] for line in row["lines"]), row
             if row["expanded"]:
+                verify_expanded(row)
+            elif row["customType"] == "continual-learning-result":
                 verify_expanded(row)
             else:
                 assert "to expand" in " ".join(row["lines"]), row
@@ -207,9 +207,8 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
         os.write(master, b"\x1b[B" * root["options"].index("Learning settings") + b"\r")
         wait_for(lambda: menu_count() == settings_menu_before + 1)
         settings_menu = latest_menu()
-        assert settings_menu["options"][:4] == [
-            "Select learning model", "Toggle settled-task learning",
-            "Toggle agent-triggered learning", "Advanced phase policies",
+        assert settings_menu["options"] == [
+            "Select learning model", "Toggle settled-task learning", "Advanced phase policies",
         ], settings_menu
         phase_menu_before = menu_count()
         os.write(master, b"\x1b[B" * settings_menu["options"].index("Advanced phase policies") + b"\r")

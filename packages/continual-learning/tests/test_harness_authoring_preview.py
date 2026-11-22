@@ -28,7 +28,7 @@ def test_authoring_write_requires_exact_preview_and_tool_expires(tmp_path: Path)
       const hooks={{}},commands={{}},tools={{}}; let active=['read','write'];
       register({{on:(n,f)=>hooks[n]=f,registerEntryRenderer(){{}},registerMessageRenderer(){{}},registerCommand:(n,c)=>commands[n]=c,
         registerTool:t=>tools[t.name]=t,getActiveTools:()=>active,setActiveTools:t=>active=t,getCommands:()=>[],sendMessage(){{}}}});
-      const ctx={{cwd:{json.dumps(str(tmp_path))},hasUI:false,ui:{{notify(){{}}}}}};
+      const ctx={{cwd:{json.dumps(str(tmp_path))},hasUI:true,ui:{{notify(){{}},select:async()=> 'Allow once'}}}};
       const content=JSON.stringify({{rules:[{{id:'traffic',text:'D0',instructions:'confirm volume first'}}]}});
       const event={{toolName:'write',toolCallId:'write',input:{{path:'.pi/harness.json',content}}}};
       const before=await tools.harness_preview.execute('inactive',{{content,cases:[]}},undefined,undefined,ctx);

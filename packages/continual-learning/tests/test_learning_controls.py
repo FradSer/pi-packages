@@ -969,15 +969,15 @@ def test_applied_tool_result_row_names_the_real_memory_count() -> None:
     assert first["operations"] == applied["registryReceipt"]["operations"] == 1, first
 
 
-def test_zero_write_result_row_states_what_was_checked_but_failures_do_not() -> None:
-    # Given an in-process organize run that normally settled with zero writes,
-    # When its terminal result row is built, Then it expands to say what was
-    # checked and that nothing was written. A failed or proposed run must not
-    # be dressed up as a completed no-change check.
+def test_zero_write_result_keeps_receipt_without_a_generic_verification_paragraph() -> None:
+    # Given zero-write organization, When the parent reports its receipt,
+    # Then retain its outcome without adding a generic verification paragraph.
     organized = run_bun_script(POLICY_HARNESS, "agent-memory-organize")
     assert organized["resultContents"], organized
-    assert "--- no changes ---" in organized["resultContents"][0], organized["resultContents"]
-    assert "No Memory or AGENTS.md changes were written" in organized["resultContents"][0], organized["resultContents"]
+    assert "organized in-process" in organized["resultContents"][0], organized["resultContents"]
+    assert "--- no changes ---" not in organized["resultContents"][0], organized["resultContents"]
+    assert "frozen entries" not in organized["resultContents"][0], organized["resultContents"]
+    assert organized["registryReceipt"]["input"]["screenedEntryCount"] == 1
     for scenario in ("agent-memory-apply", "manual-full", "agent-memory-selector-garbage"):
         value = run_bun_script(POLICY_HARNESS, scenario)
         for content in value["resultContents"]:
@@ -987,7 +987,7 @@ def test_zero_write_result_row_states_what_was_checked_but_failures_do_not() -> 
 def test_agents_applied_result_row_names_the_applied_edit() -> None:
     # Given a run that applied one validated AGENTS.md edit, When its terminal
     # result row is built, Then the stored custom message carries the operation
-    # and applied unit text for the expandable view, while the receipt in
+    # and applied unit text for the plain-text view, while the receipt in
     # details stays unchanged.
     value = run_bun_script(POLICY_HARNESS, "agents-apply")
     receipt = value["registryReceipt"]
@@ -995,8 +995,10 @@ def test_agents_applied_result_row_names_the_applied_edit() -> None:
     assert any(a["phase"] == "agents" and a["outcome"] == "applied" for a in receipt["attempts"]), receipt
     assert value["resultContents"], value
     content = value["resultContents"][0]
-    assert "--- AGENTS.md changes ---" in content, content
-    assert "rewriteUnit" in content and "Run tests with pnpm test" in content, content
+    display = json.loads(content.split("\n\n--- learning-display ---\n", 1)[1])
+    assert display == {"version": 1, "memory": [], "agents": [
+        {"operation": "rewriteUnit", "text": "- Run tests with pnpm test"},
+    ]}, display
     assert "digestBefore" not in content and "bytesAfter" not in content, content
 
 

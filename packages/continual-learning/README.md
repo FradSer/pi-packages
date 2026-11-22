@@ -334,17 +334,16 @@ rule-management option opens the same guarded Harness procedure directly,
 owning exact candidate bytes, fixture validation and the native confirmation.
 No advanced command form is offered to users; internal frozen-protocol
 bindings remain for research and recovery scripts only. Each run shows one final
-`[learning]` outcome row after it settles; no separate started transcript row is
-emitted. While a run is active, one spinner activity row sits above the editor
-(the same live widget language as subagents): its identity names the agent
-`learner`, while it reports a bounded run activity. It is cleared when the run
-ends, is cancelled or fails. The final row collapses
-to one outcome line; when the run applied safe Memory, expanding it shows each
-entry's description and body as Markdown. Frontmatter, filenames and receipt
-metadata (usage, cost, source, calls, per-phase attempts and diagnostics) are
-not displayed in either state — the receipt stays in the stored message's
-model context. Private and credential-shaped entries are never shown. A run
-with no applied safe Memory stays one unexpandable line. Errors and safety holds remain warning/error notices. Learning receipts retain failed/rejected/cancelled phases
+plain-text result using Pi's native Text component, with no lifecycle label,
+background panel or expansion hint. Applied Memory names, descriptions and bodies,
+including private entries owned by the user, appear directly below the outcome;
+AGENTS.md edits show their operation and applied text. Credential-shaped content
+and frontmatter stay hidden. Ctrl+O does not change this result. A no-model file
+check says `Memory files checked. No changes.` without session counts or a
+verification paragraph. Receipt metadata stays in the stored message and on disk.
+While a run is active, one passive spinner above the editor reports bounded
+activity and is cleared on completion, cancellation or failure. Errors and safety
+holds remain warning/error notices. Learning receipts retain failed/rejected/cancelled phases
 beside applied changes, so a partial success never appears as an unqualified
 success. Each learning batch retains its receipt under
 `runs/<project-scope>/receipts/<batch-id>/`. The flat

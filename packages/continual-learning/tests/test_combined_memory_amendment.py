@@ -82,7 +82,7 @@ def test_retained_evidence_only_repair_preserves_frozen_real_contract(tmp_path, 
         payload=JSON.parse(options.prompt.split('\n').at(-1));args=options.extraArgs;mutate();
         if(nativeEnabled){
           const cli=path.resolve('node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js');
-          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.3.0')throw Error('Pi1.3 required');
+          const version=spawnSync('node',[cli,'--version'],{encoding:'utf8'});if(version.status!==0||version.stdout.trim()!=='1.5.0')throw Error('Pi1.5 required');
           const response=structuredClone(next);
           if(response.replacements)response.replacements=response.replacements.map(patch=>{
             const candidate=payload.repairCandidates.find(c=>c.candidateId===patch.candidateId);

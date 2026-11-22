@@ -133,8 +133,8 @@ Feature: Spend learning tokens only when durable value is plausible
     When the pipeline settles
     Then it does not create a routine notification row
     But selector, planner, or apply failures still notify with a recovery-oriented message
-    And explicit /consolidate produces one compact terminal learning event
-    And expanded event details contain phase outcomes and token categories
+    And explicit /consolidate produces one plain-text terminal outcome
+    And full phase outcomes and token categories stay in the receipt, not the terminal result
 
   Scenario: The terminal learning title names applied surfaces
     Given an explicit consolidation applies Memory and Harness operations

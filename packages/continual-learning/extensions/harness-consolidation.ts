@@ -252,15 +252,6 @@ function countOccurrences(quote: string, text: string): number {
 
 /** A quote is admissible only when it occurs in the exact snapshot bytes (or
  * in their JSON string encoding) and in an allowed content leaf. */
-/**
- * Accept a coverage-repaired Harness plan only when it passes validation and
- * carries at least one rule. An empty or invalid repair keeps the previous plan,
- * so a failed coverage repair can never make today's behaviour worse.
- */
-export function coverageRepairAccepted(validationErrors: readonly string[], operationCount: number): boolean {
-  return validationErrors.length === 0 && operationCount > 0;
-}
-
 export function quoteInHarnessSnapshot(quote: string, snapshotText: string): boolean {
   if (!quote.trim()) return false;
   return countOccurrences(quote, snapshotText) > 0;
@@ -815,10 +806,6 @@ export interface HarnessConsolidationPhaseOptions {
   validateSemantics?: (snapshot: unknown, operations: readonly unknown[], citations?: unknown, parentScope?: BoundScopeContext) => Promise<{ decision: "allow" | "propose"; telemetry: NonNullable<LearningAttempt["jev"]> }>;
   /** Shares the single existing repair slot with structural recovery. */
   semanticRepair?: boolean;
-  /** Parent-side coverage repair: a screened constraint with no rule is re-asked
-   *  once. An adopted plan must still pass validation and carry at least one rule,
-   *  so a failed coverage repair can never make today's behaviour worse. */
-  coverageRepair?: boolean;
   run?: ConsolidationRun;
   explorationPath?: string;
   explorationDigest?: string;
@@ -1413,40 +1400,6 @@ export async function planHarnessConsolidationPhase(
       }
       if (repairAttempt < 0) return fail("harness repair did not record an attempt");
       plan = repairedValidation.candidate;
-    }
-    // Parent-side coverage repair. An empty plan has no operations for the semantic
-    // gate to judge, so this runs before it and does not depend on a judge verdict.
-    // The repaired plan still passes the normal validation and, when Jev is enabled,
-    // the normal semantic gate: the parent generates, the judge still judges.
-    if (opts.coverageRepair && attempts.length === 1
-      && Array.isArray(plan.operations) && plan.operations.length === 0) {
-      // Local index: the planner block's own repairAttempt is out of scope here.
-      let coverageAttempt = -1;
-      const coverage = await repairHarnessPlan({
-        cli, cwd: opts.cwd, run, explorationPath: opts.explorationPath, rejected: plan, allowOmissions: false,
-        errors: [
-          "The Harness plan contains no rule although the screened evidence states a durable prohibition. Add exactly one rule that blocks the stated restriction in this project, cited to the user's own wording.",
-          "Quote the original user text exactly. Do not invent scope, approval exceptions, arguments or expiry that the user did not state.",
-          "Preserve exact-only limits: a rule about one exact invocation must not widen to its command family, and an existing rule must not be weakened.",
-        ],
-        taskText, timeoutMs, current, ...(opts.model ? { model: opts.model } : {}),
-        onChild: hooks.onChild,
-        onUsage: (value) => { usage = addPiWorkerUsage(usage, value); },
-        onAttempt: (attempt) => {
-          attempts.push({ phase: "harness", attempt: attempts.length, ...attempt });
-          coverageAttempt = attempts.length - 1;
-        },
-      });
-      if (coverage.ok) {
-        const coverageValidation = await validateCandidate(coverage.plan);
-        const coverageOperations = Array.isArray(coverageValidation.candidate.operations) ? coverageValidation.candidate.operations.length : 0;
-        if (coverageRepairAccepted(coverageValidation.errors, coverageOperations)) {
-          plan = coverageValidation.candidate;
-        } else if (coverageAttempt >= 0) {
-          attempts[coverageAttempt].outcome = "rejected";
-          attempts[coverageAttempt].diagnostic = parentValidationDiagnostic(coverageValidation.errors);
-        }
-      }
     }
     if (opts.validateSemantics) {
       const completed = completeHarnessLiteralMessages(plan);

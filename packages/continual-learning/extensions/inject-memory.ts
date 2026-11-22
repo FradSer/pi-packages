@@ -12,7 +12,6 @@ import { memoryWriteBlock } from "./memory-write-guard";
 import { currentUserCorrectionEntry, ownedCorrectionPlan } from "./current-user-harness-correction";
 import { assertHarnessTargetContained, startHarnessProcedureForLearn } from "./guardrails";
 import { incompleteEvidencePolicies } from "./learning-controls";
-import { learningSummaryTone } from "./learning-efficiency";
 import { MemoryCitationLocationError, MemoryKnowledgeCitationError, locatedMemoryEvidence, resolveMemoryPlanCitations, materializeMemoryKnowledge, materializeMemoryDescription, splitMemoryFrontmatter, MEMORY_LOCATION_GUIDANCE } from "./memory-citation-locations";
 import { createParentToolSurface, TOOL_NAMES } from "./tool-surface";
 import { plannerNoToolArgs, buildInlineDossier, inlineDossierBlock } from "./planner-inline-dossier";
@@ -41,23 +40,15 @@ import { promisify } from "node:util";
 import * as nodeFs from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
-/** Geometry bound once: every learning row shares hint and wrapping. */
-const learningRows = bindLifecycleRenderers({
-  fit: truncateToWidth,
-  visibleWidth,
-  wrapDetail: (line, width) => wrapTextWithAnsi(line, Math.max(1, width)),
-  expandHint: () => keyHint("app.tools.expand", "to expand"),
-  hostComponent: ToolExecutionComponent,
-});
 import {
-  bindLifecycleRenderers,
+  emptyToolCall,
+  safeDisplayText,
   classifyToolActivity,
   createLiveActivityWidget,
-  eventToolLifecycle,
   inlineToolActivity,
   notifyPi,
   type PiLiveActivity,
@@ -700,34 +691,6 @@ function citationEntryText(entry: unknown): string {
   if (Array.isArray(content)) return content.map(part => typeof part === "string" ? part
     : part && typeof part === "object" && typeof (part as Record<string, unknown>).text === "string" ? String((part as Record<string, unknown>).text) : "").join("\n");
   return "";
-}
-
-/**
- * Experiment seam: build a RAW incremental plan from a fixed candidate list and the
- * live run identity, so the pipeline derives every other field itself.
- * expandIncrementalMemoryPlan validates that identity and then normalises
- * operations, newMemories, inventory and staleness, which is why the seam stamps
- * identity here rather than editing an already expanded plan. It exists so one
- * fixed candidate set runs through both the Jev-off and Jev-on paths, the only way
- * a difference is attributable to the judge rather than to generator variance.
- * Never enabled in production: the caller reads PI_FIXED_MEMORIES, unset there.
- */
-export function fixedRawPlan(
-  manifest: { runId: string; scopeKey: string; scopeDigest: string; snapshotDigest: string },
-  memories: readonly unknown[],
-): unknown {
-  return {
-    kind: "incremental-memory-plan",
-    version: 1,
-    schemaVersion: 1,
-    runId: manifest.runId,
-    scopeKey: manifest.scopeKey,
-    scopeDigest: manifest.scopeDigest,
-    artifactHash: manifest.snapshotDigest,
-    snapshotDigest: manifest.snapshotDigest,
-    operations: [],
-    newMemories: [...memories],
-  };
 }
 
 /**
@@ -3763,17 +3726,8 @@ async function spawnAsyncConsolidation(
             notifyPi(ctx.ui, `Memory dreaming cancelled: ${extracted.error}`, "warning");
             return;
           }
-          // Attribution seam, default-off in production. A supplied fixed plan does
-          // not come from the planner, so a planner model error must not stop the
-          // phase before the semantic judge. The failure stays in the diagnostics.
-          if (process.env.PI_FIXED_MEMORIES && incremental) {
-            evidence.finalPlan = undefined;
-            evidence.planCount = 0;
-            evidence.lastJsonError = extracted.error;
-          } else {
-            failWithPlannerModelError(extracted.error);
-            return;
-          }
+          failWithPlannerModelError(extracted.error);
+          return;
         }
         if (!extracted.ok) {
           evidence.finalPlan = undefined;
@@ -3811,13 +3765,6 @@ async function spawnAsyncConsolidation(
           }
           if (!ownsCurrentRun()) return;
         }
-        // Attribution experiment seam, default-off in production. Injection happens at
-        // the RAW stage so the pipeline derives the plan metadata from the fixed
-        // candidates instead of carrying metadata that describes other ones.
-        const fixedMemoriesPath = process.env.PI_FIXED_MEMORIES;
-        if (fixedMemoriesPath && incremental) {
-          rawPlan = fixedRawPlan(run.manifest, JSON.parse((await fs.readFile(fixedMemoriesPath)).toString("utf8")) as unknown[]);
-        }
         const malformedText = !rawPlan && incremental && !extracted.ok
           && extracted.error === "child output did not contain a structured consolidation plan"
           && !timedOut && !outputLimitReason && !stdoutCaptureOverflowed
@@ -3832,17 +3779,15 @@ async function spawnAsyncConsolidation(
           : missingPlanEnvelope ? "Planner returned empty provider tool delimiters instead of a plan." : undefined;
         let originalIncrementalError: string | undefined = incrementalError;
         let sourceRoleOnlyError: MemoryRelationClosureError | undefined;
-        let freshProjectOutputPending = !fixedMemoriesPath;
+        let freshProjectOutputPending = true;
         if (rawPlan && incremental) {
-          if (!fixedMemoriesPath) {
-            await retainOriginalMemoryGenerationPlan(run.manifest.runDir, {
-              runId: run.manifest.runId, scopeKey: run.manifest.scopeKey, scopeDigest: run.manifest.scopeDigest,
-              artifactHash: run.manifest.snapshotDigest, snapshotDigest: run.manifest.snapshotDigest,
-            }, rawPlan);
-            if (!ownsCurrentRun()) return;
-          }
+          await retainOriginalMemoryGenerationPlan(run.manifest.runDir, {
+            runId: run.manifest.runId, scopeKey: run.manifest.scopeKey, scopeDigest: run.manifest.scopeDigest,
+            artifactHash: run.manifest.snapshotDigest, snapshotDigest: run.manifest.snapshotDigest,
+          }, rawPlan);
+          if (!ownsCurrentRun()) return;
           try {
-            if (!fixedMemoriesPath) assertFreshMemoryProjectOutput(rawPlan);
+            assertFreshMemoryProjectOutput(rawPlan);
             rawPlan = await materializeSourceMemoryPlan(run, rawPlan, opts.maintenanceSourceEntries);
             freshProjectOutputPending = false;
             rejectedPlan = rawPlan;
@@ -4721,8 +4666,8 @@ async function spawnAsyncConsolidation(
           }, plan, {run, planPath, planDigest});
           mutatedMemory = true;
           appliedOperationCount = applied.changed.length;
-          // Only verified, applied, safe bodies are eligible for the terminal's
-          // expanded result row. This never changes the receipt or stored plan.
+          // Only verified applied bodies reach the terminal result projection.
+          // This never changes the receipt or stored plan.
           const appliedDetails = displayableMemoryDetails(plan);
           state.appliedMemoryDetails = [...(state.appliedMemoryDetails ?? []), ...appliedDetails]
             .filter((detail, index, all) => all.findIndex(other => other.name === detail.name) === index)
@@ -4866,8 +4811,8 @@ function currentTaskAnchor(cwd: string, ctx: ExtensionContext): string | undefin
     ? `${cwd}:${record.id}` : `${cwd}:${sha256Digest(JSON.stringify(anchor))}`;
 }
 
-/** One expanded result row's worth of generated Memory. Terminal-only: these
- * are never added to the receipt, the model context or any stored artifact. */
+/** Applied Memory retained in the result message for terminal display.
+ * Receipt and mutation artifacts do not contain this display projection. */
 export interface AppliedMemoryDetail {
   name: string;
   content: string;
@@ -4887,6 +4832,7 @@ const MAX_DISPLAYED_MEMORY_ENTRIES = 8;
 const MAX_DISPLAYED_MEMORY_CHARS = 2000;
 const MAX_DISPLAYED_AGENT_ENTRIES = 8;
 const MAX_DISPLAYED_AGENT_CHARS = 600;
+const MAX_DISPLAYED_RESULT_BYTES = 64_000;
 
 /** Parent-owned allowlist for showing generated Memory in the terminal. The
  * user owns all their Memory files, so safe and harness-only private entries
@@ -4905,7 +4851,7 @@ export function displayableMemoryDetails(value: unknown): AppliedMemoryDetail[] 
   for (const record of records) {
     if (!record || typeof record !== "object") continue;
     const item = record as { name?: unknown; content?: unknown; classification?: unknown };
-    if (typeof item.name !== "string" || !item.name || typeof item.content !== "string" || !item.content.trim()) continue;
+    if (typeof item.name !== "string" || !isMemoryFilename(item.name) || typeof item.content !== "string" || !item.content.trim()) continue;
     if (item.classification !== "safe" && item.classification !== "private") continue;
     if (containsSensitiveMemoryMaterial(item.name) || containsSensitiveMemoryMaterial(item.content)) continue;
     if (seen.has(item.name)) continue;
@@ -4934,95 +4880,56 @@ export function displayableAgentDetails(value: unknown): AppliedAgentDetail[] {
   return details;
 }
 
-/** Pi keeps only role/customType/content/display/details/timestamp on a custom
- * message, so the terminal-only body must travel inside `content`, never a
- * top-level field. The first line stays the model-facing summary. */
-const LEARNING_MEMORY_SEPARATOR = "\n\n--- generated Memory ---\n";
-const LEARNING_AGENTS_SEPARATOR = "\n\n--- AGENTS.md changes ---\n";
-const LEARNING_NO_CHANGES_SEPARATOR = "\n\n--- no changes ---\n";
-const MAX_DISPLAYED_MEMORY_ROWS = 256;
+/** Pi persists only a fixed custom-message field set, so applied display data
+ * travels in `content`. A JSON payload preserves internal blank lines without
+ * letting body text imitate record boundaries. */
+const LEARNING_DISPLAY_SEPARATOR = "\n\n--- learning-display ---\n";
 
 export function learningResultContent(
   summary: string,
   details: readonly AppliedMemoryDetail[],
   agentDetails?: readonly AppliedAgentDetail[],
-  noChanges?: string,
 ): string {
-  const safe = displayableMemoryDetails(details);
-  const agents = displayableAgentDetails(agentDetails ?? []);
-  const memoryBlock = safe.length === 0 ? "" : LEARNING_MEMORY_SEPARATOR + safe
-    .map(detail => `${detail.name}\n${detail.content}`)
-    .join("\n\n");
-  const agentsBlock = agents.length === 0 ? "" : LEARNING_AGENTS_SEPARATOR + agents
-    .map(detail => `${detail.operation}\n${detail.text}`)
-    .join("\n\n");
-  // A zero-write run still gets an expandable row that says what was checked.
-  // Without it "organized in-process" looks like an unfinished run.
-  const noChangesBlock = memoryBlock || agentsBlock || !noChanges ? "" : LEARNING_NO_CHANGES_SEPARATOR + noChanges.slice(0, MAX_DISPLAYED_AGENT_CHARS);
-  return summary + memoryBlock + agentsBlock + noChangesBlock;
+  const display = {
+    version: 1,
+    memory: displayableMemoryDetails(details),
+    agents: displayableAgentDetails(agentDetails ?? []),
+  };
+  const payload = JSON.stringify(display);
+  if (Buffer.byteLength(payload, "utf8") > MAX_DISPLAYED_RESULT_BYTES) return summary;
+  return summary + LEARNING_DISPLAY_SEPARATOR + payload;
 }
 
-/** Terminal-only Markdown view of applied changes. Memory entries show their
- * filename, description and body; AGENTS.md edits name the operation and the
- * applied unit text. Frontmatter, byte digests and receipt metadata never enter
- * this projection; the stored message keeps the complete screened record. */
-export function learningResultMarkdown(content: unknown): string[] {
+/** Plain-text projection of applied changes. Stored content and receipt
+ * metadata remain unchanged; terminal control sequences are removed at render. */
+export function learningResultText(content: unknown): string[] {
   if (typeof content !== "string") return [];
-  const memoryMarker = content.indexOf(LEARNING_MEMORY_SEPARATOR);
-  const agentsMarker = content.indexOf(LEARNING_AGENTS_SEPARATOR);
-  const noChangesMarker = content.indexOf(LEARNING_NO_CHANGES_SEPARATOR);
-  if (noChangesMarker >= 0) {
-    const note = content.slice(noChangesMarker + LEARNING_NO_CHANGES_SEPARATOR.length).trim();
-    return note && !containsSensitiveMemoryMaterial(note) ? [note] : [];
-  }
-  if (memoryMarker < 0 && agentsMarker < 0) return [];
-  const memoryEnd = agentsMarker > memoryMarker ? agentsMarker : content.length;
-  const memoryBody = memoryMarker < 0 ? "" : content.slice(memoryMarker + LEARNING_MEMORY_SEPARATOR.length, memoryEnd);
-  const agentsBody = agentsMarker < 0 ? "" : content.slice(agentsMarker + LEARNING_AGENTS_SEPARATOR.length);
-  if ((memoryBody + agentsBody).split(/\r?\n/).length > MAX_DISPLAYED_MEMORY_ROWS) return [];
+  const marker = content.indexOf(LEARNING_DISPLAY_SEPARATOR);
+  if (marker < 0) return [];
+  const payload = content.slice(marker + LEARNING_DISPLAY_SEPARATOR.length);
+  if (Buffer.byteLength(payload, "utf8") > MAX_DISPLAYED_RESULT_BYTES) return [];
+  let display: unknown;
+  try { display = JSON.parse(payload); }
+  catch { return []; }
+  if (!display || typeof display !== "object" || Array.isArray(display)) return [];
+  const record = display as { version?: unknown; memory?: unknown; agents?: unknown };
+  if (record.version !== 1) return [];
+  const safeMemory = record.memory === undefined ? [] : displayableMemoryDetails(record.memory);
+  const safeAgents = record.agents === undefined ? [] : displayableAgentDetails(record.agents);
   const sections: string[] = [];
-  // Entries are delimited by their parent-owned filename line, not by blank
-  // lines: a real Memory record keeps blank lines after the frontmatter and
-  // between its body sections, which a blank-line split would shatter into
-  // frontmatter-only and filename-less fragments that both drop out.
-  const memoryLines = memoryBody ? memoryBody.split(/\r?\n/) : [];
-  for (let index = 0; index < memoryLines.length; ) {
-    // The first line of an entry is the parent-owned filename. Name each
-    // applied record so the user can tell which Memory files were written.
-    const name = memoryLines[index]?.trim() ?? "";
-    if (!isMemoryFilename(name) || containsSensitiveMemoryMaterial(name)) {
-      index += 1;
-      continue;
-    }
-    let end = index + 1;
-    while (end < memoryLines.length && !isMemoryFilename(memoryLines[end].trim())) end += 1;
-    // A following entry on the same filename would be a forged duplicate.
-    const record = memoryLines.slice(index + 1, end).join("\n");
-    index = end;
-    if (!record.trim() || containsSensitiveMemoryMaterial(record)) continue;
-    const frontmatter = /^﻿?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(record);
+  for (const detail of safeMemory) {
+    const frontmatter = /^﻿?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(detail.content);
     const description = frontmatter
       ? frontmatter[1].split(/\r?\n/).find(line => /^description\s*:/i.test(line))?.replace(/^description\s*:\s*/i, "").trim()
       : undefined;
-    const text = frontmatter ? record.slice(frontmatter[0].length) : record;
-    const paragraph = text.replace(/\r\n/g, "\n").trim();
-    if (!paragraph) continue;
+    const body = (frontmatter ? detail.content.slice(frontmatter[0].length) : detail.content).replace(/\r\n/g, "\n").trim();
+    if (!body) continue;
     const label = description && !containsSensitiveMemoryMaterial(description)
-      ? `**${name}** · ${description.replace(/\*\*/g, "")}`
-      : `**${name}**`;
-    sections.push(`${label}\n\n${paragraph}`);
+      ? `${detail.name}\n${description.replace(/\*\*/g, "")}`
+      : detail.name;
+    sections.push(`${label}\n\n${body}`);
   }
-  if (agentsBody) {
-    const edits: string[] = [];
-    for (const entry of agentsBody.split(/\r?\n\r?\n/)) {
-      const lines = entry.split(/\r?\n/);
-      const operation = lines[0]?.trim() ?? "";
-      const text = lines.slice(1).join("\n").replace(/\r\n/g, "\n").trim();
-      if (!operation || !text || lines.some(line => containsSensitiveMemoryMaterial(line))) continue;
-      edits.push(`- **${operation}**\n\n  ${text.replace(/\n/g, "\n  ")}`);
-    }
-    if (edits.length) sections.push(`**AGENTS.md** · ${edits.length} change${edits.length === 1 ? "" : "s"}\n\n${edits.join("\n\n")}`);
-  }
+  if (safeAgents.length) sections.push(`AGENTS.md\n\n${safeAgents.map(agent => `${agent.operation}\n${agent.text.replace(/\r\n/g, "\n")}`).join("\n\n")}`);
   return sections;
 }
 
@@ -5491,13 +5398,6 @@ async function startConsolidationPipeline(
         ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration,
           ...(opts.currentUserHarnessRevisions ? {timeoutMs: 230_000, correctionRevisions: opts.currentUserHarnessRevisions} : {}),
           ...(jevJudge.enabled ? { validateSemantics: (snapshot: unknown, operations: readonly unknown[], citations?: unknown, parentScope?: import("./jev-learning").BoundScopeContext) => jevJudge.validate("harness", snapshot, operations, [], controller.signal, citations, parentScope), semanticRepair: policies.harness === "apply" } : {}),
-          // Coverage repair is parent-side on purpose: it fires whether or not Jev is
-          // enabled, so it must never be presented as a Jev judgment benefit. It is
-          // DEFAULT-OFF and opt-in, because the reviewed-verdict contract and the
-          // harness-only-evidence contract both require that no planner attempt is
-          // added beyond what was authorized. An experiment enables it explicitly.
-          ...(policies.harness === "apply" && screen.harness === true
-            && process.env.PI_COVERAGE_REPAIR === "1" ? { coverageRepair: true } : {}),
           // The Harness phase must run on the same selected model as the Memory
           // phase, or "consolidation uses the configured model" is only half true
           // and the two phases can be different models on the same run.
@@ -5754,45 +5654,24 @@ export default function (pi: ExtensionAPI) {
       activityFormat: "plain",
     }) };
   const reportLearningReceipt = (receipt: LearningPipelineReceipt, appliedMemory?: readonly AppliedMemoryDetail[], appliedAgents?: readonly AppliedAgentDetail[]): void => {
-    // Pi persists only a fixed set of custom-message fields, so the generated
-    // Memory bodies travel inside `content` after the one-line summary. The
-    // receipt in `details` and the receipt on disk stay byte-for-byte unchanged.
-    const details = displayableMemoryDetails(appliedMemory ?? []);
-    const screened = receipt.input?.screenedEntryCount;
-    // Only a normally settled zero-write run claims a completed check. A
-    // failed, cancelled, held or capped run must not be dressed up as "nothing
-    // to do": the cap saved a grounded proposal for review, which is not a
-    // completed mirrors/indexes/consistency verification.
-    const heldByCap = receipt.screen.routing?.includes(NEW_MEMORY_CAP_HOLD) === true;
-    const settledNoChange = !receipt.operations && !heldByCap && !receipt.attempts.some(attempt =>
-      ["failed", "rejected", "cancelled"].includes(attempt.outcome));
-    const noChanges = settledNoChange && details.length === 0 && !displayableAgentDetails(appliedAgents ?? []).length
-      ? `No Memory or AGENTS.md changes were written.${typeof screened === "number" ? ` ${screened} frozen entries were checked; mirrors, indexes and consistency were verified.` : ""}`
-      : undefined;
+    // Pi persists only a fixed set of custom-message fields. The display JSON
+    // travels inside `content`; receipt `details` and disk remain unchanged.
     pi.sendMessage(
       { customType: LEARNING_RESULT_MESSAGE,
-        content: learningResultContent(formatLearningSummary(receipt), details, appliedAgents, noChanges), display: true, details: receipt },
+        content: learningResultContent(formatLearningSummary(receipt), appliedMemory ?? [], appliedAgents), display: true, details: receipt },
       { deliverAs: "followUp", triggerTurn: false },
     );
   };
   if (typeof pi.registerMessageRenderer === "function") {
-    pi.registerMessageRenderer(LEARNING_RESULT_MESSAGE, (message, { expanded }, theme) => {
+    pi.registerMessageRenderer(LEARNING_RESULT_MESSAGE, (message) => {
       const receipt = isLearningPipelineReceipt(message.details) ? message.details : undefined;
-      const subject = receipt ? learningSummarySubject(receipt) : "learning result";
-      // The collapsed row stays one outcome line; expanding names each applied
-      // Memory and shows its description/body, or the AGENTS.md edit units, as
-      // native Markdown. A zero-write run states what was checked. Frontmatter
-      // and receipt metadata never enter the expansion; re-screened here in
-      // case a stored message was forged.
-      const markdown = learningResultMarkdown((message as { content?: unknown }).content);
-      return learningRows.message(() => ({
-        ...eventToolLifecycle("learning", subject, {
-          tone: receipt ? learningSummaryTone(receipt) : "warning",
-        }),
-        ...(markdown.length > 0
-          ? { summary: [markdown.join("\n\n---\n\n")], summaryFormat: "markdown" as const, expandedSummary: true }
-          : {}),
-      }))(message, { expanded }, theme);
+      const subject = receipt?.screen.routing?.includes(ORGANIZED_IN_PROCESS)
+        && receipt.operations === 0
+        && !receipt.attempts.some(attempt => ["failed", "rejected", "cancelled", "proposed"].includes(attempt.outcome))
+        ? "Memory files checked. No changes."
+        : receipt ? learningSummarySubject(receipt) : "Learning result";
+      const sections = learningResultText((message as { content?: unknown }).content);
+      return new Text(safeDisplayText([subject, ...sections].join("\n\n")), 0, 0);
     });
   }
   let sessionGeneration = 0;
@@ -5832,8 +5711,8 @@ export default function (pi: ExtensionAPI) {
     defaultActive: true,
     parameters: Type.Object({}, { additionalProperties: false }),
     renderShell: "self",
-    renderCall: () => learningRows.emptyCall(),
-    renderResult: () => learningRows.emptyCall(),
+    renderCall: emptyToolCall,
+    renderResult: emptyToolCall,
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       const cwd = ctx.cwd || process.cwd();
       const key = currentTaskAnchor(cwd, ctx);
