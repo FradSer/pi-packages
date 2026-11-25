@@ -34,7 +34,7 @@ scopes:
     - name: mon
       description: session monitoring and activity display in packages/monitor/; does not cover shared kit internals
     - name: plan
-      description: planning mode lifecycle in packages/plan-mode/; does not cover shared kit internals
+      description: archived planning mode lifecycle in deprecated/plan-mode/; does not cover shared kit internals
     - name: recap
       description: session recaps in packages/recap/; does not cover shared kit internals
     - name: mpg
@@ -53,11 +53,3 @@ scopes:
       description: cross-package acceptance, prompt budget, and integration test suites in tests/; does not cover package-specific tests
     - name: build
       description: build, publish, and utility automation scripts in scripts/; does not cover source packages
-    - name: packages
-      description: All packages and feature modules in packages/; does not cover top-level docs or tests
-    - name: scripts
-      description: Build, verification, and publishing automation scripts in scripts/; does not cover packages
-    - name: features
-      description: Top-level Gherkin feature definitions and behavior files in features/; does not cover package features
-    - name: examples
-      description: Sample scripts and usage implementations in examples/; does not cover package source code

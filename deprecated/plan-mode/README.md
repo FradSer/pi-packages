@@ -1,5 +1,9 @@
 # @fradser/pi-plan-mode
 
+> **Deprecated.** This plugin is retired. It is archived in
+> [`deprecated/plan-mode`](../README.md); see [DEPRECATED.md](DEPRECATED.md) for
+> the reason and compatibility notes. Do not install it for new work.
+
 Generate a plan in a minimal read-only Pi subagent, then choose where to implement it through Pi's native TUI.
 
 ```bash

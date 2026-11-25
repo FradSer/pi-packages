@@ -43,7 +43,7 @@ if (${JSON.stringify(scenario === "headless-failed")}) {
   const settings = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
   const factory: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
     const services = await createAgentSessionServices({ cwd, agentDir: root, modelRuntime, settingsManager: settings,
-      resourceLoaderOptions: { additionalExtensionPaths: [resolve("packages/plan-mode/index.ts")], noSkills: true, noPromptTemplates: true } });
+      resourceLoaderOptions: { additionalExtensionPaths: [resolve("deprecated/plan-mode/index.ts")], noSkills: true, noPromptTemplates: true } });
     return { ...await createAgentSessionFromServices({ services, sessionManager, sessionStartEvent, model: provider.getModel("parent") }), services, diagnostics: services.diagnostics };
   };
   const runtime = await createAgentSessionRuntime(factory, { cwd: root, agentDir: root,

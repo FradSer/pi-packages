@@ -15,7 +15,6 @@ RUNTIME_PACKAGES = {
     "monitor",
     "continual-learning",
     "goal",
-    "plan-mode",
     "recap",
     "utils",
     "vision",

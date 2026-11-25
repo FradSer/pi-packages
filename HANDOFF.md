@@ -2,30 +2,30 @@
 Intent: [INTENT.md](INTENT.md)
 
 ## Current state
-Completed: all 21 release-allowlist target versions are present on npm and equal their latest tags. The original Release run 43080988459, attempt 2, succeeded on committed SHA `b72cb40d01b281201cec893623d27fc22289ed63` after an unchanged `gh run rerun --failed`. No trust configuration was created, revoked or replaced by this session.
+Completed: `@fradser/pi-plan-mode` is retired. The package moved from `packages/plan-mode/` to `deprecated/plan-mode/` with a `DEPRECATED.md`, it is gone from the `scripts/publish-release.mjs` allowlist, and its local entry plus recorded changelog version were removed from the maintainer's `~/.pi/agent/settings.json`. Archived source is frozen; no runtime behavior changed.
 
-Sixteen versions have GitHub trusted-publisher metadata and SLSA provenance: kit 0.6.0, impeccable 0.1.2, continual-learning 1.0.0, btw 0.2.11, monitor 2.3.2, utils 0.6.0, vision 0.2.12, plan-mode 0.2.1, recap 0.2.0, magpie 0.4.0, keyboard 0.1.9, agent-teams 1.0.0, context 0.6.4, matt-pocock 0.3.0, skill-router 0.3.0, open-deskos 0.4.0. Five initial versions were published by the user: sdlc, loop, subagents, tasks and goal, each 0.2.0; registry records do not show CI provenance for those first releases.
-
-The magpie POST /trust E409 was a configuration-overlap error, not a version conflict. Publication through the existing binding succeeded on retry for all seven previously missing targets.
+Also corrected while verifying: `packages/kit/package.json` dropped an unused `typebox` peer that contradicted the documented two-peer contract, and four duplicate long-named git-agent scopes (`packages`, `scripts`, `features`, `examples`) were removed in favor of the existing short scopes.
 
 ## Decisions
-- Hidden-thinking policy lives in `packages/kit/src/index.ts` (label, per-refresh `hideThinkingBlock` reader, activity resolver, `activitySource` on worker progress); each package masks at its own display boundary, so activity order and worker arguments stay unchanged.
-- The continual-learning worker stand-in runs in a spawned `--fixture` child process. Bun binds `mock.module` for the whole test process, so a load-time mock replaced pi-kit's real `runPiWorker` for every later file and made the result depend on Bun's file order. `tests/test_bun_module_mock_isolation.py` forbids the load-time shape.
-- The release workflow versions through `scripts/changeset-version.sh` because a bare `bun x changeset version` reports only "bun failed with exit code 1", and workflow logs need repository admin rights.
-- `scripts/publish-release.mjs` reports never-published packages as first-release bootstrap rather than publishing them: npm trusted publishing cannot create a package npm has never seen, and one refused create stopped every later package in kit-first order.
-- Earlier version PR merge used a fetched `changeset-release/main` and a `--no-ff` merge because GitHub authentication was then unavailable. Authentication is now working. This continuation only reran the existing committed release; unrelated uncommitted continual-learning source/test/changeset edits were excluded.
-- Corrected the earlier inference: ENEEDAUTH does not establish that trust is absent. POST /trust E409 establishes a configuration collision, not a successful publish. Preserve existing trust and use actual CI plus registry evidence; here unchanged retry succeeded. The original OIDC failure's underlying cause remains unresolved.
+- Move rather than delete, following `deprecated/tasks`: the directory is archived outside `packages/*` but stays a workspace member (`deprecated/plan-mode`) so its frozen Bun/tsx suites still resolve `@fradser/pi-kit`.
+- Keep the `plan` commit scope, pointed at `deprecated/plan-mode/`; repository tests derive described packages from `packages/*`, so an archived scope is allowed.
+- Root README package badge went 21 to 20; `AGENTS.md` no longer states a package count for `pack:check` because the allowlist is the real source.
+- No changeset: the package is off the allowlist, so no version of it can be published from this repository.
+- `npm deprecate @fradser/pi-plan-mode` was not run; it mutates the public registry and needs its own authorization.
 
 ## Verification
-Latest observed evidence: GitHub run 43080988459 attempt 2 is completed/success; quality gate, publish and registry-aware retry steps all succeeded, completed 2026-11-12T05:52:19Z. Registry queries found 21/21 exact local manifest versions, all latest tags matching; 16 report `_npmUser.trustedPublisher.id = github` and `https://slsa.dev/provenance/v1`. User login was verified by `npm whoami = fradser`; five first publications were independently verified from npm.
-
-Earlier local gates: `bun run check` (373 pass, typecheck, 21 packed manifests), release pytest 25 pass and mock-isolation pytest 2 pass. No package implementation changed in this continuation, so no additional local suite was run. Old authenticated CI logs confirmed ENEEDAUTH at magpie; retrieving successful attempt logs timed out, but completed step records and registry provenance independently establish the release result. Monitor transport errors and a pending snapshot were not treated as completion; final direct reads confirmed success. Trust-list fields and the original OIDC failure cause remain unverified.
+- `bun run check`: 404 Bun tests pass, 0 fail; `tsc --noEmit` clean; `pack:check` validated 19 packed manifests.
+- Root pytest for every touched seam (`test_package_root_entry`, `test_runtime_workspace_contracts`, `test_publish_release`, `test_tool_registration_combinations`): 51 pass.
+- Archived suite `uv run pytest deprecated/plan-mode/tests/test_plan_mode.py .../test_plan_mode_prompt_composition.py`: 22 pass. `packages/kit/tests/test_pi_kit.py`: 58 pass.
+- `bun run check:install`: OK, 18 workspace Pi packages installed, 19 settings entries checked. `pi list` no longer shows plan-mode; live `pi --print --no-session` returned `ok` with no load error.
+- Full root `uv run pytest` still reports 5 failures that reproduce unchanged at HEAD (pnpm fixture string in `tests/test_bun_only_test_tooling.py`, three changeset/release-ordering checks, and `test_install_wiring.py` "Input accepted"); none involve plan-mode and none were weakened.
+- Not run: `deprecated/plan-mode/tests/test_plan_live.py` (live PTY/model acceptance for frozen behavior).
 
 ## Blockers
-No remaining blocker for this release. Non-interactive `npm trust list` requires EOTP; no trust list was obtained or modified. Future CI trust for the five manually bootstrapped packages was not exercised, since their exact initial versions already exist.
+No blocker for the retirement.
 
 ## Next steps
-No next action remains for the authorized release. Leave existing trust configurations unchanged. Preserve unrelated continual-learning edits and their changeset; those uncommitted changes were not part of the published candidate.
+Optional registry follow-up: `npm deprecate @fradser/pi-plan-mode "retired; use the sdlc or matt-pocock planning workflows"`. The local settings backup is `~/.pi/agent/settings.json.bak-before-plan-mode-retire`.
 
 ## Continual-learning default debug mode & repo-local reflection skill (2026-11-10)
 - **State**: Completed. `pi-continual-learning` now enables private debug logging by default (`readDebugConfigState()` in `packages/continual-learning/extensions/config.ts`, `LearningDebug` in `packages/continual-learning/extensions/debug.ts`, wired in `packages/continual-learning/index.ts`, `packages/continual-learning/extensions/learning-efficiency.ts`, and `packages/continual-learning/extensions/inject-memory.ts`). Added repo-local skill `.agents/skills/continual-learning-debug/SKILL.md` and read-only log inspector `.agents/skills/continual-learning-debug/scripts/inspect-debug.ts`.

@@ -1,21 +1,26 @@
-# Plan Mode Package Guidelines
+# Archived Plan Mode Package Guidelines
 
-Applies to `packages/plan-mode/` (`@fradser/pi-plan-mode`). All references below are repository-relative.
+Status: archived. This directory is outside the active `packages/*` workspace and
+the publish allowlist; see [DEPRECATED.md](DEPRECATED.md). The guidance below
+records how the package worked and applies only to documentation or migration
+work. Do not add features or change runtime behavior here.
+
+Applies to `deprecated/plan-mode/` (`@fradser/pi-plan-mode`). All references below are repository-relative.
 
 ## Read by Task
 
 - Commands, state, tool guards, plan paths, or model switching:
-  @packages/plan-mode/src/index.ts. The package-root `index.ts` re-exports it.
+  @deprecated/plan-mode/src/index.ts. The package-root `index.ts` re-exports it.
 - Model configuration and agent-directory resolution:
-  @packages/plan-mode/src/config.ts.
+  @deprecated/plan-mode/src/config.ts.
 - Explore/writer processes, cancellation, or diagnostics:
-  @packages/plan-mode/src/plan-worker.ts.
+  @deprecated/plan-mode/src/plan-worker.ts.
 - Native TUI review, cancellation, and session replacement:
-  @packages/plan-mode/src/index.ts. Use `ctx.ui.select` with the owning job signal.
-- User-facing behavior: @packages/plan-mode/README.md. Before behavior changes,
-  update @packages/plan-mode/features/plan-mode.feature and add a failing
-  regression in @packages/plan-mode/tests/test_plan_mode.py. Its
-  @packages/plan-mode/tests/plan_lifecycle.mts harness exercises real Pi session
+  @deprecated/plan-mode/src/index.ts. Use `ctx.ui.select` with the owning job signal.
+- User-facing behavior: @deprecated/plan-mode/README.md. Before behavior changes,
+  update @deprecated/plan-mode/features/plan-mode.feature and add a failing
+  regression in @deprecated/plan-mode/tests/test_plan_mode.py. Its
+  @deprecated/plan-mode/tests/plan_lifecycle.mts harness exercises real Pi session
   lifecycle with a faux provider and temporary agent directory.
 
 ## Behavior Boundaries
@@ -66,8 +71,8 @@ Applies to `packages/plan-mode/` (`@fradser/pi-plan-mode`). All references below
 For code changes, run from the repository root:
 
 ```bash
-uv run --with pytest python -m pytest packages/plan-mode/tests/ -q
-bun x tsc --noEmit --allowImportingTsExtensions -p packages/plan-mode/tsconfig.json
+uv run --with pytest python -m pytest deprecated/plan-mode/tests/ -q
+bun x tsc --noEmit --allowImportingTsExtensions -p deprecated/plan-mode/tsconfig.json
 bun run typecheck
 bun pm pack --destination /tmp --quiet --cwd packages/plan-mode
 ```

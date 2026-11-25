@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-21-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-20-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -251,18 +251,6 @@ Registers the [magpie](https://github.com/yetone/magpie) gateway as a Pi provide
 
 ```bash
 pi install npm:@fradser/pi-magpie
-```
-
-### [`@fradser/pi-plan-mode`](packages/plan-mode/)
-
-Runs one minimal read-only Pi subagent via pi-kit, then uses the native TUI to choose implementation in the current or a new session.
-
-**Command:** `/plan <prompt>`, `/plan`, `/plan start`, `/plan exit`, `/plan model [provider/model]`, `/plan review`, `/plan status`
-
-**Install:**
-
-```bash
-pi install npm:@fradser/pi-plan-mode
 ```
 
 ### [`@fradser/pi-recap`](packages/recap/)

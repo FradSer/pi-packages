@@ -19,7 +19,6 @@ CONSUMERS = [
     "keyboard",
     "matt-pocock",
     "monitor",
-    "plan-mode",
     "recap",
     "skill-router",
     "utils",

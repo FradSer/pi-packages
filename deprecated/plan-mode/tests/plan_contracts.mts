@@ -18,7 +18,7 @@ try {
     if (scenario === "model-restore") {
       writeFileSync(join(root, "plan-mode.json"), JSON.stringify({ provider: "plan-contract", model: "planner" }));
     }
-    const extensions = [resolve("packages/plan-mode/index.ts")];
+    const extensions = [resolve("deprecated/plan-mode/index.ts")];
     const collidingNames = ["read", "grep", "find", "ls", "bash", "write", "edit"];
     const sentinel = join(root, "unexpected-tool-execution");
     if (scenario === "guard-collisions") {

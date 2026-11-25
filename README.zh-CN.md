@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-21-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-20-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -225,18 +225,6 @@ pi install npm:@fradser/pi-loop
 
 ```bash
 pi install npm:@fradser/pi-magpie
-```
-
-### [`@fradser/pi-plan-mode`](packages/plan-mode/)
-
-通过 pi-kit 启动最小配置的只读 Pi 子代理生成计划，再通过原生 TUI 选择在当前或新会话中执行。
-
-**命令：** `/plan <prompt>`、`/plan`、`/plan start`、`/plan exit`、`/plan model [provider/model]`、`/plan review`、`/plan status`
-
-**安装：**
-
-```bash
-pi install npm:@fradser/pi-plan-mode
 ```
 
 ### [`@fradser/pi-recap`](packages/recap/)

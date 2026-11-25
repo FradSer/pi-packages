@@ -12,7 +12,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE = REPO / "packages" / "kit"
 SRC = PACKAGE / "src"
-CONSUMERS = ["agent-teams", "btw", "context", "continual-learning", "keyboard", "matt-pocock", "monitor", "plan-mode", "recap", "skill-router", "utils", "vision"]
+CONSUMERS = ["agent-teams", "btw", "context", "continual-learning", "keyboard", "matt-pocock", "monitor", "recap", "skill-router", "utils", "vision"]
 CORE_PACKAGES = ("@earendil-works/pi-ai", "@earendil-works/pi-agent-core", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui", "typebox")
 SPLIT_CHAIN = ("packages/kit", "packages/subagents", "packages/agent-teams")
 
@@ -208,9 +208,11 @@ def test_publish_allowlist_orders_kit_before_consumers() -> None:
     kit_position = script.index('"@fradser/pi-kit"')
     assert kit_position > 0, "publish allowlist must include @fradser/pi-kit"
     for name in ['"@fradser/pi-agent-teams"', '"@fradser/pi-btw"', '"pi-continual-learning"',
-                 '"@fradser/pi-recap"', '"@fradser/pi-utils"', '"@fradser/pi-vision"',
-                 '"@fradser/pi-plan-mode"']:
+                 '"@fradser/pi-recap"', '"@fradser/pi-utils"', '"@fradser/pi-vision"']:
         assert script.index(name) > kit_position, f"pi-kit must publish before {name}"
+    # The archived plan plugin is retired: its source moves to deprecated/ and it
+    # must no longer be published from this repository.
+    assert '"@fradser/pi-plan-mode"' not in script
 
 
 def test_publish_allowlist_orders_split_layers_before_their_consumer() -> None:

@@ -1,20 +1,20 @@
-# Intent: 完成新版本发布并诊断 npm trust 冲突
+# Intent: 退役 @fradser/pi-plan-mode
 Author: Not provided. Status: draft.
 
 ## Problem
-用户此前要求提交、推送并发布所有可发布的新版本。代码和版本变更已推送，部分版本已由 CI 发布；用户完成 npm 登录及五个包的首次发布后，配置 magpie Trusted Publisher 时遇到 POST trust 接口的 E409，循环因此在第一个包停止。
+用户要求退役仓库中的 `packages/plan-mode/`（npm 名 `@fradser/pi-plan-mode`）。该包继续留在活跃工作区会持续占用发布 allowlist、根 README 与包内约定中的位置，也会让维护者的 Pi 配置继续加载一个不再维护的扩展。
 
 ## Proposed outcome
-继续已有发布任务，区分 Trusted Publisher 配置冲突与包版本重复发布，检查实际 CI 失败及 npm 上的目标版本。成功标准是发布 allowlist 中所有目标版本均可从 npm 查询到；若需用户的 OTP 或浏览器批准，则记录已完成版本、确切阻塞及最小下一步，不把已有配置或 CI 受理当作发布成功。
+`packages/plan-mode/` 迁移到 `deprecated/plan-mode/` 并冻结，附带退役原因与兼容说明；它不再出现在发布 allowlist、不再被本仓库发布，也从维护者的 Pi 配置中移除。成功标准是：仓库门禁（Bun 测试、typecheck、打包清单校验）通过，根级 pytest 中受影响的接线测试通过，归档包自身测试在新路径下仍可运行；`pi list` 不再列出该包，`pi --print` 可以正常启动。
 
 ## Affected users and systems
-本仓库 pi-packages 的发布包、FradSer/pi-packages 的 GitHub Actions Release 工作流及 npm Trusted Publishing 配置。用户未指定其他系统。
+本仓库 pi-packages 的工作区结构、发布 allowlist、根 README/AGENTS 文档与测试；维护者本机 `~/.pi/agent/settings.json` 中的本地包条目。用户未指定其他系统。
 
 ## Constraints
-继续原有 Changesets 与 CI OIDC 发布流程，不转为本地发布已有包，不盲目撤销或覆盖现有 trust 配置。OTP 与浏览器批准在用户自己的终端完成，不接收验证码或自动处理认证。保留其他会话的未提交代码及既有请求记录。
+沿用 `deprecated/tasks` 的退役方式：保留源码与 Git 历史，不删除文件，不改动归档包的运行时行为。不执行需要额外授权的公共注册表操作，包括 `npm deprecate`、取消发布或发布新版本。保留其他会话已有改动与仓库现有约定（git-agent 提交、Changesets 发布流程）。
 
 ## Open questions
-magpie 已有 trust 配置的仓库、工作流、environment、权限及有效状态尚未读取；E409 只证明存在冲突配置。其余六个包的配置状态未知。此前 ENEEDAUTH 的具体 OIDC 原因未确定；先检查真实日志和可验证的重跑结果。
+是否要在 npm 上将 `@fradser/pi-plan-mode` 标记为 deprecated 尚未确认；该操作会修改公共注册表，需要单独授权。归档包的真实 PTY/模型验收（`tests/test_plan_live.py`）未运行。退役后用户是否有替代的本地计划流程（例如 sdlc 或 matt-pocock 的计划阶段）未经用户确认。
 
 <!-- intent:event:c98094464f4ee20a9b7f50dd4038fe72b46eb45dd2571fc19e0670091f852103 -->
 <details>

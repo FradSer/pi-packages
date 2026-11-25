@@ -1432,7 +1432,7 @@ function renderLiveActivityText(
 }
 
 // ── Overlay layout helpers ──────────────────────────────────────────
-// Shared by btw, plan-mode, and other overlay UIs.
+// Shared by btw and other overlay UIs.
 
 /**
  * Compute the maximum body height for an overlay panel.
@@ -1545,7 +1545,7 @@ export function directorySessionsDir(
 }
 
 // ── Worker process helpers ──────────────────────────────────────────
-// Shared by plan-mode, agent-teams, and btw for spawning child Pi processes.
+// Shared by agent-teams, btw, and other packages for spawning child Pi processes.
 
 /** Result of resolving how to launch a Pi CLI process. */
 export interface PiCliResolution {

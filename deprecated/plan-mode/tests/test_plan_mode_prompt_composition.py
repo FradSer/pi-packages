@@ -6,7 +6,7 @@ def test_planning_custom_run_does_not_consume_first_user_request(tmp_path, monke
     monkeypatch.setenv("PI_CODING_AGENT_DIR", str(tmp_path))
     result = run_typescript('''
       import assert from "node:assert/strict";
-      import imported from "./packages/plan-mode/src/index.ts";
+      import imported from "./deprecated/plan-mode/src/index.ts";
       const register = imported.default ?? imported;
       const {buildSystemPrompt} = await import(process.env.PI_PROMPT_BUILDER ?? "./node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js");
       const hooks = new Map(), commands = new Map(), entries = [];

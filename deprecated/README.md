@@ -11,3 +11,7 @@ compatibility obligations.
 - [`tasks`](tasks/DEPRECATED.md) — the task plugin is no longer suitable for
   current SOTA models. It was removed from the user's Pi configuration and from
   new releases; the published npm version remains only for existing consumers.
+- [`plan-mode`](plan-mode/DEPRECATED.md) — the plan plugin was retired in favor
+  of the repository's `pi-sdlc` and `pi-matt-pocock` planning flows. It was moved
+  out of the active workspace, off the publish allowlist, and out of the
+  maintainer's Pi configuration.

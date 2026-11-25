@@ -14,7 +14,7 @@ contracts and checks.
 bun install
 bun test           # Run native package tests via bun test (~20s)
 bun run typecheck  # Typecheck extensions
-bun run pack:check # Validate packed manifests for all 21 packages
+bun run pack:check # Validate packed manifests for every publishable package
 bun run check      # Full workspace quality gate (~25s)
 ```
 
