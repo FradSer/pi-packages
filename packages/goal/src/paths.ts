@@ -116,12 +116,6 @@ export function legacyGoalRecordPath(projectRoot: string, goalId: string): strin
   return path.join(goalDir(legacyGoalsRoot(projectRoot), goalId), "record.json");
 }
 
-/** Where an earlier version kept the objective as editable prose. The record
- * holds the objective now, and this file is preserved but never read as it. */
-export function legacyGoalPromptPath(projectRoot: string, goalId: string): string {
-  return path.join(goalDir(legacyGoalsRoot(projectRoot), goalId), "prompt.md");
-}
-
 /** Directory holding this goal's exclusive-create claim markers. */
 export function goalClaimDir(projectRoot: string, goalId: string): string {
   return path.join(goalDir(goalsRoot(projectRoot), goalId), "claims");

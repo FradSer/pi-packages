@@ -644,3 +644,281 @@ def test_overlay_handles_followup_turn_error_gracefully() -> None:
 
     assert result["hasAnswer1"] is True
     assert result["hasTimeoutError"] is True
+
+
+def test_minimum_loading_and_keyboard_reach_last_answer_line() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / 'overlay.ts').as_uri())};
+        const style = Object.fromEntries(Object.keys(testStyle).map(key => [key, text => text]));
+        style.fg = (_color, text) => text;
+        const overlay = createBtwOverlay({{terminal: {{rows: 8, columns: 20}}, requestRender() {{}}}}, style, {{
+          question: 'first', modelLabel: 'anthropic/claude-sonnet-4-6', onCancel() {{}}, onSpawn() {{}}
+        }});
+        const loading = overlay.render(20);
+        overlay.showAnswer(Array.from({{length: 60}}, (_, i) => `line-${{i}}`).join('\\n\\n'));
+        for (let i = 0; i < 200; i++) {{ overlay.handleInput('\\x1b[5~'); overlay.render(20); }}
+        for (let i = 0; i < 200; i++) {{ overlay.handleInput('\\x1b[6~'); overlay.render(20); }}
+        const bottom = overlay.render(20).join('\\n');
+        overlay.dispose();
+        console.log(JSON.stringify({{loading, bottom}}));
+        """
+    )
+    assert len(result["loading"]) <= 6
+    assert any("esc cancel" in line for line in result["loading"])
+    assert "line-59" in result["bottom"]
+
+
+def test_configured_cancel_works_while_loading_and_idle() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / 'overlay.ts').as_uri())};
+        import {{ KeybindingsManager, setKeybindings, TUI_KEYBINDINGS }} from {json.dumps((SRC.parent / 'node_modules/@earendil-works/pi-tui/dist/index.js').as_uri())};
+        setKeybindings(new KeybindingsManager(TUI_KEYBINDINGS, {{ 'tui.select.cancel': 'ctrl+x' }}));
+        const states = [];
+        for (const answered of [false, true]) {{
+          let closes = 0;
+          let signal;
+          const overlay = createBtwOverlay({{ terminal: {{rows: 40, columns: 80}}, requestRender() {{}} }}, testStyle, {{
+            question: 'first', keybindings: new KeybindingsManager(TUI_KEYBINDINGS, {{ 'tui.select.cancel': 'ctrl+x' }}),
+            onCancel: () => closes++, onSpawn: value => signal = value
+          }});
+          if (answered) overlay.showAnswer('answer');
+          overlay.handleInput('\\u0018');
+          states.push({{closes, aborted: signal.aborted}});
+          overlay.dispose();
+        }}
+        console.log(JSON.stringify({{states}}));
+        """
+    )
+    assert result["states"] == [{"closes": 1, "aborted": True}, {"closes": 1, "aborted": True}]
+
+
+def test_scroll_keys_work_during_answers_and_followups() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay, maxAnswerBody }} from {json.dumps((SRC / 'overlay.ts').as_uri())};
+        const cases = [];
+        for (const loading of [false, true]) {{
+          const overlay = createBtwOverlay({{ terminal: {{ rows: 30, columns: 80 }}, requestRender() {{}} }}, testStyle, {{
+            question: 'first', onCancel() {{}}, onSpawn() {{}}
+          }});
+          overlay.showAnswer(Array.from({{ length: 60 }}, (_, i) => `line-${{i}}`).join('\\n\\n'));
+          if (loading) {{ overlay.handleInput('followup'); overlay.handleInput('\\r'); }}
+          for (let i = 0; i < 200; i++) overlay.handleInput('\\x1b[5~');
+          const top = overlay.render(80).join('\\n');
+          overlay.handleInput('\\x1b[6~');
+          const page = overlay.render(80).join('\\n');
+          for (let i = 0; i < 200; i++) overlay.handleInput('\\x1b[6~');
+          const bottom = overlay.render(80).join('\\n');
+          overlay.dispose();
+          cases.push({{ top, page, bottom }});
+        }}
+        console.log(JSON.stringify({{ cases, cap: maxAnswerBody(30) }}));
+        """
+    )
+    assert result["cap"] == 12
+    for case in result["cases"]:
+        assert "line-0" in case["top"]
+        assert case["page"] != case["top"]
+        assert "line-59" in case["bottom"]
+
+
+def test_legacy_callbacks_and_initial_cancel_remain_available() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / 'overlay.ts').as_uri())};
+        const signals = [];
+        let closes = 0;
+        const make = () => createBtwOverlay({{ terminal: {{ rows: 40, columns: 80 }}, requestRender() {{}} }}, testStyle, {{
+          question: 'legacy', onCancel: () => closes++, onSpawn: (signal) => signals.push(signal)
+        }});
+        const answered = make();
+        answered.showAnswer('legacy answer', {{ usage: {{ totalTokens: 7, cost: 0.01 }}, elapsedMs: 1000 }});
+        const answer = answered.render(80).join('\\n');
+        answered.dispose();
+        const failed = make();
+        failed.showError('legacy failure');
+        const error = failed.render(80).join('\\n');
+        failed.dispose();
+        const cancelled = make();
+        cancelled.handleInput('\\x1b');
+        cancelled.handleInput('\\x1b');
+        cancelled.showAnswer('late');
+        cancelled.dispose();
+        console.log(JSON.stringify({{ answer, error, closes, aborted: signals.every((signal) => signal.aborted) }}));
+        """
+    )
+    assert "legacy answer" in result["answer"]
+    assert "7 tokens" in result["answer"]
+    assert "legacy failure" in result["error"]
+    assert result["closes"] == 1
+    assert result["aborted"] is True
+
+
+def test_focus_editing_and_small_layouts() -> None:
+    import re
+
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / 'overlay.ts').as_uri())};
+        import {{ isFocusable, CURSOR_MARKER, visibleWidth }} from '@earendil-works/pi-tui';
+        const tui = {{ terminal: {{ rows: 40, columns: 80 }}, requestRender() {{}} }};
+        const plainStyle = Object.fromEntries(Object.keys(testStyle).map(key => [key, (text) => text]));
+        plainStyle.fg = (_color, text) => text;
+        const overlay = createBtwOverlay(tui, plainStyle, {{ question: 'first', onCancel() {{}}, onSpawn() {{}} }});
+        overlay.showAnswer('answer');
+        const focusable = isFocusable(overlay);
+        overlay.focused = false;
+        const unfocused = overlay.render(80).join('\\n').includes(CURSOR_MARKER);
+        overlay.focused = true;
+        overlay.handleInput('x'); overlay.handleInput('\\x1b[H'); overlay.handleInput('y');
+        const composer = overlay.render(80).join('\\n');
+        const layouts = [];
+        for (const rows of [8, 12, 16, 18, 24, 40]) {{
+          tui.terminal.rows = rows;
+          for (const width of [20, 60, 100]) {{
+            tui.terminal.columns = width;
+            const lines = overlay.render(width);
+            layouts.push({{ rows, width, height: lines.length, fits: lines.every(line => visibleWidth(line) <= width), input: lines.some(line => line.includes(CURSOR_MARKER)) }});
+          }}
+        }}
+        for (const state of ['error', 'loading']) {{
+          if (state === 'error') overlay.showError('failure');
+          else {{ overlay.handleInput('next'); overlay.handleInput('\\r'); }}
+          for (const rows of [8, 12, 16, 24, 40]) {{
+            tui.terminal.rows = rows;
+            const lines = overlay.render(20);
+            layouts.push({{ rows, width: 20, height: lines.length, fits: lines.every(line => visibleWidth(line) <= 20), input: state === 'loading' || lines.some(line => line.includes(CURSOR_MARKER)) }});
+          }}
+        }}
+        overlay.dispose();
+        console.log(JSON.stringify({{ focusable, unfocused, composer, layouts }}));
+        """
+    )
+    assert result["focusable"] is True
+    assert result["unfocused"] is False
+    plain = re.sub(r"\x1b\[[0-9;]*m|\x1b_pi:[^\x07]*\x07", "", result["composer"])
+    assert "yx" in plain
+    for layout in result["layouts"]:
+        assert layout["height"] <= int(layout["rows"] * 0.8)
+        assert layout["fits"] and layout["input"]
+
+
+def test_normalized_wheel_and_loading_invalidation() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / 'overlay.ts').as_uri())};
+        let renders = 0;
+        const tui = {{ terminal: {{ rows: 40, columns: 80 }}, requestRender() {{ renders++; }} }};
+        const plainStyle = Object.fromEntries(Object.keys(testStyle).map(key => [key, (text) => text]));
+        plainStyle.fg = (_color, text) => text;
+        const overlay = createBtwOverlay(tui, plainStyle, {{ question: 'first', onCancel() {{}}, onSpawn() {{}} }});
+        overlay.invalidate();
+        const before = renders;
+        await new Promise(resolve => setTimeout(resolve, 250));
+        const animated = renders > before;
+        overlay.showAnswer(Array.from({{length: 60}}, (_, i) => `line-${{i}}`).join('\\n\\n'));
+        const bottom = overlay.render(80).join('\\n');
+        const wheel = overlay.handleMouse?.({{ type: 'wheel', wheelDelta: -1000 }});
+        const top = overlay.render(80).join('\\n');
+        overlay.dispose();
+        console.log(JSON.stringify({{ animated, bottom, top, handled: wheel?.handled }}));
+        """
+    )
+    assert result["animated"] is True
+    assert result["handled"] is True
+    assert "line-59" in result["bottom"]
+    assert "line-0" in result["top"]
+
+
+def test_context_character_budget_and_chronological_selection() -> None:
+    result = run_typescript(
+        f"""
+        import {{ buildConversationContext }} from {json.dumps((SRC / 'context.ts').as_uri())};
+        const longManager = {{ getBranch: () => [{{ type: 'message', message: {{
+          role: 'user', content: 'x'.repeat(5000) + 'tail'
+        }} }}] }};
+        const budgets = Object.fromEntries(
+          [0, 1, 12, 4000].map((maxChars) => [maxChars, buildConversationContext(longManager, {{ maxChars }})])
+        );
+        const message = (role, content) => ({{ type: 'message', message: {{ role, content }} }});
+        const manager = {{ getBranch: () => [
+          message('user', 'old'), message('assistant', 'one'),
+          message('toolResult', 'ignored'), message('user', 'two'),
+          message('assistant', [{{ type: 'thinking', thinking: 'private' }}, {{ type: 'text', text: 'three' }}]),
+          message('user', 'four'), message('assistant', '   ')
+        ] }};
+        console.log(JSON.stringify({{
+          budgets,
+          text: buildConversationContext(manager),
+          disabled: buildConversationContext(manager, {{ maxMessages: 0 }}),
+        }}));
+        """
+    )
+    for max_chars in (0, 1, 12, 4000):
+        text = result["budgets"][str(max_chars)]
+        assert len(text) <= max_chars
+        if max_chars > 1:
+            assert text.endswith("tail")
+    assert result["text"] == "[assistant] one\n\n[user] two\n\n[assistant] three\n\n[user] four"
+    assert result["disabled"] == ""
+
+
+def test_jsonl_keeps_last_answer_and_usage() -> None:
+    result = run_typescript(
+        f"""
+        import {{ parseBtwOutput }} from {json.dumps((SRC / 'spawner.ts').as_uri())};
+        const event = (content, usage) => JSON.stringify({{
+          type: 'message_end', message: {{ role: 'assistant', content, usage }}
+        }});
+        const stdout = ['not json', event([{{ type: 'text', text: 'old' }}]),
+          event([{{ type: 'thinking', text: 'hidden' }}, {{ type: 'text', text: ' final ' }}], {{ totalTokens: 7, cost: {{ total: 0.01 }} }}),
+          event([{{ type: 'toolCall', name: 'read' }}])].join('\\n');
+        console.log(JSON.stringify(parseBtwOutput(stdout)));
+        """
+    )
+    assert result == {"text": "final", "usage": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 7, "cost": 0.01}}
+
+
+def test_cancelled_followup_ignores_late_result_and_keeps_input_active() -> None:
+    result = run_typescript(
+        f"""
+        import {{ createBtwOverlay }} from {json.dumps((SRC / 'overlay.ts').as_uri())};
+        let closeCount = 0;
+        const calls = [];
+        const pending = [];
+        const overlay = createBtwOverlay({{ terminal: {{ rows: 40, columns: 80 }}, requestRender() {{}} }}, testStyle, {{
+          question: 'first', onCancel: () => closeCount++,
+          onAsk: (question, history, signal) => {{
+            calls.push({{ question, history, signal }});
+            return new Promise((resolve) => pending.push(resolve));
+          }}
+        }});
+        const answer = (text) => ({{ text, timedOut: false, exitCode: 0, stderr: '' }});
+        pending[0](answer('first answer'));
+        await flush();
+        overlay.handleInput('cancelled');
+        overlay.handleInput('\\r');
+        overlay.handleInput('\\x1b');
+        overlay.handleInput('replacement');
+        overlay.handleInput('\\r');
+        pending[1](answer('stale answer'));
+        pending[2](answer('replacement answer'));
+        await flush();
+        const rendered = overlay.render(80).join('\\n');
+        overlay.handleInput('\\x1b');
+        overlay.handleInput('\\x1b');
+        overlay.dispose();
+        console.log(JSON.stringify({{
+          rendered, closeCount, aborted: calls[1].signal.aborted,
+          history: calls[2].history
+        }}));
+        """
+    )
+    assert result["aborted"] is True
+    assert result["closeCount"] == 1
+    assert result["history"] == [{"question": "first", "answer": "first answer"}]
+    assert "replacement answer" in result["rendered"]
+    assert "stale answer" not in result["rendered"]
+    assert "cancelled" not in result["rendered"]

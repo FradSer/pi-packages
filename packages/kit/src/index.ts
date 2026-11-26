@@ -3105,41 +3105,6 @@ export function resolveParticipantRegistry(): ParticipantRegistry | undefined {
   return (globalThis as { [PARTICIPANT_REGISTRY_KEY]?: ParticipantRegistry })[PARTICIPANT_REGISTRY_KEY];
 }
 
-// ── Runtime coordination registry ────────────────────────────────────────────
-//
-// Lets separately-loaded Pi extensions hand each other capabilities at runtime
-// without importing one another. Pi gives every package its own module root, so
-// a shared mutable object is the only channel that survives loading order.
-//
-// Values are stored as `unknown` on purpose. A typed registry would force this
-// module to name its consumers' types, which is the exact dependency
-// `test_kit_has_no_consumer_imports` forbids. Each consumer narrows at its own
-// resolution site, so a wrong guess is a local type error rather than a wrong
-// import.
-//
-// Absent keys resolve to `undefined` rather than throwing: a package installed
-// alone is a supported configuration, and its tools must degrade to a
-// single-participant mode instead of failing.
-
-const coordination = new Map<string, unknown>();
-
-/** Publish one capability. Re-publishing replaces the previous value, so a
- *  session restart cannot leave a stale holder behind. */
-export function registerCoordination(key: string, value: unknown): void {
-  coordination.set(key, value);
-}
-
-/** Resolve one capability, or `undefined` when its owning package is not loaded. */
-export function resolveCoordination<T>(key: string): T | undefined {
-  return coordination.get(key) as T | undefined;
-}
-
-/** Drop every registration. Called at session start so one session's roster can
- *  never be read by the next one. */
-export function clearCoordination(): void {
-  coordination.clear();
-}
-
 // ── Decision-model surface ──────────────────────────────────────────────
 
 /**

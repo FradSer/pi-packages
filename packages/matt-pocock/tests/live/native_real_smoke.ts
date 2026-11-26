@@ -1,11 +1,10 @@
 // Real macOS osascript smoke: dialogs are cancelled by deadlines/signals, so
 // this never requires a user click and never changes system permissions.
-import { isNativeDialogSupported, macosChooseFromList, macosInputDialog, macosPrompt } from "../../src/native-dialog.ts";
+import { isNativeDialogSupported, macosChooseFromList, macosInputDialog } from "../../src/native-dialog.ts";
 
 const cases = [
   ["list-timeout", () => macosChooseFromList({ prompt: "Pi native smoke timeout", items: ["A", "B"], timeoutSeconds: 0.2 })],
   ["input-timeout", () => macosInputDialog({ prompt: "Pi native smoke timeout", timeoutSeconds: 0.2 })],
-  ["prompt-timeout", () => macosPrompt({ message: "Pi native smoke timeout", timeoutSeconds: 0.2 })],
 ] as const;
 
 if (!isNativeDialogSupported()) {
@@ -17,7 +16,7 @@ for (const [name, run] of cases) {
   const start = performance.now();
   const result = await run();
   const elapsedMs = Math.round(performance.now() - start);
-  if (elapsedMs > 1000 || result.action !== "timed_out" || (name === "prompt-timeout" && (!("gaveUp" in result) || result.gaveUp !== true))) {
+  if (elapsedMs > 1000 || result.action !== "timed_out") {
     throw new Error(`${name} did not produce the expected bounded timeout: ${JSON.stringify({ result, elapsedMs })}`);
   }
   console.log(JSON.stringify({ name, result, elapsedMs, passed: true }));

@@ -17,7 +17,6 @@ import { join } from "node:path";
 import {
   CHECK_TOOLS,
   buildCheckPrompt,
-  describeUnmet,
   parseCheckVerdict,
   runCompletionCheck,
 } from "../src/check.ts";
@@ -121,7 +120,6 @@ await scenario("the verdict is the report's last line, or there is no verdict", 
   assert.equal(parseCheckVerdict("I would say MET if the tests passed.").met, false);
   const verdict = parseCheckVerdict("I could not tell from what you gave me.");
   assert.equal(verdict.met, false);
-  assert.match(describeUnmet({ ...verdict }), /not met/, "and the executor is told what to do");
   // An answer that never said MET or NOT MET is not a decision. It must be
   // marked unusable so the refusal accounting cannot spend one of the three
   // valid attempts on an answer that gave no verdict at all.

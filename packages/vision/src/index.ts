@@ -32,7 +32,6 @@ let config: VisionConfig = readVisionConfig();
 type ContextTransform = { messages: ContextEvent["messages"] };
 
 interface VisionAnalysis {
-  analysisPrompt: string;
   analysis: string;
 }
 
@@ -94,10 +93,6 @@ function showImageReadingProgress(ctx: ExtensionContext, images: ImageContent[])
 
 function clearImageReadingProgress(ctx: ExtensionContext): void {
   imageReadingWidget.clear(ctx);
-}
-
-function updateStatus(ctx: ExtensionContext): void {
-  clearImageReadingProgress(ctx);
 }
 
 function configuredModelLabel(): string {
@@ -167,7 +162,7 @@ function toolAnalysisPrompt(toolName: string, input: Record<string, unknown>): s
 function saveConfig(next: VisionConfig, ctx: ExtensionContext): void {
   config = next;
   writeVisionConfig(config);
-  updateStatus(ctx);
+  clearImageReadingProgress(ctx);
 }
 
 async function chooseVisionModel(ctx: ExtensionCommandContext): Promise<void> {
@@ -294,7 +289,7 @@ export default function visionExtension(pi: ExtensionAPI): void {
       try {
         showImageReadingProgress(ctx, images);
         const result = await describeImages(ctx.modelRegistry, visionModel, extracted.text, images, ctx.signal);
-        const analysis = { analysisPrompt: extracted.text, analysis: result.text };
+        const analysis = { analysis: result.text };
         if (activeAnalysis?.key === key) activeAnalysis.result = analysis;
         return analysis;
       } catch {
@@ -411,11 +406,11 @@ export default function visionExtension(pi: ExtensionAPI): void {
     activePromptKey = undefined;
     activeAnalysis = undefined;
     config = readVisionConfig();
-    updateStatus(ctx);
+    clearImageReadingProgress(ctx);
   });
 
   pi.on("model_select", (_event, ctx) => {
-    updateStatus(ctx);
+    clearImageReadingProgress(ctx);
   });
 
   pi.registerCommand("vision", {

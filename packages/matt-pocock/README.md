@@ -210,8 +210,6 @@ The restart boundary check also covers completed/cancelled latest records, incom
 
 The adversarial check opens real Pi selectors and menus, then injects deterministic state changes through the registered handlers. It verifies immediate dismissal, replacement work-item identity, and reference-only loading before and after a user command. Package tests additionally derive resource/alias/disclosure/transition cases from the catalog and test exact UTF-8 size boundaries in disposable package copies.
 
-Repository verification details and reproduced failures are recorded in [the adversarial verification report](tests/reports/ADVERSARIAL-VERIFICATION.md).
-
 The decision and active-menu checks send actual keyboard input through Pi's terminal UI. They cover option/custom input, cancellation, timeout, View, Transition, Cancel and Complete. The abort check interrupts a live selector with an AbortSignal. These Pi checks use an isolated home, allowlisted process settings and a deterministic local provider; they do not inherit provider credentials or validate external-model decisions or downstream project work performed by a procedure.
 
 The decision check deliberately fails a simulated native subprocess to exercise TUI fallback. On macOS, the separate native smoke uses the real `osascript` to verify list/input/prompt timeout and list abort, including process exit. It does not automate native button selection or verify physical rendering. Package tests also typecheck every TypeScript test fixture and verify package-local Pi v1.0 dependency resolution.
@@ -232,8 +230,6 @@ Three multi-turn developer journeys additionally cover an agreed discount featur
 uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/developer-journey-cases.json --list
 uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/developer-journey-cases.json --all --deadline 420 --output /tmp/matt-developer-journeys.json
 ```
-
-The developer journey evidence and observed limitations are documented in [DEVELOPER-JOURNEYS.md](tests/reports/DEVELOPER-JOURNEYS.md).
 
 ## Configuration
 
@@ -261,4 +257,4 @@ uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packag
 uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/expanded-type-cases.json --all --deadline 300 --output /tmp/matt-expanded-types.json
 ```
 
-The real-model verifier returns bounded redacted diagnostics and requires an immutable acceptance completion marker, so an early successful process exit cannot silently skip acceptance. See [TEST-TYPES.md](tests/reports/TEST-TYPES.md) for the coverage inventory, actual attempts and limitations. These checks do not establish browser assistive-technology behavior, deployed services, physical input or every possible software task.
+The real-model verifier returns bounded redacted diagnostics and requires an immutable acceptance completion marker, so an early successful process exit cannot silently skip acceptance. These checks do not establish browser assistive-technology behavior, deployed services, physical input or every possible software task.

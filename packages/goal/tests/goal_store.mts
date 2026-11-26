@@ -14,7 +14,7 @@ import { existsSync, readdirSync as importedDirectoryEntries, mkdtempSync, mkdir
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { GoalStore, newGoalId } from "../src/store.ts";
-import { goalClaimDir, goalRecordPath, goalsRoot, isInside, legacyGoalPromptPath, legacyGoalRecordPath, safeGoalId } from "../src/paths.ts";
+import { goalClaimDir, goalRecordPath, goalsRoot, isInside, legacyGoalRecordPath, legacyGoalsRoot, safeGoalId } from "../src/paths.ts";
 import { isolatedAgentDir } from "./isolated-agent.mts";
 
 const agent = isolatedAgentDir();
@@ -250,13 +250,14 @@ await scenario("prose written directly by a user never overrides the record", ()
   store.create({ objective, owner: "session-a", id });
   const revision = store.readGoal(id)!.revision;
   // The prose file belongs to the layout an earlier version wrote.
-  mkdirSync(dirname(legacyGoalPromptPath(root, id)), { recursive: true });
-  writeFileSync(legacyGoalPromptPath(root, id), "objective the user edited by hand\n");
+  const legacyPrompt = join(legacyGoalsRoot(root), safeGoalId(id), "prompt.md");
+  mkdirSync(dirname(legacyPrompt), { recursive: true });
+  writeFileSync(legacyPrompt, "objective the user edited by hand\n");
   const outcome = store.apply({ expectedGoalId: id, mutate: (goal) => goal });
   assert.ok(outcome.ok);
   assert.equal(outcome.goal.revision, revision + 1);
   assert.equal(new GoalStore({ projectRoot: root }).readObjective(id).trim(), objective, "legacy prose does not override the atomic record");
-  assert.equal(readFileSync(legacyGoalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched");
+  assert.equal(readFileSync(legacyPrompt, "utf8"), "objective the user edited by hand\n", "legacy files remain untouched");
 });
 
 await scenario("one malformed record does not hide the valid ones", () => {

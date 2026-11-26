@@ -1,5 +1,8 @@
-"""Public standalone child contract: features/resident-execution.feature."""
 from __future__ import annotations
+
+# --- Merged from test_resident_execution.py ---
+# --- Merged from test_resident_execution.py ---
+"""Public standalone child contract: features/resident-execution.feature."""
 
 import json
 from pathlib import Path
@@ -427,3 +430,259 @@ def test_idle_readiness_is_confirmed_before_start_returns(tmp_path: Path) -> Non
       console.log(JSON.stringify({ok:start.details.ok,terminated,status:roster.getAgent("resident").status}));
     """, tmp_path)
     assert result == {"ok": False, "terminated": 1, "status": "stopped"}
+
+
+# --- Merged from test_roster_observation.py ---
+"""Event-driven UI observation shares the same global roster as its writers."""
+
+import json
+
+from subagents_helpers import SRC, run_node
+
+
+def test_observers_see_another_module_root_and_unsubscribe() -> None:
+    url = (SRC / 'roster.ts').as_uri()
+    result = run_node(f"""
+      const a=await import({json.dumps(url + '?observer')});
+      const b=await import({json.dumps(url + '?writer')});
+      a.resetRoster();
+      let calls=0;
+      const stop=a.observeAgentRoster(()=>calls++);
+      b.registerAgent({{name:'observed',role:'test',spawnId:'current',pid:1,status:'starting',scope:'session',createdAt:1,updatedAt:1}});
+      b.updateAgentProgress('observed','current',{{liveText:'part',turns:1,sequenceEnded:false}});
+      const afterUpdate=calls;
+      b.updateAgentProgress('observed','retired',{{liveText:'stale',turns:1,sequenceEnded:false}});
+      const afterStale=calls;
+      stop();b.updateAgent('observed',{{status:'stopped'}});
+      console.log(JSON.stringify({{distinct:a!==b,afterUpdate,afterStale,afterStop:calls}}));
+    """)
+    assert result == {'distinct': True, 'afterUpdate': 2, 'afterStale': 2, 'afterStop': 2}
+
+
+def test_a_failed_ui_observer_cannot_hide_state_from_other_observers() -> None:
+    url = (SRC / 'roster.ts').as_uri()
+    result = run_node(f"""
+      const {{resetRoster,observeAgentRoster,registerAgent,getAgent}}=await import({json.dumps(url)});
+      resetRoster();let calls=0;
+      const first=observeAgentRoster(()=>{{throw new Error('fixture render failure');}});
+      const second=observeAgentRoster(()=>calls++);
+      const registered=registerAgent({{name:'render-error',role:'test',spawnId:'s',pid:1,status:'starting',scope:'session',createdAt:1,updatedAt:1}});
+      first();second();
+      console.log(JSON.stringify({{ok:registered.ok,calls,visible:getAgent('render-error').name}}));
+    """)
+    assert result == {'ok': True, 'calls': 1, 'visible': 'render-error'}
+
+
+# --- Merged from test_resident_transport.py ---
+"""Real RPC parser and control stream with only OS process creation faked."""
+
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+from subagents_helpers import PACKAGE
+
+
+@pytest.mark.parametrize("probe", ["long", "utf8", "unterminated", "successor-on-close", "readiness", "prompt", "copies", "tail", "session-dir", "fork-dir", "kickoff-rejected", "steer", "steer-timeout", "resume-symlink", "final-evidence", "later-message", "stop-reason-budget", "startup-delayed-kickoff", "startup-delayed-idle", "startup-delayed-fork", "startup-timeout", "resident-timeout", "fork-kickoff-timeout", "cancel-replace-late-ack"])
+def test_resident_transport_contract(probe: str, tmp_path: Path) -> None:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
+    env.update(HOME=str(tmp_path), TMPDIR=str(tmp_path), PI_CODING_AGENT_DIR=str(tmp_path / "agent"))
+    result = subprocess.run([
+        "node", "--experimental-test-module-mocks",
+        str(PACKAGE / "tests" / "resident-transport-fixture.ts"), probe,
+    ], cwd=PACKAGE, env=env, capture_output=True, text=True, timeout=15, check=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert '"ok":true' in result.stdout
+
+
+# --- Merged from test_roster_boundary.py ---
+"""The roster's package boundary.
+
+`@fradser/pi-subagents` owns the child-process roster, so it must be usable by a
+consumer that has no team runtime installed. Two things are asserted here that a
+type-checker cannot: that the module imports no consumer package, and that the
+roster works with no coordinator configured at all.
+"""
+
+
+import json
+import re
+from pathlib import Path
+
+from subagents_helpers import PACKAGE, SRC, run_node
+
+
+def test_the_roster_works_with_no_coordinator_configured() -> None:
+    """The standalone case: no roster hooks published, so nothing to conflict
+    against. A registry this survives is what makes a single-session install
+    usable rather than a package that only works inside a team."""
+    result = run_node(
+        f"""
+        import {{ registerAgent, getAgent, listAgents, livingAgents,
+                   idleAgents, updateAgent, assignAgent, resetRoster,
+                   isValidAgentName, rosterRevision }} from {json.dumps((PACKAGE / "index.ts").as_uri())};
+        resetRoster();
+        const before = rosterRevision();
+        const member = {{ name: "scout", agent: "reviewer", spawnId: "s1", pid: 1,
+          status: "starting", scope: "session", createdAt: 1, updatedAt: 1 }};
+        const added = registerAgent(member);
+        const seen = getAgent("scout");
+        const moved = updateAgent("scout", {{ status: "working" }});
+        const assigned = assignAgent("scout",
+          {{ id: "task:1", kind: "task", resources: [] }}, "t1");
+        const duplicate = registerAgent({{ ...member, spawnId: "s2" }});
+        console.log(JSON.stringify({{
+          added: added.ok,
+          bump: rosterRevision() > before,
+          sameObject: seen === member,
+          status: moved?.status,
+          assignment: assigned?.assignment?.id,
+          task: assigned?.currentTaskId,
+          counts: [listAgents().length, livingAgents().length, idleAgents().length],
+          duplicateRefused: duplicate.ok === false,
+          duplicateGuides: duplicate.ok ? null : duplicate.error,
+          valid: isValidAgentName("scout") && !isValidAgentName("../evil"),
+        }}));
+        """,
+    )
+    assert result["added"] is True
+    assert result["bump"] is True
+    assert result["sameObject"] is True
+    assert result["status"] == "working"
+    assert result["assignment"] == "task:1"
+    assert result["task"] == "t1"
+    assert result["counts"] == [1, 1, 0]
+    assert result["duplicateRefused"] is True
+    assert result["valid"] is True
+    # The refusal has to name the way out, or the caller retries the same spawn
+    # forever.
+    assert "agent_list" in result["duplicateGuides"]
+    assert "stop" in result["duplicateGuides"]
+
+
+def test_a_revision_written_through_one_module_instance_reaches_the_other() -> None:
+    """The map lives on `globalThis` because two module instances are normal here,
+    so the revision counters describing it have to live there too. Counters held
+    per instance left the other instance concluding that nothing changed, and a
+    roster write is then never republished to the children that read it."""
+    result = run_node(
+        f"""
+        import * as viaBarrel from {json.dumps((PACKAGE / "index.ts").as_uri())};
+        import * as viaModule from {json.dumps((SRC / "roster.ts").as_uri())};
+        // Two specifiers, two module instances, one process. The map is shared;
+        // this asserts the counters are as well.
+        viaBarrel.resetRoster();
+        const before = viaModule.rosterRevision();
+        viaBarrel.registerAgent({{
+          name: "shared-counter", agent: "reviewer", spawnId: "s1", pid: 1,
+          status: "starting", scope: "session", createdAt: 1, updatedAt: 1,
+        }});
+        console.log(JSON.stringify({{
+          distinctInstances: viaBarrel !== viaModule,
+          seenThroughOther: viaModule.rosterRevision() > before,
+          sameEntry: viaModule.getAgent("shared-counter")?.name === "shared-counter",
+        }}));
+        """,
+    )
+    assert result["distinctInstances"] is True
+    assert result["seenThroughOther"] is True
+    assert result["sameEntry"] is True
+
+
+def test_a_prototype_named_child_cannot_alias_an_inherited_property() -> None:
+    result = run_node(
+        f"""
+        import {{ registerAgent, getAgent, listAgents, resetRoster }} from {json.dumps((PACKAGE / "index.ts").as_uri())};
+        resetRoster();
+        const base = {{ role: "reviewer", spawnId: "s", pid: 1, status: "idle", scope: "session", createdAt: 1, updatedAt: 1 }};
+        registerAgent({{ ...base, name: "constructor" }});
+        registerAgent({{ ...base, name: "hasOwnProperty" }});
+        console.log(JSON.stringify({{
+          constructorIsOwn: getAgent("constructor")?.name === "constructor",
+          hasOwnPropertyIsOwn: getAgent("hasOwnProperty")?.name === "hasOwnProperty",
+          // The map is created without a prototype, so there is no inherited
+          // property to alias at all — stronger than an own entry merely
+          // shadowing the prototype, which is all a plain object literal gives.
+          noInheritedAtAll: getAgent("toString") === undefined,
+          listHasNoGarbage: listAgents().length === 2,
+        }}));
+        """,
+    )
+    assert result["constructorIsOwn"] is True
+    assert result["hasOwnPropertyIsOwn"] is True
+    assert result["noInheritedAtAll"] is True
+    assert result["listHasNoGarbage"] is True
+
+
+def test_the_published_registry_carries_the_whole_holder_shape() -> None:
+    """The seam has to be a shape both sides can read without importing the other,
+    so it is asserted in both directions: what the roster publishes, and what it
+    writes back when a task set hands it an assignment.
+
+    `sync` is the half that is easy to get wrong. Without it the task store can see who
+    holds what but cannot record it, so the roster entry would never show an
+    assignment and a successor would have nothing to inherit.
+    """
+    result = run_node(
+        f"""
+        import {{ registerAgent, getAgent, resetRoster, assignAgent,
+                   rosterAsParticipantRegistry }} from {json.dumps((PACKAGE / "index.ts").as_uri())};
+        import {{ publishParticipantRegistry, resolveParticipantRegistry }} from "@fradser/pi-kit";
+        resetRoster();
+        publishParticipantRegistry(rosterAsParticipantRegistry());
+        const registry = resolveParticipantRegistry();
+        const base = {{ role: "scout", pid: 1, scope: "session", createdAt: 1, updatedAt: 1 }};
+        registerAgent({{ ...base, name: "scout", spawnId: "s1", status: "idle" }});
+        registerAgent({{ ...base, name: "gone", spawnId: "s2", status: "stopped" }});
+        // A projection, not the entry: a consumer cannot reach roster state by
+        // writing to what it was handed.
+        const projected = registry?.get("scout");
+        registry?.sync("scout", {{ id: "work:1", kind: "task", resources: ["ledger"] }}, "t1");
+        registry?.sync("gone", {{ id: "work:2", kind: "direct", resources: [] }}, "t2");
+        console.log(JSON.stringify({{
+          // A stopped child cannot hold anything, so it is never listed.
+          listed: registry?.list().map((p) => p.name),
+          name: projected?.name,
+          spawnId: projected?.spawnId,
+          status: projected?.status,
+          // No pid, no live text, no tools: the shape is a holder, not the entry.
+          projectedFields: Object.keys(projected ?? {{}}).sort(),
+          storedOnRoster: getAgent("scout")?.assignment,
+          taskIdOnRoster: getAgent("scout")?.currentTaskId,
+          // A stopped entry can still be written to, but is not a participant.
+          stillNotListed: registry?.list().length,
+          missing: registry?.get("nobody") === undefined,
+          cleared: (() => {{ registry?.sync("scout", undefined, undefined); return getAgent("scout")?.assignment ?? null; }})(),
+          // A reload republishes rather than stacking, and the roster it publishes
+          // is the same shared object, so the second registry sees the first's writes.
+          republished: (() => {{
+            publishParticipantRegistry(rosterAsParticipantRegistry());
+            const again = resolveParticipantRegistry();
+            again?.sync("scout", {{ id: "work:3", kind: "direct", resources: [] }}, "t3");
+            return {{
+              // One registry in the slot, and it is the republished one: a reload
+              // replaces the offer rather than stacking a second.
+              replaced: again !== registry && resolveParticipantRegistry() === again,
+              stored: getAgent("scout")?.currentTaskId ?? null,
+              // Over the same shared roster, so the republished offer sees what the
+              // first one wrote.
+              seesTheSameRoster: again?.get("scout")?.currentTaskId ?? null,
+            }};
+          }})(),
+        }}));
+        """,
+    )
+    assert result["listed"] == ["scout"]
+    assert result["name"] == "scout"
+    assert result["spawnId"] == "s1"
+    assert result["status"] == "idle"
+    assert list(result["projectedFields"]) == ["name", "spawnId", "status"]
+    assert result["storedOnRoster"] == {"id": "work:1", "kind": "task", "resources": ["ledger"]}
+    assert result["taskIdOnRoster"] == "t1"
+    assert result["stillNotListed"] == 1
+    assert result["missing"] is True
+    assert result["cleared"] is None
+    assert result["republished"]["replaced"] is True
+    assert result["republished"]["stored"] == "t3"
+    assert result["republished"]["seesTheSameRoster"] == "t3"

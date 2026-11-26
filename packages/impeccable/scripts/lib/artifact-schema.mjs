@@ -49,11 +49,6 @@ export const PRODUCT_DEPRECATED_SECTIONS = Object.freeze({
 
 const PRODUCT_STAMP_RE = /^[ \t]*<!--[ \t]*impeccable:product-schema[ \t]+(\d+)[ \t]*-->[ \t]*$/im;
 
-/** The literal stamp line, for the init template and for migrations. */
-export function productStampLine(version = PRODUCT_SCHEMA_VERSION) {
-  return `<!-- impeccable:product-schema ${version} -->`;
-}
-
 /**
  * Schema version stamped in a PRODUCT.md body, or null when unstamped. Null
  * means "written before stamping existed", not "invalid".

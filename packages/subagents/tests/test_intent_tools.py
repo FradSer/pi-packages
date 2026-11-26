@@ -1,5 +1,7 @@
-"""Observable contract for features/intent-tools.feature."""
 from __future__ import annotations
+
+# --- Merged from test_intent_tools.py ---
+"""Observable contract for features/intent-tools.feature."""
 
 import json
 from pathlib import Path
@@ -260,3 +262,224 @@ def test_the_guardrail_reaches_the_model_and_has_one_wording(tmp_path: Path) -> 
     assert result["startMentionsAsync"] is True, result
     assert result["sharedWording"] is True, result
     assert result["noAutomatically"] is True, result
+
+
+# --- Merged from test_intent_activation.py ---
+"""Selection and schema contracts for the intent family (ADR-0008)."""
+
+import json
+import os
+from pathlib import Path
+import subprocess
+
+import pytest
+
+from subagents_helpers import PACKAGE, run_node
+
+_m1_PREAMBLE = f"""
+import {{ SessionManager }} from '@earendil-works/pi-coding-agent';
+import {{ Check }} from 'typebox/value';
+import extension from {json.dumps((PACKAGE / 'index.ts').as_uri())};
+const registered=[],handlers=new Map();let active=['read','agent'];
+const pi={{registerTool:tool=>registered.push(tool),registerMessageRenderer(){{}},events:{{emit(){{}}}},
+  on:(name,handler)=>{{const list=handlers.get(name)??[];list.push(handler);handlers.set(name,list);}},
+  getAllTools:()=>registered,getActiveTools:()=>active,setActiveTools:names=>active=names}};
+extension(pi);
+const sessionManager=SessionManager.inMemory();const ctx={{sessionManager,model:{{api:'unknown'}}}};
+const emit=async()=>{{for(const handler of handlers.get('session_start')??[])await handler({{}},ctx);}};
+const family=['agent_start','agent_input','agent_stop','agent_list'];
+"""
+
+@pytest.mark.parametrize("selected", ["agent_list", "agent", "agent_inspect", "read",
+    "agent_list,subagents_enable", "agent_start,agent_input,agent_stop,agent_inspect",
+    "agent_start,agent_input,agent_stop,agent_inspect,subagents_enable"])
+def test_native_explicit_intent_selection_is_not_widened(tmp_path: Path, selected: str) -> None:
+    # Each case pairs one host selection with what the contract must leave active.
+    # A selection that names a retired tool is scrubbed, not widened into a family
+    # and not left on the wire, exactly like the retired `agent` selection.
+    env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": str(tmp_path),
+        "PI_CODING_AGENT_DIR": str(tmp_path / "agent"),
+        "PI_OFFLINE": "1",
+        "PI_SKIP_VERSION_CHECK": "1",
+        "PI_TELEMETRY": "0",
+        "PI_ACTIVATION_EXCLUDED": selected,
+    }
+    result = subprocess.run(["node", str(PACKAGE / "tests" / "activation-transcript-fixture.ts")],
+                            cwd=PACKAGE, env=env, capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert '"excludedPreserved":true' in result.stdout
+
+
+def test_fresh_selection_and_explicit_exclusion() -> None:
+    """A host that registers one member short of the family is offered none of it.
+    Every member addresses the same exact sessions, so a half family would make a
+    caller guess which controls survived."""
+    result = run_node(_m1_PREAMBLE + """
+      await emit();const fresh=[...active];
+      pi.getAllTools=()=>registered.filter(tool=>tool.name!=='agent_input');await emit();
+      console.log(JSON.stringify({fresh,excluded:active,required:registered.filter(tool=>family.includes(tool.name)).map(tool=>[tool.name,tool.parameters.required])}));
+    """)
+    assert result["fresh"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert result["excluded"] == ["read"], "a partial family is not offered"
+    assert result["required"] == [["agent_start", ["prompt"]], ["agent_input", ["session", "prompt", "delivery"]],
+                                   ["agent_stop", ["session"]], ["agent_list", []]]
+
+
+def test_partial_host_selection_keeps_recorded_branch_removals() -> None:
+    result = run_node(_m1_PREAMBLE + """
+      active=['read','agent_list','subagents_enable'];
+      await emit();
+      const definition=name=>({name,description:name,parameters:{type:'object'}});
+      sessionManager.appendMessage({role:'system',timestamp:1,content:'',toolsAdded:[definition('agent_list'),definition('subagents_enable')],toolsRemoved:[]});
+      const base=sessionManager.getLeafId();
+      sessionManager.appendMessage({role:'system',timestamp:2,content:'',toolsAdded:[],toolsRemoved:[definition('agent_list')]});
+      await emit();const removed=[...active];
+      sessionManager.branch(base);await emit();
+      console.log(JSON.stringify({removed,restored:active}));
+    """)
+    assert result["removed"] == ["read", "subagents_enable"]
+    assert result["restored"] == ["read", "agent_list", "subagents_enable"]
+
+
+def test_legacy_and_new_branch_restore_cannot_mix() -> None:
+    result = run_node(_m1_PREAMBLE + """
+      const definition=name=>({name,description:name,parameters:{type:'object'}});
+      // A branch that recorded the retired tool keeps its work and receives the intent family.
+      sessionManager.appendMessage({role:'system',timestamp:1,content:'',toolsAdded:[definition('agent')],toolsRemoved:[]});
+      await emit();const legacy=[...active];
+      sessionManager.appendMessage({role:'system',timestamp:2,content:'',toolsAdded:family.map(definition),toolsRemoved:[definition('agent')]});
+      await emit();console.log(JSON.stringify({legacy,next:active}));
+    """)
+    assert result["legacy"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert result["next"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert "agent" not in result["legacy"] + result["next"], "the retired tool is scrubbed from both branches"
+
+
+def test_new_refusal_has_typed_structured_output() -> None:
+    result = run_node(_m1_PREAMBLE + """
+      const definition=name=>({name,description:name,parameters:{type:'object'}});
+      sessionManager.appendMessage({role:'system',timestamp:1,content:'',toolsAdded:[definition('subagents_enable')],toolsRemoved:[]});
+      await emit();
+      const enabled=await registered.find(tool=>tool.name==='subagents_enable').execute('enable',{},undefined,undefined,ctx);
+      const results=[];
+      for(const tool of registered.filter(tool=>family.includes(tool.name))){
+        const receipt=await tool.execute('invalid',{unknown:true},undefined,undefined,ctx);
+        results.push({name:tool.name,valid:Check(tool.outputSchema,receipt.structuredContent),error:receipt.isError});
+      }
+      console.log(JSON.stringify({results,enabled:enabled.structuredContent.enabled,active}));
+    """)
+    assert result["enabled"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert not {"agent", "agent_inspect"} & set(result["active"]), "a retired tool is never selected"
+    assert all(entry["valid"] and entry["error"] for entry in result["results"])
+
+
+def test_old_transcript_without_selection_keeps_one_family_without_loader() -> None:
+    result = run_node(_m1_PREAMBLE + """
+      sessionManager.appendMessage({role:'user',content:'Existing history',timestamp:1});
+      active=['read','agent','agent_inspect',...family,'subagents_enable'];
+      await emit();const restored=[...active];
+      // Excluding one family member withdraws the whole family rather than half of it.
+      pi.getAllTools=()=>registered.filter(tool=>tool.name!=='agent_input');
+      await emit();console.log(JSON.stringify({restored,excluded:active}));
+    """)
+    assert result["restored"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert result["excluded"] == ["read"], "a partial family is not offered"
+
+
+# --- Merged from test_intent_host.py ---
+"""Exact hosted input authority through the five-tool surface."""
+
+import json
+from pathlib import Path
+
+import pytest
+from subagents_helpers import SRC, run_node
+
+_m2_PREAMBLE = f"""
+import {{ executeIntentTool }} from {json.dumps((SRC / 'intent-tools.ts').as_uri())};
+import {{ setAgentHost }} from {json.dumps((SRC / 'child-execution.ts').as_uri())};
+import * as roster from {json.dumps((SRC / 'roster.ts').as_uri())};
+roster.resetRoster();
+let active='',allow=true;const sends=[],notices=[];
+const host={{
+  start(request){{active=request.name;roster.registerAgent({{name:active,role:active,spawnId:'pinned',pid:1,
+    status:'working',sequenceEnded:false,standalone:false,scope:'session',createdAt:1,updatedAt:1}});
+    return {{ok:true,session:`session:${{active}}:pinned`}};}},
+  authorizeInput(){{return allow?{{ok:true}}:{{ok:false,error:'Task verification is frozen'}};}},
+  async send(name,id,prompt){{sends.push({{name,id,prompt}});roster.updateAgent(name,{{status:'working',sequenceEnded:false}});return {{ok:true}};}},
+  async interrupt(){{return {{ok:true}};}},
+  async stop(name){{roster.updateAgent(name,{{status:'stopped'}});return {{ok:true}};}},
+}};
+setAgentHost(host);
+const call=(tool,args)=>executeIntentTool(tool,args,{{cwd:process.env.PI_TEST_CWD,deliverSessionResult:notice=>notices.push(notice)}});
+const tick=async()=>{{for(let i=0;i<15;i++)await Promise.resolve();}};
+"""
+
+
+def test_original_host_and_policy_are_rechecked_before_queued_dispatch(tmp_path: Path) -> None:
+    result = run_node(_m2_PREAMBLE + """
+      const start=await call('agent_start',{label:'team-child',prompt:'FIRST'});
+      const queued=await call('agent_input',{session:start.structuredContent.session,prompt:'NEXT',delivery:'next'});
+      allow=false;roster.updateAgent(active,{status:'idle',sequenceEnded:true});await tick();
+      const denied=notices.map(notice=>notice.inputId);
+      allow=true;
+      setAgentHost({...host,send:async()=>{throw new Error('Replacement global host must not receive input');}});
+      const accepted=await call('agent_input',{session:start.structuredContent.session,prompt:'AFTER',delivery:'next'});
+      console.log(JSON.stringify({queued:queued.structuredContent.inputId,denied,sends,accepted:accepted.structuredContent.ok}));
+    """, env_overrides={"PI_TEST_CWD": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent"), "HOME": str(tmp_path)})
+    assert result["queued"] in result["denied"]
+    assert result["accepted"] is True
+    assert [entry["prompt"] for entry in result["sends"]] == ["AFTER"]
+
+
+def test_temporary_label_reaches_the_host_as_a_session_role(tmp_path: Path) -> None:
+    result = run_node(_m2_PREAMBLE + """
+      let definition;
+      setAgentHost({...host,start(request){definition=request.definition;return host.start(request);}});
+      const start=await call('agent_start',{label:'friendly label',prompt:'FIRST',tools:['read']});
+      console.log(JSON.stringify({definition,receipt:start.structuredContent}));
+    """, env_overrides={"PI_TEST_CWD": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent"), "HOME": str(tmp_path)})
+    assert result["definition"]["description"] == "friendly label"
+    assert result["definition"]["tools"] == ["read"]
+    # The role keeps the authored purpose; the display name is its projected token.
+    assert result["receipt"]["label"] == "friendly-label"
+
+
+def test_steer_receipt_keeps_predecessor_id_after_late_ack(tmp_path: Path) -> None:
+    result = run_node(_m2_PREAMBLE + """
+      let ack;
+      setAgentHost({...host,interrupt:async()=>await new Promise(resolve=>ack=resolve)});
+      const start=await call('agent_start',{prompt:'FIRST'});
+      const first=start.structuredContent.inputId;
+      const steering=call('agent_input',{session:start.structuredContent.session,prompt:'ADJUST',delivery:'steer'});
+      await tick();
+      const next=await call('agent_input',{session:start.structuredContent.session,prompt:'SECOND',delivery:'next'});
+      roster.updateAgent(active,{status:'idle',sequenceEnded:true});await tick();
+      const during=roster.getAgent(active).inputId;
+      ack({ok:true});const receipt=await steering;
+      console.log(JSON.stringify({first,second:next.structuredContent.inputId,during,steered:receipt.structuredContent.inputId}));
+    """, env_overrides={"PI_TEST_CWD": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent"), "HOME": str(tmp_path)})
+    assert result["during"] == result["second"]
+    assert result["steered"] == result["first"]
+
+
+@pytest.mark.parametrize("failure", ["negative", "rejected-promise"])
+def test_negative_hosted_startup_never_grants_steer_or_next_authority(tmp_path: Path, failure: str) -> None:
+    result = run_node(_m2_PREAMBLE + """
+      let interrupts=0;
+      setAgentHost({...host,start(request){host.start(request);
+        if(process.env.PI_HOST_FAILURE==='rejected-promise')return Promise.reject(new Error('Kickoff acknowledgement missing'));
+        return {ok:false,error:'Kickoff rejected'};},
+        interrupt:async()=>{interrupts++;return {ok:true};}});
+      const start=await call('agent_start',{prompt:'FIRST'});
+      const session=`session:${active}:pinned`;
+      const steer=await call('agent_input',{session,prompt:'NO',delivery:'steer'});
+      const next=await call('agent_input',{session,prompt:'NO',delivery:'next'});
+      const stopped=await call('agent_stop',{session});
+      console.log(JSON.stringify({start:start.structuredContent.ok,steer:steer.structuredContent.ok,
+        next:next.structuredContent.ok,interrupts,stopped:stopped.structuredContent.ok}));
+    """, env_overrides={"PI_TEST_CWD": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent"), "HOME": str(tmp_path),
+                        "PI_HOST_FAILURE": failure})
+    assert result == {"start": False, "steer": False, "next": False, "interrupts": 0, "stopped": True}

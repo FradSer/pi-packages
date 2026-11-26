@@ -244,6 +244,7 @@ def pipeline_case(output: Path, installed: Path) -> dict[str, object]:
     case = output / "pipeline"
     case.mkdir()
     try:
+        fixture.env["SDLC_AGENT"] = "pi"
         fixture.prepare()
         env = support.isolated_environment(case)
         trace = case / "events.jsonl"

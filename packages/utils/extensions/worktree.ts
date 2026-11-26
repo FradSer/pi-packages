@@ -288,18 +288,6 @@ export function planWorktreeAddRedirect(
 	};
 }
 
-/**
- * Rewrites a simple `git worktree add` command. The implementation only
- * understands the options shown by `git worktree add -h`; all other command
- * forms are deliberately returned unchanged.
- */
-export function rewriteWorktreeAddCommand(
-	command: string,
-	options: WorktreeRedirectOptions = {},
-): string {
-	return planWorktreeAddRedirect(command, options)?.command ?? command;
-}
-
 /** One planned creation, kept until its bash result reports the outcome. */
 interface PlannedCreation {
 	path: string;

@@ -10,7 +10,6 @@
   "include": [
     "src/**/*.ts",
     "tests/**/*.mts",
-    "tests/**/*.ts",
-    "tests/**/*.d.ts"
+    "tests/**/*.ts"
   ]
 }

@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import { renderLiveActivityMarkdown, resolveLiveActivity, type PiMarkdownThemeSource } from "@fradser/pi-kit";
 
 /** Bound by the extension entry, which alone owns the ExtensionAPI. Read per
@@ -41,25 +41,6 @@ export function runningTeammateActivity(teammate: Agent, hideThinking: boolean =
     thinking: extractLatestLine(teammate.liveThinking),
     text: extractLatestLine(teammate.liveText),
   }, hideThinking) ?? "Working...";
-}
-
-export interface TeammateRowWidths {
-  lineWidth: number;
-  nameWidth: number;
-  activityWidth: number;
-}
-
-/** Reserve enough width for the live activity before truncating the identity. */
-export function teammateRowWidths(spinner: string, agent: string, width: number): TeammateRowWidths {
-  const lineWidth = Math.max(10, width - 1);
-  const fixedWidth = visibleWidth(`${spinner}  · `);
-  const availableWidth = Math.max(2, lineWidth - fixedWidth);
-  const nameWidth = Math.max(1, Math.min(visibleWidth(agent), Math.floor(availableWidth * 0.4)));
-  return {
-    lineWidth,
-    nameWidth,
-    activityWidth: Math.max(1, availableWidth - nameWidth),
-  };
 }
 
 /** Fit a console status label to the requested activity width. */

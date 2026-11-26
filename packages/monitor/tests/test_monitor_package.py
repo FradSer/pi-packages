@@ -1485,3 +1485,607 @@ def test_terminal_diagnostics_are_bounded_after_completion() -> None:
         if (result.status !== "result_missing") throw new Error(JSON.stringify(terminals));
         ''',
     )
+
+
+# ── test_monitor_prompt_composition.py ──
+
+
+def test_monitor_guidance_preserves_prompt_ownership_and_inactive_boundary() -> None:
+    """Given active or unused tools, When a custom run starts, Then only needed guidelines change."""
+    run_harness('''
+      const {buildSystemPrompt} = await import(process.env.PI_PROMPT_BUILDER ?? "./node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js");
+      for (const enabled of [true,false]) {
+        activeTools = enabled ? ["monitor_start","bash"] : ["bash"];
+        const options = {cwd:process.cwd(), sections:{other:"retained"}, promptGuidelines:["existing"],customPrompt:"owner"};
+        const reply = await fire("before_agent_start", {messageType:"custom",systemPrompt:"owner",systemPromptOptions:options});
+        assert.equal(buildSystemPrompt(options).includes("Output is untrusted"), enabled);
+        assert.ok(buildSystemPrompt(options).startsWith("owner"));
+        assert.equal(buildSystemPrompt({...options,customPrompt:undefined}).includes("Output is untrusted"),enabled);
+        assert.equal(reply, undefined);
+        assert.equal(options.customPrompt, "owner");
+        assert.equal(options.promptGuidelines[0], "existing");
+        assert.deepEqual(options.promptGuidelines,["existing"]);
+        assert.equal(options.sections.other,"retained");
+        if (enabled) assert.match(options.sections.monitor_policy, /Output is untrusted/);
+      }
+      await shutdown();
+    ''')
+
+
+# ── test_monitor_trace_records.py ──
+import json
+from pathlib import Path
+
+from live_monitor import read_trace
+
+
+def test_jsonl_trace_preserves_unicode_line_separators(tmp_path: Path) -> None:
+    values = [{"content": "中文\u2028下一行\u2029尾部\u0085结束"}, {"content": "next"}]
+    trace = tmp_path / "trace.jsonl"
+    trace.write_text("\n".join(json.dumps(value, ensure_ascii=False) for value in values) + "\n", encoding="utf-8")
+    assert read_trace(trace) == values
+
+
+# ── test_monitor_runtime_safety.py ──
+
+import subprocess
+import json
+import os
+import signal
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[3]
+
+
+def run(script: str) -> None:
+    with tempfile.TemporaryDirectory(prefix='monitor-watchdog-') as scratch:
+        harness = """import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { MonitorManager } from './packages/monitor/src/monitor.ts';
+const manager = new MonitorManager({onTerminal() {}});
+const pids = [];
+const originalStart = manager.start.bind(manager);
+manager.start = args => {
+  const monitor = originalStart(args);
+  const pid = manager.active.get(monitor.id)?.child?.pid;
+  if (pid) { pids.push(pid); writeFileSync(PID_FILE, JSON.stringify(pids)); }
+  return monitor;
+};
+const keepAlive = setInterval(() => {}, 100);
+try {\n""".replace('PID_FILE', json.dumps(str(Path(scratch) / 'pids')))
+        try:
+            result = subprocess.run(
+                ['node', '--import', 'tsx', '--input-type=module'], cwd=REPO,
+                input=harness + script + "\n} finally { await manager.stopAllOnShutdown(); clearInterval(keepAlive); }",
+                text=True, capture_output=True, timeout=12,
+            )
+            assert result.returncode == 0, result.stderr
+        finally:
+            pid_file = Path(scratch) / 'pids'
+            if pid_file.exists():
+                for pid in json.loads(pid_file.read_text()):
+                    try:
+                        os.killpg(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+
+def test_regex_deadline_is_interruptible() -> None:
+    run('''const m = manager.start({command: "printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!\\\\n'; sleep 2", description:'regex', resultPattern:'(a+)+$', timeoutMs:300});
+const {result} = await manager.waitForTerminal(m.id);
+assert.equal(result.status, 'timeout'); assert.ok(result.elapsedMs < 1500);''')
+
+
+def test_monitor_identities_are_unique_across_manager_instances() -> None:
+    run('''const first = manager.start({command:'exit 1', description:'verify', resultPattern:'DONE'});
+await manager.waitForTerminal(first.id);
+const reloaded = new MonitorManager({onTerminal() {}});
+try {
+  const second = reloaded.start({command:'printf DONE', description:'verify', resultPattern:'DONE'});
+  await reloaded.waitForTerminal(second.id);
+  assert.notEqual(first.id, second.id, 'extension reload must not reuse a monitor identity');
+} finally { await reloaded.stopAllOnShutdown(); }''')
+
+
+def test_stream_idle_is_independent() -> None:
+    run('''const m = manager.start({command: "printf READY; while true; do echo progress >&2; sleep 0.03; done", description:'idle', resultPattern:'^READY$', timeoutMs:700});
+assert.equal((await manager.waitForTerminal(m.id)).result.status, 'success');''')
+
+
+def test_timeout_retains_unterminated_tail() -> None:
+    run('''const m = manager.start({command: "printf 'FATAL exact cause'; sleep 2", description:'tail', resultPattern:'NEVER', timeoutMs:300});
+const {result} = await manager.waitForTerminal(m.id);
+assert.ok(result.output.some(line => line.includes('FATAL exact cause')));''')
+
+
+def test_unicode_byte_budget_and_truncation() -> None:
+    run('''const m = manager.start({command: "node -e \\\"console.log('界'.repeat(30000)); setTimeout(()=>{},2000)\\\"", description:'unicode', resultPattern:'NEVER', timeoutMs:500});
+const {result} = await manager.waitForTerminal(m.id);
+assert.ok(result.outputTruncated); assert.ok(Buffer.byteLength(result.output.join('\\n')) <= 32768);
+assert.ok(result.output.every(line => Buffer.byteLength(line) <= 10240 + 10));''')
+
+
+def test_shutdown_reclaims_stopped_and_naturally_closed_groups() -> None:
+    run(r'''const { mkdtempSync, readFileSync, existsSync, rmSync } = await import('node:fs');
+const { tmpdir } = await import('node:os');
+const { execFileSync } = await import('node:child_process');
+for (const natural of [false, true]) {
+  const dir = mkdtempSync(tmpdir() + '/monitor-group-');
+  let pid;
+  try {
+    const childCode = 'process.on("SIGTERM",()=>{});require("fs").writeFileSync("pid",String(process.pid));setInterval(()=>{},1000)';
+    const command = `node -e '${childCode}' >/dev/null 2>&1 & ${natural ? 'while [ ! -f pid ]; do sleep 0.02; done; printf "READY\\n"' : 'wait'}`;
+    const m = manager.start({command, cwd:dir, description:'group', resultPattern:'READY', timeoutMs:3000});
+    while (!existsSync(dir + '/pid')) await new Promise(resolve => setTimeout(resolve,20));
+    pid = Number(readFileSync(dir + '/pid','utf8'));
+    if (natural) assert.equal((await manager.waitForTerminal(m.id)).result.status,'success');
+    else manager.stop(m.id);
+    const start = Date.now();
+    await manager.stopAllOnShutdown();
+    assert.ok(Date.now()-start >= 700, 'shutdown must await already pending escalation');
+    let state = '';
+    try { state = execFileSync('ps',['-o','stat=','-p',String(pid)], {encoding:'utf8'}).trim(); } catch {}
+    assert.ok(!state || state.startsWith('Z'), `descendant still running: ${state}`);
+  } finally {
+    if (pid) { try { process.kill(pid,'SIGKILL'); } catch {} }
+    rmSync(dir,{recursive:true,force:true});
+  }
+}''')
+
+
+def test_manual_stop_retains_unterminated_tail() -> None:
+    run('''const m = manager.start({command: "printf 'FATAL stopped cause'; sleep 2", description:'tail', resultPattern:'NEVER', timeoutMs:3000});
+await new Promise(resolve => setTimeout(resolve,200)); manager.stop(m.id);
+const {result} = await manager.waitForTerminal(m.id);
+assert.equal(result.status,'stopped');
+assert.ok(result.output.some(line => line.includes('FATAL stopped cause')));''')
+
+
+# ── test_monitor_runtime_practices.py ──
+
+
+
+def test_elapsed_is_independent_of_wall_clock() -> None:
+    run(r'''const wallClock = Date.now;
+try {
+  for (const offset of [-60000, 60000]) for (const outcome of ['timeout', 'success', 'stopped']) {
+    const m = manager.start({command: outcome === 'success' ? "sleep 0.1; printf 'DONE\\n'" : 'sleep 2', description:'clock', resultPattern:'^DONE$',timeoutMs:outcome === 'timeout' ? 150 : 1500});
+    Date.now = () => wallClock() + offset;
+    if (outcome === 'stopped') { await new Promise(resolve => setTimeout(resolve, 50)); manager.stop(m.id); }
+    const {result} = await manager.waitForTerminal(m.id);
+    assert.equal(result.status, outcome);
+    assert.ok(result.elapsedMs >= 0 && result.elapsedMs < 1500, String(result.elapsedMs));
+    Date.now = wallClock;
+  }
+} finally { Date.now = wallClock; }''')
+
+
+def test_worker_constructor_failure_reclaims_monitor() -> None:
+    run(r'''const { createRequire, syncBuiltinESMExports } = await import('node:module');
+const require = createRequire(import.meta.url);
+const workerModule = require('node:worker_threads');
+const originalWorker = workerModule.Worker;
+try {
+  workerModule.Worker = class { constructor() { throw new Error('simulated matcher startup failure'); } };
+  syncBuiltinESMExports();
+  const m = manager.start({command:'sleep 2',description:'startup',resultPattern:'DONE',timeoutMs:200});
+  const {result} = await manager.waitForTerminal(m.id);
+  assert.equal(result.status, 'failure');
+  assert.match(result.reason, /^matcher_error: simulated matcher startup failure$/);
+  assert.equal(manager.list().length, 0);
+} finally { workerModule.Worker = originalWorker; syncBuiltinESMExports(); }''')
+
+
+def test_short_line_burst_uses_backpressure() -> None:
+    run(r'''for (const ending of ['DONE\\n', 'DONE']) {
+const code = `process.stdout.write("x\\n".repeat(30000));process.stderr.write("progress\\n".repeat(10000));process.stdout.write("${ending}")`;
+const m = manager.start({command:`node -e '${code}'`,description:'burst',resultPattern:'^DONE$',timeoutMs:4000});
+const {result} = await manager.waitForTerminal(m.id);
+assert.equal(result.status,'success', JSON.stringify(result));
+assert.equal(manager.list().length, 0);
+}''')
+
+
+# ── test_monitor_matching_integrity.py ──
+
+import subprocess
+import textwrap
+
+
+
+def run_probe(script: str) -> None:
+    result = subprocess.run(
+        ["node", "--import", "tsx", "--input-type=module"],
+        cwd=REPO, input=textwrap.dedent(HARNESS + script), text=True,
+        capture_output=True, timeout=25, check=False,
+    )
+    assert result.returncode == 0, f"{result.stderr}\n{result.stdout}"
+
+
+HARNESS = r'''
+import assert from "node:assert/strict";
+import { MonitorManager, MAX_LINE_BUFFER, MAX_RESULT_TEXT } from "./packages/monitor/src/monitor.ts";
+const CAPTURE_BUDGET = 32 * 1024;
+const quote = (text) => "'" + text.replaceAll("'", "'\\''") + "'";
+const probe = async (body, pattern, verify) => {
+  const manager = new MonitorManager({ onTerminal() {} });
+  try {
+    const started = manager.start({
+      command: "node -e " + quote(body), description: "integrity fixture",
+      resultPattern: pattern, timeoutMs: 4000,
+    });
+    let response;
+    // Inspect the actual IPC response to ensure limits apply before transfer,
+    // rather than only to the final main-thread projection.
+    const worker = manager.active.get(started.id).matcher;
+    worker.on("message", (value) => { if (value) response = value; });
+    const terminal = await manager.waitForTerminal(started.id);
+    verify(terminal.result, response);
+  } finally { await manager.stopAllOnShutdown(); }
+};
+const nested = (count, leaf) => Array.from({length:count}, (_,i)=>`(?<field${i}>`).join("") + leaf + ")".repeat(count);
+'''
+
+
+def test_oversized_physical_line_never_matches_fragment_anchors() -> None:
+    run_probe(r'''
+      for (const newline of [false, true]) {
+        const body = `process.stdout.write('x'.repeat(${MAX_LINE_BUFFER})+'READY'${newline ? "+'\\n'" : ""}); setTimeout(()=>process.exit(0),500)`;
+        await probe(body, "^READY$", (result) => {
+          assert.equal(result.status, "failure", JSON.stringify(result));
+          assert.equal(result.reason, "matcher_line_limit");
+          assert.equal(result.outputTruncated, true);
+          assert.ok(result.output?.length, "oversized line retains bounded diagnostics");
+          assert.ok(Buffer.byteLength(JSON.stringify(result.output)) < 33 * 1024);
+        });
+      }
+    ''')
+
+
+def test_capture_budget_applies_inside_worker_and_discloses_loss() -> None:
+    run_probe(r'''
+      await probe("process.stdout.write('a'.repeat(4096)+'\\n')", nested(100, "a{4096}"), (result, response) => {
+        assert.equal(result.status, "success");
+        assert.equal(result.capturesTruncated, true);
+        assert.ok(Buffer.byteLength(JSON.stringify(result.captures)) <= CAPTURE_BUDGET);
+        assert.ok(Object.values(result.captures).every((value) => Buffer.byteLength(value) <= MAX_RESULT_TEXT));
+        assert.ok(!Object.hasOwn(response, "values"), "unused positional captures must not cross IPC");
+        assert.ok(Buffer.byteLength(JSON.stringify(response)) <= CAPTURE_BUDGET + MAX_RESULT_TEXT + 1024);
+      });
+      await probe("process.stdout.write(('\\\\'+String.fromCharCode(34)).repeat(2048)+'\\n')", nested(30, ".{4096}"), (result) => {
+        assert.equal(result.status, "success");
+        assert.equal(result.capturesTruncated, true);
+        assert.ok(Buffer.byteLength(JSON.stringify(result.captures)) <= CAPTURE_BUDGET, "JSON escape bytes count toward the budget");
+      });
+    ''')
+
+
+def test_exact_line_budget_accepts_split_crlf_record_delimiter() -> None:
+    run_probe(r'''
+      await probe(`process.stdout.write('x'.repeat(${MAX_LINE_BUFFER})+'\\r'); setTimeout(()=>process.stdout.write('\\n'),75); setTimeout(()=>process.exit(0),150)`,
+        `^x{${MAX_LINE_BUFFER}}$`, (result) => {
+          assert.equal(result.status, "success", "CRLF delimiters do not count as record payload");
+          assert.equal(result.reason, undefined);
+        });
+    ''')
+
+
+def test_json_has_priority_and_truncated_json_is_not_parsed() -> None:
+    run_probe(r'''
+      const payload = JSON.stringify({ value: "a".repeat(3000) });
+      await probe(`process.stdout.write(${JSON.stringify(payload)}+'\\n')`, nested(20, "(?<json>.*)"), (result) => {
+        assert.equal(result.status, "success");
+        assert.equal(result.capturesTruncated, true);
+        assert.deepEqual(result.result, { value: "a".repeat(3000) });
+        assert.equal(result.captures.json, payload);
+        assert.ok(Buffer.byteLength(JSON.stringify(result.captures)) <= CAPTURE_BUDGET);
+      });
+      const escaped = JSON.stringify("\\".repeat(10000));
+      assert.ok(Buffer.byteLength(escaped) < CAPTURE_BUDGET);
+      await probe(`process.stdout.write(${JSON.stringify(escaped)}+'\\n')`, "(?<json>.*)", (result) => {
+        assert.equal(result.status, "success");
+        assert.equal(result.capturesTruncated, true);
+        assert.equal(result.result, undefined);
+        assert.match(result.resultParseError, /capture.*(?:budget|limit|exceed)/i);
+        assert.ok(Buffer.byteLength(JSON.stringify(result.captures ?? {})) <= CAPTURE_BUDGET);
+      });
+    ''')
+
+
+def test_empty_json_reports_parse_error_and_valid_primitives_still_parse() -> None:
+    run_probe(r'''
+      for (const value of ["", "0", "false", "null"]) {
+        await probe(`process.stdout.write('DONE'+${JSON.stringify(value)}+'\\n')`, "^DONE(?<json>.*)$", (result) => {
+          assert.equal(result.status, "success");
+          if (value === "") {
+            assert.ok(result.resultParseError, "empty JSON is an error rather than absent JSON");
+            assert.equal(result.result, undefined);
+          } else {
+            assert.deepEqual(result.result, JSON.parse(value));
+            assert.equal(result.resultParseError, undefined);
+          }
+        });
+      }
+    ''')
+
+
+# ── test_monitor_exit_completion.py ──
+
+
+
+def test_exit_waits_for_complete_records_and_keeps_first_success() -> None:
+    run(r'''for (const command of ["printf READY; sleep 0.25; printf 'ISH\\n'", "printf 'READY\\n'; sleep 0.05; printf 'NEXT\\n'"]) {
+ const m = manager.start({command,description:'strict record',resultPattern:'^(READY|NEXT)$',completion:'exit',timeoutMs:1000});
+ const {result} = await manager.waitForTerminal(m.id);
+ if (command.includes('ISH')) assert.equal(result.status,'result_missing', JSON.stringify(result));
+ else { assert.equal(result.status,'success'); assert.equal(result.matched,'READY'); assert.ok(result.elapsedMs >= 40); }
+}
+const eof = manager.start({command:'printf READY',description:'EOF',resultPattern:'^READY$',completion:'exit',timeoutMs:1000});
+assert.equal((await manager.waitForTerminal(eof.id)).result.status,'success');''')
+
+
+def test_exit_success_does_not_hide_later_failures() -> None:
+    run(r'''for (const [command,expected,reason] of [
+ ["printf 'READY\\n'; sleep 0.15; exit 7",'failure','process_exit'],
+ ["printf 'READY\\nFAILED\\n'",'failure',undefined],
+ ["printf 'READY\\n'; sleep 0.15; printf 'FAILED\\n'",'failure',undefined],
+ ["printf 'READY\\n'; sleep 3",'timeout','timeout'],
+]) {
+ const m = manager.start({command,description:'late outcome',resultPattern:'^READY$',failurePattern:'^FAILED$',completion:'exit',timeoutMs:400});
+ const {result} = await manager.waitForTerminal(m.id);
+ assert.equal(result.status,expected, JSON.stringify(result));
+ if(reason) assert.equal(result.reason,reason);
+ if(command.includes('exit 7')) assert.equal(result.exitCode,7);
+}
+const stopped = manager.start({command:"printf 'READY\\n'; sleep 3",description:'stop candidate',resultPattern:'^READY$',completion:'exit',timeoutMs:2000});
+await new Promise(resolve=>setTimeout(resolve,200));
+assert.equal(manager.stop(stopped.id).stopped.length,1);
+assert.equal((await manager.waitForTerminal(stopped.id)).result.status,'stopped');''')
+
+
+def test_exit_json_validity_and_match_compatibility() -> None:
+    run(r'''for (const payload of ['false','null','0','{"ok":true}','{broken','']) {
+ const command = `printf '%s\\n' '${payload}'`;
+ const m = manager.start({command,description:'json',resultPattern:'^(?<json>.*)$',completion:'exit',timeoutMs:1000});
+ const {result} = await manager.waitForTerminal(m.id);
+ if(payload === '{broken' || payload === '') { assert.equal(result.status,'failure'); assert.equal(result.reason,'invalid_json_result'); assert.ok(result.resultParseError); }
+ else {assert.equal(result.status,'success'); assert.deepEqual(result.result,JSON.parse(payload));}
+}
+const legacy = manager.start({command:"printf '{broken\\n'",description:'legacy',resultPattern:'^(?<json>.*)$',timeoutMs:1000});
+const terminal = (await manager.waitForTerminal(legacy.id)).result;
+assert.equal(terminal.status,'success'); assert.ok(terminal.resultParseError);
+const payload = JSON.stringify('x'.repeat(40000));
+const clipped = manager.start({command:`node -e 'console.log(${JSON.stringify(payload)})'`,description:'clipped',resultPattern:'^(?<json>.*)$',completion:'exit',timeoutMs:1000});
+const result = (await manager.waitForTerminal(clipped.id)).result;
+assert.equal(result.status,'failure');assert.equal(result.reason,'invalid_json_result');assert.equal(result.capturesTruncated,true);''')
+
+
+def test_diagnostic_compression_preserves_record_order() -> None:
+    run(r'''const m = manager.start({command:"printf 'A\\nB\\nA\\nA\\nB\\n'; exit 2",description:'order',resultPattern:'NEVER',timeoutMs:1000});
+const {result} = await manager.waitForTerminal(m.id);
+assert.deepEqual(result.output,['[stdout] A','[stdout] B','[stdout] A (repeated 2 times)','[stdout] B']);''')
+
+
+def test_exit_backpressure_continues_matching_after_first_success() -> None:
+    run(r'''for (const failed of [false,true]) {
+ const code = `process.stdout.write("READY\\n"+"progress\\n".repeat(30000)); process.stderr.write("stderr\\n".repeat(10000)); process.stdout.write(${JSON.stringify(failed ? 'FAILED\n' : 'READY\n')});`;
+ const m = manager.start({command:`node -e '${code}'`,description:'strict burst',resultPattern:'^READY$',failurePattern:'^FAILED$',completion:'exit',timeoutMs:4000});
+ const {result} = await manager.waitForTerminal(m.id);
+ assert.equal(result.status,failed ? 'failure' : 'success',JSON.stringify(result));
+ assert.equal(manager.list().length,0);
+}
+const signalled = manager.start({command:"printf 'READY\\n'; sleep 0.1; kill -TERM $$",description:'signal',resultPattern:'^READY$',completion:'exit',timeoutMs:1000});
+const {result} = await manager.waitForTerminal(signalled.id);
+assert.equal(result.status,'failure');assert.equal(result.reason,'process_exit'); assert.equal(result.signal,'SIGTERM');''')
+
+
+def test_exit_first_json_candidate_is_not_replaced_and_delivers_once() -> None:
+    run(r'''const events = [];
+manager.events.onTerminal = (monitor,result)=>events.push({monitor,result});
+for (const payload of ['{broken','{"id":1}']) {
+ const m = manager.start({command:`printf '%s\\n' '${payload}' '{"id":2}'`,description:'first candidate',resultPattern:'^(?<json>.*)$',completion:'exit',timeoutMs:1000});
+ const {result} = await manager.waitForTerminal(m.id);
+ assert.equal(result.captures.json,payload);
+ assert.equal(result.status,payload === '{broken' ? 'failure' : 'success');
+ if(result.status === 'success') assert.deepEqual(result.result,{id:1});
+ await new Promise(resolve=>setTimeout(resolve,100));
+ assert.equal(events.filter(event=>event.monitor.id === m.id).length,1);
+}
+assert.throws(()=>manager.start({command:'exit 0',description:'invalid',resultPattern:'READY',completion:'unknown'}), /completion must be match or exit/);''')
+
+
+# ── test_monitor_delivery_boundaries.py ──
+
+
+def test_mixed_batch_waits_before_the_next_provider_request() -> None:
+    run_harness(r'''
+        const { runAgentLoop } = await import(new URL("../../pi-agent-core/dist/agent-loop.js",
+          import.meta.resolve("@earendil-works/pi-coding-agent")));
+        const { Type } = await import("typebox");
+        const branch = [];
+        let requests = 0;
+        const fakeRead = { name: "fake_read", label: "read", description: "Local fixture read",
+          parameters: Type.Object({}), execute: async () => ({ content: [{ type: "text", text: "ok" }], details: {} }) };
+        const executionContext = ctx({ ui: { setWidget() {}, notify() {} }, sessionManager: { getBranch: () => branch } });
+        const toolsInBatch = [{ ...start, execute: (id, params, signal, update) =>
+          start.execute(id, params, signal, update, executionContext) }, fakeRead];
+        const stream = async (_model, context) => {
+          requests++;
+          if (requests === 2) {
+            const result = context.messages.find(m => m.role === "toolResult" && m.toolName === "monitor_start");
+            assert.equal(result?.isError, false, JSON.stringify(result));
+            assert.equal(result?.details?.result?.status, "success", "the next request ran before the terminal result");
+          }
+          const content = requests === 1 ? [
+            { type: "toolCall", id: "mixed-start", name: "monitor_start", arguments: {
+              command: "sleep 0.2; printf DONE", result_pattern: "^DONE$" } },
+            { type: "toolCall", id: "mixed-read", name: "fake_read", arguments: {} },
+          ] : [{ type: "text", text: "terminal observed" }];
+          const message = { role: "assistant", content, stopReason: requests === 1 ? "toolUse" : "stop",
+            api: "fixture", provider: "fixture", model: "fixture", timestamp: Date.now(),
+            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
+          return { async *[Symbol.asyncIterator]() {}, result: async () => message };
+        };
+        try {
+          await fire("session_start", {}, executionContext);
+          await runAgentLoop([{ role: "user", content: [{ type: "text", text: "fixture" }], timestamp: Date.now() }],
+            { messages: [], tools: toolsInBatch }, { model: { provider: "fixture", id: "fixture" }, convertToLlm: x => x },
+            event => { if (event.type === "message_end") branch.push({ type: "message", message: event.message }); },
+            undefined, stream);
+          assert.equal(requests, 2);
+          assert.equal(sent.length, 0, "mixed batches must not duplicate the terminal report");
+        } finally { await shutdown(); }
+    ''')
+
+
+def test_nested_monitor_returns_terminal_data_to_its_caller() -> None:
+    run_harness(r'''
+        const sessionManager = { getBranch: () => [{ type: "message", message: { role: "assistant",
+          content: [{ type: "toolCall", id: "parent-call", name: "ordinary_parent", arguments: {} }] } }] };
+        try {
+          const result = await start.execute("parent-call/1", { command: "printf DONE", result_pattern: "^DONE$" },
+            undefined, undefined, ctx({ sessionManager }));
+          assert.equal(result.details?.result?.status, "success");
+          assert.equal(result.terminate, undefined);
+          assert.equal(sent.length, 0);
+        } finally { await shutdown(); }
+    ''')
+
+
+def test_standalone_terminal_has_a_stable_monitor_identity() -> None:
+    run_harness(r'''
+        const sessionManager = { getBranch: () => [{ type: "message", message: { role: "assistant",
+          content: [{ type: "toolCall", id: "standalone-call", name: "monitor_start", arguments: {} }] } }] };
+        try {
+          const result = await start.execute("standalone-call", { command: "printf DONE", result_pattern: "^DONE$" },
+            undefined, undefined, ctx({ sessionManager }));
+          assert.equal(result.terminate, true);
+          const deadline = Date.now() + 3000;
+          while (sent.length === 0 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+          assert.equal(sent.length, 1);
+          assert.equal(sent[0].message.details.monitorId, result.details.monitorId);
+          assert.ok(sent[0].message.content.includes(`monitor_id=${result.details.monitorId}`));
+        } finally { await shutdown(); }
+    ''')
+
+
+def test_synchronous_terminal_renderer_shows_the_outcome() -> None:
+    run_harness(r'''
+        try {
+          const result = await start.execute("headless-failure", { command: "printf 'diagnostic\\n'; exit 7", result_pattern: "NEVER" },
+            undefined, undefined, ctx({ mode: "print", hasUI: false }));
+          const options = { expanded: true, isPartial: false };
+          const context = { args: { command: "exit 7", result_pattern: "NEVER" }, toolCallId: "headless-failure", isError: false };
+          const text = paint(start.renderResult(result, options, theme, context)).join("\n");
+          assert.ok(text.includes("failure"), text);
+          assert.ok(text.includes("diagnostic"), text);
+          assert.ok(!text.includes("[monitor] started"), text);
+        } finally { await shutdown(); }
+    ''')
+
+
+def test_capture_truncation_is_visible_in_text_and_expanded_results() -> None:
+    run_harness(r'''
+        try {
+          const pattern = Array.from({ length: 40 }, (_, i) => `(?<field${i}>`).join("") + "a{4096}" + ")".repeat(40);
+          const result = await start.execute("large-captures", { command: "node -e \"console.log('a'.repeat(4096))\"", result_pattern: pattern },
+            undefined, undefined, ctx({ mode: "print", hasUI: false }));
+          assert.equal(result.details.result.capturesTruncated, true);
+          assert.match(result.content[0].text, /elapsed=\d+ms/);
+          assert.match(result.content[0].text, /captures_truncated=true/);
+          const rendered = paint(start.renderResult(result, { expanded: true, isPartial: false }, theme,
+            { args: { command: "fixture", result_pattern: pattern }, toolCallId: "large-captures", isError: false })).join("\n");
+          assert.match(rendered, /Captures truncated: true/);
+        } finally { await shutdown(); }
+    ''')
+
+# ── test_docker_minimal_token.py ──
+"""Grading never upgrades an incomplete compact monitor study into a pass."""
+import importlib.util
+import json
+from pathlib import Path
+
+LOCATION = Path(__file__).parent / "docker-study/minimal.py"
+SPEC = importlib.util.spec_from_file_location("monitor_minimal_grade", LOCATION)
+assert SPEC is not None and SPEC.loader is not None
+GRADER = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(GRADER)
+
+
+def native_fixture() -> dict:
+    return {
+        "registered": ["monitor_start", "monitor_stop"],
+        "commands": ["monitor"],
+        "renderers": ["monitor-result"],
+        "startBaseline": {"activeTools": ["monitor_start", "bash"], "setActiveCalls": 1},
+        "headlessSuccess": {"status": "success", "resultStatus": "success",
+            "monitorId": "monitor_1", "hasResult": True, "textBytes": 159, "stoppedBy": "match"},
+        "exitJson": {"status": "success", "result": {"ok": True, "value": 7},
+            "captures": {"json": '{"ok":true,"value":7}'}, "completion": "exit", "exitCode": 0},
+        "failure": {"status": "failure", "stoppedBy": "failure_match", "matched": "FAIL_NOW"},
+        "resultMissing": {"status": "result_missing", "exit": 0},
+        "timeout": {"status": "timeout", "timeoutMs": 300},
+        "asyncUi": {"status": "running", "terminate": True, "monitorId": "monitor_2",
+            "activeTools": ["monitor_start", "bash", "monitor_stop"]},
+        "asyncDelivery": {"sent": 1, "lastCustom": "monitor-result", "deliverAs": "steer",
+            "trigger": True, "lastStatus": "success",
+            "activeTools": ["monitor_start", "bash"], "widgets": 12},
+        "stop": {"invalidRefused": True, "stopped": 1, "content": "Stopped 1 monitor(s)."},
+        "guidance": {"section": ["monitor_policy"], "bytes": 643,
+            "hasBash": True, "hasMonitor": True},
+        "shutdown": {"activeTools": ["monitor_start", "bash"], "widgetsCleared": True},
+    }
+
+
+def fixture(root: Path, *, mutate=None, requests: int = 2, errors: int = 0,
+            reasoning: str = "none") -> dict:
+    native = native_fixture()
+    if mutate:
+        mutate(native)
+    (root / "native.json").write_text(json.dumps(native))
+    (root / "parent-tui.json").write_text(json.dumps({"markerObserved": True,
+        "monitorRowObserved": True, "expandRepaintObserved": True,
+        "resizeRepaintObserved": True}))
+    return {"requests": requests, "transportErrors": errors, "piVersion": "1.5.0",
+        "workspacePiVersions": {"kit": "1.5.0", "monitor": "1.5.0"},
+        "modelObservations": [{"reasoningEffortOnWire": reasoning, "toolCount": 2}]
+        * requests}
+
+
+def test_compact_study_passes_only_with_all_native_and_real_model_contracts(tmp_path: Path) -> None:
+    metadata = fixture(tmp_path)
+    graded = GRADER.grade(tmp_path, metadata)
+    assert graded["passed"] is True, [name for name, value in graded["checks"].items() if not value]
+    assert graded["nativeInjectedBytes"] == 802
+
+
+def test_missing_terminal_contract_reasoning_or_transport_health_fails_grading(tmp_path: Path) -> None:
+    cases = [
+        (lambda value: value["resultMissing"].update(status="success"), 2, 0, "none"),
+        (None, 2, 0, "low"),
+        (None, 2, 1, "none"),
+        (None, 0, 0, "none"),
+    ]
+    for index, (mutate, requests, errors, reasoning) in enumerate(cases):
+        root = tmp_path / f"case-{index}"
+        root.mkdir()
+        metadata = fixture(root, mutate=mutate, requests=requests,
+            errors=errors, reasoning=reasoning)
+        graded = GRADER.grade(root, metadata)
+        assert graded["passed"] is False, index
+        assert [name for name, value in graded["checks"].items() if not value]
+
+
+def test_asynchronous_delivery_and_tool_disclosure_are_required(tmp_path: Path) -> None:
+    for mutate in (
+        lambda value: value["asyncDelivery"].update(deliverAs="followUp"),
+        lambda value: value["asyncUi"].update(terminate=False),
+    ):
+        root = tmp_path / "case"
+        root.mkdir(exist_ok=True)
+        metadata = fixture(root, mutate=mutate)
+        graded = GRADER.grade(root, metadata)
+        assert graded["passed"] is False
+        (root / "native.json").unlink()

@@ -40,11 +40,6 @@ export async function loadJevSdk(): Promise<boolean> {
   return resolved !== undefined;
 }
 
-/** True after a load that found the SDK. */
-export function jevSdkAvailable(): boolean {
-  return resolved !== undefined;
-}
-
 /** A lazy view over the SDK namespace. Property reads need a successful load. */
 export const jevSdk = new Proxy({} as typeof Sdk, {
   get(_target, property) {

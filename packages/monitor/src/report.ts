@@ -126,11 +126,11 @@ function encodeRepeatedPayload(value: string): string | undefined {
   return originalBytes - encodedBytes >= 512 && encodedBytes < originalBytes * 0.75 ? encoded : undefined;
 }
 
-function formatElapsed(milliseconds: number): string {
+export function formatElapsed(milliseconds: number): string {
   if (milliseconds < 1000) return `${Math.round(milliseconds)}ms`;
   return `${(milliseconds / 1000).toFixed(1)}s`;
 }
 
-function compactValue(value: string): string {
+export function compactValue(value: string): string {
   return safeDisplayText(value).replace(/[\r\n]+/g, "\\n");
 }

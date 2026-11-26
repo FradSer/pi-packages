@@ -33,14 +33,6 @@ export class KeyboardStateMachine {
     this.cwd = cwd || process.cwd();
   }
 
-  public getSessionId(): string {
-    return this.sessionId;
-  }
-
-  public getCwd(): string {
-    return this.cwd;
-  }
-
   public setSessionContext(sessionId?: string, cwd?: string): void {
     if (sessionId) this.sessionId = sessionId;
     if (cwd) this.cwd = cwd;
@@ -216,13 +208,6 @@ export class KeyboardStateMachine {
     this.hasFatalError = false;
     this.isProcessing = true;
     await this.syncAndEvaluate("running");
-  }
-
-  public async onError(): Promise<void> {
-    this.isProcessing = false;
-    this.hasFatalError = true;
-    this.hasUnreadChat = false;
-    await this.syncAndEvaluate("error");
   }
 
   public async onShutdown(): Promise<void> {

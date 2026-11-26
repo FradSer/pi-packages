@@ -197,16 +197,6 @@ export function requireParsedParams<T extends Record<string, unknown>>(params: T
   return params;
 }
 
-/** Legacy overloaded Agent control; replaced by AgentActionParams at final cutover. */
-export const AgentActionParams = actionUnion([
-  Type.Object({ action: Type.Literal("delegate"), name: Type.String({ minLength: 1 }), prompt: Type.String({ minLength: 1 }), definition: Type.Optional(stringTolerant(InlineAgentDefinitionParams)), resources: Type.Optional(stringTolerant(Type.Array(Type.String({ minLength: 1 })))), verify: Type.Optional(Type.String()), model: Type.Optional(Type.String()), fork: Type.Optional(Type.Boolean()) }, { additionalProperties: false }),
-  Type.Object({ action: Type.Literal("start"), name: Type.String({ minLength: 1 }), definition: Type.Optional(stringTolerant(InlineAgentDefinitionParams)), model: Type.Optional(Type.String()) }, { additionalProperties: false }),
-  Type.Object({ action: Type.Literal("inspect"), name: Type.String({ minLength: 1 }), session: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
-  Type.Object({ action: Type.Literal("stop"), session: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
-], { description: "Delegate, start, inspect, or stop an Agent session" });
-
-/** Shut down one living teammate. */
-/** Create a task set task (leader-only). */
 /** First public Work interface slice. Work creation reuses the current
  * single-writer task record until every acquisition path shares one lifecycle. */
 export const WorkToolParams = actionUnion([

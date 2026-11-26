@@ -115,11 +115,6 @@ export function activeRecord(cwd: string): string | undefined {
   return target.startsWith(path.join(home, "projects") + path.sep) ? value : undefined;
 }
 
-function readGlobalDoc(record: string, name: string, template: string): string {
-  const file = path.join(record, name);
-  return readDocument(file)?.text ?? template;
-}
-
 export function globalHandoff(cwd: string): string | undefined {
   const recordId = activeRecord(cwd);
   if (!recordId) return undefined;
@@ -192,5 +187,3 @@ export function recordLifecycle(cwd: string, identity: string, lifecycle: Lifecy
     fs.unlinkSync(lock);
   }
 }
-
-export { globalHome, projectDir, readGlobalDoc };

@@ -10,7 +10,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { nonEmpty, parseModelRef, writeJsonAtomic } from "@fradser/pi-kit";
+import { nonEmpty, parseModelRef } from "@fradser/pi-kit";
 import { SETTINGS_FILE, agentDir, goalsRoot, legacyGoalsRoot } from "./paths.ts";
 
 /** Consecutive runs that produce nothing new before autonomous continuation
@@ -85,17 +85,4 @@ export function loadGoalSettings(projectRoot: string): GoalSettings {
   const envRuns = process.env.PI_GOAL_MAX_RUNS;
   if (envRuns !== undefined && /^\d+$/.test(envRuns)) resolved.maxAutonomousRuns = Number.parseInt(envRuns, 10);
   return resolved;
-}
-
-/**
- * Write the project override.
- *
- * The file belongs next to this project's goals under the agent directory, so a
- * saved preference never creates a directory inside the working tree.
- */
-export function writeProjectSettings(projectRoot: string, settings: GoalSettings): { ok: true } {
-  const file = projectSettingsPath(projectRoot);
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  writeJsonAtomic(file, settings);
-  return { ok: true };
 }

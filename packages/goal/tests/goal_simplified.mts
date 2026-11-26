@@ -10,8 +10,8 @@ import { Type as typeboxType } from "typebox";
 import { GoalCore, type GoalCoreOptions } from "../src/core.ts";
 import { buildCheckPrompt } from "../src/check.ts";
 import { refreshDashboard } from "../src/dashboard.ts";
-import { writeProjectSettings, loadGoalSettings } from "../src/settings.ts";
-import { goalRecordPath } from "../src/paths.ts";
+import { loadGoalSettings } from "../src/settings.ts";
+import { SETTINGS_FILE, goalRecordPath, goalsRoot } from "../src/paths.ts";
 import { validateToolArguments } from "@earendil-works/pi-ai";
 import { isolatedAgentDir } from "./isolated-agent.mts";
 import { hasInFlightDelegatedWork, isDelegatedWorkResult } from "../src/inflight.ts";
@@ -402,7 +402,8 @@ await scenario("Given an old history request When read Then direct to session hi
   assert.match(r.content[0].text,/session/i);
 }));
 await scenario("Given project settings When saved Then load only supported runtime controls", () => use(f => {
-  assert.ok(writeProjectSettings(f.cwd,{maxAutonomousRuns:2,provider:"fixture",model:"judge"}).ok);
+  mkdirSync(goalsRoot(f.cwd), { recursive: true });
+  writeFileSync(join(goalsRoot(f.cwd), SETTINGS_FILE), JSON.stringify({ maxAutonomousRuns: 2, provider: "fixture", model: "judge" }));
   const settings=loadGoalSettings(f.cwd); assert.equal(settings.maxAutonomousRuns,2); assert.equal(settings.model,"judge");
 }));
 await scenario("Given caller cancellation When a check returns MET Then report cancellation without ending the goal", async () => {

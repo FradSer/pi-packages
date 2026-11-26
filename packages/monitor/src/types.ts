@@ -41,7 +41,7 @@ const TerminalStatus = Type.Union([
 ]);
 
 /** The terminal contract, including diagnostic metadata, for programmatic callers. */
-export const MonitorTerminalSchema = Type.Object({
+const MonitorTerminalSchema = Type.Object({
   status: TerminalStatus,
   elapsedMs: Type.Number(),
   completion: Type.Optional(Type.Union([Type.Literal("match"), Type.Literal("exit")])),

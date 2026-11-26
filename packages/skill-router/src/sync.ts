@@ -340,7 +340,7 @@ function fallbackWorkflowSummary(description: string): string {
 }
 
 function gatewayContent(root: string, collection: RegistryCollection, leaves: UpstreamSkill[]): string {
-  const gateway = gatewayDir(root, collection.id, collection.gateway);
+  const gateway = gatewayDir(root, collection.id);
   const workflows = leaves.map((skill) => [
     `- \`${skill.name}\` — ${collection.routes.find((route) => route.skill === skill.name)?.summary ?? fallbackWorkflowSummary(skill.description)}`,
     `  Tool \`${skillToolName(collection.id, skill.name)}\`, file \`${relative(gateway, leafSkillFile(root, collection.id, skill.name))}\`.`,
@@ -901,7 +901,7 @@ export function exposedSkillPaths(root: string): string[] {
   if (!isExistingDirectoryWithoutSymlink(root) || !isExistingDirectoryWithoutSymlink(exposedRoot)) return [];
   return loadCollections(root)
     .filter((collection) => collection.enabled)
-    .map((collection) => gatewayDir(root, collection.id, collection.gateway))
+    .map((collection) => gatewayDir(root, collection.id))
     .filter((path) => {
       if (!isExistingDirectoryWithoutSymlink(path)) return false;
       try {

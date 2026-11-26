@@ -1,5 +1,5 @@
 import { connect, type Socket } from "node:net";
-import { ODK_LINK_PROTOCOL, type OdkLinkConfig, type OdkLinkRecord } from "./types.ts";
+import { type OdkLinkConfig, type OdkLinkRecord } from "./types.ts";
 
 const MAX_INBOUND_FRAME_BYTES = 1024 * 1024;
 
@@ -105,5 +105,3 @@ export function createTcpTransport(config: OdkLinkConfig, options: { connectTime
     },
   };
 }
-
-export const ODK_LINK_PROTOCOL_DECLARATION = ODK_LINK_PROTOCOL;

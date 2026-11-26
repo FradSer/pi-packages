@@ -235,63 +235,21 @@ export async function macosInputDialog(
   options: MacosInputDialogOptions,
   envOptions: NativeDialogEnvironment = {},
 ): Promise<MacosInputDialogResult> {
-  const buttons = options.buttons?.length ? options.buttons : ["取消", "确定"];
-  const result = await displayDialog({
-    ...options,
-    message: options.prompt,
-    defaultAnswer: options.defaultAnswer ?? "",
-    buttons,
-    cancelButton: options.cancelButton ?? (buttons.includes("取消") ? "取消" : buttons.includes("Cancel") ? "Cancel" : undefined),
-  }, envOptions, "Invalid native input result.");
-  return { action: result.action, text: result.text };
-}
-
-export interface MacosPromptOptions {
-  message: string;
-  defaultAnswer?: string;
-  buttons?: string[];
-  defaultButton?: string;
-  cancelButton?: string;
-  timeoutSeconds?: number;
-  signal?: AbortSignal;
-}
-
-export interface MacosPromptResult {
-  action: "confirmed" | "cancelled" | "timed_out";
-  button?: string;
-  text?: string;
-  gaveUp: boolean;
-}
-
-/**
- * General prompt using displayDialog (backwards-compatible).
- */
-export async function macosPrompt(
-  options: MacosPromptOptions,
-  envOptions: NativeDialogEnvironment = {},
-): Promise<MacosPromptResult> {
-  return displayDialog(options, envOptions, "Invalid native prompt result.");
-}
-
-async function displayDialog(
-  options: MacosPromptOptions & { title?: string },
-  envOptions: NativeDialogEnvironment,
-  invalidMessage: string,
-): Promise<MacosPromptResult> {
   if (!isNativeDialogSupported(envOptions)) {
     throw new Error("Native macOS dialog is not supported in this environment (non-macOS or SSH session).");
   }
 
-  const buttons = options.buttons && options.buttons.length > 0 ? options.buttons : ["Cancel", "OK"];
+  const buttons = options.buttons?.length ? options.buttons : ["取消", "确定"];
   if (buttons.length > 3) {
     throw new Error(`macOS displayDialog supports at most 3 buttons, got ${buttons.length}`);
   }
 
   const defaultButton = options.defaultButton ?? buttons[buttons.length - 1];
-  const cancelButton = options.cancelButton ?? (buttons.includes("Cancel") ? "Cancel" : undefined);
+  const cancelButton = options.cancelButton ?? (buttons.includes("取消") ? "取消" : buttons.includes("Cancel") ? "Cancel" : undefined);
   validateDialogButtons(buttons, defaultButton, cancelButton);
   const timeoutSeconds = normalizeTimeoutSeconds(options.timeoutSeconds);
   const nativeTimeoutSeconds = timeoutSeconds === undefined ? undefined : Math.ceil(timeoutSeconds);
+  const invalidMessage = "Invalid native input result.";
 
   const jxaScript = `
     const app = Application.currentApplication();
@@ -302,17 +260,17 @@ async function displayDialog(
       defaultButton: ${JSON.stringify(defaultButton)},
       ${cancelButton ? `cancelButton: ${JSON.stringify(cancelButton)},` : ""}
       ${options.title ? `withTitle: ${JSON.stringify(options.title)},` : ""}
-      ${options.defaultAnswer !== undefined ? `defaultAnswer: ${JSON.stringify(options.defaultAnswer)},` : ""}
+      defaultAnswer: ${JSON.stringify(options.defaultAnswer ?? "")},
       ${nativeTimeoutSeconds !== undefined ? `givingUpAfter: ${nativeTimeoutSeconds},` : ""}
     };
-    const res = app.displayDialog(${JSON.stringify(options.message)}, opts);
+    const res = app.displayDialog(${JSON.stringify(options.prompt)}, opts);
     JSON.stringify(res);
   `;
 
   const result = await runJxa(jxaScript, { ...options, timeoutSeconds });
-  if (result.aborted) return { action: "cancelled", gaveUp: false };
-  if (result.timedOut) return { action: "timed_out", gaveUp: true };
-  if (!result.stdout.trim()) return { action: "cancelled", gaveUp: false };
+  if (result.aborted) return { action: "cancelled" };
+  if (result.timedOut) return { action: "timed_out" };
+  if (!result.stdout.trim()) return { action: "cancelled" };
   const parsed = parseNativeJson(result.stdout, invalidMessage);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(invalidMessage);
   const record = parsed as { buttonReturned?: unknown; textReturned?: unknown; gaveUp?: unknown };
@@ -324,16 +282,12 @@ async function displayDialog(
   if (record.gaveUp === true) {
     return {
       action: "timed_out",
-      gaveUp: true,
-      button: typeof record.buttonReturned === "string" ? record.buttonReturned : undefined,
       text: typeof record.textReturned === "string" ? record.textReturned : undefined,
     };
   }
   if (typeof record.buttonReturned !== "string" || !buttons.includes(record.buttonReturned)) throw new Error(invalidMessage);
   return {
     action: record.buttonReturned === cancelButton ? "cancelled" : "confirmed",
-    button: record.buttonReturned,
     text: typeof record.textReturned === "string" ? record.textReturned : undefined,
-    gaveUp: false,
   };
 }

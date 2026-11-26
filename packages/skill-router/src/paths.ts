@@ -29,7 +29,7 @@ export function legacyExposedDir(root: string, collectionId: string): string {
   return join(root, "exposed", collectionId);
 }
 
-export function gatewayDir(root: string, collectionId: string, _gateway: string): string {
+export function gatewayDir(root: string, collectionId: string): string {
   return join(exposedDir(root, collectionId), "gateway");
 }
 

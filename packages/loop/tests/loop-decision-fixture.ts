@@ -5,6 +5,8 @@
  * transport is stubbed, so the behavior under test is the behavior a real
  * endpoint exercises. Each scenario prints one line of JSON.
  */
+import { createServer, type IncomingMessage } from "node:http";
+import type { AddressInfo } from "node:net";
 import { readDecisionConfig, type DecisionConfig } from "../src/config.ts";
 import { judgeStopCondition, PlanDecisionError, resolveSemanticPlan } from "../src/decide.ts";
 
@@ -82,50 +84,69 @@ function answer(body: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-const server = Bun.serve({
-  port: 0,
-  async fetch(request) {
-    hits.push(1);
-    const body = await request.json() as Record<string, unknown>;
-    seen.push(body);
-    if (scenario === "unauthorized") return new Response("nope", { status: 401 });
-    if (scenario === "low-confidence") {
-      return Response.json({
+async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+}
+
+const server = createServer(async (request, response) => {
+  hits.push(1);
+  const body = await readJsonBody(request);
+  seen.push(body);
+  const sendJson = (payload: unknown): void => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(payload));
+  };
+  if (scenario === "unauthorized") {
+    response.writeHead(401, { "content-type": "text/plain" });
+    response.end("nope");
+    return;
+  }
+  if (scenario === "low-confidence") {
+    sendJson({
+      model: "jev-1.13.0",
+      answers: { interval: choice("5m", 0.1), runs: choice("unbounded", 0.9), stop: choice("none", 0.9) },
+    });
+    return;
+  }
+  if (scenario === "unspecified-interval") {
+    // An unnamed cadence is decided, so this scenario reaches the message
+    // question as well: answer whatever key its criteria offer.
+    const questions = body.questions as Record<string, { criteria?: Record<string, unknown> }>;
+    const messageKeys = Object.keys(questions.message?.criteria ?? {});
+    if (messageKeys.length > 0) {
+      sendJson({
         model: "jev-1.13.0",
-        answers: { interval: choice("5m", 0.1), runs: choice("unbounded", 0.9), stop: choice("none", 0.9) },
+        answers: { message: choice(messageKeys[0] as string, 0.8) },
+        usage: { input_tokens: 7, output_tokens: 2 },
       });
+      return;
     }
-    if (scenario === "unspecified-interval") {
-      // An unnamed cadence is decided, so this scenario reaches the message
-      // question as well: answer whatever key its criteria offer.
-      const questions = body.questions as Record<string, { criteria?: Record<string, unknown> }>;
-      const messageKeys = Object.keys(questions.message?.criteria ?? {});
-      if (messageKeys.length > 0) {
-        return Response.json({
-          model: "jev-1.13.0",
-          answers: { message: choice(messageKeys[0] as string, 0.8) },
-          usage: { input_tokens: 7, output_tokens: 2 },
-        });
-      }
-      return Response.json({
-        model: "jev-1.13.0",
-        answers: { interval: choice("unspecified", 0.9), runs: choice("unbounded", 0.9), stop: choice("none", 0.9) },
-        usage: { input_tokens: 11, output_tokens: 4 },
-      });
-    }
-    if (scenario === "malformed-choice") {
-      return Response.json({
-        model: "jev-1.13.0",
-        answers: { interval: choice("banana", 0.9), runs: choice("unbounded", 0.9), stop: choice("none", 0.9) },
-      });
-    }
-    return Response.json(answer(body));
-  },
+    sendJson({
+      model: "jev-1.13.0",
+      answers: { interval: choice("unspecified", 0.9), runs: choice("unbounded", 0.9), stop: choice("none", 0.9) },
+      usage: { input_tokens: 11, output_tokens: 4 },
+    });
+    return;
+  }
+  if (scenario === "malformed-choice") {
+    sendJson({
+      model: "jev-1.13.0",
+      answers: { interval: choice("banana", 0.9), runs: choice("unbounded", 0.9), stop: choice("none", 0.9) },
+    });
+    return;
+  }
+  sendJson(answer(body));
 });
+await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+const port = (server.address() as AddressInfo).port;
 
 const base = readDecisionConfig({ TYPESAFE_API_KEY: "test-key" });
 if (base === undefined) throw new Error("a test key must read as configured");
-const config: DecisionConfig = { ...base, baseUrl: "http://127.0.0.1:" + server.port, stopThreshold: 0.8, minChoiceConfidence: 0.3 };
+const config: DecisionConfig = { ...base, baseUrl: "http://127.0.0.1:" + port, stopThreshold: 0.8, minChoiceConfidence: 0.3 };
 
 async function main(): Promise<unknown> {
   if (scenario === "no-credential") return { config: readDecisionConfig({}) ?? null };
@@ -173,5 +194,6 @@ try {
     hits: hits.length,
   }));
 } finally {
-  server.stop(true);
+  server.closeAllConnections();
+  server.close();
 }

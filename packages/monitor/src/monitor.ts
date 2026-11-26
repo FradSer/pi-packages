@@ -2,26 +2,26 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { Worker } from "node:worker_threads";
 import { performance } from "node:perf_hooks";
+import { MAX_TIMEOUT_MS } from "./types";
 
 export const KILL_GRACE_MS = 1000;
 export const MAX_LINE_LENGTH = 10 * 1024;
 export const MAX_LINE_BUFFER = 64 * 1024;
 export const MAX_LOG_LINES = 2000;
 export const MAX_LOG_BYTES = 256 * 1024;
-export const MAX_RESULT_OUTPUT_LINES = 100;
-export const MAX_RESULT_OUTPUT_BYTES = 32 * 1024;
+const MAX_RESULT_OUTPUT_LINES = 100;
+const MAX_RESULT_OUTPUT_BYTES = 32 * 1024;
 export const MAX_HISTORY = 20;
 export const MAX_RESULT_TEXT = 4096;
-export const MAX_RESULT_JSON_BYTES = 32 * 1024;
-export const MAX_RESULT_CAPTURE_BYTES = 32 * 1024;
-export const DRAIN_GRACE_MS = 1000;
+const MAX_RESULT_JSON_BYTES = 32 * 1024;
+const MAX_RESULT_CAPTURE_BYTES = 32 * 1024;
+const DRAIN_GRACE_MS = 1000;
 /** Idle window before an unterminated trailing line is matched against the
  * contract. Long enough that a writer pausing mid-line does not look like a
  * finished line, short enough that a sentinel printed without a trailing newline
  * resolves while the command keeps running. */
 export const TAIL_MATCH_IDLE_MS = 150;
 export const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
-export const MAX_TIMEOUT_MS = 2_147_483_647;
 const MATCH_PAUSE_LINES = 1024;
 const MATCH_PAUSE_BYTES = 256 * 1024;
 
@@ -33,13 +33,13 @@ export type MonitorStatus =
   | "timeout"
   | "stopped";
 
-export type MonitorLogSource = "stdout" | "stderr";
+type MonitorLogSource = "stdout" | "stderr";
 
 /** How a monitor run was allowed to end. */
-export type MonitorCompletion = "match" | "exit";
+type MonitorCompletion = "match" | "exit";
 
 /** What ended a run before the process did. */
-export type MonitorStopCause = "match" | "failure_match";
+type MonitorStopCause = "match" | "failure_match";
 
 export interface MonitorTerminalResult {
   status: Exclude<MonitorStatus, "running">;
@@ -82,7 +82,7 @@ export interface Monitor {
   droppedLogLines: number;
 }
 
-export interface MonitorOutput {
+interface MonitorOutput {
   lines: string[];
   truncated: boolean;
 }
@@ -130,11 +130,11 @@ interface MatcherResponse {
   jsonCaptureError?: string;
 }
 
-export interface MonitorEvents {
+interface MonitorEvents {
   onTerminal: (monitor: Monitor, result: MonitorTerminalResult) => void;
 }
 
-export interface StartMonitorArgs {
+interface StartMonitorArgs {
   command: string;
   description: string;
   resultPattern: string;
@@ -146,7 +146,7 @@ export interface StartMonitorArgs {
   notifyTerminal?: boolean;
 }
 
-export interface MonitorTerminalEvent {
+interface MonitorTerminalEvent {
   monitor: Monitor;
   result: MonitorTerminalResult;
 }

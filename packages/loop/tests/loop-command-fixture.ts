@@ -3,6 +3,8 @@
  * reports. The host is a minimal stand-in, so every assertion is about the
  * extension's own synchronous outcome, not about Pi's rendering.
  */
+import { createServer, type IncomingMessage } from "node:http";
+import type { AddressInfo } from "node:net";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import loop from "../src/index.ts";
 
@@ -96,60 +98,61 @@ function bootstrap(deliver?: (text: string) => void): {
   return { captured, fire, run, startRun };
 }
 
-/** One decided plan, on a real loopback endpoint: no cadence, three runs. */
-async function withPlanServer(run: (hits: string[]) => Promise<unknown>): Promise<unknown> {
+async function withJsonServer(
+  reply: (body: { questions: Record<string, unknown> }) => unknown,
+  run: (hits: string[]) => Promise<unknown>,
+): Promise<unknown> {
   const hits: string[] = [];
-  const server = Bun.serve({
-    port: 0,
-    async fetch(request) {
-      const body = (await request.json()) as { questions: Record<string, unknown> };
-      hits.push(Object.keys(body.questions).join(","));
-      return Response.json({
-        model: "jev-1.13.0",
-        answers: {
-          interval: { type: "choice", choice: "unspecified", probabilities: { unspecified: 0.9 }, confidence: 0.9 },
-          runs: { type: "choice", choice: "3", probabilities: { "3": 0.9 }, confidence: 0.9 },
-          stop: { type: "choice", choice: "none", probabilities: { none: 0.9 }, confidence: 0.9 },
-        },
-        usage: { input_tokens: 11, output_tokens: 4 },
-      });
-    },
+  const server = createServer(async (request: IncomingMessage, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { questions: Record<string, unknown> };
+    hits.push(Object.keys(body.questions).join(","));
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(reply(body)));
   });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
   process.env.TYPESAFE_API_KEY = "loop-fixture-key";
-  process.env.TYPESAFE_BASE_URL = "http://127.0.0.1:" + server.port;
+  process.env.TYPESAFE_BASE_URL = "http://127.0.0.1:" + port;
   try {
     return await run(hits);
   } finally {
-    server.stop(true);
+    server.closeAllConnections();
+    server.close();
     delete process.env.TYPESAFE_API_KEY;
     delete process.env.TYPESAFE_BASE_URL;
   }
 }
 
+/** One decided plan, on a real loopback endpoint: no cadence, three runs. */
+async function withPlanServer(run: (hits: string[]) => Promise<unknown>): Promise<unknown> {
+  return await withJsonServer(
+    () => ({
+      model: "jev-1.13.0",
+      answers: {
+        interval: { type: "choice", choice: "unspecified", probabilities: { unspecified: 0.9 }, confidence: 0.9 },
+        runs: { type: "choice", choice: "3", probabilities: { "3": 0.9 }, confidence: 0.9 },
+        stop: { type: "choice", choice: "none", probabilities: { none: 0.9 }, confidence: 0.9 },
+      },
+      usage: { input_tokens: 11, output_tokens: 4 },
+    }),
+    run,
+  );
+}
+
 /** One decided stopping judgment, on a real loopback endpoint. */
 async function withStopServer(run: (hits: string[]) => Promise<unknown>): Promise<unknown> {
-  const hits: string[] = [];
-  const server = Bun.serve({
-    port: 0,
-    async fetch(request) {
-      const body = (await request.json()) as { questions: Record<string, unknown> };
-      hits.push(Object.keys(body.questions).join(","));
-      return Response.json({
-        model: "jev-1.13.0",
-        answers: { met: { type: "noul", noul: 0.95 } },
-        usage: { input_tokens: 5, output_tokens: 1 },
-      });
-    },
-  });
-  process.env.TYPESAFE_API_KEY = "loop-fixture-key";
-  process.env.TYPESAFE_BASE_URL = "http://127.0.0.1:" + server.port;
-  try {
-    return await run(hits);
-  } finally {
-    server.stop(true);
-    delete process.env.TYPESAFE_API_KEY;
-    delete process.env.TYPESAFE_BASE_URL;
-  }
+  return await withJsonServer(
+    () => ({
+      model: "jev-1.13.0",
+      answers: { met: { type: "noul", noul: 0.95 } },
+      usage: { input_tokens: 5, output_tokens: 1 },
+    }),
+    run,
+  );
 }
 
 const scenarios: Record<string, () => Promise<unknown>> = {

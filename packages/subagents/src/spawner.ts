@@ -645,13 +645,6 @@ function applyStreamLine(state: StreamState, line: string, child?: ChildProcess)
   }
 }
 
-/** Parse the final assistant text and accumulated usage from captured stdout. */
-export function parseAgentOutput(stdout: string): { text: string; usage?: AgentUsage } {
-  const state = createStreamState();
-  for (const line of stdout.split("\n")) applyStreamLine(state, line);
-  return { text: state.text, usage: state.usage };
-}
-
 function truncate(text: string, cap: number): string {
   if (text.length <= cap) return text;
   return `${text.slice(0, cap)}\n... [truncated ${text.length - cap} chars]`;

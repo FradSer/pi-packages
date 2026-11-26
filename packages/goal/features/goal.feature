@@ -189,7 +189,7 @@ Feature: Goal records
     Then the predicate assert.ok(outcome.ok) holds for every observed invocation
     And the predicate assert.equal(outcome.goal.revision, revision + 1) holds for every observed invocation
     And the predicate assert.equal(new GoalStore({ projectRoot: root }).readObjective(id).trim(), objective, "legacy prose does not override the atomic record") holds for every observed invocation
-    And the predicate assert.equal(readFileSync(legacyGoalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched") holds for every observed invocation
+    And the predicate assert.equal(readFileSync(legacyPrompt, "utf8"), "objective the user edited by hand\n", "legacy files remain untouched") holds for every observed invocation
 
   Scenario: Goal records: one malformed record does not hide the valid ones
     Given the isolated fixtures for one malformed record does not hide the valid ones
@@ -634,7 +634,6 @@ Feature: Goal prompt replay
     And the predicate assert.equal(parseCheckVerdict("Looks done.\nMET\nActually the migration is missing.").met, false) holds for every observed invocation
     And the predicate assert.equal(parseCheckVerdict("I would say MET if the tests passed.").met, false) holds for every observed invocation
     And the predicate assert.equal(verdict.met, false) holds for every observed invocation
-    And the predicate assert.match(describeUnmet({ ...verdict }), /not met/, "and the executor is told what to do") holds for every observed invocation
     And the predicate assert.equal(parseCheckVerdict("All present.\nMET").valid, true) holds for every observed invocation
     And the predicate assert.equal(parseCheckVerdict("The tests were never written.\nNOT MET").valid, true) holds for every observed invocation
     And the predicate assert.equal( parseCheckVerdict("The required independent review evidence is missing.").valid, false, "an answer with no verdict marker is not a valid refusal", ) holds for every observed invocation
@@ -1291,8 +1290,7 @@ Feature: Simplified thread Goal lifecycle
   Scenario: Simplified thread Goal lifecycle: Given project settings When saved Then load only supported runtime controls
     Given the isolated fixtures for Given project settings When saved Then load only supported runtime controls
     When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(writeProjectSettings(f.cwd,{maxAutonomousRuns:2,provider:"fixture",model:"judge"}).ok) holds for every observed invocation
-    And the predicate assert.equal(settings.maxAutonomousRuns,2) holds for every observed invocation
+    Then the predicate assert.equal(settings.maxAutonomousRuns,2) holds for every observed invocation
     And the predicate assert.equal(settings.model,"judge") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given caller cancellation When a check returns MET Then report cancellation without ending the goal

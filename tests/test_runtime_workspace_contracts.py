@@ -316,3 +316,140 @@ def test_the_roster_describes_what_a_holder_holds_itself() -> None:
     assert 'from "./participant-registry.ts"' in text
     registry_imports = re.findall(r'from\s+"([^"]+)"', (REPO / "packages" / "subagents" / "src" / "participant-registry.ts").read_text(encoding="utf-8"))
     assert not any("pi-tasks" in spec for spec in registry_imports), registry_imports
+
+
+RUNTIME_PACKAGES = {
+    "agent-teams",
+    "btw",
+    "context",
+    "keyboard",
+    "monitor",
+    "continual-learning",
+    "goal",
+    "recap",
+    "utils",
+    "vision",
+    "skill-router",
+}
+EXPECTED_PI_VERSION = "1.5.0"
+
+
+def test_all_runtime_packages_and_kit_root_entries() -> None:
+    for package in sorted(RUNTIME_PACKAGES):
+        package_dir = REPO / "packages" / package
+        manifest = json.loads((package_dir / "package.json").read_text(encoding="utf-8"))
+        declared = manifest["pi"]["extensions"]
+        assert declared[0] == "./index.ts", package
+        assert (package_dir / "index.ts").is_file()
+        assert "index.ts" in manifest["files"]
+        for extra in declared[1:]:
+            assert extra.startswith("./node_modules/"), f"{package} names a non-bundled path: {extra}"
+            assert extra.endswith("/index.ts"), f"{package} must bundle a dependency's root index: {extra}"
+            assert (package_dir / extra.removeprefix("./")).is_file(), f"{package}: {extra} is missing"
+
+    teams_manifest = json.loads((REPO / "packages" / "agent-teams" / "package.json").read_text(encoding="utf-8"))
+    assert teams_manifest["pi"]["extensions"] == ["./index.ts", "./node_modules/@fradser/pi-subagents/index.ts"]
+    assert teams_manifest["dependencies"]["@fradser/pi-subagents"].startswith("workspace:")
+    assert "@fradser/pi-subagents" not in teams_manifest.get("peerDependencies", {})
+
+    kit_manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
+    assert "pi" not in kit_manifest
+    assert kit_manifest["exports"] == {".": "./index.ts"}
+    assert (PACKAGE / "index.ts").is_file() and "index.ts" in kit_manifest["files"]
+
+    router_manifest = json.loads((REPO / "packages" / "skill-router" / "package.json").read_text(encoding="utf-8"))
+    assert router_manifest["name"] == "pi-skill-router"
+    assert router_manifest["pi"]["extensions"] == ["./index.ts"]
+    assert "skills" not in router_manifest["pi"]
+
+
+def test_workspace_directory_names_git_agent_scopes_typecheck_and_gitignore() -> None:
+    feature = (REPO / "features" / "package-root-entry.feature").read_text(encoding="utf-8")
+    assert "Package directories use concise names independently of npm package names" in feature
+    assert "Commit scopes describe the current package layout" in feature
+
+    workspaces = load_bun_lock()["workspaces"]
+    assert workspaces["packages/continual-learning"]["dependencies"]["@fradser/pi-kit"] == "workspace:*"
+    kit_entry = workspaces["packages/kit"]
+    assert kit_entry["name"] == "@fradser/pi-kit"
+    assert set(kit_entry["devDependencies"]) == {"@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}
+    assert "dependencies" not in kit_entry
+
+    config = (REPO / ".git-agent" / "config.yml").read_text(encoding="utf-8")
+    descriptions = [line.strip() for line in config.splitlines() if line.strip().startswith("description:")]
+    current_packages = {path.name for path in (REPO / "packages").iterdir() if (path / "package.json").is_file()}
+    described_packages = {package for package in current_packages if f"packages/{package}/" in config}
+    assert described_packages == current_packages
+    scope_names = [line.strip().removeprefix("- name: ").strip() for line in config.splitlines() if line.strip().startswith("- name:")]
+    assert len(scope_names) == len(set(scope_names))
+    assert all(len(name) <= 5 for name in scope_names)
+    assert "packages/pi-continual-learning/" not in config and "packages/pi-kit/" not in config
+    assert all("packages/pi-" not in description for description in descriptions)
+    assert "live session control" in config
+
+    tsconfig = json.loads((REPO / "tsconfig.extensions.json").read_text(encoding="utf-8"))
+    assert "packages/*/src/**/*.ts" in tsconfig["include"]
+    assert "packages/*/extensions/**/*.ts" in tsconfig["include"]
+
+    runtime_sources = sorted((REPO / "packages/impeccable/scripts/lib").glob("*.mjs"))
+    assert runtime_sources
+    ignored = [
+        path.relative_to(REPO).as_posix()
+        for path in runtime_sources
+        if subprocess.run(
+            ["git", "check-ignore", "--no-index", "--quiet", path.relative_to(REPO).as_posix()],
+            cwd=REPO,
+            check=False,
+        ).returncode
+        == 0
+    ]
+    assert ignored == []
+
+
+def test_split_packages_resolve_root_development_core_and_keep_peer_contracts() -> None:
+    chain = ("kit", "subagents", "agent-teams")
+    core = ("@earendil-works/pi-coding-agent", "@earendil-works/pi-tui")
+    script = """
+      import fs from "node:fs";
+      import path from "node:path";
+      import { fileURLToPath, pathToFileURL } from "node:url";
+      const version = (from, name) => {
+        const resolved = import.meta.resolve(name, pathToFileURL(path.join(from, "package.json")).href);
+        let dir = path.dirname(fileURLToPath(resolved));
+        while (true) {
+          const file = path.join(dir, "package.json");
+          if (fs.existsSync(file)) {
+            const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+            if (manifest.name === name) return manifest.version;
+          }
+          const parent = path.dirname(dir);
+          if (parent === dir) throw new Error(`No manifest for ${name}`);
+          dir = parent;
+        }
+      };
+      const chain = %s, core = %s;
+      const root = process.cwd();
+      console.log(JSON.stringify(core.map(name => ({name, root: version(root, name),
+        packages: Object.fromEntries(chain.map(p => [p, version(path.join(root, "packages", p), name)]))}))));
+    """ % (json.dumps(chain), json.dumps(core))
+    result = subprocess.run(
+        ["node", "--experimental-import-meta-resolve", "--input-type=module", "--eval", script],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    for record in json.loads(result.stdout):
+        assert record["root"] == EXPECTED_PI_VERSION, record
+        assert set(record["packages"].values()) == {EXPECTED_PI_VERSION}, record
+
+    for package in chain:
+        manifest = json.loads((REPO / "packages" / package / "package.json").read_text())
+        for pkg_name in core:
+            assert manifest["peerDependencies"][pkg_name] == "*"
+            assert pkg_name not in manifest.get("dependencies", {})
+            assert manifest.get("devDependencies", {}).get(pkg_name) == EXPECTED_PI_VERSION, (package, pkg_name)
+    root = json.loads((REPO / "package.json").read_text())
+    for pkg_name in (*core, "@earendil-works/pi-ai"):
+        assert root["devDependencies"][pkg_name] == EXPECTED_PI_VERSION, pkg_name

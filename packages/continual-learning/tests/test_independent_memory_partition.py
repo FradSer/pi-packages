@@ -1,3 +1,4 @@
+# --- Merged from test_independent_memory_partition.py ---
 import pytest
 from support import isolated_run_bun
 LEGACY_SETUP = r'''
@@ -258,3 +259,372 @@ def test_mixed_subset_requires_complete_original_checks_and_standalone_proof(cha
         'jev-1.13.0',{allowFrozenNoopComparators:true})));
     ''')
     assert value['eligible'] == [] and value['held'] == [0,1]
+
+
+# --- Merged from test_composed_memory_partition.py ---
+from support import isolated_run_bun
+
+_m1_SETUP = BASE + r'''
+const standaloneAnswer=(label='selfContained',confidence=1)=>({type:'choice',choice:label,confidence,
+ probabilities:Object.fromEntries(['selfContained','needsOther','unresolved'].map(k=>[k,k===label?1:0]))});
+const standalone={version:1,purpose:'diagnostic-only',complete:true,model:review.model,
+ evidenceDigest:review.evidenceDigest,existingDigest:review.existingDigest,candidatesDigest:review.candidatesDigest,
+ candidates:candidates.map((candidate,index)=>({index,candidateDigest:digest(candidate),answer:standaloneAnswer()}))};
+const related=label=>({...relations,pairs:[{...relations.pairs[0],relation:label,
+ status:label==='unclear'?'uncertain':'decided',answer:answer(label)}]});
+'''
+
+
+def test_supported_complete_record_is_recovered_only_with_bound_extra_review() -> None:
+    rows = isolated_run_bun(_m1_SETUP + r'''
+      console.log(JSON.stringify(['conflict','dependent','duplicate','unclear'].map(label=>
+        partitionReviewedNewMemory(evidence,candidates,existing,review,related(label),standalone))));
+    ''')
+    assert all(row['eligible'] == [0] and row['held'] == [1] for row in rows)
+    assert all(row['writeAuthorized'] is False for row in rows)
+
+
+def test_selected_supported_pairs_still_require_independence() -> None:
+    rows = isolated_run_bun(_m1_SETUP + r'''
+      const both={...review,candidates:review.candidates.map(c=>({...c,outcome:'passed',passedChecks:checks(c.index),heldChecks:[]}))};
+      console.log(JSON.stringify(['conflict','dependent','duplicate','unclear'].map(label=>
+        partitionReviewedNewMemory(evidence,candidates,existing,both,related(label),standalone))));
+    ''')
+    assert all(row['eligible'] == [] for row in rows)
+
+
+def test_invalid_or_uncertain_extra_review_falls_back_to_original_selection() -> None:
+    value = isolated_run_bun(_m1_SETUP + r'''
+      const variants=[undefined,{...standalone,model:'jev-1.12.0'},
+        {...standalone,evidenceDigest:'stale'},{...standalone,candidates:[]},
+        {...standalone,candidates:standalone.candidates.map(c=>({...c,answer:standaloneAnswer('selfContained',.79)}))},
+        {...standalone,candidates:standalone.candidates.map(c=>({...c,answer:standaloneAnswer('needsOther')}))},
+        {...standalone,candidates:standalone.candidates.map(c=>({...c,answer:{type:'choice'}}))}];
+      console.log(JSON.stringify({old:variants.map(s=>partitionReviewedNewMemory(evidence,candidates,existing,review,relations,s)),
+        held:variants.map(s=>partitionReviewedNewMemory(evidence,candidates,existing,review,related('conflict'),s))}));
+    ''')
+    assert all(row['eligible'] == [0] for row in value['old'])
+    assert all(row['eligible'] == [] for row in value['held'])
+
+
+def test_original_invalid_proof_never_recovers_from_extra_answers() -> None:
+    value = isolated_run_bun(_m1_SETUP + r'''
+      const variants=[undefined,{...review,evidenceDigest:'stale'},
+        {...review,candidates:review.candidates.map(c=>({...c,passedChecks:[]}))}];
+      const rows=variants.map(r=>partitionReviewedNewMemory(evidence,candidates,existing,r,related('conflict'),standalone));
+      rows.push(partitionReviewedNewMemory(evidence,candidates,existing,review,{...relations,pairs:[]},standalone));
+      console.log(JSON.stringify(rows));
+    ''')
+    assert all(row['eligible'] == [] for row in value)
+
+
+def test_deletion_order_cannot_erase_another_tentative_pair_obligation() -> None:
+    value = isolated_run_bun(_m1_SETUP + r'''
+      const third={...candidates[0],name:'third.md'};
+      const all=[...candidates,third];
+      const r={...review,candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,
+        candidateDigest:digest(c),outcome:'passed',passedChecks:checks(index),heldChecks:[]}))};
+      const p={...relations,candidatesDigest:digest(all),pairs:[[0,1,'conflict'],[0,2,'dependent'],[1,2,'independent']].map(([a,b,label])=>({
+        a,b,candidateDigests:[digest(all[a]),digest(all[b])],status:'decided',relation:label,answer:answer(label)}))};
+      const s={...standalone,candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,candidateDigest:digest(c),answer:standaloneAnswer()}))};
+      console.log(JSON.stringify([partitionReviewedNewMemory(evidence,all,existing,r,p,s),
+        partitionReviewedNewMemory(evidence,all,existing,r,{...p,pairs:[...p.pairs].reverse()},s)]));
+    ''')
+    assert all(row['eligible'] == [] and row['held'] == [0, 1, 2] for row in value)
+
+
+def test_runtime_standalone_interpreter_matches_frozen_research_contract() -> None:
+    value = isolated_run_bun(_m1_SETUP + r'''
+      import {interpretStandaloneMemory as runtime} from './packages/continual-learning/extensions/jev-memory-readiness.ts';
+      import {interpretStandaloneMemory as research} from './packages/continual-learning/tests/jev-standalone-memory-research.ts';
+      const answers=['selfContained','needsOther','unresolved'].flatMap(label=>[0,.79,.8,1].map(conf=>standaloneAnswer(label,conf)));
+      answers.push(undefined,null,{}, {...standaloneAnswer(),probabilities:{selfContained:.89,needsOther:.11,unresolved:0}},
+        {...standaloneAnswer(),confidence:NaN},{...standaloneAnswer(),probabilities:{selfContained:1,needsOther:0,unresolved:0,extra:0}});
+      console.log(JSON.stringify(answers.map(a=>JSON.stringify(runtime(a))===JSON.stringify(research(a)))));
+    ''')
+    assert all(value)
+
+
+# --- Merged from test_memory_final_verification_transaction.py ---
+from support import isolated_run_bun
+
+ACTUAL_PARENT = LEGACY_SETUP + r'''
+const original={runId:'run_subset',scopeDigest:'scope',artifactHash:'snapshot',inventory:[],selected:[],operations:[],newMemories:candidates};
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {existsSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {resolveConsolidationRunPaths,acquireConsolidationLock,applyConsolidationPlan,
+ normalizeNewMemoryProposals,validatePlanIdentity} from './packages/continual-learning/extensions/consolidation-run.ts';
+import {recordLearningProposal,recordLearningMutation,memoryMutationFiles,listLearningHistory} from './packages/continual-learning/extensions/learning-history.ts';
+const cwd=join(process.env.PI_CODING_AGENT_DIR,'project');await mkdir(cwd,{recursive:true});
+execFileSync('git',['init','--quiet',cwd]);
+const paths=resolveConsolidationRunPaths(cwd,'run_subset');await mkdir(paths.runDir,{recursive:true});
+const snapshot={...evidence,schemaVersion:1,runId:'run_subset',scopeKey:paths.memory.scopeKey};
+const snapshotBytes=JSON.stringify(snapshot);await writeFile(paths.snapshotFile,snapshotBytes);
+const manifest={runId:'run_subset',scopeKey:paths.memory.scopeKey,scopeDigest:'b'.repeat(64),
+ snapshotDigest:createHash('sha256').update(snapshotBytes).digest('hex'),harnessDir:paths.memory.harnessDir,
+ publicDir:paths.memory.publicDir,sourceHashes:{harness:{},public:{}}};
+const run={manifest,paths,released:false};
+const proof={...input,evidence:snapshot,review:{...review,evidenceDigest:digest(snapshot)},pairs:[{...pair,evidenceDigest:digest(snapshot)}]};
+const plan={...original,scopeDigest:manifest.scopeDigest,artifactHash:manifest.snapshotDigest};
+const lock=await acquireConsolidationLock(paths,{runId:'run_subset',cwd});
+const actualParent={applyChanges:true,
+ persistOriginal:plan=>recordLearningProposal(cwd,'memory',plan),
+ validateSubset:async plan=>{
+   const errors=validatePlanIdentity(plan,manifest);if(errors.length)throw Error(errors.join(';'));
+   normalizeNewMemoryProposals(plan,snapshot,[]);
+ },
+ applySubset:async plan=>recordLearningMutation(cwd,'memory',memoryMutationFiles(cwd,plan.newMemories.map(c=>c.name)),
+  ()=>applyConsolidationPlan(run,plan,()=>{activeChecks++;if(activeChecks===3)observedFirstWrite=existsSync(join(manifest.harnessDir,'tools.md'));return activeChecks<cancelAt;}),plan)};
+let activeChecks=0,observedFirstWrite=false;
+'''
+
+
+def test_final_verification_rejection_and_cancellation_roll_back_real_writes() -> None:
+    for mode in ['reject', 'cancel']:
+        value = isolated_run_bun(ACTUAL_PARENT + r'''
+          const cancelAt=Infinity;
+          const subset={...plan,newMemories:[plan.newMemories[0]]};
+          await recordLearningProposal(cwd,'memory',plan);
+          let active=true,observed=false,error;
+          try {
+            await recordLearningMutation(cwd,'memory',memoryMutationFiles(cwd,['tools.md']),
+              ()=>applyConsolidationPlan(run,subset,()=>active,async applied=>{
+                observed=existsSync(join(manifest.harnessDir,'tools.md')) && existsSync(join(manifest.publicDir,'tools.md'))
+                  && existsSync(join(manifest.harnessDir,'MEMORY.md')) && applied.created[0]==='tools.md';
+                await Promise.resolve();
+                if (MODE==='reject') throw Error('Final receipt rejected');
+                active=false;
+              }),subset);
+          } catch(e) {error=e.message;} finally {await lock.release();}
+          console.log(JSON.stringify({observed,error,privateRootExists:existsSync(manifest.harnessDir),
+            publicRootExists:existsSync(manifest.publicDir),history:await listLearningHistory(cwd)}));
+        '''.replace('MODE', repr(mode)))
+        assert value['observed'] is True
+        assert 'rejected' in value['error'] if mode == 'reject' else 'cancelled' in value['error']
+        assert value['privateRootExists'] is False and value['publicRootExists'] is False
+        assert len(value['history']) == 1 and value['history'][0]['status'] == 'proposed'
+        assert len(value['history'][0]['proposal']['newMemories']) == 2
+
+
+# --- Merged from test_independent_memory_parent_pipeline.py ---
+from pathlib import Path
+import re
+import pytest
+from typing import Any
+from support import run_bun_script
+
+FIXTURE = Path(__file__).with_name('learning-policy-harness.ts')
+
+
+def run_case(reason: str, model: str = 'jev-1.13.0') -> dict[str, Any]:
+    return run_bun_script(FIXTURE, 'remember-subset', env={'CL_JEV_FIXTURE': reason, 'CL_JEV_MODEL': model})
+
+
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_parent_applies_supported_original_subset_and_preserves_all_original_intent(model: str) -> None:
+    value = run_case('subset-independent', model)
+    assert value['relationValidations'] == 1
+    assert {'tools.md', 'license.md'} <= set(value['privateFiles'])
+    assert {'tools.md', 'license.md'} <= set(value['publicFiles'])
+    assert 'cache.md' not in value['privateFiles'] and 'cache.md' not in value['publicFiles']
+    assert value['registryReceipt']['operations'] == 2
+    assert any(a['outcome'] == 'applied' and a.get('pendingOperations') == 1 for a in value['registryReceipt']['attempts'])
+    preserved = [r['proposal'] for r in value['history'] if r['status'] == 'proposed' and r.get('proposal', {}).get('kind') == 'independent-memory-review']
+    assert len(preserved) == 1
+    assert [m['name'] for m in preserved[0]['originalPlan']['newMemories']] == ['tools.md', 'cache.md', 'license.md']
+    assert preserved[0]['eligibleIndexes'] == [0, 2] and preserved[0]['heldIndexes'] == [1]
+    assert value['requestCaptured'] and value['agentsUnchanged'] and not value['harnessExists'] and not value['lock']
+
+
+def test_partial_success_does_not_skip_the_bounded_correction() -> None:
+    # Given one held claim alongside independently supported knowledge, When
+    # correction removes its unsupported generalization, Then review the entire
+    # corrected plan before any partial application can end the learning run.
+    value = run_case('subset-repair-complete')
+    assert value['semanticRepairs'] == 1
+    assert value['registryReceipt']['operations'] == 3
+    assert {'tools.md', 'cache.md', 'license.md'} <= set(value['privateFiles'])
+    assert not any(a.get('pendingOperations') for a in value['registryReceipt']['attempts'])
+
+
+def test_failed_correction_retains_original_subset_and_accounts_for_its_writes() -> None:
+    value = run_case('subset-repair-invalid')
+    assert value['semanticRepairs'] == 1
+    assert value['registryReceipt']['operations'] == 2
+    attempts = value['registryReceipt']['attempts']
+    assert any(a['attempt'] == 0 and a['outcome'] == 'applied'
+               and a['operations'] == 2 and a['pendingOperations'] == 1 for a in attempts)
+    assert any(a['attempt'] == 1 and a['outcome'] == 'failed' and a['operations'] == 0 for a in attempts)
+    assert 'cache.md' not in value['privateFiles']
+
+
+def test_original_subset_cannot_borrow_the_corrected_plans_retention_gate() -> None:
+    # Given original unchanged knowledge was held, When a still-held correction
+    # touches it, Then its absence from the corrected retained set does not clear
+    # the original plan's independent-application gate.
+    value = run_case('subset-retention-fallback')
+    assert value['semanticRepairs'] == 1
+    assert value['registryReceipt']['operations'] == 0
+    assert not ({'tools.md', 'license.md', 'cache.md'} & set(value['privateFiles']))
+    assert any(r['status'] == 'proposed' for r in value['history'])
+
+
+def test_structurally_repaired_subset_is_not_credited_to_rejected_initial_attempt() -> None:
+    value = run_case('structural-subset-repair-invalid')
+    assert value['registryReceipt']['operations'] == 2
+    attempts = [a for a in value['registryReceipt']['attempts'] if a['phase'] == 'memory']
+    assert any(a['attempt'] == 0 and a['operations'] == 0 and a['outcome'] == 'rejected' for a in attempts)
+    assert any(a['attempt'] == 1 and a['operations'] == 2 and a['outcome'] == 'applied' for a in attempts)
+    assert any(a['attempt'] == 2 and a['operations'] == 0 and a['outcome'] == 'failed' for a in attempts)
+
+
+def test_unrepairable_name_collision_does_not_spend_a_correction_or_review_call() -> None:
+    value = run_case('subset-name-collision')
+    assert value['totalRepairs'] == 0
+    assert value['jevValidations'] == []
+    assert value['registryReceipt']['operations'] == 0
+    assert 'cache.md' in value['privateFiles']
+    assert not ({'tools.md', 'license.md'} & set(value['privateFiles']))
+    assert any(r['status'] == 'proposed' for r in value['history'])
+
+
+def test_cancelled_collision_does_not_append_a_proposal_from_the_old_run() -> None:
+    value = run_case('subset-name-collision-cancel')
+    assert value['totalRepairs'] == 0
+    assert value.get('registryReceipt', {}).get('operations', 0) == 0
+    assert not any(r['status'] == 'proposed' for r in value['history'])
+    assert not value['lock']
+
+
+def test_uncertain_unavailable_and_default_gate_keep_original_proposal_without_subset_writes() -> None:
+    for reason in ['subset-uncertain', 'subset-unavailable', 'subset-disabled']:
+        value = run_case(reason)
+        assert value['registryReceipt']['operations'] == 0
+        assert 'tools.md' not in value['privateFiles'] and 'license.md' not in value['privateFiles']
+        assert any(r['status'] == 'proposed' for r in value['history'])
+        assert value['relationValidations'] == (0 if reason == 'subset-disabled' else 1)
+        assert value['requestCaptured'] and not value['harnessExists']
+
+
+def test_preservation_failure_and_evidence_tamper_prevent_all_subset_writes() -> None:
+    for reason in ['subset-preservation-fails', 'subset-tamper-queue']:
+        value = run_case(reason)
+        assert value['registryReceipt']['operations'] == 0
+        assert 'tools.md' not in value['privateFiles'] and 'license.md' not in value['publicFiles']
+        assert any(a['outcome'] == 'failed' for a in value['registryReceipt']['attempts'])
+        assert value['summarySubject'] in {'finished with issues: memory failed', 'finished with issues: memory rejected'}
+        assert not value['lock']
+
+
+def test_final_validator_failure_rolls_back_written_subset_and_preserves_original_proposal() -> None:
+    value = run_case('subset-final-validator-fails')
+    assert value['finalVerificationObservedWrites'] is True
+    assert value['memoryFilesRestored'] is True
+    assert value['registryReceipt']['operations'] == 0
+    assert not ({'tools.md', 'license.md', 'cache.md'} & set(value['privateFiles']))
+    assert not ({'tools.md', 'license.md', 'cache.md'} & set(value['publicFiles']))
+    assert value['newAppliedHistoryRecords'] == 0
+    assert any(r.get('proposal', {}).get('kind') == 'independent-memory-review' for r in value['history'])
+    assert value['summarySubject'] == 'finished with issues: memory failed' and not value['lock']
+
+
+def test_composed_parent_recovers_only_supported_records_and_preserves_full_proposal() -> None:
+    value = run_case('subset-composed')
+    assert value['registryReceipt']['operations'] == 2
+    assert {'tools.md', 'license.md'} <= set(value['privateFiles'])
+    assert 'cache.md' not in value['privateFiles']
+    preserved = [r['proposal'] for r in value['history'] if r.get('proposal', {}).get('kind') == 'independent-memory-review']
+    assert len(preserved) == 1
+    assert preserved[0]['eligibleIndexes'] == [0, 2] and preserved[0]['heldIndexes'] == [1]
+    assert len(preserved[0]['originalPlan']['newMemories']) == 3
+    assert any(a.get('jev', {}).get('strategy') == 'standalone-memory' and a['outcome'] == 'noop' for a in value['registryReceipt']['attempts'])
+    assert any(a['outcome'] == 'applied' and a.get('pendingOperations') == 1 for a in value['registryReceipt']['attempts'])
+    assert value['agentsUnchanged'] and not value['harnessExists'] and not value['lock']
+
+
+def test_composed_proof_without_parent_gate_cannot_change_original_selection() -> None:
+    value = run_case('subset-composed-default')
+    assert value['registryReceipt']['operations'] == 0
+    assert not ({'tools.md', 'license.md', 'cache.md'} & set(value['privateFiles']))
+    assert not value['harnessExists'] and value['agentsUnchanged']
+
+
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_production_pipeline_keeps_verified_independent_knowledge_available_to_next_task(model: str) -> None:
+    value = run_case('subset-production', model)
+    assert value['registryReceipt']['operations'] == 2
+    assert value['relationValidations'] == 1
+    assert value['productionJudgeOptions']['independentMemoryApplication'] is True
+    assert value['productionJudgeOptions']['composedMemoryApplication'] is True
+    assert any(a.get('pendingOperations') == 1 for a in value['registryReceipt']['attempts'])
+    delivered = [item for hook in value['nextMemory'] for item in hook.get('message', {}).get('details', {}).get('retrieved', [])]
+    # The user-requested discovery contract exposes filenames, not bodies.
+    # Independent admitted facts remain discoverable; the held fact stays absent.
+    assert delivered == []
+    assert all(hook['result'] is None for hook in value['nextMemory'])
+    indexed = {name for hook in value['nextMemory'] for name in
+               re.findall(r'^- ([^\n]+?\.md)(?: — |$)', hook['systemPromptOptions']['sections'].get('project_memory_discovery', ''), re.MULTILINE)}
+    assert indexed == {'tools.md', 'license.md'}
+    assert all('cache.md' not in str(hook) for hook in value['nextMemory'])
+    assert any(record.get('proposal', {}).get('heldIndexes') == [1] for record in value['history'])
+
+
+def test_verified_repair_subset_is_applied_and_keeps_unresolved_work_pending() -> None:
+    # Given a source-backed npm-to-pnpm correction, When full review admits only a
+    # subset, Then apply that subset and preserve the still-held original work.
+    value = run_case('subset-production-after-repair')
+    assert value['registryReceipt']['operations'] == 2
+    assert value['relationValidations'] == 1
+    assert value['semanticRepairs'] == 1
+    assert value['repairableFieldsReceived']['fields']['tools.md'] == ['body', 'description']
+    assert 'tools.md' in value['repairableFieldsReceived']['names']
+    assert {'tools.md', 'license.md'} <= set(value['privateFiles'])
+    assert 'cache.md' not in value['privateFiles']
+    assert any(a['attempt'] == 1 and a['outcome'] == 'applied' and a.get('pendingOperations') == 1
+               for a in value['registryReceipt']['attempts'])
+    assert any(r.get('proposal', {}).get('heldIndexes') == [1] for r in value['history'])
+
+
+def test_cancellation_during_relationship_review_stops_after_bounded_repair_without_writes() -> None:
+    value = run_case('subset-cancel-relations')
+    assert value.get('registryReceipt', {}).get('operations', 0) == 0
+    assert value['semanticRepairs'] == 1
+    assert not ({'tools.md', 'license.md', 'cache.md'} & set(value['privateFiles']))
+    assert not value['lock']
+
+
+def test_whole_held_proposal_binds_diagnostics_to_its_exact_original_plan() -> None:
+    # Given a held whole plan after bounded correction, When preserving it,
+    # Then parent diagnostics bind that exact plan rather than a later repair.
+    import hashlib
+    import json
+    value = run_case('subset-disabled')
+    proposals = [r['proposal'] for r in value['history'] if r['status'] == 'proposed'
+                 and r.get('proposal', {}).get('kind') == 'independent-memory-review']
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    expected = hashlib.sha256(json.dumps(proposal['originalPlan'], ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+    assert proposal['reviewedPlanDigest'] == expected
+    assert proposal['eligibleIndexes'] == []
+    assert proposal['heldIndexes'] == list(range(len(proposal['originalPlan']['newMemories'])))
+    assert isinstance(proposal['candidateFailures'], list)
+    assert value['registryReceipt']['operations'] == 0
+
+
+def test_subset_audit_history_does_not_invalidate_selected_memory_origin() -> None:
+    value = run_bun_script(FIXTURE, 'remember-subset', env={'CL_JEV_FIXTURE': 'subset-independent', 'CL_MEMORY_ORIGIN': '1'})
+    assert value['registryReceipt']['operations'] == 2, value['registryReceipt']
+    assert {'known.md', 'tools.md', 'license.md'} <= set(value['privateFiles'])
+    assert 'cache.md' not in value['privateFiles']
+    preserved = [r['proposal'] for r in value['history'] if r.get('proposal', {}).get('kind') == 'independent-memory-review']
+    assert len(preserved) == 1
+    assert preserved[0]['eligibleIndexes'] == [0, 2] and preserved[0]['heldIndexes'] == [1]
+    assert not value['lock']
+
+
+def test_cancelled_deferred_history_failure_keeps_the_only_complete_audit() -> None:
+    value = run_bun_script(FIXTURE, 'remember-subset', env={'CL_JEV_FIXTURE': 'subset-independent', 'CL_MEMORY_ORIGIN': '1', 'CL_ORIGIN_AUDIT_FAIL': 'cancel'})
+    assert value['originAuditArtifacts'], value
+    assert not value['lock']

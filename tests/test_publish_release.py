@@ -485,10 +485,20 @@ def test_workflow_uses_node_24_compatible_actions() -> None:
     assert "npm install --global npm@^11.5.1" in workflow
 
 
-def test_publish_allowlist_includes_skill_router() -> None:
+def test_publish_allowlist_covers_every_workspace_package_and_skill_router() -> None:
     assert '"pi-skill-router"' in SCRIPT
     assert '"pi-mattpocock"' not in SCRIPT
     assert '"pi-marketingskills"' not in SCRIPT
+    import re
+    match = re.search(r"PUBLISH_SCOPE\s*=\s*Object\.freeze\(\[(.*?)\]\)", SCRIPT, re.S)
+    assert match, "PUBLISH_SCOPE not found in scripts/publish-release.mjs"
+    scope = re.findall(r'"([^"]+)"', match.group(1))
+    workspace_names = {
+        json.loads(manifest.read_text(encoding="utf-8"))["name"]
+        for manifest in sorted((REPO / "packages").glob("*/package.json"))
+    }
+    assert [name for name in scope if name not in workspace_names] == []
+    assert sorted(workspace_names - set(scope)) == []
 
 
 def test_publish_script_verifies_packed_manifest_before_publishing() -> None:

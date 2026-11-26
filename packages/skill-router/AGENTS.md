@@ -34,18 +34,7 @@ gate, installs a collection through the router, and runs both scripted end-to-en
 assemblies (`tests/skill_router_e2e.py` with `tests/skill_router_e2e_fixture.ts`).
 The image must provide the runtimes the suite declares: Bun 1.4.1 (one registry test
 uses `bun -e`) and a warmed corepack (one lock test shells out to `bun x tsx`
-under a 20-second budget). `tests/docker-acceptance-evidence.md` records the run and
-what those requirements cost when they are missing.
-
-Records kept beside the tests:
-
-- `tests/review-codemode-skill-tools.md` — the review brief, every candidate
-  fingerprint, each finding's disposition, and the mutations that showed the new
-  tests can fail.
-- `tests/terminal-row-evidence.md` — the interactive-terminal check of the tool
-  result row and its scope.
-- `tests/docker-acceptance-evidence.md` — the container acceptance and the runtime
-  requirements it exposed.
+under a 20-second budget).
 
 ## Structure and Invariants
 

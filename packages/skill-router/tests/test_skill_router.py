@@ -1028,3 +1028,59 @@ def test_registry_reuse_is_keyed_on_file_identity(tmp_path: Path) -> None:
     assert data["afterRestore"] == ["one"]
     assert data["afterSave"] == ["one", "two"], "a registry written through the module is seen"
     assert data["afterEdit"] == ["three"], "an in-place edit is seen"
+
+
+def test_routing_appends_guidelines_and_ignores_custom_runs(installed_collection) -> None:
+    """Given installed routes, When runs start, Then only user matches add a guideline."""
+    agent_dir = installed_collection["agent_dir"]
+    user = run_harness(agent_dir, "route", "please diagnose this bug")
+    assert user["ok"], user
+    assert user["promptGuidelines"] == ["existing guideline"]
+    assert user["sections"]["other"] == "retained"
+    assert "bug-diagnosis" in user["sections"]["skill_router"]
+    custom = run_harness(agent_dir, "route-custom")
+    assert custom["ok"], custom
+    assert custom["promptGuidelines"] == ["existing guideline"]
+    assert custom["message"] is None
+
+
+@pytest.mark.parametrize("mode", ["escape-auth", "external-auth", "escape-model", "external-model"])
+def test_loading_cancellation_does_not_wait_for_external_operation(tmp_path: Path, mode: str) -> None:
+    result = subprocess.run(
+        ["node", "--import", "tsx", str(PACKAGE / "tests/loading_cancellation_harness.mjs"), mode, str(tmp_path)],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["pre-aborted", "auth-cancel", "model-reject", "model-resolve", "provider-abort", "collection-auth-cancel"],
+)
+def test_summary_cancellation_never_becomes_a_fallback_success(mode: str) -> None:
+    result = subprocess.run(
+        ["node", "--import", "tsx", str(PACKAGE / "tests/summary_cancellation_harness.mjs"), mode],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["release", "cancel", "permission", "unknown-owner-error", "pre-aborted", "overlay"],
+)
+def test_collection_lock_wait_is_responsive_and_cancellable(tmp_path: Path, mode: str) -> None:
+    result = subprocess.run(
+        ["bun", "x", "tsx", str(PACKAGE / "tests/lock_wait_harness.mts"), mode, str(tmp_path / "registry")],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

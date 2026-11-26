@@ -517,4 +517,50 @@ else:
         saved = json.loads((Path(reviewed['globalRecord']) / 'task.json').read_text())
         self.assertEqual(expected_template, saved['reviewedPolicy']['digest'])
 
+SDLC_REPO = Path(__file__).resolve().parents[3]
+SDLC_PACKAGE = SDLC_REPO / 'packages/sdlc'
+CONTRACT_SCENARIOS = (
+    'playbook-guard', 'format', 'correction', 'settlement', 'interrupt',
+    'custom', 'custom-continuation', 'unsafe', 'markers', 'lock',
+    'bounded', 'crlf', 'shutdown', 'error', 'recovered-error',
+    'carriage-return', 'raw-input', 'steer', 'extension-input',
+    'queued-input', 'session-isolation', 'streaming-error', 'global-events',
+)
+
+
+class ContractAndNativeTests(unittest.TestCase):
+    def _run_contract(self, scenario: str) -> None:
+        runner = ['bun'] if shutil.which('bun') else ['node', '--import', 'tsx']
+        result = subprocess.run([*runner, str(SDLC_PACKAGE / 'tests/contracts.mts'), scenario],
+                                cwd=SDLC_REPO, text=True, capture_output=True, timeout=25)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_non_git_probe_does_not_leak_git_stderr(self) -> None:
+        runner = ['bun'] if shutil.which('bun') else ['node', '--import', 'tsx']
+        with tempfile.TemporaryDirectory(prefix='sdlc-nongit-') as tmp:
+            result = subprocess.run([*runner, str(SDLC_PACKAGE / 'tests/non-git-probe.mts'), tmp],
+                                    cwd=SDLC_REPO, text=True, capture_output=True, timeout=25)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn('fatal: not a git repository', result.stderr)
+
+    def test_packed_package_in_native_pi_print_and_rpc(self) -> None:
+        script = Path(__file__).with_name('live_sdlc.py')
+        with tempfile.TemporaryDirectory(prefix='sdlc-native-') as tmp:
+            output = Path(tmp) / 'native'
+            result = subprocess.run([sys.executable, str(script), '--output', str(output)],
+                                    cwd=SDLC_REPO, text=True, capture_output=True, timeout=150)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            report = json.loads((output / 'report.json').read_text())
+        self.assertEqual(report['status'], 'passed')
+        self.assertEqual([case['case'] for case in report['cases']], ['fresh', 'correction', 'abort', 'pipeline'])
+
+
+for _scenario in CONTRACT_SCENARIOS:
+    def _make_contract_test(name: str):
+        def _test(self: ContractAndNativeTests) -> None:
+            self._run_contract(name)
+        return _test
+    setattr(ContractAndNativeTests, f"test_sdlc_contract_{_scenario.replace('-', '_')}", _make_contract_test(_scenario))
+
+
 if __name__=='__main__': unittest.main()

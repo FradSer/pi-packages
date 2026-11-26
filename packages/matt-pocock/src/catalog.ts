@@ -47,15 +47,6 @@ export function resourcePath(definition: ProcedureDefinition): string {
   return `${packageDirectory}${resourceDirectories[definition.kind]}${definition.file}`;
 }
 
-/** Absolute directory holding every resource of one kind, so a reader can list them. */
-export function resourceDirectory(kind: ProcedureKind): string {
-  return `${packageDirectory}${resourceDirectories[kind]}`;
-}
-
-export function catalogFiles(): string[] {
-  return procedureCatalog.map((definition) => definition.file);
-}
-
 export function findProcedure(id: string): ProcedureDefinition | undefined {
   return definitionsById.get(normalizeProcedureId(id));
 }

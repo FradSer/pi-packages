@@ -2632,24 +2632,6 @@ export function settleSupersededWork(replaced: readonly Task[], replacementId: s
   return replaced.map((task) => task.id);
 }
 
-/** React to a task creation in the internal domain.
- *
- * This is the whole of the leader's response to a task set transition: settle what
- * the supersession displaced, offer the new task to idle residents, and refresh
- * what the console shows. It arrives as an event rather than a call so
- * The domain never has to know a resident exists.
- */
-export function onTaskCreated(input: { id: string; replaced?: string[] }): void {
-  const replaced = (input.replaced ?? []).map((id) => getState().tasks[id]).filter(Boolean) as Task[];
-  if (replaced.length > 0) settleSupersededWork(replaced, input.id);
-  publishStateSnapshot();
-  // Creation is a user-visible boundary: an idle resident should not have to
-  // wait for a later poll tick to see new work.
-  wakeIdleTeammates(input.id);
-  publishStateSnapshot();
-  notifyChange();
-}
-
 /** A task was taken.
  *
  * This is where a re-take invalidates a verification gate left over from the

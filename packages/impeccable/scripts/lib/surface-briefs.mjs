@@ -3,8 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { slugFromTarget } from './target-slug.mjs';
 
-export const SURFACE_BRIEF_VERSION = 1;
-
 export function getSurfaceBriefDir(projectRoot) {
   return path.join(projectRoot, '.impeccable', 'surfaces');
 }

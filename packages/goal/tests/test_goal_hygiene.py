@@ -362,7 +362,7 @@ def test_removed_dead_surface_stays_removed() -> None:
     were dead but fails if one returns.
     """
     code = _code([path.read_text(encoding="utf-8") for path in _typescript_sources()])
-    for name in ("openGoals", "unfocus", "markInterrupted", "emptyGoal"):
+    for name in ("openGoals", "unfocus", "markInterrupted", "emptyGoal", "describeUnmet", "legacyGoalPromptPath", "writeProjectSettings"):
         assert not re.search(rf"\b{re.escape(name)}\b", code), (
             f"{name} was removed as dead surface and is present again"
         )

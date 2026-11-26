@@ -177,9 +177,3 @@ export async function runCompletionCheck(options: RunCheckOptions): Promise<Chec
   }
   return { ...parsed, usage: result.usage, model: options.model };
 }
-
-/** What the executor is told when its request is refused. */
-export function describeUnmet(verdict: CheckVerdict): string {
-  if (verdict.error) return `The completion check did not finish: ${verdict.error}`;
-  return `The completion check says the goal is not met.\n${verdict.report}`;
-}

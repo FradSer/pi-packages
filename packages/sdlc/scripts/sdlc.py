@@ -713,7 +713,6 @@ def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | No
                 while not parent.exists():
                     parent = parent.parent
                 require(workspace_root(parent) == cwd, 'Write into another Git worktree is not allowed by the SDLC guard')
-                relative = str(target.relative_to(cwd))
                 if state['stage'] in ('intent', 'design', 'plan'):
                     raise ValueError('Approve the implementation plan before editing worktree files; use the sdlc document action for SDLC documents')
         return {'passed': True}
@@ -721,9 +720,6 @@ def execute(cwd: Path, action: str, args: dict[str, Any], *, tool_cwd: Path | No
         if os.environ.get('SDLC_HOME', '').strip():
             global_home(create=False)
         return {**state, 'workspace': str(cwd), 'currentDigest': binding(cwd, state['stage'])}
-    if action == 'handoff':
-        valid_doc(cwd, 'HANDOFF.md')
-        return {'passed': True, 'digest': digest(doc(cwd, 'HANDOFF.md'))}
     if action == 'rewind':
         stage = args.get('stage')
         require(stage in STAGES and STAGES.index(stage) < STAGES.index(state['stage']), 'Rewind must name an earlier stage')

@@ -188,23 +188,25 @@ def test_complete_and_cancel_persist_explicit_terminal_records_and_disable_activ
 
 def test_latest_record_restores_active_and_respects_terminal_state() -> None:
     result = run_typescript("""
-        import { latestWorkflowRecord, latestWorkflowState } from "./packages/matt-pocock/src/workflow.ts";
+        import { latestWorkflowRecord } from "./packages/matt-pocock/src/workflow.ts";
         const active = { version: 1, workItemId: "work-1", route: "hard-bug", procedure: "diagnosing-bugs", phase: "feedback-loop", status: "active", loadedReferences: [] };
         const terminal = { version: 1, workItemId: "work-1", route: "hard-bug", procedure: "diagnosing-bugs", phase: "feedback-loop", status: "completed" };
         const entry = (data) => ({ type: "custom", customType: "matt-pocock-workflow", data });
         console.log(JSON.stringify({
           activeRecord: latestWorkflowRecord([entry(active)]),
-          activeState: latestWorkflowState([entry(active)]),
           terminalRecord: latestWorkflowRecord([entry(active), entry(terminal)]),
-          terminalState: latestWorkflowState([entry(active), entry(terminal)]) ?? null,
         }));
     """)
-    # The live state is the record with the delivery default applied, so a record
-    # written before delivery tracking still reads as a complete state.
-    assert result["activeState"] == {**result["activeRecord"], "deliveredProcedures": []}
-    assert result["activeState"]["status"] == "active"
+    assert result["activeRecord"] == {
+        "version": 1,
+        "workItemId": "work-1",
+        "route": "hard-bug",
+        "procedure": "diagnosing-bugs",
+        "phase": "feedback-loop",
+        "status": "active",
+        "loadedReferences": [],
+    }
     assert result["terminalRecord"]["status"] == "completed"
-    assert result["terminalState"] is None
 
 
 def test_session_start_restores_active_record_but_not_terminal_record() -> None:
@@ -556,7 +558,7 @@ def test_ask_shows_decision_metadata_inline() -> None:
 
 def test_native_macos_dialog_environment_guards() -> None:
     result = run_typescript("""
-        import { isNativeDialogSupported, macosPrompt } from "./packages/matt-pocock/src/native-dialog.ts";
+        import { isNativeDialogSupported, macosInputDialog } from "./packages/matt-pocock/src/native-dialog.ts";
 
         const checks = {
           linux: isNativeDialogSupported({ platform: "linux", env: {} }),
@@ -571,21 +573,21 @@ def test_native_macos_dialog_environment_guards() -> None:
 
         let linuxError = false;
         try {
-          await macosPrompt({ message: "Test" }, { platform: "linux", env: {} });
+          await macosInputDialog({ prompt: "Test" }, { platform: "linux", env: {} });
         } catch {
           linuxError = true;
         }
 
         let sshError = false;
         try {
-          await macosPrompt({ message: "Test" }, { platform: "darwin", env: { SSH_CONNECTION: "true" } });
+          await macosInputDialog({ prompt: "Test" }, { platform: "darwin", env: { SSH_CONNECTION: "true" } });
         } catch {
           sshError = true;
         }
 
         let buttonLimitError = false;
         try {
-          await macosPrompt({ message: "Test", buttons: ["1", "2", "3", "4"] }, { platform: "darwin", env: {} });
+          await macosInputDialog({ prompt: "Test", buttons: ["1", "2", "3", "4"] }, { platform: "darwin", env: {} });
         } catch {
           buttonLimitError = true;
         }
@@ -738,3 +740,1250 @@ def test_session_start_never_deactivates_the_gateway_tool() -> None:
     assert "matt_pocock_workflow" in result["afterComplete"]
     assert "matt_pocock_active" not in result["afterComplete"]
     assert "matt_pocock_ask" not in result["afterComplete"]
+
+
+# ── test_lifecycle_titles.py ──
+"""Render real gateway results: phase titles belong in rows, ids in state."""
+
+
+import pytest
+
+from matt_pocock_helpers import PACKAGE, RUNTIME_HARNESS, run_typescript
+
+PHASE_TITLES = {
+    "shaping": "Shaping & Requirements",
+    "research": "Research & Feasibility",
+    "prototype": "Prototyping",
+    "to-spec": "Specification Design",
+    "to-tickets": "Task Decomposition",
+    "implement": "Implementation",
+    "code-review": "Code Review",
+    "handoff": "Handoff & Summary",
+    "mapping": "Initiative Mapping",
+    "triage": "Task Triage",
+    "feedback-loop": "Reproducing & Diagnostics",
+    "survey": "Architecture Survey",
+    "design-review": "Architecture Design",
+}
+ROUTES = ("idea-to-ship", "wayfinding", "triage", "hard-bug", "architecture")
+
+
+@pytest.fixture(scope="module")
+def lifecycle_results() -> dict[str, object]:
+    return run_typescript(RUNTIME_HARNESS + """
+        import { workflowRoutes, workflowDefinitions, workflowPlacement } from "./packages/matt-pocock/src/catalog.ts";
+        import { visibleWidth } from "@earendil-works/pi-tui";
+        const r = runtime(["bash", "matt_pocock_workflow"]);
+        const { tools, events, renderers, entries, ctx } = r;
+        const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
+        const gateway = tools.get("matt_pocock_workflow"), active = tools.get("matt_pocock_active");
+        const execute = (tool, args) => tool.execute("test", args, undefined, undefined, ctx);
+        const render = (tool, result, expanded = false, width = 160) => tool.renderResult(
+          result, { expanded, isPartial: false }, theme, { isError: false, args: {} },
+        ).render(width);
+        const restore = (state) => events.get("session_start")({}, {
+          ...ctx, sessionManager: { getBranch: () => [{ type: "custom", customType: "matt-pocock-workflow", data: state }] },
+        });
+        const starts = [], phases = [], transitions = [], terminals = [];
+        for (const { route, title: routeTitle } of workflowRoutes()) {
+          const started = await execute(gateway, { mode: "workflow", route });
+          starts.push({ route, routeTitle, details: started.details, rows: render(gateway, started), expanded: render(gateway, started, true) });
+          await execute(active, { action: "cancel", reason: "test reset" });
+          for (const definition of workflowDefinitions(route)) {
+            const placement = workflowPlacement(route, definition.id);
+            const state = {
+              version: 1, workItemId: `test-${route}-${definition.id}`, route,
+              procedure: definition.id, phase: placement.phase, status: "active", loadedReferences: [],
+            };
+            await restore(state);
+            const restored = r.deliveries().at(-1);
+            phases.push({
+              route, routeTitle, state, restored,
+              rows: renderers.get("matt-pocock-procedure")(restored.message, { expanded: false }, theme).render(160),
+              expanded: renderers.get("matt-pocock-procedure")(restored.message, { expanded: true }, theme).render(160),
+            });
+            for (const target of placement.allowedNext) {
+              await restore(state);
+              const result = await execute(active, { action: "transition", target });
+              transitions.push({ route, routeTitle, details: result.details, rows: render(active, result), expanded: render(active, result, true) });
+            }
+            for (const action of ["complete", "cancel"]) {
+              await restore(state);
+              const result = await execute(active, action === "cancel" ? { action, reason: "test cancellation" } : { action });
+              const status = action === "complete" ? "completed" : "cancelled";
+              // Old persisted subjects must not override the event's recorded phase on reload.
+              const historical = { ...result, details: { ...result.details, subject: `${route} ${status}` } };
+              const narrow = render(active, result, false, 48);
+              terminals.push({
+                route, routeTitle, action, before: state, details: result.details,
+                record: entries.at(-1).data, content: result.content, activeTools: [...r.active()],
+                rows: render(active, result), expanded: render(active, result, true), historicalRows: render(active, historical),
+                narrowBounded: narrow.every((line) => !line.includes("\\n") && visibleWidth(line) <= 48),
+                result, historical,
+              });
+            }
+          }
+        }
+        await execute(gateway, { mode: "workflow", route: "architecture" });
+        const cancelled = terminals.find((item) => item.action === "cancel").historical;
+        const cancellationsWithoutReason = [undefined, "", " \\t\\r\\n ", "\\u001b[31m\\u001b[0m", "\\u001b]52;c;QUJD\\u0007"].map((reason) => {
+          const historical = { ...cancelled, details: { ...cancelled.details, state: { ...cancelled.details.state, reason } } };
+          return { reason: reason ?? null, rows: render(active, historical), expanded: render(active, historical, true) };
+        });
+        // Rerender after another work item starts: never consult mutable active state.
+        for (const item of terminals) {
+          const snapshot = JSON.stringify(item.result);
+          item.rerenderedRows = render(active, item.result);
+          item.rerenderedExpanded = render(active, item.result, true);
+          item.historicalRows = render(active, item.historical);
+          item.historicalExpanded = render(active, item.historical, true);
+          item.unchangedAfterRender = snapshot === JSON.stringify(item.result);
+          delete item.result; delete item.historical;
+        }
+        const historicalTransitions = transitions.map((item) => {
+          const historical = { content: [], details: { ...item.details, subject: `${item.route} · old phase title` } };
+          return { ...item, rows: render(active, historical), expanded: render(active, historical, true) };
+        });
+        const loaded = await execute(active, { action: "load", reference: "HTML-REPORT" });
+        const standalone = await execute(gateway, { mode: "capability", capability: "research" });
+        const reference = await execute(gateway, { mode: "reference", capability: "writing-for-agents", reference: "SKILL-MECHANICS" });
+        console.log(JSON.stringify({
+          starts, phases, transitions, terminals, historicalTransitions, cancellationsWithoutReason,
+          nonWorkflow: Object.fromEntries([
+            ["loaded", active, loaded], ["standalone", gateway, standalone], ["reference", gateway, reference],
+            ["fallback", active, { content: [{ type: "text", text: "Model-only guidance" }], details: { model: "model-only metadata" } }],
+          ].map(([name, tool, result]) => [name, {
+            rows: render(tool, result), expanded: render(tool, result, true), details: result.details,
+          }])),
+        }));
+    """)
+
+
+def assert_phase_row(rows: list[str], label: str, phase: str, route: str, route_title: str, suffix: str = "") -> None:
+    header = next(row for row in rows if "[matt pocock]" in row)
+    assert f"[matt pocock] {label} · {PHASE_TITLES[phase]}{suffix}" in header
+    assert route not in header
+    assert f"[matt pocock] {label} · {route_title} · {PHASE_TITLES[phase]}" not in header
+
+
+def assert_phase_block(rows: list[str], phase: str, route: str) -> None:
+    """Messages render the head, a blank band row, then the body."""
+    content = [row.strip() for row in rows[1:-1]]
+    assert content == ["[matt pocock] started", "", PHASE_TITLES[phase]]
+    assert route not in "\n".join(rows)
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_workflow_start_rows_use_only_entry_phase(lifecycle_results: dict[str, object], route: str) -> None:
+    start = next(item for item in lifecycle_results["starts"] if item["route"] == route)
+    assert_phase_row(start["rows"], "started", start["details"]["phase"], route, start["routeTitle"])
+    collapsed = "\n".join(start["rows"])
+    expanded = "\n".join(start["expanded"])
+    # The start row is the whole message: nothing is held back for Ctrl+O, so the
+    # first screen a user sees is the complete row. Phase titles of entry phases
+    # are unique per route, so the row needs no route field to stay unambiguous.
+    assert "to expand" not in collapsed
+    assert "route ·" not in collapsed
+    # The row is exactly the label and the entry phase title: no route title rides
+    # along, which the triage entry would otherwise duplicate as a substring.
+    assert [row.strip() for row in start["rows"]] == ["", f"[matt pocock] started · {PHASE_TITLES[start['details']['phase']]}", ""]
+    assert start["expanded"] == start["rows"]
+    assert "route ·" not in expanded
+    assert "phase ·" not in expanded
+    assert "procedure-source" not in expanded
+    assert start["details"]["route"] == route
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_restored_procedure_rows_use_recorded_phase(lifecycle_results: dict[str, object], route: str) -> None:
+    phases = [item for item in lifecycle_results["phases"] if item["route"] == route]
+    assert phases
+    for item in phases:
+        assert_phase_block(item["rows"], item["state"]["phase"], route)
+        # A restore re-delivers the whole active closure, so its message details are
+        # the recorded state plus the delivery set this restore showed.
+        details = item["restored"]["message"]["details"]
+        assert {key: value for key, value in details.items() if key != "deliveredProcedures"} == item["state"]
+        assert item["state"]["procedure"] in details["deliveredProcedures"]
+        assert item["restored"]["message"]["display"] is False
+        assert item["restored"]["options"] == {"triggerTurn": False}
+        assert "to expand" not in "\n".join(item["rows"])
+        assert item["expanded"] == item["rows"]
+
+
+@pytest.mark.parametrize("route", ROUTES)
+def test_transition_rows_use_destination_phase(lifecycle_results: dict[str, object], route: str) -> None:
+    for key in ("transitions", "historicalTransitions"):
+        transitions = [item for item in lifecycle_results[key] if item["route"] == route]
+        assert transitions
+        for item in transitions:
+            phase = item["details"]["state"]["phase"]
+            assert_phase_row(item["rows"], "event", phase, route, item["routeTitle"])
+            assert item["details"]["subject"] == PHASE_TITLES[phase]
+            assert item["details"]["action"] == "transition"
+            assert "to expand" not in "\n".join(item["rows"])
+            assert "action ·" not in "\n".join(item["expanded"])
+            assert item["expanded"] == item["rows"]
+
+
+@pytest.mark.parametrize("action,status", [("complete", "completed"), ("cancel", "cancelled")])
+@pytest.mark.parametrize("route", ROUTES)
+def test_terminal_rows_use_actual_phase_and_keep_workflow_contract(
+    lifecycle_results: dict[str, object], route: str, action: str, status: str,
+) -> None:
+    terminals = [item for item in lifecycle_results["terminals"] if item["route"] == route and item["action"] == action]
+    assert terminals
+    for item in terminals:
+        before = item["before"]
+        phase = before["phase"]
+        assert item["details"]["subject"] == f"{PHASE_TITLES[phase]} {status}"
+        for key in ("rows", "historicalRows", "rerenderedRows"):
+            assert_phase_row(item[key], "event", phase, route, item["routeTitle"], f" {status}")
+        terminal = item["details"]["state"]
+        assert terminal == item["record"]
+        assert terminal["status"] == status
+        for key in ("version", "route", "phase", "procedure", "workItemId"):
+            assert terminal[key] == before[key]
+        if action == "cancel":
+            assert terminal["reason"] == "test cancellation"
+        assert item["activeTools"] == ["bash", "matt_pocock_workflow"]
+        assert f"Workflow {before['workItemId']} {status}." in item["content"][0]["text"]
+        assert item["narrowBounded"]
+        assert item["details"]["action"] == action
+        assert item["unchangedAfterRender"]
+        for key in ("expanded", "historicalExpanded", "rerenderedExpanded"):
+            expanded = "\n".join(item[key])
+            assert "action ·" not in expanded
+            assert "to expand" not in expanded
+            assert_phase_row(item[key], "event", phase, route, item["routeTitle"], f" {status}")
+            # Every Matt Pocock row shows its facts by default: nothing is held back
+            # for Ctrl+O, so the expanded render repeats the collapsed one.
+            assert item[key] == item["rows"]
+        for key in ("rows", "historicalRows", "rerenderedRows"):
+            collapsed = "\n".join(item[key])
+            assert "to expand" not in collapsed
+            if action == "cancel":
+                assert collapsed.count("reason · test cancellation") == 1
+                assert collapsed.count("test cancellation") == 1
+            else:
+                assert "test cancellation" not in collapsed
+
+
+def test_cancellation_without_nonblank_reason_does_not_expand(lifecycle_results: dict[str, object]) -> None:
+    cases = lifecycle_results["cancellationsWithoutReason"]
+    assert [item["reason"] for item in cases] == [None, "", " \t\r\n ", "\x1b[31m\x1b[0m", "\x1b]52;c;QUJD\x07"]
+    for item in cases:
+        collapsed = "\n".join(item["rows"])
+        assert "Shaping & Requirements cancelled" in collapsed
+        assert "to expand" not in collapsed
+        assert "action ·" not in "\n".join(item["expanded"])
+        assert "reason ·" not in "\n".join(item["expanded"])
+        assert item["expanded"] == item["rows"]
+
+
+def test_non_workflow_rows_keep_their_subjects(lifecycle_results: dict[str, object]) -> None:
+    expected = {
+        "loaded": "event · loaded HTML Report",
+        "standalone": "started · Research",
+        "reference": "started · Writing For Agents · Skill Mechanics",
+        "fallback": "event · workflow updated",
+    }
+    for key, subject in expected.items():
+        result = lifecycle_results["nonWorkflow"][key]
+        collapsed = "\n".join(result["rows"])
+        assert f"[matt pocock] {subject}" in collapsed
+        assert "to expand" not in collapsed
+        assert result["expanded"] == result["rows"]
+        for hidden in ("action ·", "capability ·", "reference ·", "procedure-source", "Model-only guidance", "model-only metadata"):
+            assert hidden not in "\n".join(result["expanded"])
+    assert lifecycle_results["nonWorkflow"]["loaded"]["details"]["action"] == "load"
+    assert lifecycle_results["nonWorkflow"]["standalone"]["details"] == {"mode": "capability", "capability": "research"}
+    assert lifecycle_results["nonWorkflow"]["reference"]["details"] == {
+        "mode": "reference", "capability": "writing-for-agents", "reference": "SKILL-MECHANICS",
+    }
+
+
+def test_all_standalone_tool_and_message_names_use_catalog_labels() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        import {standaloneCapabilities} from "./packages/matt-pocock/src/catalog.ts";
+        const r=runtime();
+        const theme={fg:(_c,t)=>t,bg:(_c,t)=>t,bold:t=>t};
+        const tool=r.tools.get('matt_pocock_workflow');
+        console.log(JSON.stringify(standaloneCapabilities().map(c=>{
+          const details={mode:'capability',capability:c.id};
+          const rows=tool.renderResult({content:[],details},{expanded:false,isPartial:false},theme,{isError:false,args:{}}).render(160);
+          const message=r.renderers.get('matt-pocock-procedure')({content:'model only',details},{expanded:false},theme).render(160);
+          const task=r.renderers.get('matt-pocock-procedure')({content:'model only',details:{...details,request:'Keep my exact_task-name'}},{expanded:false},theme).render(160);
+          return {id:c.id,label:c.label,rows,message,task};
+        })));
+    ''')
+    assert len(result) == 21
+    for entry in result:
+        assert f"started · {entry['label']}" in '\n'.join(entry['rows'])
+        assert entry['label'] in '\n'.join(entry['message'])
+        assert 'Keep my exact_task-name' in '\n'.join(entry['task'])
+
+
+def test_transition_menu_uses_labels_and_keeps_internal_targets() -> None:
+    result=run_typescript(RUNTIME_HARNESS + '''
+        const r=runtime(); await r.start(); let menu;
+        r.ctx.ui.select=async(title,choices)=>{menu={title,choices};return choices[0];};
+        await r.commands.get('matt-pocock').handler('transition',r.ctx);
+        console.log(JSON.stringify({menu,state:r.entries.at(-1).data}));
+    ''')
+    assert 'Hard Bug Diagnosis' in result['menu']['title']
+    assert 'Reproducing & Diagnostics' in result['menu']['title']
+    assert result['menu']['choices'] == ['Implementation', 'Code Review']
+    assert result['state']['procedure'] == 'implement'
+
+
+def test_all_transition_menu_choices_match_destination_lifecycle_titles() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        import { workflowRoutes, workflowDefinitions, workflowPlacement } from "./packages/matt-pocock/src/catalog.ts";
+        import { readablePhaseTitle } from "./packages/matt-pocock/src/workflow.ts";
+        const menus = [];
+        for (const { route } of workflowRoutes()) {
+          for (const { id } of workflowDefinitions(route)) {
+            const placement = workflowPlacement(route, id);
+            if (!placement.allowedNext.length) continue;
+            const r = runtime();
+            r.setBranch([{type: "custom", customType: "matt-pocock-workflow", data: {
+              version: 1, workItemId: "menu-test", route, procedure: id,
+              phase: placement.phase, status: "active", loadedReferences: [],
+            }}]);
+            await r.events.get("session_start")({}, r.ctx);
+            let choices;
+            r.ctx.ui.select = async (_title, offered) => { choices = offered; return undefined; };
+            await r.commands.get("matt-pocock").handler("transition", r.ctx);
+            menus.push({choices, expected: placement.allowedNext.map(target => readablePhaseTitle(workflowPlacement(route, target).phase))});
+          }
+        }
+        console.log(JSON.stringify(menus));
+    ''')
+    assert result
+    for menu in result:
+        assert menu['choices'] == menu['expected']
+
+
+def test_all_reference_rows_preserve_names_and_width_including_saved_results() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        import { procedureCatalog } from "./packages/matt-pocock/src/catalog.ts";
+        import { visibleWidth } from "@earendil-works/pi-tui";
+        const r = runtime();
+        const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+        const references = procedureCatalog.filter(item => item.kind === "reference" || item.kind === "asset");
+        const cases = references.flatMap(item => [
+          ["matt_pocock_active", {action: "load", reference: item.id}],
+          ["matt_pocock_active", {action: "load", subject: `loaded ${item.id}`}],
+          ["matt_pocock_workflow", {mode: "reference", capability: "writing-for-agents", reference: item.id}],
+        ].map(([name, details]) => {
+          const render = (width, expanded) => r.tools.get(name).renderResult(
+            {content: [{type: "text", text: "Model-only resource body"}], details},
+            {expanded, isPartial: false}, theme, {isError: false, args: {}},
+          ).render(width);
+          return {label: item.label, rows: render(160, false), expanded: render(160, true),
+            bounded: [24, 48, 80].every(width => [false, true].every(expanded => render(width, expanded).every(line => !line.includes("\\n") && visibleWidth(line) <= width)))};
+        }));
+        console.log(JSON.stringify(cases));
+    ''')
+    assert result
+    for case in result:
+        assert case['label'] in '\n'.join(case['rows'])
+        assert case['bounded']
+        assert 'Model-only resource body' not in '\n'.join(case['expanded'])
+
+
+def test_all_tool_errors_use_shared_failure_style_and_pending_background() -> None:
+    result = run_typescript(RUNTIME_HARNESS + r'''
+        import { visibleWidth } from "@earendil-works/pi-tui";
+        const r = runtime();
+        const cases = [...r.tools.values()].map(tool => {
+          const backgrounds = [];
+          const theme = {fg: (_color, text) => text, bg: (color, text) => {backgrounds.push(color); return text;}, bold: text => text};
+          const render = (width, expanded, isError, isPartial) => tool.renderResult(
+            {content: [{type: "text", text: "Error: invalid target\nTry an allowed target."}], details: {}},
+            {expanded, isPartial}, theme, {isError, args: {}},
+          ).render(width);
+          const failure = render(160, false, true, false);
+          render(80, false, false, true);
+          return {name: tool.name, failure, errorBackground: backgrounds.includes("toolErrorBg"), pendingBackground: backgrounds.includes("toolPendingBg"),
+            bounded: [24, 48, 80].every(width => [false, true].every(expanded => render(width, expanded, true, false).every(line => !line.includes("\n") && visibleWidth(line) <= width)))};
+        });
+        console.log(JSON.stringify(cases));
+    ''')
+    assert len(result) == 3
+    for case in result:
+        assert '[matt pocock] failed ·' in '\n'.join(case['failure'])
+        assert case['errorBackground'] and case['pendingBackground'] and case['bounded']
+
+
+# ── test_matt_pocock_prompt_composition.py ──
+from matt_pocock_helpers import RUNTIME_HARNESS, run_typescript
+
+
+def test_workflow_guidance_appends_without_prompt_override() -> None:
+    """Given either run type, When guidance is added, Then owner text stays intact."""
+    result = run_typescript(RUNTIME_HARNESS + '''
+      const {buildSystemPrompt} = await import(process.env.PI_PROMPT_BUILDER ?? "./node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js");
+      const r = runtime();
+      const observations = [];
+      for (const active of [false, true]) {
+        if (active) await r.start();
+        for (const start of [{messageType:"user",prompt:"hello"},{messageType:"custom"}]) {
+          const options = {cwd:process.cwd(), sections:{other:"retained"}, promptGuidelines:["existing"],customPrompt:"owner"};
+          const reply = await r.events.get("before_agent_start")({...start,systemPrompt:"owner",systemPromptOptions:options},r.ctx);
+          observations.push({reply:reply ?? null,options,active,rendered:buildSystemPrompt(options),defaultRendered:buildSystemPrompt({...options,customPrompt:undefined})});
+        }
+      }
+      console.log(JSON.stringify({observations}));
+    ''')
+    for row in result["observations"]:
+        assert "Matt Pocock" in row["rendered"]
+        assert "Matt Pocock" in row["defaultRendered"]
+        assert row["rendered"].startswith("owner")
+        assert row["reply"] is None
+        assert row["options"]["customPrompt"] == "owner"
+        guidelines = row["options"]["promptGuidelines"]
+        assert guidelines[0] == "existing"
+        assert guidelines == ["existing"]
+        assert row["options"]["sections"]["other"] == "retained"
+        assert ("workflow active:" in row["options"]["sections"]["matt_pocock_workflow"]) == row["active"]
+
+
+# ── test_pi_v1_resolution.py ──
+"""Check package-local resolution rather than only the root Pi installation."""
+
+import json
+import subprocess
+import textwrap
+
+from matt_pocock_helpers import PACKAGE, REPO
+
+
+def test_package_resolves_pi_v1_without_narrowing_published_peers() -> None:
+    script = '''
+        import { fileURLToPath } from "node:url";
+        import { dirname, join } from "node:path";
+        import { readFileSync, existsSync } from "node:fs";
+        const parentUrl = new URL("./packages/matt-pocock/package.json", import.meta.url).href;
+        const names = ["pi-coding-agent", "pi-ai", "pi-tui"].map(name => `@earendil-works/${name}`);
+        console.log(JSON.stringify(Object.fromEntries(names.map(name => {
+          let directory = dirname(fileURLToPath(import.meta.resolve(name, parentUrl)));
+          while (true) {
+            const file = join(directory, "package.json");
+            if (existsSync(file)) {
+              const manifest = JSON.parse(readFileSync(file, "utf8"));
+              if (manifest.name === name) return [name, manifest.version];
+            }
+            const parent = dirname(directory);
+            if (parent === directory) throw new Error(`No manifest for ${name}`);
+            directory = parent;
+          }
+        }))));
+    '''
+    process = subprocess.run(
+        ["node", "--experimental-import-meta-resolve", "--input-type=module"],
+        input=textwrap.dedent(script), cwd=REPO, text=True, capture_output=True, timeout=30,
+    )
+    assert process.returncode == 0, process.stderr
+    result = json.loads(process.stdout)
+    # The root development requirement is the cohort of record; this asserts package-local
+    # resolution matches it rather than pinning the version a fourth time.
+    expected = json.loads((REPO / "package.json").read_text())["devDependencies"]["@earendil-works/pi-coding-agent"].lstrip("^")
+    assert set(result.values()) == {expected}, result
+    manifest = json.loads((PACKAGE / "package.json").read_text())
+    for name in result:
+        assert name not in manifest.get("dependencies", {})
+    for name in ("@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"):
+        assert manifest["peerDependencies"][name] == "*"
+
+
+def test_live_fixtures_use_valid_pi_v1_api_signatures() -> None:
+    # Recursive: the real-Pi harnesses and their fixtures live in tests/live/.
+    fixtures = sorted((PACKAGE / "tests").rglob("*.ts"))
+    assert fixtures
+    process = subprocess.run(
+        ["bun", "x", "tsc", "--noEmit", "--strict", "--skipLibCheck",
+         "--target", "ES2022", "--module", "ESNext", "--moduleResolution", "bundler",
+         "--allowImportingTsExtensions", "--types", "node", *map(str, fixtures)],
+        cwd=REPO, text=True, capture_output=True, timeout=60,
+    )
+    assert process.returncode == 0, process.stdout + process.stderr
+
+
+# ── test_pi_schema_compatibility.py ──
+"""Root provider hints must preserve Pi v1 validation and normalization."""
+import pytest
+
+from matt_pocock_helpers import RUNTIME_HARNESS, run_typescript
+
+
+@pytest.fixture(scope="module")
+def compatibility() -> dict[str, object]:
+    return run_typescript(RUNTIME_HARNESS + '''
+        import { Type } from "typebox";
+        import { Value } from "typebox/value";
+        import { validateToolArguments } from "@earendil-works/pi-ai";
+        const r = runtime();
+        const result = { count: 0, valueDifferences: 0, piDifferences: 0,
+            nonNullableDifferences: 0, examples: [] };
+        const values = [undefined, "implement", "", null, false, 0, 0.5, [], {}];
+        function validate(tool, arguments_) {
+            try { return { accepted: true, arguments: validateToolArguments(tool,
+                { name: tool.name, arguments: arguments_ }) }; }
+            catch { return { accepted: false }; }
+        }
+        for (const name of ["matt_pocock_workflow", "matt_pocock_active"]) {
+            const tool = r.tools.get(name);
+            const original = { ...tool, parameters: Type.Union(tool.parameters.anyOf) };
+            const brokenParameters = structuredClone(tool.parameters);
+            for (const [field, schema] of Object.entries(brokenParameters.properties)) {
+                if (schema.anyOf) brokenParameters.properties[field] =
+                    schema.anyOf.find(branch => branch.type !== "null");
+            }
+            const broken = { ...tool, parameters: brokenParameters };
+            const gateway = name === "matt_pocock_workflow";
+            const fields = gateway ? ["mode", "route", "capability", "reference"]
+                : ["action", "target", "reference", "reason"];
+            const choices = gateway ? ["workflow", "capability", "reference"]
+                : ["transition", "load", "complete", "cancel"];
+            const pools = fields.map((field, i) => i === 0
+                ? [undefined, ...choices, "wrong", null, false, 0, 0.5, [], {}]
+                : field === "route" ? [undefined, "hard-bug", "wrong", ...values.slice(2)]
+                : field === "capability" ? [undefined, "tdd", "teach", "wrong", ...values.slice(2)]
+                : values);
+            function compare(arguments_) {
+                result.count++;
+                if (Value.Check(original.parameters, arguments_) !==
+                    Value.Check(tool.parameters, arguments_)) result.valueDifferences++;
+                const expected = JSON.stringify(validate(original, arguments_));
+                const actual = JSON.stringify(validate(tool, arguments_));
+                if (expected !== actual) {
+                    result.piDifferences++;
+                    if (result.examples.length < 3) result.examples.push({ name, arguments_ });
+                }
+                if (expected !== JSON.stringify(validate(broken, arguments_)))
+                    result.nonNullableDifferences++;
+            }
+            function expand(index, arguments_) {
+                if (index === fields.length) {
+                    compare(arguments_);
+                    compare({ ...arguments_, extra: "undeclared" });
+                    return;
+                }
+                for (const value of pools[index]) expand(index + 1, value === undefined
+                    ? arguments_ : { ...arguments_, [fields[index]]: value });
+            }
+            for (const root of [null, false, 0, 0.5, "text", [], {}]) compare(root);
+            expand(0, {});
+        }
+        console.log(JSON.stringify(result));
+    ''')
+
+
+def test_pi_acceptance_and_normalized_arguments_remain_equivalent(compatibility) -> None:
+    """Given root hints, Pi accepts and normalizes exactly the original branches."""
+    assert compatibility["count"] > 5_000
+    assert compatibility["valueDifferences"] == 0
+    assert compatibility["piDifferences"] == 0, compatibility["examples"]
+
+
+def test_matrix_detects_optional_null_deletion_without_nullable_hints(compatibility) -> None:
+    assert compatibility["nonNullableDifferences"] > 0
+
+
+# ── test_json_type_boundaries.py ──
+"""Every JSON value class at the public tool boundary, not arbitrary JS values."""
+import pytest
+
+from matt_pocock_helpers import RUNTIME_HARNESS, run_typescript
+
+
+@pytest.fixture(scope="module")
+def boundary_results() -> dict[str, object]:
+    return run_typescript(RUNTIME_HARNESS + '''
+        import { Value } from "typebox/value";
+        const r = runtime();
+        const values = [null, false, 0, 1.5, "text", [], {}];
+        const definitions = [...r.tools.values()];
+        const invalidRoots = Object.fromEntries(definitions.map(tool => [tool.name,
+            values.map(value => Value.Check(tool.parameters, value))]));
+        const gateway = r.tools.get("matt_pocock_workflow").parameters;
+        const active = r.tools.get("matt_pocock_active").parameters;
+        const ask = r.tools.get("matt_pocock_ask").parameters;
+        const nonStrings = values.filter(value => typeof value !== "string");
+        console.log(JSON.stringify({invalidRoots,
+            targets:nonStrings.map(target=>Value.Check(active,{action:"transition",target})),
+            references:nonStrings.map(reference=>Value.Check(active,{action:"load",reference})),
+            routes:nonStrings.map(route=>Value.Check(gateway,{mode:"workflow",route})),
+            capabilities:nonStrings.map(capability=>Value.Check(gateway,{mode:"capability",capability})),
+            options:nonStrings.map(option=>Value.Check(ask,{question:"Q",options:["A",option]})),
+            valid:[Value.Check(gateway,{mode:"workflow",route:"hard-bug"}),
+                   Value.Check(active,{action:"transition",target:"implement"}),
+                   Value.Check(active,{action:"load",reference:"LOGIC"}),
+                   Value.Check(active,{action:"complete"}),
+                   Value.Check(active,{action:"cancel",reason:"test"}),
+                   Value.Check(ask,{question:"Q",options:["A","B"],recommended:"A"})]
+        }));
+    ''')
+
+
+def test_every_json_root_type_is_rejected_without_required_shape(boundary_results) -> None:
+    assert set(boundary_results["invalidRoots"]) == {"matt_pocock_workflow", "matt_pocock_active", "matt_pocock_ask"}
+    assert all(not any(values) for values in boundary_results["invalidRoots"].values())
+
+
+@pytest.mark.parametrize("field", ["targets", "references", "routes", "capabilities", "options"])
+def test_non_string_identifiers_and_labels_are_rejected(boundary_results, field: str) -> None:
+    assert not any(boundary_results[field])
+
+
+def test_valid_operation_shapes_remain_accepted(boundary_results) -> None:
+    assert all(boundary_results["valid"])
+
+
+# ── test_active_contract.py ──
+"""Active gateway contract: exact JSON shapes in guidance and strict schemas."""
+
+
+from matt_pocock_helpers import RUNTIME_HARNESS, run_typescript
+
+
+def test_gateway_and_decision_guidance_disambiguate_real_model_arguments() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime(); await r.start();
+        const gateway = r.tools.get("matt_pocock_workflow");
+        const ask = r.tools.get("matt_pocock_ask");
+        let rejected = "";
+        try {
+          await r.call("matt_pocock_ask", {
+            question: "Scope?", options: ["Whole receipt (Recommended)", "Per line"],
+            recommended: "Whole receipt",
+          });
+        } catch (error) { rejected = String(error); }
+        console.log(JSON.stringify({
+          gateway: gateway.promptGuidelines.join("\\n"),
+          recommendation: ask.parameters.properties.recommended.description,
+          rejected,
+        }));
+    ''')
+    gateway = str(result["gateway"])
+    for shape in ('{"mode": "workflow", "route"', '{"mode": "capability", "capability"', '{"mode": "reference", "capability"'):
+        assert shape in gateway
+    assert "exact copy" in result["recommendation"]
+    assert "including annotations" in result["recommendation"]
+    assert "must match an offered option" in result["rejected"]
+
+
+def test_active_guidance_states_exact_tool_contract() -> None:
+    result = run_typescript("""
+        import { workflowGuidance, routeEntryState } from "./packages/matt-pocock/src/workflow.ts";
+        const state = routeEntryState("hard-bug", "work-1");
+        console.log(JSON.stringify({ guidance: workflowGuidance(state, ["REF-A"]) }));
+    """)
+    guidance = str(result["guidance"])
+    assert '{"action": "transition", "target"' in guidance
+    assert '{"action": "load", "reference"' in guidance
+    assert '{"action": "complete"}' in guidance
+    assert '{"action": "cancel", "reason"' in guidance
+
+
+def test_active_gateway_schemas_reject_undeclared_fields() -> None:
+    result = run_typescript(RUNTIME_HARNESS + """
+        import { Value } from "typebox/value";
+        const active = runtime().tools.get("matt_pocock_active");
+        const branches = active.parameters.anyOf ?? [];
+        const strict = branches.map((branch) => branch.additionalProperties === false);
+        const guidelines = (active.promptGuidelines ?? []).join("\\n");
+        console.log(JSON.stringify({
+          branchCount: branches.length,
+          strict,
+          guidelines,
+          transitionExtra: Value.Check(active.parameters, { action: "transition", target: "x", bogus: 1 }),
+          loadExtra: Value.Check(active.parameters, { action: "load", reference: "x", bogus: 1 }),
+          completeExtra: Value.Check(active.parameters, { action: "complete", bogus: 1 }),
+          cancelExtra: Value.Check(active.parameters, { action: "cancel", reason: "x", bogus: 1 }),
+        }));
+    """)
+    assert result["branchCount"] == 4
+    assert result["strict"] == [True, True, True, True]
+    assert result["transitionExtra"] is False
+    assert result["loadExtra"] is False
+    assert result["completeExtra"] is False
+    assert result["cancelExtra"] is False
+    guidelines = str(result["guidelines"])
+    for shape in (
+        '"action": "transition"',
+        '"action": "load"',
+        '"action": "complete"',
+        '"action": "cancel"',
+    ):
+        assert shape in guidelines
+
+
+def test_delivered_state_contract_includes_terminal_calls() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime();
+        const value = await r.start();
+        console.log(JSON.stringify(value));
+    ''')
+    text = '\n'.join(part.get('text','') for part in result['content'])
+    assert '{"action":"complete"}' in text
+    assert '{"action":"cancel","reason":"<why>"}' in text
+
+
+def test_catalog_guidance_supplies_exact_calls_for_every_entry() -> None:
+    result = run_typescript('''
+        import {availableWorkflowsGuidance} from "./packages/matt-pocock/src/workflow.ts";
+        import {modelStandaloneCapabilities,userStandaloneCapabilities,workflowRoutes} from "./packages/matt-pocock/src/catalog.ts";
+        const guidance = availableWorkflowsGuidance();
+        console.log(JSON.stringify({
+          capabilities:modelStandaloneCapabilities().map(c=>guidance.includes(JSON.stringify({mode:"capability",capability:c.id}))),
+          userCapabilities:userStandaloneCapabilities().map(c=>guidance.includes(`- ${c.id}:`)),
+          userCapabilityCall:guidance.includes(JSON.stringify({mode:"user-capability",capability:"<id>"})),
+          routes:workflowRoutes().map(r=>guidance.includes(JSON.stringify({mode:"workflow",route:r.route}))),
+        }));
+    ''')
+    assert all(result['capabilities'])
+    assert all(result['userCapabilities'])
+    assert all(result['routes'])
+
+
+def test_operation_schemas_expose_all_choices_at_the_object_root() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime();
+        console.log(JSON.stringify(Object.fromEntries(
+          ['matt_pocock_workflow','matt_pocock_active'].map(name=>[name,r.tools.get(name).parameters])
+        )));
+    ''')
+    for name,field,values in [
+        ('matt_pocock_workflow','mode',['workflow','capability','user-capability','reference']),
+        ('matt_pocock_active','action',['transition','load','complete','cancel']),
+    ]:
+        schema=result[name]
+        assert schema.get('type') == 'object'
+        assert schema['properties'][field]['enum'] == values
+        assert schema['additionalProperties'] is False
+
+
+# ── test_orchestration_contract.py ──
+"""Reach the shipped engineering instructions through the real catalog resolver."""
+
+
+import re
+
+import pytest
+
+from matt_pocock_helpers import run_typescript
+
+
+@pytest.fixture(scope="module")
+def instructions() -> dict[str, object]:
+    return run_typescript('''
+        import { resolveProcedureBundle } from "./packages/matt-pocock/src/resolver.ts";
+        import { routeEntryState, workflowGuidance, workflowRoutes } from "./packages/matt-pocock/src/workflow.ts";
+        const bundles = Object.fromEntries(["implement", "code-review"].map(id => [id, resolveProcedureBundle(id)]));
+        const guidance = workflowRoutes().map(({ route }) => workflowGuidance(routeEntryState(route, "test-work"), []));
+        console.log(JSON.stringify({ bundles, guidance }));
+    ''')
+
+
+def normalized(text: str) -> str:
+    return re.sub(r"\s+", " ", text)
+
+
+def test_every_active_workflow_drives_to_completion_and_yields_only_when_blocked(instructions: dict[str, object]) -> None:
+    for text in instructions["guidance"]:
+        guidance = normalized(text)
+        for rule in ("integrated candidate", "blocking reviews", "findings resolved"):
+            assert rule in guidance
+        # Reaching the end of the work, not the end of one slice, is the finish line.
+        assert "Drive the current procedure to its end" in guidance
+        assert "Do not end the turn to ask whether to continue" in guidance
+        # The old text told the agent to stop whenever only teammate results were out;
+        # that instruction is what ended a long task partway through.
+        assert "yield with the workflow still active" not in guidance
+        assert "Yield only when the remaining work genuinely depends" in guidance
+
+
+def test_implementation_bundle_scopes_checks_and_freezes_a_candidate(instructions: dict[str, object]) -> None:
+    bundle = instructions["bundles"]["implement"]
+    text = normalized(bundle["content"])
+    for rule in ("one integration owner", "local checks", "safe", "same candidate", "affected evidence", "blocking reviews"):
+        assert rule in text
+    assert "Run typechecking regularly, single test files regularly" not in text
+    assert bundle["byteLength"] <= 64 * 1024
+
+
+def test_review_only_bundle_returns_findings_without_owning_repairs(instructions: dict[str, object]) -> None:
+    text = normalized(instructions["bundles"]["code-review"]["content"])
+    for rule in ("Review-only", "return the report", "including REWORK", "without editing", "without waiting for repairs", "Leader or implementation owner"):
+        assert rule in text, rule
+
+
+def test_recheck_bundle_refreshes_brief_before_work_assignment(instructions: dict[str, object]) -> None:
+    text = normalized(instructions["bundles"]["code-review"]["content"])
+    for rule in ("preserve the prior findings", "authoritative brief", "before reopening", "does not update the description", "candidate fingerprint", "correction delta", "bounded follow-up", "dependsOn"):
+        assert rule in text, rule
+    assert "with the original brief and findings" not in text
+
+
+def test_review_bundle_supports_local_spec_and_proportional_review(instructions: dict[str, object]) -> None:
+    bundle = instructions["bundles"]["code-review"]
+    text = normalized(bundle["content"])
+    for rule in ("confirmed conversation", "untracked", "unrelated", "candidate", "one fresh reviewer", "REWORK", "reopen", "root cause"):
+        assert rule in text
+    for obsolete in (
+        "delegate the two independent axes to separate teammates",
+        "If they didn't specify one, ask for it",
+        "If the teammate facility is available, give each teammate one brief",
+    ):
+        assert obsolete not in text
+    assert "Standards" in text and "Spec" in text and "Refute-before-PASS" in text
+    assert bundle["byteLength"] <= 64 * 1024
+
+
+def test_each_step_contract_provides_exact_callable_state_controls() -> None:
+    from matt_pocock_helpers import RUNTIME_HARNESS
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime();
+        const started = await r.call("matt_pocock_workflow", {mode:"workflow",route:"hard-bug"});
+        const transitioned = await r.call("matt_pocock_active", {action:"transition",target:"implement"});
+        console.log(JSON.stringify({started:started.content[0].text, transitioned:transitioned.content[0].text}));
+    ''')
+    assert '{"action":"transition","target":"implement"}' in result["started"]
+    assert '{"action":"transition","target":"code-review"}' in result["transitioned"]
+    assert "Failed controls do not change" in result["transitioned"]
+
+
+# ── test_user_capability_routing.py ──
+"""A user-invocation capability must be reachable when the user asks for it.
+
+Before this contract, `modelStandaloneCapabilities()` was the only source for the
+gateway capability enum and the injected guidance, so every `invocation: "user"`
+capability — grill-me among them — was invisible to the model. The user said "grill
+me" and the package was never called.
+
+These cases assert the observable seams only: the public tool schema, the injected
+system prompt, and the tool result. They do not assert private helper calls.
+"""
+
+from matt_pocock_helpers import RUNTIME_HARNESS, run_typescript
+
+USER_CAPABILITIES = [
+    "grill-me",
+    "handoff",
+    "retro",
+    "improve-codebase-architecture",
+    "setup-matt-pocock-skills",
+    "teach",
+    "to-questionnaire",
+    "wait-what",
+]
+
+
+def _gateway_shapes() -> dict[str, object]:
+    return run_typescript(RUNTIME_HARNESS + """
+        const variants = runtime().tools.get("matt_pocock_workflow").parameters.anyOf;
+        const byMode = Object.fromEntries(variants.map((item) => [item.properties.mode.const, item]));
+        console.log(JSON.stringify({
+          modes: variants.map((item) => item.properties.mode.const),
+          rootModes: runtime().tools.get("matt_pocock_workflow").parameters.properties.mode.enum,
+          model: byMode.capability.properties.capability.enum,
+          user: byMode["user-capability"].properties.capability.enum,
+        }));
+    """)
+
+
+def test_user_invocation_capabilities_are_offered_by_the_gateway_schema() -> None:
+    """Given the gateway schema, every user-invocation capability has a branch."""
+    shapes = _gateway_shapes()
+    assert shapes["modes"] == ["workflow", "capability", "user-capability", "reference"]
+    assert "user-capability" in shapes["rootModes"]
+    assert shapes["user"] == USER_CAPABILITIES
+    assert "grill-me" in shapes["user"]
+    # The two enums stay disjoint: capability mode keeps autonomous model work,
+    # user-capability mode carries only what the user asked for by name.
+    assert not set(shapes["user"]) & set(shapes["model"])
+
+
+def test_injected_guidance_names_every_user_invocation_capability() -> None:
+    """Given an inactive session, the prompt tells the model what the user can ask for."""
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        const options = {sections: {}};
+        const reply = await r.events.get("before_agent_start")({ systemPrompt: "base", systemPromptOptions: options }, r.ctx);
+        if (reply !== undefined) throw new Error("Additive guidance must not return an override");
+        console.log(JSON.stringify({ prompt: Object.values(options.sections).join("\\n") }));
+    """)
+    prompt = result["prompt"]
+    assert '"mode":"user-capability","capability":"<id>"' in prompt
+    for capability in USER_CAPABILITIES:
+        assert f"- {capability}:" in prompt, capability
+    assert '"mode":"capability","capability":"grill-me"' not in prompt
+    # The model-reachable list must not quietly absorb the user-invocation ones.
+    assert '"mode":"capability","capability":"grilling"' in prompt
+
+
+def test_user_requested_capability_delivers_its_dependency_closure_without_state() -> None:
+    """Given an explicit user request, the capability runs and creates no workflow state."""
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        const execution = await r.call("matt_pocock_workflow", {
+          mode: "user-capability", capability: "grill-me",
+        });
+        console.log(JSON.stringify({
+          execution, entries: r.entries, active: r.active(), deliveries: r.deliveries(),
+        }));
+    """)
+    text = result["execution"]["content"][0]["text"]
+    assert 'source="procedure/grill-me"' in text
+    # grill-me requires grilling; the eager dependency closure must arrive with it.
+    assert 'source="procedure/grilling"' in text
+    assert result["execution"]["details"] == {"mode": "user-capability", "capability": "grill-me"}
+    assert result["entries"] == []
+    assert result["deliveries"] == []
+    assert result["active"] == ["read", "matt_pocock_workflow"]
+
+
+def test_user_invocation_capability_stays_closed_in_capability_mode() -> None:
+    """Given the autonomous mode, a user-invocation capability is still rejected."""
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); let error;
+        try {
+          await r.call("matt_pocock_workflow", { mode: "capability", capability: "grill-me" });
+        } catch (cause) { error = String(cause); }
+        console.log(JSON.stringify({ error, entries: r.entries, deliveries: r.deliveries() }));
+    """)
+    assert "not available to the model gateway" in result.get("error", ""), result
+    assert result["entries"] == []
+    assert result["deliveries"] == []
+
+
+def test_user_capability_mode_rejects_a_model_invocation_capability() -> None:
+    """Given the user-requested mode, an autonomously callable capability is refused."""
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); let error;
+        try {
+          await r.call("matt_pocock_workflow", { mode: "user-capability", capability: "research" });
+        } catch (cause) { error = String(cause); }
+        console.log(JSON.stringify({ error, entries: r.entries }));
+    """)
+    assert "not a user-invocation capability" in result.get("error", ""), result
+    assert result["entries"] == []
+
+
+def test_user_invocation_capabilities_describe_themselves() -> None:
+    """Given a menu or prompt row, every user-invocation capability has a real label."""
+    result = run_typescript(RUNTIME_HARNESS + """
+        import { userStandaloneCapabilities } from "./packages/matt-pocock/src/catalog.ts";
+        console.log(JSON.stringify(userStandaloneCapabilities().map((entry) => ({
+          id: entry.id, description: entry.description ?? null,
+        }))));
+    """)
+    assert [entry["id"] for entry in result] == USER_CAPABILITIES
+    for entry in result:
+        assert entry["description"], entry
+        assert entry["description"] != entry["id"], entry
+
+
+# ── test_runtime_boundaries.py ──
+
+from pathlib import Path
+
+import pytest
+
+from matt_pocock_helpers import RUNTIME_HARNESS as HARNESS, run_typescript
+
+
+
+
+def test_extension_instances_do_not_share_workflow_state_or_api() -> None:
+    result = run_typescript(HARNESS + '''
+        const a = runtime(), b = runtime();
+        await a.start();
+        const afterA = { a: a.entries.length, b: b.entries.length, toolsA: a.active(), toolsB: b.active() };
+        let error;
+        try { await b.start(); } catch (e) { error = e.message; }
+        console.log(JSON.stringify({ afterA, error, a: a.entries.length, b: b.entries.length }));
+    ''')
+    assert result["afterA"]["a"] == 1
+    assert result["afterA"]["b"] == 0
+    assert "matt_pocock_active" in result["afterA"]["toolsA"]
+    assert "matt_pocock_active" not in result["afterA"]["toolsB"]
+    assert "error" not in result
+    assert result["a"] == result["b"] == 1
+
+
+@pytest.mark.parametrize("event", ["session_tree", "session_compact"])
+def test_context_boundaries_reinject_only_current_context(event: str) -> None:
+    result = run_typescript(HARNESS + f'''
+        const a = runtime();
+        await a.start();
+        await a.call("matt_pocock_active", {{ action: "transition", target: "implement" }});
+        await a.call("matt_pocock_active", {{ action: "transition", target: "diagnosing-bugs" }});
+        await a.events.get("{event}")({{}}, a.ctx);
+        const message = a.messages.at(-1);
+        console.log(JSON.stringify({{ message, entries: a.entries.length }}));
+    ''')
+    message = result["message"]
+    assert message["display"] is False
+    assert message["deliveryOptions"] == {"triggerTurn": False}
+    assert 'source="procedure/diagnosing-bugs"' in message["content"]
+    assert "implement" not in message["details"]["deliveredProcedures"]
+    assert result["entries"] == 3
+
+
+def test_tree_navigation_deactivates_workflow_missing_from_new_branch() -> None:
+    result = run_typescript(HARNESS + '''
+        const a = runtime(); await a.start(); a.setBranch([]);
+        await a.events.get("session_tree")({}, a.ctx);
+        console.log(JSON.stringify({ active: a.active(), entries: a.entries.length }));
+    ''')
+    assert "matt_pocock_active" not in result["active"]
+    assert result["entries"] == 1
+
+
+@pytest.mark.parametrize("bad", ["{ version: 99, status: 'active' }", "null", "{ status: 'completed' }"])
+def test_malformed_latest_record_blocks_older_active_state(bad: str) -> None:
+    result = run_typescript(HARNESS + f'''
+        const a = runtime(); await a.start();
+        a.setBranch([...a.entries, {{ type: "custom", customType: "matt-pocock-workflow", data: {bad} }}]);
+        await a.events.get("session_start")({{}}, a.ctx);
+        console.log(JSON.stringify({{ active: a.active(), messages: a.messages.length, notices: a.notices }}));
+    ''')
+    assert "matt_pocock_active" not in result["active"]
+    assert result["messages"] == 0
+    assert result["notices"]
+
+
+def test_cancel_with_recommendation_remains_pending() -> None:
+    result = run_typescript(HARNESS + '''
+        const a = runtime(); await a.start();
+        const result = await a.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "A" });
+        console.log(JSON.stringify(result));
+    ''')
+    assert result["details"]["pending"] is True
+    assert "answer" not in result["details"]
+    assert result["details"]["timed_out"] is False
+
+
+def test_preaborted_tool_does_not_open_question_or_start_work() -> None:
+    result = run_typescript(HARNESS + '''
+        const a = runtime(); const controller = new AbortController(); controller.abort();
+        let started = false;
+        try { await a.call("matt_pocock_workflow", { mode: "workflow", route: "hard-bug" }, controller.signal); started = true; } catch {}
+        await a.start(); let opened = false;
+        a.ctx.ui.select = async () => { opened = true; return "A"; };
+        const answer = await a.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "A" }, controller.signal);
+        console.log(JSON.stringify({ started, opened, answer }));
+    ''')
+    assert result["started"] is False
+    assert result["opened"] is False
+    assert result["answer"]["details"]["pending"] is True
+
+
+def test_native_dialog_config_requires_boolean_true(tmp_path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text('{"useNativeDialog": "false"}')
+    result = run_typescript(f'''
+        import {{ loadConfig }} from "./packages/matt-pocock/src/native-dialog.ts";
+        console.log(JSON.stringify(loadConfig({str(path)!r})));
+    ''')
+    assert result["useNativeDialog"] is False
+
+
+def test_inflight_abort_dismisses_ui_without_adopting_recommendation() -> None:
+    result = run_typescript(HARNESS + '''
+        const a = runtime(); await a.start(); const controller = new AbortController();
+        let forwarded = false;
+        a.ctx.ui.select = async (_title, _choices, options) => {
+          controller.abort(); forwarded = options.signal.aborted;
+          return undefined;
+        };
+        const result = await a.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "A" }, controller.signal);
+        console.log(JSON.stringify({ forwarded, result }));
+    ''')
+    assert result["forwarded"] is True
+    assert result["result"]["details"] == {"pending": True, "source": "aborted"}
+
+
+def test_question_answer_is_invalidated_after_branch_change() -> None:
+    result = run_typescript(HARNESS + '''
+        const a = runtime(); await a.start();
+        a.ctx.ui.select = async () => { a.setBranch([]); await a.events.get("session_tree")({}, a.ctx); return "A"; };
+        const result = await a.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "A" });
+        console.log(JSON.stringify(result));
+    ''')
+    assert result["details"] == {"pending": True, "source": "aborted"}
+
+
+def test_invalid_recommendation_is_rejected_before_showing_ui() -> None:
+    result = run_typescript(HARNESS + '''
+        const a = runtime(); await a.start(); let opened = false, error;
+        a.ctx.ui.select = async () => { opened = true; return undefined; };
+        try { await a.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "C" }); } catch (e) { error = e.message; }
+        console.log(JSON.stringify({ opened, error }));
+    ''')
+    assert result["opened"] is False
+    assert "offered option" in result["error"]
+
+
+def test_reference_bundle_overflow_does_not_persist_partial_state(tmp_path: Path) -> None:
+    oversized = tmp_path / "oversized.md"
+    oversized.write_text("x" * (64 * 1024 + 1))
+    result = run_typescript(HARNESS + f'''
+        import {{ findProcedure }} from "./packages/matt-pocock/src/catalog.ts";
+        import {{ relative }} from "node:path";
+        const a = runtime(); await a.start();
+        findProcedure("diagnosing-bugs").discloses = ["GLOSSARY"];
+        findProcedure("GLOSSARY").file = relative(
+            process.cwd() + "/packages/matt-pocock/procedures", {str(oversized)!r});
+        const before = a.entries.length; let error;
+        try {{ await a.call("matt_pocock_active", {{ action: "load", reference: "GLOSSARY" }}); }}
+        catch (e) {{ error = e.message; }}
+        console.log(JSON.stringify({{ before, after: a.entries.length, error,
+            loaded: a.entries.at(-1).data.loadedReferences }}));
+    ''')
+    assert "maximum" in result["error"]
+    assert result["before"] == result["after"]
+    assert result["loaded"] == []
+
+
+@pytest.mark.parametrize("dialog", ["macosChooseFromList", "macosInputDialog"])
+def test_native_dialog_abort_reaps_child_process(tmp_path, dialog: str) -> None:
+    binary = tmp_path / "osascript"
+    binary.write_text('#!/usr/bin/env node\nsetInterval(() => {}, 1000);\n')
+    binary.chmod(0o755)
+    result = run_typescript(f'''
+        import {{ {dialog} }} from "./packages/matt-pocock/src/native-dialog.ts";
+        process.env.PATH = {str(tmp_path)!r} + ":" + process.env.PATH;
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 50);
+        const start = performance.now();
+        const result = await {dialog}({{ prompt: "Q", message: "Q", items: ["A", "B"], signal: controller.signal }}, {{ platform: "darwin", env: {{}} }});
+        console.log(JSON.stringify({{ result, elapsed: performance.now() - start }}));
+    ''')
+    assert result["result"]["action"] == "cancelled"
+    assert result["elapsed"] < 2000
+
+
+def test_gateway_and_question_schemas_enforce_supported_shapes() -> None:
+    result = run_typescript(HARNESS + '''
+        import { Value } from "typebox/value";
+        const a = runtime(); const gateway = a.tools.get("matt_pocock_workflow").parameters;
+        const ask = a.tools.get("matt_pocock_ask").parameters;
+        console.log(JSON.stringify({
+          gateway: Value.Check(gateway, { mode: "workflow", route: "hard-bug", bogus: true }),
+          one: Value.Check(ask, { question: "Q", options: ["A"] }),
+          duplicate: Value.Check(ask, { question: "Q", options: ["A", "A"], recommended: "A" }),
+          negative: Value.Check(ask, { question: "Q", options: ["A", "B"], recommended: "A", timeout_seconds: -1 }),
+          missingRecommendation: Value.Check(ask, { question: "Q", options: ["A", "B"], timeout_seconds: 30 }),
+          valid: Value.Check(ask, { question: "Q", options: ["A", "B"], recommended: "A", timeout_seconds: 30 }),
+        }));
+    ''')
+    # `recommended` is required, so a question can never run without an answer to adopt.
+    assert result == {
+        "gateway": False, "one": False, "duplicate": False, "negative": False,
+        "missingRecommendation": False, "valid": True,
+    }
+
+
+def test_standalone_nested_references_are_reachable_without_workflow_state() -> None:
+    result = run_typescript(HARNESS + '''
+        import { findProcedure } from "./packages/matt-pocock/src/catalog.ts";
+        const a = runtime();
+        findProcedure("research").discloses = ["domain"];
+        findProcedure("domain").discloses = ["ADR-FORMAT"];
+        await a.call("matt_pocock_workflow", { mode: "capability", capability: "research" });
+        const first = await a.call("matt_pocock_workflow", { mode: "reference", capability: "research", reference: "domain" });
+        const second = await a.call("matt_pocock_workflow", { mode: "reference", capability: "research", reference: "ADR-FORMAT" });
+        console.log(JSON.stringify({ first, second, entries: a.entries.length, active: a.active() }));
+    ''')
+    assert 'source="procedure/ADR-FORMAT"' in result["second"]["content"][0]["text"]
+    assert result["entries"] == 0
+    assert "matt_pocock_active" not in result["active"]
+
+
+def test_catalog_reports_alias_collisions_and_eager_cycles() -> None:
+    result = run_typescript('''
+        import { findProcedure, validateProcedureCatalog } from "./packages/matt-pocock/src/catalog.ts";
+        findProcedure("research").aliases = ["implement"];
+        findProcedure("implement").requires = ["research"];
+        findProcedure("research").requires = ["implement"];
+        console.log(JSON.stringify({ errors: validateProcedureCatalog() }));
+    ''')
+    assert any("alias" in error for error in result["errors"])
+    assert any("cycle" in error.lower() for error in result["errors"])
+
+
+def test_native_dialog_escalates_when_child_ignores_termination(tmp_path) -> None:
+    binary = tmp_path / "osascript"
+    binary.write_text('#!/usr/bin/env node\nprocess.on("SIGTERM", () => {});\nprocess.stdout.write("ready");\nsetInterval(() => {}, 1000);\n')
+    binary.chmod(0o755)
+    result = run_typescript(f'''
+        import {{ macosChooseFromList }} from "./packages/matt-pocock/src/native-dialog.ts";
+        process.env.PATH = {str(tmp_path)!r} + ":" + process.env.PATH;
+        const start = performance.now();
+        const result = await macosChooseFromList({{ prompt: "Q", items: ["A", "B"], timeoutSeconds: 0.3 }}, {{ platform: "darwin", env: {{}} }});
+        console.log(JSON.stringify({{ result, elapsed: performance.now() - start }}));
+    ''')
+    assert result["result"]["action"] == "timed_out"
+    assert 300 <= result["elapsed"] < 2500
+
+
+def test_native_process_failure_is_distinct_from_user_cancellation(tmp_path) -> None:
+    binary = tmp_path / "osascript"
+    binary.write_text('#!/usr/bin/env node\nprocess.exit(1);\n')
+    binary.chmod(0o755)
+    result = run_typescript(f'''
+        import {{ macosChooseFromList }} from "./packages/matt-pocock/src/native-dialog.ts";
+        process.env.PATH = {str(tmp_path)!r} + ":" + process.env.PATH;
+        let error;
+        try {{ await macosChooseFromList({{ prompt: "Q", items: ["A", "B"] }}, {{ platform: "darwin", env: {{}} }}); }} catch (e) {{ error = e.message; }}
+        console.log(JSON.stringify({{ error }}));
+    ''')
+    assert result["error"] == "Native dialog process failed."
+
+
+def test_clock_readings_cannot_turn_cancellation_into_timeout() -> None:
+    result = run_typescript(HARNESS + '''
+        const r = runtime(); await r.start();
+        let reads = 0;
+        performance.now = () => reads++ === 0 ? 0 : 60000;
+        const result = await r.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "A" });
+        console.log(JSON.stringify(result));
+    ''')
+    assert result["details"] == {"pending": True, "timed_out": False, "source": "cancelled"}
+
+
+def test_question_deadline_dismisses_ui_and_adopts_recommendation() -> None:
+    result = run_typescript(HARNESS + '''
+        const r = runtime(); await r.start(); let dismissed = false;
+        r.ctx.ui.select = (_title, _options, { signal }) => new Promise(resolve => {
+          signal.addEventListener("abort", () => { dismissed = true; resolve(undefined); }, { once: true });
+        });
+        const result = await r.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "A", timeout_seconds: 0.01 });
+        console.log(JSON.stringify({ result, dismissed }));
+    ''')
+    assert result["dismissed"] is True
+    assert result["result"]["details"] == {
+        "answer": "A", "is_custom": False, "timed_out": True,
+        "pending": False, "source": "timeout_recommended",
+    }
+
+
+def test_disabling_custom_input_preserves_literal_option_labels() -> None:
+    result = run_typescript(HARNESS + '''
+        const r = runtime(); await r.start(); let opened = false;
+        r.ctx.ui.select = async () => "Type custom answer...";
+        r.ctx.ui.input = async () => { opened = true; return "unintended"; };
+        const result = await r.call("matt_pocock_ask", {
+          question: "Scope?", options: ["Type custom answer...", "B"], recommended: "B", allow_custom: false,
+        });
+        console.log(JSON.stringify({ result, opened }));
+    ''')
+    assert result["opened"] is False
+    assert result["result"]["details"] == {
+        "answer": "Type custom answer...", "is_custom": False, "source": "choice_selected",
+    }

@@ -644,20 +644,6 @@ export async function indexMemoryMetadata(cwd: string): Promise<MemoryMetadata[]
   return (await indexMemoryCorpus(cwd)).map((entry) => entry.metadata);
 }
 
-/** Metadata for a named subset of the corpus. Staleness is asked per entry, so
- *  only the entries the parent selected are described. */
-export async function selectedMemoryMetadata(
-  cwd: string,
-  names: readonly string[],
-): Promise<Array<{ name: string; description: string }>> {
-  if (names.length === 0) return [];
-  const wanted = new Set(names.map((name) => name.toLowerCase()));
-  return (await indexMemoryCorpus(cwd))
-    .map((entry) => entry.metadata)
-    .filter((metadata) => wanted.has(metadata.name.toLowerCase()))
-    .map((metadata) => ({ name: metadata.name, description: metadata.description }));
-}
-
 /** A malformed response may request correction, never grant routing authority. */
 function repairableSelection(text: string, digest: string, available: ReadonlyMap<string, string>): boolean {
   if (Buffer.byteLength(text, "utf8") > 64_000 || containsSensitiveMemoryMaterial(text)) return false;

@@ -43,7 +43,7 @@ const ALIASES: Record<string, ThinkingLevel> = {
  * hides a level; `xhigh`/`max` are opt-in and additionally require an explicit
  * non-null map entry; other absent entries default to supported.
  *
- * `tests/test_effort_extension.py` pins this against the function pi exports,
+ * `tests/test_extensions.py` pins this against the function pi exports,
  * so the copy cannot drift from the host it mirrors.
  */
 function supportedLevels(ctx: ExtensionCommandContext): ThinkingLevel[] {

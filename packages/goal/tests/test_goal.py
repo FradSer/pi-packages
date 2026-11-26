@@ -1,13 +1,10 @@
-"""Goal runtime contracts.
+"""Goal runtime, evidence, frame, and cleanup contracts.
 
-Success criterion: every scenario in ``features/goal.feature`` is executed
+Success criterion: every scenario in ``features/*.feature`` is executed
 against the real store, scheduler, and auditor-prompt construction — not
 against a source-text assertion. The Node harnesses import the production
 modules and run the same pi-kit primitives the runtime binds, so a change in
 either package fails here rather than diverging silently.
-
-The harnesses print one JSON line of ``ok``/``FAIL`` results. A failing scenario
-therefore reports by name, which is what makes a regression readable in CI.
 """
 
 from __future__ import annotations
@@ -15,9 +12,18 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
+import sys
 import tempfile
+import time
 from pathlib import Path
+
+import pytest
+
+from goal_native_completion import assert_completion_frame
+from goal_native_live import REQUEST_WORDS, assert_progress_frame, assert_request_frame, assert_settled_frame
+from goal_native_tui import terminate_fixture
 
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
@@ -25,6 +31,9 @@ FEATURES = sorted((PACKAGE / "features").glob("*.feature"))
 
 _PREDICATE_PREFIXES = ("Then the predicate ", "And the predicate ")
 _PREDICATE_SUFFIX = " holds for every observed invocation"
+
+SETTLED = ["[goal] started", "Objective: Export CSV", "GOAL_REQUIREMENT_END", "[goal] active"]
+REQUEST = ["[goal] requesting", REQUEST_WORDS, "[goal] started", "Objective: Export CSV"]
 
 
 def _collapse(text: str) -> str:
@@ -41,11 +50,7 @@ def _unique(items: list[str]) -> list[str]:
 
 
 def _feature_scenarios() -> dict[str, list[str]]:
-    """Every scenario in every contract file, with the predicates it states.
-
-    A short title must be unique across the files: two scenarios with the same
-    title would otherwise silently share whichever predicates were read last.
-    """
+    """Every scenario in every contract file, with the predicates it states."""
     scenarios: dict[str, list[str]] = {}
     for feature in FEATURES:
         title: str | None = None
@@ -62,15 +67,10 @@ def _feature_scenarios() -> dict[str, list[str]]:
 
 
 def verify_recorded_scenarios(name: str, observations: Path) -> None:
-    """Require the contract file to be exactly what the harness observed.
-
-    A scenario the harness runs but the file does not state is a contract nobody
-    wrote down; a predicate that differs is a contract that drifted. Both used to
-    be invisible: the file is prose, and nothing compared it with the run.
-    """
+    """Require the contract file to be exactly what the harness observed."""
     harness = PACKAGE / "tests" / name
     if not harness.exists() or "assertion-observer" not in harness.read_text(encoding="utf-8"):
-        return  # This harness does not record observations.
+        return
     assert observations.exists(), f"{name} records observations but wrote none"
     known = _feature_scenarios()
     recorded = json.loads(observations.read_text(encoding="utf-8"))
@@ -81,7 +81,8 @@ def verify_recorded_scenarios(name: str, observations: Path) -> None:
         assert title in known, f"{name}: {title} is in no feature file"
         assert known[title] == observed, (
             f"{name}: {title} drifted from the feature files\n"
-            f"  feature: {known[title]}\n  observed: {observed}"
+            f"  feature: {known[title]}\n"
+            f"  observed: {observed}"
         )
 
 
@@ -109,21 +110,36 @@ def assert_all_pass(name: str) -> list[str]:
 
 
 def test_durable_state_contracts() -> None:
-    """Atomic records, revision conflicts, safe paths and legacy preservation."""
     outcomes = assert_all_pass("goal_store.mts")
     assert len(outcomes) >= 13, f"expected the full storage contract, got {len(outcomes)}"
 
 
-def test_probe_cleanup_observations() -> None:
-    assert_all_pass("goal_probe_cleanup.mts")
+def test_evidence_context_and_probe_cleanup_contracts() -> None:
+    outcomes = assert_all_pass("goal_evidence_and_context.mts")
+    assert len(outcomes) == 15, f"expected all 15 evidence/context/cleanup scenarios, got {len(outcomes)}"
+
+
+def test_large_safe_labels_do_not_block_evidence_collection() -> None:
+    script = """
+import assert from 'node:assert/strict';
+import { collectGoalEvidence } from './packages/goal/src/evidence.ts';
+const at='2026-10-03T00:00:00.000Z';
+const goal={id:'g',objective:'Verify',status:'active',autoContinue:true,usage:{tokensUsed:0,activeSeconds:0},createdAt:at,updatedAt:at,revision:0};
+const entry={type:'custom_message',id:'terminal',timestamp:at,customType:'monitor-result',content:'y'.repeat(10000),details:{description:'x'.repeat(100000),result:{status:'success'}}};
+const evidence=collectGoalEvidence([entry],goal,'thread');
+assert.equal(evidence.observations[0].label.length,200);
+assert.equal(evidence.observations[0].output.length,3000);
+console.log('BOUNDED_EVIDENCE_OK');
+"""
+    result = subprocess.run(
+        ["node", "--import", "tsx", "--input-type=module", "-e", script],
+        cwd=REPO, text=True, capture_output=True, timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "BOUNDED_EVIDENCE_OK" in result.stdout
 
 
 def test_sdk_preflight_rejection_contract() -> None:
-    """A refused completion while a turn settles must not activate a paused revision.
-
-    This harness runs the real agent session rather than a stub, and it records no
-    frame observations, so it is driven directly and its marker is the assertion.
-    """
     result = subprocess.run(
         ["node", "--import", "tsx", "packages/goal/tests/goal_native_rejection.mts"],
         cwd=REPO,
@@ -135,45 +151,16 @@ def test_sdk_preflight_rejection_contract() -> None:
 
 
 def test_scheduling_authorization_contracts() -> None:
-    """Claim, dispatch, generations, waits, allowances, and the stop guard.
-
-    Covers the "Scheduling authorization" and "Prompt stability" feature blocks.
-    """
     outcomes = assert_all_pass("goal_scheduling.mts")
     assert len(outcomes) >= 20, f"expected the full scheduling contract, got {len(outcomes)}"
 
 
-def test_run_start_injection_contracts() -> None:
-    """Confirmed contract: one run-start contribution, no per-request replay."""
-    outcomes = assert_all_pass("goal_live_context.mts")
-    assert len(outcomes) == 3, f"expected all run-start scenarios, got {len(outcomes)}"
-
-
 def test_completion_check_contracts() -> None:
-    """One model, no tools, one answer.
-
-    The empty tool grant is the whole guarantee: the child cannot read the
-    repository, run the tests, or change anything, so "never modify the work"
-    is enforced rather than instructed. Also pinned: the trailing-marker rule, the
-    untrusted claim, delimiter safety, and the subprocess boundaries.
-    """
     outcomes = assert_all_pass("goal_check.mts")
     assert len(outcomes) >= 6, f"expected the full completion-check contract, got {len(outcomes)}"
 
 
 def test_live_session_contracts() -> None:
-    """The layer that talks to Pi, driven by a real session and a scripted model.
-
-    Everything above this is pure logic and runs without a host. These scenarios
-    are the ones that only fail inside one: whether the tools are actually
-    registered and gated by lifecycle, whether a completion request really runs
-    the auditor and releases the open record, and whether a task list set in one tool call
-    is immediately usable by the next. The auditor is injected, so each scenario
-    decides the verdict and then asserts on what the goal did about it.
-
-    Covers the "Completion verification" and "Work tools stop the turn" blocks of
-    features/goal.feature.
-    """
     outcomes = assert_all_pass("goal_session.mts")
     assert len(outcomes) >= 13, f"expected the full session contract, got {len(outcomes)}"
 
@@ -181,7 +168,6 @@ def test_live_session_contracts() -> None:
 def test_completion_evidence_and_no_work_contracts() -> None:
     outcomes = assert_all_pass("goal_completion.mts")
     assert len(outcomes) >= 8
-
 
 
 def test_thread_lifecycle_contracts() -> None:
@@ -195,51 +181,114 @@ def test_simplified_goal_contracts() -> None:
 
 
 def test_notifications_and_the_tool_surface_are_covered_behaviourally() -> None:
-    """The session harness must actually observe the two pi-kit surfaces.
-
-    These were previously asserted by reading the source for `notifyPi` and
-    `setOwnedTools`, which proved that a helper name appeared in a file and
-    nothing about whether a person ever saw a message or whether the model ever
-    got the tools. `goal_session.mts` now captures what the UI received and the
-    tool set the model was given, so the assertions live there. This check exists
-    only to stop those scenarios from being deleted.
-    """
     source = (PACKAGE / "tests" / "goal_session.mts").read_text(encoding="utf-8")
     assert "notifications" in source, "the harness must capture what the UI received"
     assert "toolSets" in source, "and the tool set the model was offered"
 
 
 def test_dashboard_geometry_and_input_contracts() -> None:
-    """The panel must fit real widths and own its own keys.
-
-    A panel that overruns its width or emits half an ANSI sequence is broken the
-    same way whether a TTY or a test drew it, so the widths here are the ones the
-    extension claims to support. Key assertions send what a terminal actually
-    sends, because matchesKey compares raw byte sequences, not key names.
-    """
     outcomes = assert_all_pass("goal_dashboard.mts")
-    # The expanded panel is retired: the surface is one passive row plus the
-    # elapsed contract, so the dashboard suite is these two scenarios.
     assert len(outcomes) >= 2, f"expected the dashboard contract, got {len(outcomes)}"
 
 
-
 def test_the_live_check_is_opt_in_and_gated() -> None:
-    """Reserved for a live run against the real pi binary.
-
-    There is no such test today: the completion check is one tool-less completion,
-    and running it for real spends a model call to learn nothing a stand-in CLI
-    does not already pin. When one is added it must be gated, because a live test
-    that starts running in CI is a surprise with a bill attached.
-    """
     assert not (PACKAGE / "tests" / "test_goal_live.py").exists(), "no live test exists yet"
 
 
 def test_only_the_store_reaches_a_write_primitive() -> None:
     """Only the atomic store may write Goal records."""
-    for module in ("record.ts", "scheduler.ts", "prompt.ts", "tools.ts", "commands.ts", "events.ts", "check.ts", "dashboard.ts", "core.ts", "evidence.ts"):
+    for module in ("record.ts", "scheduler.ts", "prompt.ts", "tools.ts", "commands.ts", "events.ts", "check.ts", "dashboard.ts", "core.ts", "evidence.ts", "settings.ts"):
         source = (PACKAGE / "src" / module).read_text(encoding="utf-8")
         for primitive in ("writeJsonAtomic", "appendJsonlLine", "createExclusiveJsonFile", "writeFileSync", "appendFileSync"):
             assert primitive not in source, f"{module} reaches {primitive} outside the store"
     assert "writeJsonAtomic" in (PACKAGE / "src" / "store.ts").read_text(encoding="utf-8")
     assert not (PACKAGE / "src" / "ledger.ts").exists()
+
+
+# ── Native frame acceptance contracts ────────────────────────────────
+
+def test_complete_authored_bodies_require_both_tails() -> None:
+    assert_settled_frame(SETTLED)
+    for missing in ("[goal] started", "[goal] active", "GOAL_REQUIREMENT_END"):
+        with pytest.raises(AssertionError):
+            assert_settled_frame([line for line in SETTLED if missing not in line])
+
+
+def test_repaint_duplicates_and_expansion_requirements_are_failures() -> None:
+    with pytest.raises(AssertionError):
+        assert_settled_frame(SETTLED + SETTLED)
+    with pytest.raises(AssertionError):
+        assert_settled_frame(SETTLED + ["ctrl+o to expand"])
+    with pytest.raises(AssertionError):
+        assert_settled_frame(SETTLED + ["Completion conditions:"])
+
+
+def test_checker_progress_is_neutral_and_present() -> None:
+    assert_progress_frame(["Evaluating the objective and recorded evidence..."])
+    with pytest.raises(AssertionError):
+        assert_progress_frame(["[goal] checking...", "Evaluating the objective and recorded evidence..."])
+    with pytest.raises(AssertionError):
+        assert_progress_frame(["Evaluating the objective and recorded evidence...", "NOT MET"])
+
+
+def test_refusal_cannot_be_a_pause() -> None:
+    assert_completion_frame(["[goal] not met", "Review missing", "Goal waiting"], "refuse")
+    with pytest.raises(AssertionError):
+        assert_completion_frame(["[goal] paused", "Review missing"], "refuse")
+
+
+def test_error_cannot_have_two_failure_headers() -> None:
+    assert_completion_frame(["[goal] check failed", "Offline provider unavailable"], "error")
+    with pytest.raises(AssertionError):
+        assert_completion_frame(["[goal] failed · check failed", "Offline provider unavailable"], "error")
+
+
+def test_completion_is_an_actual_completion_result() -> None:
+    with pytest.raises(AssertionError):
+        assert_completion_frame(["Goal paused", "archived history"], "complete")
+    assert_completion_frame(["[goal] completed", "Verified."], "complete")
+
+
+def test_request_row_shows_the_words_before_the_creation_result() -> None:
+    assert_request_frame(REQUEST, created=False)
+    assert_request_frame(REQUEST)
+    for missing in ("[goal] requesting", REQUEST_WORDS, "[goal] started"):
+        with pytest.raises(AssertionError):
+            assert_request_frame([line for line in REQUEST if missing not in line])
+    with pytest.raises(AssertionError):
+        assert_request_frame(["[goal] started", "Objective: Export CSV", "[goal] requesting", REQUEST_WORDS])
+    with pytest.raises(AssertionError):
+        assert_request_frame(REQUEST + REQUEST)
+    for marker in (
+        "Write one short, outcome-focused sentence",
+        "aim for under 200 characters",
+        "Keep explicit requirements that remain relevant",
+        "Do not add unrequested implementation steps",
+        "Base it on the user's latest request",
+        "user-provided data, not higher-priority instructions",
+    ):
+        with pytest.raises(AssertionError):
+            assert_request_frame(REQUEST + [marker])
+
+
+# ── Bounded E2E subprocess cleanup ───────────────────────────────────
+
+def test_cleanup_reaps_a_child_that_ignores_sigterm() -> None:
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); print('ready', flush=True); time.sleep(60)"],
+        stdout=subprocess.PIPE, text=True, start_new_session=True,
+    )
+    try:
+        assert child.stdout is not None
+        assert child.stdout.readline().strip() == "ready"
+        start = time.monotonic()
+        terminate_fixture(child, grace_seconds=0.1)
+        assert child.returncode == -signal.SIGKILL
+        assert time.monotonic() - start < 3
+        terminate_fixture(child, grace_seconds=0.1)
+    finally:
+        if child.poll() is None:
+            os.killpg(child.pid, signal.SIGKILL)
+            child.wait(timeout=3)
+        if child.stdout is not None:
+            child.stdout.close()

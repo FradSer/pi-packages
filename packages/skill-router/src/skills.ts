@@ -175,7 +175,7 @@ function searchableSkillText(route: RegistryRoute, upstreamDescription: string):
 /** One namespace per collection: its capability summary and gateway index answer
  * "what is in this collection" through one lookup. */
 function collectionNamespace(root: string, collection: RegistryCollection): ToolNamespace {
-  const gateway = managedFile(root, join(gatewayDir(root, collection.id, collection.gateway), "SKILL.md"));
+  const gateway = managedFile(root, join(gatewayDir(root, collection.id), "SKILL.md"));
   return {
     name: collectionNamespaceName(collection.id),
     aliases: [collection.id],

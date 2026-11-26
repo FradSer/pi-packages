@@ -9,11 +9,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { exactSessionRoute, registerIntentTools, setAgentHost, type AgentStartRequest } from "@fradser/pi-subagents";
 import { registerLeaderTools } from "../src/tools.ts";
-import type { AgentActionRuntime } from "../src/agent-actions.ts";
-import { sendResidentSequence, interruptResidentSequence } from "../src/team-machine.ts";
+import { sendResidentSequence, interruptResidentSequence, type spawnAgent } from "../src/team-machine.ts";
 
 /** The shape a test mocks the team spawner with. Matches `spawnAgent`. */
-export interface FakeTeamRuntime extends AgentActionRuntime {
+export interface FakeTeamRuntime {
+  spawnAgent: typeof spawnAgent;
   shutdownAgentExact(name: string, spawnId: string): Promise<{ ok: true; body?: string } | { ok: false; error: string }>;
 }
 

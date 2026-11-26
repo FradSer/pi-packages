@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import { readFileSync } from "node:fs";
 import os from "node:os";
@@ -50,11 +49,6 @@ export function readOdkLinkConfig(env: NodeJS.ProcessEnv = process.env): OdkLink
     token,
     ...(controlToken.length > 0 ? { controlToken } : {}),
   };
-}
-
-/** Never log a token: identify a link by a short digest instead. */
-export function tokenDigest(token: string): string {
-  return createHash("sha256").update(token).digest("hex").slice(0, 8);
 }
 
 /** Where a machine that reports to more than one desk states them. */

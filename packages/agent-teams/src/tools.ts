@@ -14,7 +14,6 @@ import { openTeamConsole, refreshTeamUI } from "./ui.ts";
 import { discoverAgents } from "@fradser/pi-subagents";
 import { messageRow } from "./tool-copy.ts";
 import { emptyToolCall, renderCoordinationRow } from "./tool-render.ts";
-import type { AgentActionRuntime } from "./agent-actions.ts";
 import { resolveRecipient } from "./recipient.ts";
 
 /** Point-to-point communication. Stays with @fradser/pi-agent-teams. */
@@ -71,7 +70,10 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
  * internal task domain coordinates residents without exposing a model-facing
  * task tool, so this package registers only `message`.
  */
-export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnAgent, shutdownAgentExact, sendLeaderMessage }): void {
+export function registerLeaderTools(
+  pi: ExtensionAPI,
+  runtime: { spawnAgent?: typeof spawnAgent; shutdownAgentExact?: typeof shutdownAgentExact; sendLeaderMessage: typeof sendLeaderMessage } = { spawnAgent, shutdownAgentExact, sendLeaderMessage },
+): void {
   registerMessageTool(pi, runtime);
 }
 

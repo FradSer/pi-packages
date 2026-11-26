@@ -32,7 +32,7 @@ return partial answers.
 
 Use `features/native-tool-runtime.feature` and `tests/test_context_package.py`
 for tool-count, no-command, and shared-worker contracts.
-`tests/context_tools_harness.mts` provides runtime coverage. Startup renders the
+`tests/context_runtime_harness.mts` provides runtime coverage. Startup renders the
 `[context] research started · <research query>` row, using the normalized concrete
 request that produced the prompt; while the async child runs, the transcript keeps
 only that started row with no duplicate progress row; completion renders the compact, expandable

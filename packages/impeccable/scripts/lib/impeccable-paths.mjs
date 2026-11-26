@@ -6,8 +6,7 @@ import { designSidecarCandidatesFor } from './staleness.mjs';
 export { IMPECCABLE_COMMAND_PREFIX } from './provider.mjs';
 
 export const IMPECCABLE_DIR = '.impeccable';
-export const LIVE_DIR = 'live';
-export const CRITIQUE_DIR = 'critique';
+const LIVE_DIR = 'live';
 
 export function getImpeccableDir(cwd = process.cwd(), options = {}) {
   return path.join(resolveProjectRoot(cwd, options), IMPECCABLE_DIR);

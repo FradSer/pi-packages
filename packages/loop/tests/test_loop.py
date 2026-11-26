@@ -1,6 +1,7 @@
-"""Deterministic /loop contracts, checked on the real modules."""
+"""Deterministic, command, decision, and typecheck /loop contracts."""
 from __future__ import annotations
 
+import functools
 import json
 import subprocess
 from pathlib import Path
@@ -8,14 +9,49 @@ from pathlib import Path
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
 FIXTURE = Path(__file__).with_name("loop-core-fixture.ts")
+COMMAND_FIXTURE = Path(__file__).with_name("loop-command-fixture.ts")
+DECISION_FIXTURE = Path(__file__).with_name("loop-decision-fixture.ts")
+
+
+@functools.lru_cache(maxsize=1)
+def _all_core_cases() -> dict[str, dict[str, object]]:
+    result = subprocess.run(["bun", str(FIXTURE)], cwd=REPO, capture_output=True,
+                            text=True, timeout=120, check=False)
+    assert result.returncode == 0, result.stderr + result.stdout
+    return {value["scenario"]: value for line in result.stdout.splitlines() if line.strip()
+            for value in [json.loads(line)]}
 
 
 def run(*scenarios: str) -> dict[str, dict[str, object]]:
+    cached = _all_core_cases()
+    if all(name in cached for name in scenarios):
+        return {name: cached[name] for name in scenarios}
     result = subprocess.run(["bun", str(FIXTURE), *scenarios], cwd=REPO, capture_output=True,
                             text=True, timeout=120, check=False)
     assert result.returncode == 0, result.stderr + result.stdout
     return {value["scenario"]: value for line in result.stdout.splitlines() if line.strip()
             for value in [json.loads(line)]}
+
+
+@functools.lru_cache(maxsize=None)
+def run_command_scenario(scenario: str) -> dict[str, object]:
+    result = subprocess.run(["bun", str(COMMAND_FIXTURE), scenario], cwd=REPO, capture_output=True,
+                            text=True, timeout=120, check=False)
+    assert result.returncode == 0, result.stderr + result.stdout
+    rows = {value["scenario"]: value for line in result.stdout.splitlines() if line.strip()
+            for value in [json.loads(line)]}
+    case = rows[scenario]
+    assert case.get("ok") is True, case
+    return case["value"]  # type: ignore[return-value]
+
+
+def run_decision_scenario(scenario: str) -> dict[str, object]:
+    result = subprocess.run(["bun", str(DECISION_FIXTURE), scenario], cwd=REPO, capture_output=True,
+                            text=True, timeout=120, check=False)
+    assert result.returncode == 0, result.stderr + result.stdout
+    lines = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+    assert len(lines) == 1, result.stdout
+    return lines[0]
 
 
 def value(cases: dict[str, dict[str, object]], name: str) -> dict[str, object]:
@@ -256,4 +292,250 @@ def test_a_refused_injection_ends_the_loop_without_a_timer() -> None:
     assert data["injections"] == 1, data
     assert data["active"] is False and data["pending"] == 0, data
     assert "stale" in str(data["undelivered"]), data
+
+
+def test_package_typecheck_covers_the_test_harnesses() -> None:
+    config = (PACKAGE / "tsconfig.tests.json").read_text(encoding="utf-8")
+    assert "tests/**/*.ts" in config, "test harnesses must be part of a type check"
+    result = subprocess.run(
+        ["bun", "x", "tsc", "--noEmit", "-p", "packages/loop/tsconfig.tests.json"],
+        cwd=REPO, capture_output=True, text=True, timeout=300,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def _messages(rows: list[dict[str, object]]) -> list[str]:
+    return [str(row["message"]) for row in rows]
+
+
+def _said(rows: list[dict[str, object]], needle: str) -> bool:
+    return any(needle in message for message in _messages(rows))
+
+
+def test_starting_a_loop_runs_the_first_repetition_and_announces_it() -> None:
+    data = run_command_scenario("start-flags")
+    assert data["sent"] == ["CHECK THE BUILD"], "the first repetition arrives at start"
+    assert data["status"] == ["Looping · every 1h · 1/2"], data["status"]
+    assert data["lifecycle"] == [], "the notice must not be appended at start: " + json.dumps(data)
+    content = str(data["notice"])
+    assert "becomes the schedule" not in content, "a parameterized start states its own message: " + json.dumps(data)
+    assert "every 1h" in content, content
+    assert "as soon as each repetition settles" not in content, content
+    assert "/loop stop" in content, content
+    assert data["events"] == ["before_agent_start", "agent_end", "agent_settled", "session_start",
+                              "session_shutdown"], data["events"]
+
+
+def test_status_and_stop_report_state_and_clear_the_row() -> None:
+    data = run_command_scenario("status-and-stop")
+    assert _said(data["before"]["notifications"], "loop: no loop is running."), data["before"]
+    assert _said(data["before"]["notifications"], "Usage:"), data["before"]
+    assert data["started"]["status"] == ["Looping · every 1h · 1/3"], data["started"]
+    assert _said(data["status"]["notifications"], "loop: Looping · every 1h · 1/3"), data["status"]
+    assert data["stopped"]["status"] == [None], "stopping must clear the row: " + json.dumps(data["stopped"])
+    assert _said(data["stopped"]["notifications"], "stopped after 1 injection (user)"), data["stopped"]
+    assert _said(data["afterStop"], "loop: no loop is running."), data["afterStop"]
+
+
+def test_every_refusal_names_the_cause_and_schedules_nothing() -> None:
+    data = run_command_scenario("refusals-and-usage")
+    assert _said(data["busy"], "already running"), data["busy"]
+    assert data["busy"][0]["level"] == "warning"
+    for key, needle in (("badDuration", "--every must be a duration"),
+                        ("noMessage", "A message is required"),
+                        ("unknownFlag", "Unknown option: --bogus"),
+                        ("placeholderTypo", "Unknown placeholder: Index"),
+                        ("freeWithoutCredential", "needs a decision credential"),
+                        ("untilWithoutCredential", "--until needs a decision credential")):
+        rows = data[key]
+        assert _said(rows, needle), (key, rows)
+        assert rows[0]["level"] == "error", (key, rows)
+    headless = data["headless"]
+    assert headless and headless[0]["customType"] == "loop-notice", headless
+    assert headless[0]["options"] == {"triggerTurn": False}, headless
+
+
+def test_a_free_request_echoes_the_request_then_analyzes() -> None:
+    data = run_command_scenario("a-free-request-echoes-then-analyzes")
+    assert data["messages"][0] == {"customType": "loop-request", "content": "输入3次Hi"}, data
+    assert data["status"] == ["Analyzing · 输入3次Hi", "Looping · every 5m · 1/3"], data
+    flags = run_command_scenario("start-flags")
+    assert all(row["customType"] != "loop-request" for row in flags["lifecycle"] + [
+        {"customType": None}]), flags
+    assert data["status"][0].startswith("Analyzing ·"), data
+
+
+def test_a_semantic_start_says_what_left_the_message() -> None:
+    data = run_command_scenario("a-semantic-start-says-what-left-the-message")
+    assert data["hits"] == ["interval,runs,stop"], data
+    assert data["sent"] == ["输入Hi"], data
+    content = str(data["notice"])
+    assert "Message: 输入Hi." in content, content
+    assert "becomes the schedule, not part of the message" in content, content
+    assert "Cadence: every 5m" in content, content
+
+
+def test_a_start_line_does_not_preempt_the_run_it_started() -> None:
+    data = run_command_scenario("the-start-line-belongs-to-the-next-run")
+    assert data["injections"] == ["WATCH"], data
+    assert data["fromCommand"] == [], "the start must not preempt the command's own run: " + json.dumps(data)
+    assert data["whileRunning"] == ["loop-lifecycle"], data
+    assert data["beforeNextRun"] == [], "the repetition is already queued: " + json.dumps(data)
+    assert data["second"] == [], "the line was already injected: " + json.dumps(data)
+
+
+def test_only_the_loop_own_repetition_is_judged() -> None:
+    data = run_command_scenario("only-the-repetition-is-judged")
+    assert data["injected"] is True, data
+    assert data["repetition"] == "WATCH", data
+    assert str(data["running"][-1]).startswith("Looping · every 1s · "), data
+    foreign = data["foreign"]
+    assert foreign["hits"] == [], "a foreign settle must ask no stopping question: " + json.dumps(foreign)
+    assert str(foreign["status"][-1]).startswith("Looping · every 1s · "), foreign
+    assert all("stopped" not in row["message"] for row in foreign["notifications"]), foreign
+    after = data["after"]
+    assert after["hits"] == ["met"], after
+    assert data["judged"] is True, data
+    assert after["status"][-1] is None, after
+    stopped = str(after["notifications"][-1]["message"])
+    assert stopped.startswith("loop: stopped after ") and stopped.endswith("(condition)"), after
+
+
+def test_a_refused_delivery_is_reported_once_and_clears_the_row() -> None:
+    data = run_command_scenario("delivery-failure")
+    assert data["reported"] is True, data
+    assert len(data["notifications"]) == 1, data
+    notice = data["notifications"][0]
+    assert notice["level"] == "error", notice
+    assert "refused a scheduled injection" in str(notice["message"]), notice
+    assert "stale" in str(notice["message"]), notice
+    assert data["sent"] == ["WATCH"], "the loop must stop after one refusal: " + json.dumps(data)
+    assert data["status"][-1] is None, "the row must clear: " + json.dumps(data)
+
+
+def test_semantic_plan_is_two_bounded_question_sets() -> None:
+    case = run_decision_scenario("semantic-plan")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "check the deploy", "intervalMs": 300000,
+                             "until": "stop when it is green"}, case["plan"]
+    assert case["mode"] == "semantic" and case["hits"] == 2
+    report = case["report"]
+    assert report["model"] == "jev-1.13.0" and report["inputTokens"] == 18
+    requests = case["requests"]
+    first = requests[0]
+    questions = first["questions"]
+    assert sorted(questions) == ["interval", "runs", "stop"]
+    for question in questions.values():
+        assert question["type"] in {"noul", "choice", "score"}
+    assert len(first["state"]["segments"]) == 2
+    assert first["state"]["request"].startswith("check the deploy")
+    interval_criteria = questions["interval"]["criteria"]
+    assert "unspecified" in interval_criteria and "5m" in interval_criteria
+    stop_criteria = questions["stop"]["criteria"]
+    assert set(stop_criteria) == {"none", "segment_0", "segment_1"}
+    assert "stop when it is green" in stop_criteria["segment_1"]
+    message_criteria = requests[1]["questions"]["message"]["criteria"]
+    assert "without_schedule_and_stop" in message_criteria
+    assert requests[1]["state"]["stop_condition"] == "stop when it is green"
+
+
+def test_one_candidate_needs_no_message_judgment() -> None:
+    case = run_decision_scenario("single-candidate")
+    assert case["ok"] is True and case["hits"] == 1, case
+    assert case["plan"] == {"message": "check the build", "intervalMs": 300000}, case["plan"]
+
+
+def test_thresholds_and_rejections_fail_closed() -> None:
+    low = run_decision_scenario("low-confidence")
+    assert low["failure"] == "low-confidence" and low["hits"] == 1, low
+    unspecified = run_decision_scenario("unspecified-interval")
+    assert unspecified["ok"] is True and unspecified["intervalAssumed"] is True, unspecified
+    assert unspecified["plan"]["intervalMs"] == 300000, unspecified
+    malformed = run_decision_scenario("malformed-choice")
+    assert malformed["failure"] == "malformed", malformed
+    assert "banana" in malformed["message"]
+    credential = run_decision_scenario("unauthorized")
+    assert credential["failure"] == "unauthorized" and credential["hits"] == 1, credential
+    missing = run_decision_scenario("no-credential")
+    assert missing["config"] is None, missing
+
+
+def test_a_request_with_no_cadence_and_no_count_still_runs() -> None:
+    case = run_decision_scenario("no-cadence-no-count")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "检查项目修改，总结", "intervalMs": 300000}, case["plan"]
+    assert case["intervalAssumed"] is True, case
+    assert case["mode"] == "semantic" and case["hits"] == 1, case
+
+
+def test_a_count_with_no_cadence_takes_the_default_interval() -> None:
+    case = run_decision_scenario("count-without-cadence")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "输入Hi", "intervalMs": 300000, "maxRuns": 3}, case["plan"]
+    assert case["intervalAssumed"] is True, case
+    assert case["messageStripped"] is True, case
+    assert case["mode"] == "semantic" and case["hits"] == 1, case
+    first = case["requests"][0]
+    assert first["questions"]["interval"]["criteria"]["unspecified"], first["questions"]["interval"]
+    assert sorted(first["questions"]) == ["interval", "runs", "stop"], first["questions"]
+
+
+def test_a_chinese_hour_cadence_is_listed_and_leaves_the_message() -> None:
+    case = run_decision_scenario("chinese-hour-cadence")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "清理非必要的文档、代码", "intervalMs": 7200000}, case["plan"]
+    assert case["intervalAssumed"] is None, case
+    assert case["messageStripped"] is True, case
+    assert case["mode"] == "semantic" and case["hits"] == 1, case
+    interval_criteria = case["requests"][0]["questions"]["interval"]["criteria"]
+    assert "2h" in interval_criteria, interval_criteria
+    assert case["requests"][0]["state"]["listed_intervals"] == [
+        {"key": key, "seconds": seconds} for key, seconds in
+        (("30s", 30), ("1m", 60), ("5m", 300), ("15m", 900), ("30m", 1800), ("1h", 3600),
+         ("2h", 7200), ("4h", 14400), ("6h", 21600), ("8h", 28800), ("12h", 43200), ("1d", 86400))], \
+        case["requests"][0]["state"]["listed_intervals"]
+
+
+def test_a_count_segment_is_never_offered_as_a_stopping_condition() -> None:
+    case = run_decision_scenario("count-segment")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "check the build", "intervalMs": 300000, "maxRuns": 3}, case["plan"]
+    first = case["requests"][0]
+    stop_criteria = first["questions"]["stop"]["criteria"]
+    assert "3 times" not in json.dumps(stop_criteria), stop_criteria
+    assert set(stop_criteria) == {"none", "segment_0"}, stop_criteria
+    assert set(first["state"]["segments"][key]["text"] for key in range(len(first["state"]["segments"]))) == {
+        "check the build every 5 minutes", "3 times"}, first["state"]["segments"]
+    assert case["hits"] == 1, case
+    assert "message" not in first["questions"], first["questions"]
+
+
+def test_a_count_segment_does_not_renumber_the_stop_keys() -> None:
+    case = run_decision_scenario("count-not-last")
+    assert case["ok"] is True, case
+    assert case["plan"] == {
+        "message": "check the deploy", "intervalMs": 300000, "maxRuns": 3,
+        "until": "stop when green"}, case["plan"]
+    first = case["requests"][0]
+    state_segments = {row["key"]: row["text"] for row in first["state"]["segments"]}
+    assert state_segments == {
+        "segment_0": "3 times",
+        "segment_1": "check the deploy every 5 minutes",
+        "segment_2": "stop when green"}, state_segments
+    stop_criteria = first["questions"]["stop"]["criteria"]
+    for key, text in state_segments.items():
+        if key in stop_criteria:
+            assert text in str(stop_criteria[key]), (key, text, stop_criteria)
+    assert "segment_0" not in stop_criteria, "a count segment must not be offered"
+
+
+def test_stop_judgment_uses_the_explicit_threshold() -> None:
+    met = run_decision_scenario("stop-met")
+    assert met["ok"] is True and met["verdict"] == {"met": True, "probability": 0.92}, met
+    not_met = run_decision_scenario("stop-not-met")
+    assert not_met["verdict"] == {"met": False, "probability": 0.3}, not_met
+    request = met["requests"][0]
+    assert request["questions"]["met"]["type"] == "noul"
+    assert request["state"]["condition"] == "the deploy is green"
+    assert request["state"]["last_assistant_message"] == "The deploy is green in production."
 

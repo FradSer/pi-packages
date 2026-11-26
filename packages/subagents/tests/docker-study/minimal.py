@@ -17,8 +17,6 @@ import tempfile
 from datetime import datetime, timezone
 
 REPO = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(REPO / "packages/continual-learning/tests"))
-from docker_experiment import InferenceProxy, redact_transport_credentials
 
 PROVIDER = "magpie-hy4"
 MODEL = "hunyuan-eval/hy4-dev"

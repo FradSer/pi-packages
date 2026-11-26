@@ -279,6 +279,31 @@ class EffortManifestTests(unittest.TestCase):
     def test_no_claude_only_artifacts(self) -> None:
         self.assertFalse((UTILS_PKG_DIR / ".claude-plugin").exists())
 
+    def test_docker_harness_prologue_reaches_its_first_tool_without_tmpdir(self) -> None:
+        import os
+        import stat
+        import tempfile
+        harness = UTILS_PKG_DIR / "tests" / "utils_docker.sh"
+        with tempfile.TemporaryDirectory(prefix="pi-utils-harness-") as tools:
+            stub = Path(tools) / "mktemp"
+            stub.write_text("#!/bin/sh\necho STUB_MKTEMP_REACHED >&2\nexit 3\n", encoding="utf-8")
+            stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+            env = {key: value for key, value in os.environ.items() if key != "TMPDIR"}
+            env["PATH"] = f"{tools}{os.pathsep}{env.get('PATH', '')}"
+            result = subprocess.run(
+                ["sh", str(harness)],
+                cwd=REPO,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        output = result.stdout + result.stderr
+        self.assertNotIn("unbound variable", output, output)
+        self.assertIn("STUB_MKTEMP_REACHED", output, output)
+        self.assertNotEqual(0, result.returncode)
+
 
 if __name__ == "__main__":
     unittest.main()

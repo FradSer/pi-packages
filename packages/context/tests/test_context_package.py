@@ -15,15 +15,18 @@ def read(relative: str) -> str:
 
 
 class TestContextPackage(unittest.TestCase):
-    def test_empty_success_retries_exactly_once(self) -> None:
+    def _run_runtime_harness(self, mode: str) -> None:
         result = subprocess.run(
-            ["node", os.path.join(PACKAGE, "tests/context_retry_harness.mts")],
+            ["bun", os.path.join(PACKAGE, "tests/context_runtime_harness.mts"), mode],
             cwd=os.path.dirname(os.path.dirname(PACKAGE)),
             capture_output=True,
             text=True,
             timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_empty_success_retries_exactly_once(self) -> None:
+        self._run_runtime_harness("retry")
 
     def test_research_widget_shows_running_status(self) -> None:
         result = subprocess.run(
@@ -50,14 +53,7 @@ class TestContextPackage(unittest.TestCase):
         self.assertNotIn("current.agentName", source)
 
     def test_context_rows_fit_runtime_width(self) -> None:
-        result = subprocess.run(
-            ["node", os.path.join(PACKAGE, "tests/context_rendering_harness.mts")],
-            cwd=os.path.dirname(os.path.dirname(PACKAGE)),
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self._run_runtime_harness("rendering")
 
     def test_manifest_is_native_extension_package(self) -> None:
         manifest = json.loads(read("package.json"))
@@ -146,14 +142,10 @@ class TestContextPackage(unittest.TestCase):
         self.assertIn("unknown placeholder", source)
         self.assertIn("missing placeholder", source)
         self.assertIn("unresolved placeholder", source)
-        result = subprocess.run(
-            ["node", "--import", "tsx", os.path.join(PACKAGE, "tests/context_prompt_harness.mts")],
-            cwd=os.path.dirname(os.path.dirname(PACKAGE)),
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self._run_runtime_harness("prompt")
+
+    def test_research_guidance_preserves_structured_prompt(self) -> None:
+        self._run_runtime_harness("composition")
 
     def test_result_uses_lifecycle_renderer_without_truncation(self) -> None:
         source = read("extensions/context-tools.ts")

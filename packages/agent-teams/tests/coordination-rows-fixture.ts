@@ -13,7 +13,6 @@ import { initTheme, keyHint, type ExtensionAPI, type ToolDefinition } from "@ear
 import { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
 import { KeybindingsManager, setKeybindings, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
 import teamRuntime from "../src/index.ts";
-import { runAgentAction } from "../src/agent-actions.ts";
 import { resolveAgentTools } from "@fradser/pi-subagents";
 import { WORKER_CAPABILITY_TOOLS } from "../src/capability-tools.ts";
 import { clearSessionAgents, exactSessionRoute, executeChildIntent, registerIntentTools, setAgentHost } from "@fradser/pi-subagents";
@@ -88,20 +87,16 @@ registerLeaderTools(capture("leader") as unknown as ExtensionAPI, runtime as nev
 // The intent family is @fradser/pi-subagents'. It reaches the team spawn path by
 // the coordinator publishing itself, so the row under test is the real tool's.
 setAgentHost({
-  // `runAgentAction` throws on refusal and returns a receipt carrying the exact
-  // handle, so the host translates rather than reshaping.
   async start(request) {
     try {
-      const receipt = await runAgentAction({
-        action: "start",
+      const spawned = runtime.spawnAgent({
         name: request.name,
+        role: request.name,
         ...(request.prompt ? { prompt: request.prompt } : {}),
         ...(request.definition ? { definition: { ...request.definition, tools: request.definition.tools ?? ["read", "bash"] } } : {}),
         model: "anthropic/claude-sonnet-4-5",
-      }, undefined, runtime as never) as unknown as { session: { id?: string } & Record<string, unknown> };
-      const session = receipt.session?.id ?? receipt.session;
-      if (!session) return { ok: false, error: "the team spawn returned no handle" };
-      return { ok: true, session: String(session) };
+      });
+      return { ok: true, session: exactSessionRoute(spawned.agent.name, spawned.agent.spawnId) };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }

@@ -33,7 +33,7 @@ export interface TerminalWorkflowState {
   reason?: string;
 }
 
-export type WorkflowSessionData = WorkflowState | TerminalWorkflowState;
+type WorkflowSessionData = WorkflowState | TerminalWorkflowState;
 
 export type WorkflowRoute = ReturnType<typeof catalogWorkflowRoutes>[number];
 
@@ -124,7 +124,7 @@ function workflowRecord(value: unknown): Record<string, unknown> | undefined {
     && typeof candidate.phase === "string" ? candidate : undefined;
 }
 
-export function isWorkflowState(value: unknown): value is WorkflowState {
+function isWorkflowState(value: unknown): value is WorkflowState {
   const candidate = workflowRecord(value);
   return candidate !== undefined && candidate.status === "active"
     && Array.isArray(candidate.loadedReferences)
@@ -141,7 +141,7 @@ export function withDeliveryDefaults(state: WorkflowState): WorkflowState {
   return { ...state, deliveredProcedures: state.deliveredProcedures ?? [] };
 }
 
-export function isTerminalWorkflowState(value: unknown): value is TerminalWorkflowState {
+function isTerminalWorkflowState(value: unknown): value is TerminalWorkflowState {
   const candidate = workflowRecord(value);
   return candidate !== undefined
     && (candidate.status === "completed" || candidate.status === "cancelled");
@@ -156,11 +156,6 @@ export function latestWorkflowRecord(entries: unknown[]): WorkflowSessionData | 
     return isWorkflowState(entry.data) || isTerminalWorkflowState(entry.data) ? entry.data : undefined;
   }
   return undefined;
-}
-
-export function latestWorkflowState(entries: unknown[]): WorkflowState | undefined {
-  const record = latestWorkflowRecord(entries);
-  return record?.status === "active" ? withDeliveryDefaults(record) : undefined;
 }
 
 export function workflowGuidance(state: WorkflowState, availableReferences: string[]): string {

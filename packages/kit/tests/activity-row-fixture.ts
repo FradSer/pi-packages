@@ -164,7 +164,7 @@ assert.equal(stripVTControlCharacters(identityOnly).trimEnd(), ` ⠋ researcher`
 for (const format of ["plain", "markdown"] as const) {
   for (const width of [24, 40, 48, 120]) {
     const narrow = stripVTControlCharacters(row(
-      { id: "a", identity: "learner", activity: "pnpm build and onIdle order" },
+      { id: "a", identity: "learner", activity: "bun build and onIdle order" },
       { activityFormat: format },
       width,
     ));

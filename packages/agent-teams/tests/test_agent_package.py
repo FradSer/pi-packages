@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+
+# ── test_agent_package.py ──
+
 import json
 import os
 import re
@@ -2009,3 +2012,1379 @@ def test_spawner_labels_search_tool_calls_by_their_pattern() -> None:
     # A message subject names what was said, not what the worker is doing.
     assert "message: Ship the release" in activities, activities
     assert not any(activity.startswith("file: ") and activity != "file: index.ts" for activity in activities), activities
+
+# ── test_agent_delegation.py ──
+"""Public strict child control registration contract."""
+
+import json
+import os
+import subprocess
+import textwrap
+
+PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def _agent_delegation_run_node(script: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bun", "-e", textwrap.dedent(script)],
+        cwd=PACKAGE,
+        capture_output=True,
+        text=True,
+    )
+
+
+INTENT_TOOLS = ["agent_start", "agent_input", "agent_stop", "agent_list"]
+
+
+def test_intent_tool_schemas_are_strict_flat_objects():
+    """One closed flat object per intent tool, not a union root.
+
+    The retired `agent` tool was a union of per-action objects, which forces a
+    tolerance layer into every consumer because some harnesses deliver a nested
+    object as a JSON string. The intent family keeps the same strictness without
+    the nesting, and every registered operation still refuses unknown keys.
+    """
+    result = _agent_delegation_run_node("""
+    import { registerComposedTools } from "./tests/composed-tools.ts";
+    const tools = new Map();
+    registerComposedTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools() { return []; }, setActiveTools() {} });
+    const payload = {};
+    for (const name of %s) {
+      const tool = tools.get(name);
+      payload[name] = {
+        name: tool.name,
+        required: tool.parameters.required,
+        strict: tool.parameters.additionalProperties === false,
+        outputStrict: tool.outputSchema.additionalProperties === false,
+        dispositions: tool.outputSchema.properties.disposition.enum,
+      };
+    }
+    console.log(JSON.stringify(payload));
+    """ % json.dumps(INTENT_TOOLS))
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert set(payload) == set(INTENT_TOOLS)
+    for name in INTENT_TOOLS:
+        assert payload[name]["name"] == name
+        assert payload[name]["strict"] is True, name
+        assert payload[name]["outputStrict"] is True, name
+        # One closed input object and one closed receipt vocabulary per operation.
+        assert "started" in payload[name]["dispositions"], name
+        assert "rejected" in payload[name]["dispositions"], name
+    assert payload["agent_start"]["required"] == ["prompt"]
+    assert payload["agent_input"]["required"] == ["session", "prompt", "delivery"]
+    assert payload["agent_stop"]["required"] == ["session"]
+    assert payload["agent_list"]["required"] == [], "the roster reads a page, so it requires nothing"
+
+# ── test_agent_widget_ownership.py ──
+"""One widget owner when a standalone child runs alongside a team."""
+
+import json
+import os
+import subprocess
+from pathlib import Path
+
+
+def test_team_widget_excludes_standalone_children(tmp_path: Path) -> None:
+    package = Path(__file__).resolve().parents[1]
+    script = r'''
+      import { ensureTeamWidget } from './src/ui.ts';
+      import { registerAgent, resetRoster } from '@fradser/pi-subagents';
+      resetRoster();
+      const rows=[];
+      const ctx={mode:'tui',ui:{setWidget(_key,factory){
+        if(factory)rows.push(...factory({requestRender(){}},{fg:(_color,text)=>text,bold:text=>text}).render(90));
+      }}};
+      const base={role:'test',pid:1,status:'working',isolation:'none',createdAt:1,updatedAt:1};
+      registerAgent({...base,name:'hosted',spawnId:'h'});
+      registerAgent({...base,name:'standalone',spawnId:'s',standalone:true});
+      ensureTeamWidget(ctx);
+      console.log(JSON.stringify({rows}));
+    '''
+    result = subprocess.run(['node', '--input-type=module', '--eval', script],
+        cwd=package, capture_output=True, text=True, timeout=30,
+        env={**{key: value for key, value in os.environ.items() if not key.startswith('PI_TEAMMATE_')},
+            'PI_CODING_AGENT_DIR': str(tmp_path / 'agent')})
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)['rows']
+    assert len(rows) == 1, rows
+    assert 'hosted' in rows[0]
+    assert 'standalone' not in rows[0]
+
+# ── test_bundle_ack.py ──
+"""The native bundle smoke must be backed by a real correlated prompt receipt."""
+
+
+import sys
+from pathlib import Path
+
+PACKAGE = Path(__file__).resolve().parents[1]
+REPO = PACKAGE.parents[1]
+sys.path.insert(0, str(REPO / "tests" / "e2e" / "support"))
+from harness import run_install  # noqa: E402
+
+
+def test_bundle_kickoff_has_native_ack_and_all_session_controls(tmp_path: Path) -> None:
+    run = run_install(tmp_path, ["agent-teams"], scenario="bundle", host="team")
+    assert run.completed.returncode == 0, run.text
+    started = run.calls_named("agent_start")[0]
+    assert not started["isError"] and started["details"]["prompted"] is True
+    # The intent family mints the roster name; the label is what a reader knows.
+    assert started["details"]["session"].startswith("session:")
+    assert started["details"]["label"] == "scout"
+    assert started["details"]["grant"] == ["message", "task"]
+    # The surfaces are the tool names this install registers: the intent family
+    # and mail. The retired task tools must not reappear through the bundle.
+    assert set(run.surfaces()) >= {"agent_start", "agent_input", "agent_stop", "agent_list", "message"}
+    assert not {"create_task", "get_task", "list_tasks", "update_task"} & set(run.surfaces())
+    assert run.live_children == [], "parent shutdown must close its child"
+    spawn, = [event for event in run.rpc_events if event["type"] == "spawn"]
+    assert "--no-session" in spawn["args"]
+    commands = [event["command"] for event in run.rpc_events if event["type"] == "command" and event["pid"] == spawn["pid"]]
+    kickoff = next(command for command in commands if command["type"] == "prompt" and "ROLE PROMPT" in command["message"])
+    receipts = [event["response"] for event in run.rpc_events if event["type"] == "response" and event["pid"] == spawn["pid"]]
+    accepted = next(receipt for receipt in receipts if receipt.get("id") == kickoff["id"])
+    assert accepted["command"] == "prompt" and accepted["success"] is True
+    assert accepted.get("data", {}).get("disposition") in {"started", "queued"}
+    assert not any(command["type"] == "new_session" for command in commands)
+    assert "@fradser/pi-agent-teams" not in str(spawn.get("bindings", {}))
+
+# ── test_prompt_accuracy.py ──
+"""Leader prompt accuracy: guidance and tool disclosure teach only leader Work actions."""
+
+
+
+# One vocabulary for every participant. The leader/worker split is gone, so
+# there is no longer a separate leader action list to keep in step.
+TASK_ACTIONS = ["create", "list", "update", "complete", "reopen"]
+
+
+def _guidance() -> dict[str, object]:
+    return run_node(
+        f'''\
+        import {{ buildIdleLeaderGuidance, buildTeamLeaderGuidance }} from "{(SRC / "guidance.ts").as_uri()}";
+        console.log(JSON.stringify({{ idle: buildIdleLeaderGuidance(), active: buildTeamLeaderGuidance() }}));
+        '''
+    )
+
+
+def test_leader_guidance_explains_internal_work_without_a_task_tool() -> None:
+    payload = _guidance()
+    for key in ("idle", "active"):
+        flat = " ".join(str(payload[key]).split())
+        lowered = flat.lower()
+        assert "work items are internal" in lowered or "runtime records work internally" in lowered
+        for retired in ("create_task", "list_tasks", "get_task", "update_task"):
+            assert retired not in flat, f"{key} still teaches the retired {retired} tool"
+    active = " ".join(str(payload["active"]).split())
+    assert "no leader task tool" in active.lower()
+
+# ── test_snapshot_version.py ──
+import json
+import os
+import subprocess
+import textwrap
+
+PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def test_incompatible_tasks_snapshot_raises_explicit_error(tmp_path):
+    tasks = tmp_path / "tasks.json"
+    tasks.write_text(json.dumps({"runtimeVersion": 1, "tasks": {"old": {}}}))
+    result = subprocess.run(
+        ["node", "--input-type=module", "--eval", textwrap.dedent(f'''
+        import {{ readTasksFile }} from "./src/task-domain/index.ts";
+        try {{ readTasksFile({str(tasks)!r}); }} catch (error) {{ console.log(error.message); }}
+        ''')],
+        cwd=PACKAGE,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    # The file is a Work
+    # snapshot, and this package may be installed without the team runtime, so
+    # naming Agent Teams in the error would be wrong. The version numbers and
+    # the refusal to treat an incompatible tasks as empty are unchanged.
+    assert "Incompatible task file version 1; expected 2." in result.stdout
+
+# ── test_reload_incompatible_snapshot.py ──
+"""Reload archives incompatible Work state without breaking extension initialization."""
+
+import json
+import os
+import subprocess
+import textwrap
+
+PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def test_incompatible_snapshot_is_archived_and_initialization_continues(tmp_path):
+    result = subprocess.run(
+        ["node", "--input-type=module", "--eval", textwrap.dedent(f'''
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import {{ tasksFilePath }} from "./src/task-domain/index.ts";
+        import {{ initTeamMachine, shutdownTeamMachine }} from "./src/team-machine.ts";
+        const cwd = {str(tmp_path)!r};
+        const tasks = tasksFilePath(undefined, cwd);
+        fs.mkdirSync(tasks.slice(0, tasks.lastIndexOf("/")), {{ recursive: true }});
+        fs.writeFileSync(tasks, JSON.stringify({{ runtimeVersion: 1, tasks: {{ "old-work": {{ id: "old-work" }} }} }}));
+        initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate() {{}}, notifyChange() {{}} }});
+        const archived = fs.readdirSync(tasks.slice(0, tasks.lastIndexOf("/"))).find((name) => name.startsWith("tasks.json.incompatible-"));
+        assert.ok(archived);
+        assert.equal(fs.existsSync(tasks), false);
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{ archived }}));
+        ''')],
+        cwd=PACKAGE,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "tasks.json.incompatible-" in result.stdout
+
+
+def test_unreadable_snapshot_is_archived_instead_of_silently_emptied(tmp_path):
+    result = subprocess.run(
+        ["node", "--input-type=module", "--eval", textwrap.dedent(f'''
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import {{ tasksFilePath }} from "./src/task-domain/index.ts";
+        import {{ initTeamMachine, shutdownTeamMachine }} from "./src/team-machine.ts";
+        import {{ listTasks }} from "./src/state.ts";
+        const cwd = {str(tmp_path)!r};
+        const tasks = tasksFilePath(undefined, cwd);
+        fs.mkdirSync(tasks.slice(0, tasks.lastIndexOf("/")), {{ recursive: true }});
+        fs.writeFileSync(tasks, "not a task set at all");
+        initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate() {{}}, notifyChange() {{}} }});
+        const dir = tasks.slice(0, tasks.lastIndexOf("/"));
+        const archived = fs.readdirSync(dir).filter((name) => name.startsWith("tasks.json.incompatible-"));
+        assert.equal(archived.length, 1, "a corrupt tasks must be preserved, not discarded");
+        assert.equal(fs.existsSync(tasks), false);
+        assert.equal(listTasks().length, 0);
+        shutdownTeamMachine();
+        console.log(JSON.stringify({{ archived: archived[0] }}));
+        ''')],
+        cwd=PACKAGE,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "tasks.json.incompatible-" in result.stdout
+
+# ── test_tool_param_schema.py ──
+"""Union-root coordination tool schemas must expose structured parameters."""
+
+import os
+import subprocess
+
+PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def test_union_root_schemas_expose_and_normalize_structured_parameters():
+    environment = os.environ.copy()
+    environment["PI_TEST_DIR"] = environment.get("PI_TEST_DIR", PACKAGE)
+    result = subprocess.run(
+        ["node", "tests/tool-param-schema-fixture.ts"],
+        cwd=PACKAGE,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=60,
+    )
+    assert result.returncode == 0, f"{result.stderr}\n{result.stdout}"
+    assert "TOOL_PARAM_SCHEMA_OK" in result.stdout
+
+# ── test_task_vocabulary.py ──
+"""Task naming at the persistence, worker, and assignment seams."""
+
+import json
+import os
+from pathlib import Path
+import subprocess
+
+PACKAGE = Path(__file__).resolve().parents[1]
+
+
+def test_worker_binding_and_assignment_use_task_vocabulary(tmp_path: Path) -> None:
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith("PI_TEAMMATE_") and key not in {"PI_TASK_HOLDER", "PI_TEAM_STATE_DIR"}}
+    env.update({"HOME": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent")})
+    script = r'''
+    import assert from "node:assert/strict";
+    import * as tasks from "./src/task-domain/index.ts";
+    import { workerBinding } from "./src/worker.ts";
+    Object.assign(process.env, {
+      PI_TEAMMATE_WORKER_NAME: "fixture", PI_TEAMMATE_SPAWN_ID: "fixture-1",
+      PI_TEAMMATE_OUTBOX_FILE: "/tmp/events", PI_TEAMMATE_INBOX_FILE: "/tmp/inbox",
+      PI_TEAMMATE_ROSTER_FILE: "/tmp/roster", PI_TEAMMATE_TASKS_FILE: "/tmp/tasks.json",
+      PI_TEAMMATE_CLAIMS_DIR: "/tmp/claims", PI_TEAMMATE_SUBMISSIONS_DIR: "/tmp/submissions",
+    });
+    const binding = workerBinding();
+    assert.ok(binding, "Current task environment must activate the worker");
+    assert.equal(binding.tasksFile, "/tmp/tasks.json");
+    delete process.env.PI_TEAMMATE_TASKS_FILE;
+    process.env.PI_TEAMMATE_BOARD_FILE = "/tmp/board.json";
+    assert.equal(workerBinding(), undefined, "Retired environment must not activate a worker");
+    let assignment;
+    tasks.configureTaskStore({ get: () => ({name:"fixture",spawnId:"fixture-1",status:"idle"}),
+      current: () => true, conflicting: () => undefined,
+      sync: (_name, value) => { assignment=value; }, changed() {} });
+    assert.equal(tasks.createTask({subject:"Task vocabulary"}).ok,true);
+    assert.equal(tasks.takeTask("task-vocabulary","fixture").ok,true);
+    assert.equal(assignment.kind,"task");
+    assert.ok(assignment.id.startsWith("task:"));
+    console.log(JSON.stringify({binding,assignment}));
+    '''
+    result = subprocess.run(["node", "--input-type=module", "--eval", script],
+        cwd=PACKAGE, env=env, capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    observed = json.loads(result.stdout)
+    assert observed["assignment"]["kind"] == "task"
+
+# ── test_removed_verbs.py ──
+"""The cutover: every removed verb is refused, with its replacement named.
+
+Success criterion 5 of the goal. These exist because deleting a verb is only half
+the work — the other half is proving the old name cannot quietly come back. Each
+removal is asserted twice: against the schema, so the name is not even offered,
+and against a live call, so a caller passing it anyway gets a refusal rather than
+silence.
+"""
+
+
+import json
+import os
+import subprocess
+import textwrap
+from pathlib import Path
+
+PACKAGE = Path(__file__).resolve().parents[1]
+SRC = PACKAGE / "src"
+REPO = PACKAGE.parents[1]
+SUBAGENT_TOOL = REPO / "packages" / "subagents" / "src" / "child-execution.ts"
+PACKAGES = REPO / "packages"
+
+# Verb -> what replaced it. `reopen` and `supersede` are still reachable, as a
+# `status` value and as a `supersedes` field on an existing action, so a caller
+# that remembers the verb has somewhere to be pointed.
+REMOVED_AGENT_VERBS = {
+    "delegate": "start with a prompt",
+    "team": "list",
+}
+
+# Two of the removed leader verbs survive as *fields* rather than verbs: a task is
+# reopened with `update status=pending` and replaced with `create supersedes`, so
+# they must be absent from the action enum while remaining reachable. A test that
+# swept them into the enum check would forbid the only spelling that works.
+REMOVED_VERBS_REACHABLE_AS_FIELDS = {"reopen", "supersede"}
+
+
+def _removed_verbs_run_node(script: str) -> dict[str, object]:
+    """Run an inline ES module and parse its last stdout line as JSON.
+
+    `PI_TEAMMATE_*` is stripped so a coordination binding left over in the
+    developer's shell cannot make a spawned child believe it is a worker.
+    """
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PI_TEAMMATE_")}
+    result = subprocess.run(
+        ["bun", "-e", textwrap.dedent(script)],
+        cwd=PACKAGE,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
+    return json.loads(result.stdout)
+
+
+def package_sources() -> list[Path]:
+    """Every shipped source file of the three packages, tests excluded."""
+    files: list[Path] = []
+    for package in ("agent-teams", "subagents", "tasks"):
+        for path in (PACKAGES / package).rglob("*.ts"):
+            if "node_modules" in path.parts or "tests" in path.parts:
+                continue
+            files.append(path)
+    return files
+
+
+# ── No removed verb is offered ──
+
+
+def test_the_child_operation_enum_is_exactly_four() -> None:
+    """The set the executor implements, no more and no less: one operation per
+    intent tool, with `agent_input` carrying its own delivery. The vocabulary is
+    checked against the registration rather than against a remembered list."""
+    result = _removed_verbs_run_node(
+        f"""
+        import {{ CHILD_OPERATIONS }} from {json.dumps(SUBAGENT_TOOL.as_uri())};
+        console.log(JSON.stringify(CHILD_OPERATIONS));
+        """
+    )
+    assert result == ["start", "input", "list", "stop"]
+
+
+# ── And a caller passing one anyway is told, not ignored ──
+
+
+def test_every_removed_agent_verb_is_refused_by_a_live_call() -> None:
+    result = _removed_verbs_run_node(
+        f"""
+        import {{ executeChildIntent }} from {json.dumps(SUBAGENT_TOOL.as_uri())};
+        const removed = {json.dumps(sorted(REMOVED_AGENT_VERBS))};
+        const out = {{}};
+        for (const action of removed) {{
+          const r = await executeChildIntent({{ action, name: "x" }});
+          out[action] = {{ refused: r.details.ok === false }};
+        }}
+        console.log(JSON.stringify(out));
+        """
+    )
+    for verb in REMOVED_AGENT_VERBS:
+        assert result[verb]["refused"] is True, f"{verb} was not refused"
+
+
+# ── And the old tool names are gone entirely ──
+
+
+def test_the_removed_tool_names_are_gone_from_every_package() -> None:
+    """`work` and `agent_event` were the tool names before the cutover. A
+    remaining registration would mean some install combination still answers to
+    them, which is the double-registrant problem the split exists to remove."""
+    offenders: list[str] = []
+    for path in package_sources():
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if 'name: "work"' in line or 'name: "agent_event"' in line:
+                offenders.append(f"{path.relative_to(PACKAGES)}:{number}")
+    assert offenders == []
+
+
+def test_the_claimed_status_value_is_gone() -> None:
+    """`claimed` became `in_progress`: a Task has no declared owner, so moving it
+    into progress *is* taking it. The literal must not survive as a status, though
+    the field `claimedBy` legitimately keeps its name."""
+    offenders = [
+        str(path.relative_to(PACKAGES))
+        for path in package_sources()
+        if '"claimed"' in path.read_text(encoding="utf-8")
+        or "'claimed'" in path.read_text(encoding="utf-8")
+    ]
+    assert offenders == []
+
+
+# ── And the wiring that served the removed tool is not left behind ──
+
+
+def test_the_removed_coordinator_wrappers_have_no_callers() -> None:
+    """The four orchestration wrappers existed only to serve the removed tool. A
+    caller left behind would take a path the tasks no longer goes through, and
+    would silently skip the notice and wake-up the event subscriber performs."""
+    tools = (SRC / "tools.ts").read_text(encoding="utf-8")
+    for wrapper in ("createCoordinatedTask", "assignExistingWork", "releaseExistingWork", "reopenExistingWork"):
+        assert f"{wrapper}(" not in tools, f"{wrapper} is still called by the tool layer"
+
+
+def test_this_package_registers_exactly_one_tool() -> None:
+    """`agent` belongs to @fradser/pi-subagents and the leader task tools are
+    retired. What is left here is `message`."""
+    text = (SRC / "tools.ts").read_text(encoding="utf-8")
+    assert text.count("pi.registerTool(") == 1
+    assert 'name: "message"' in text
+    assert 'name: "task"' not in text
+    assert 'name: "agent"' not in text
+
+# ── test_unassigned_start.py ──
+"""Public unassigned-start lifecycle regression."""
+import os
+import subprocess
+import pytest
+from pathlib import Path
+
+PACKAGE = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("mode", ["assign", "not-ready", "rejected", "timeout", "exit", "notice", "inbox", "in_progress"])
+def test_public_start_then_assign_without_unassigned_model_turn(tmp_path, mode):
+    env = {**os.environ, "PI_TEST_MODE": mode, "PI_TEST_DIR": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent")}
+    # The `timeout` mode waits out the runtime's own 30-second confirmation
+    # window before it reports the failure it is modelling, so the budget covers
+    # that deadline plus startup. A budget below it reports a harness timeout for
+    # work the runtime is doing correctly.
+    result = subprocess.run(["node", "tests/unassigned-start-fixture.ts"], cwd=PACKAGE, env=env, capture_output=True, text=True, timeout=50)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "UNASSIGNED_START_OK" in result.stdout
+
+
+def test_leader_priority_transport_and_fresh_assignment_queue():
+    result = subprocess.run(["node", "tests/leader-priority-lifecycle-fixture.ts"], cwd=PACKAGE, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert '"ok":true' in result.stdout
+
+# ── test_work_claim.py ──
+"""Worker work.claim public-seam test."""
+
+import os
+import subprocess
+
+PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def test_worker_queues_and_harness_accepts_a_work_claim(tmp_path):
+    environment = os.environ.copy()
+    environment["PI_TEST_DIR"] = str(tmp_path)
+    result = subprocess.run(
+        ["node", "tests/work-claim-fixture.ts"],
+        cwd=PACKAGE,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=30,
+    )
+    assert result.returncode == 0, f"{result.stderr}\n{result.stdout}"
+    assert "WORK_CLAIM_OK" in result.stdout
+
+# ── test_work_sessions.py ──
+"""Behavioral checks for independent Work Sessions through registered tools."""
+
+from pathlib import Path
+import subprocess
+import json
+import sys
+
+import pytest
+
+PACKAGE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PACKAGE.parents[1] / "tests" / "e2e" / "support"))
+from harness import isolated_environment  # noqa: E402
+
+
+def run_work_fixture(tmp_path: Path, probe: str = "independent") -> subprocess.CompletedProcess[str]:
+    env = isolated_environment(tmp_path)
+    return subprocess.run(
+        ["node", str(PACKAGE / "tests" / "independent-work-fixture.ts"), probe],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=50,
+    )
+
+
+def test_new_delegations_are_independent_and_work_ids_route_exactly(tmp_path: Path) -> None:
+    result = run_work_fixture(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "INDEPENDENT_WORK_OK" in result.stdout
+
+
+# The intent family starts a child only with a prompt, so the acknowledgement that
+# proves the start is the prompt's. The former readiness-only probes collapsed onto
+# this path and are kept once, as `readiness`.
+@pytest.mark.parametrize("probe", [
+    "readiness", "prompt-rejected", "prompt-timeout", "prompt-handled", "prompt-wrong-id",
+])
+def test_child_start_requires_parsed_rpc_confirmation(tmp_path: Path, probe: str) -> None:
+    result = run_work_fixture(tmp_path, probe)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"RPC_CONFIRMATION_OK {probe}" in result.stdout
+
+
+def test_result_envelope_keeps_work_and_failure_evidence_in_model_context(tmp_path: Path) -> None:
+    result = subprocess.run(
+        ["node", "--input-type=module", "--eval", '''
+        import { formatReports } from "@fradser/pi-subagents";
+        const report = { agent: "worker", workId: "work:one", assignmentId: "attempt:two", body: "Same response" };
+        console.log(JSON.stringify({
+          completed: formatReports([{ ...report, status: "completed", finished: true }]),
+          failed: formatReports([{ ...report, status: "failed", finished: true }]),
+          progress: formatReports([{ ...report, status: "in_progress" }]),
+          escaped: formatReports([{ ...report, workId: 'a"<b', status: "completed" }]),
+        }));
+        '''], cwd=PACKAGE, env=isolated_environment(tmp_path), capture_output=True, text=True, timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert 'work="work:one"' in output["completed"]
+    assert 'assignment="attempt:two"' in output["completed"]
+    assert 'status="completed"' in output["completed"]
+    assert 'status="failed"' in output["failed"]
+    assert 'status="in_progress"' in output["progress"]
+    assert len({output["completed"], output["failed"], output["progress"]}) == 3
+    assert 'work="a&quot;&lt;b"' in output["escaped"]
+
+# ── test_shared_communication.py ──
+"""
+Tests for communication-only shared Agent Event (message({ message, to?, intent? })).
+Verifies that:
+1. message tool is registered and available for both leader and worker.
+2. Leader can send messages to a specific worker without an Assignment Attempt.
+3. Message parameters are strictly (message, to?, status?).
+"""
+
+import json
+import os
+import subprocess
+import textwrap
+import pytest
+
+PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+def _shared_communication_run_node(script: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bun", "-e", textwrap.dedent(script)],
+        cwd=PACKAGE,
+        capture_output=True,
+        text=True,
+    )
+
+def test_message_registered_on_leader_and_worker():
+    """Verify message tool exists with (message, to?, intent?) schema on leader tools."""
+    script = """
+    import { registerComposedTools } from "./tests/composed-tools.ts";
+    
+    const registeredTools = new Map();
+    const fakePi = {
+      registerTool(def) {
+        registeredTools.set(def.name, def);
+      },
+      getActiveTools() { return []; },
+      setActiveTools() {}
+    };
+
+    registerComposedTools(fakePi);
+    
+    if (!registeredTools.has("message")) {
+      console.error("FAIL: 'message' tool was not registered on leader");
+      process.exit(1);
+    }
+    
+    const eventTool = registeredTools.get("message");
+    console.log(JSON.stringify({
+      name: eventTool.name,
+      params: eventTool.parameters
+    }));
+    """
+    res = _shared_communication_run_node(script)
+    assert res.returncode == 0, f"Script failed: {res.stderr}\n{res.stdout}"
+    data = json.loads(res.stdout)
+    assert data["name"] == "message"
+    assert "body" in data["params"]["properties"]
+    assert "to" in data["params"]["properties"]
+    assert "kind" in data["params"]["properties"]
+    # The removed pre-rename spellings, and a thread reference, must not come back.
+    for absent in ("message", "intent", "in_reply_to", "reply_to"):
+        assert absent not in data["params"]["properties"], absent
+
+
+def test_message_registered_on_worker_and_allowed_in_universe():
+    """Verify message is registered by this package's worker capabilities and
+    is grantable once that capability set is contributed to the spawn.
+
+    The universe is no longer a spawner constant: it is built from the capability
+    tools the loaded worker extensions declare, so this asserts the contribution
+    rather than a hardcoded list."""
+    script = """
+    import { registerChildCapabilities } from "./src/worker.ts";
+    import { unknownAgentTools, agentToolUniverse, resolveAgentTools } from "@fradser/pi-subagents";
+    import { WORKER_CAPABILITY_TOOLS } from "./src/capability-tools.ts";
+    
+    const subscriptions = new Map();
+    const registeredTools = new Map();
+    const fakePi = {
+      registerTool(def) {
+        registeredTools.set(def.name, def);
+      },
+      getActiveTools() { return []; },
+      setActiveTools() {}
+    };
+
+    fakePi.on = (event, handler) => subscriptions.set(event, handler);
+    registerChildCapabilities(fakePi);
+    
+    const hasWorkerEvent = registeredTools.has("message");
+    const unknownWithEvent = unknownAgentTools(["message", "read"], WORKER_CAPABILITY_TOOLS);
+    const resolvedTools = resolveAgentTools([], WORKER_CAPABILITY_TOOLS);
+    // Every declared capability tool must be something this extension registers,
+    // otherwise a spawn advertises an id nothing implements.
+    const declaredButUnregistered = WORKER_CAPABILITY_TOOLS.filter((name) => !registeredTools.has(name));
+    // With no contributed capability set, nothing beyond pi built-ins is grantable.
+    const bareUnknown = unknownAgentTools(["message", "read"], []);
+    
+    console.log(JSON.stringify({
+      hasWorkerEvent,
+      lifecycleEvents: [...subscriptions.keys()],
+      unknownWithEvent,
+      hasInResolved: resolvedTools.includes("message"),
+      universeHasEvent: agentToolUniverse(WORKER_CAPABILITY_TOOLS).includes("message"),
+      declaredButUnregistered,
+      bareUnknown
+    }));
+    """
+    res = _shared_communication_run_node(script)
+    assert res.returncode == 0, f"Script failed: {res.stderr}\n{res.stdout}"
+    data = json.loads(res.stdout)
+    assert data["hasWorkerEvent"] is True
+    assert "message_start" in data["lifecycleEvents"]
+    assert data["unknownWithEvent"] == []
+    assert data["hasInResolved"] is True
+    assert data["universeHasEvent"] is True
+    # The contributed set must name only tools this extension actually registers,
+    # so no spawn can advertise an id nothing implements.
+    assert data["declaredButUnregistered"] == []
+    # With nothing contributed, the coordination tools are correctly ungrantable:
+    # this is what keeps the execution layer honest when installed alone.
+    assert data["bareUnknown"] == ["message"]
+
+
+def test_model_resolution_defaults_to_session_model_when_unset():
+    """Verify resolveSpawnModel defaults to current session model when role has no pin and no team default."""
+    script = """
+    import { resolveSpawnModel } from "./src/team-machine.ts";
+    
+    // Role has no model pin (undefined), no team default (undefined), leader has model 'gemini-3.8-flash-high'
+    const res = resolveSpawnModel(undefined, undefined, "cli-proxy/gemini-3.8-flash-high");
+    console.log(JSON.stringify(res));
+    """
+    res = _shared_communication_run_node(script)
+    assert res.returncode == 0, f"Script failed: {res.stderr}\n{res.stdout}"
+    data = json.loads(res.stdout)
+    assert data["model"] == "cli-proxy/gemini-3.8-flash-high"
+    assert data["source"] == "leader-session"
+
+
+# ── test_shutdown_confirmation.py ──
+import json
+import os
+from pathlib import Path
+import subprocess
+
+import pytest
+
+PACKAGE = Path(__file__).resolve().parents[1]
+
+
+def run_fixture(tmp_path, mode="unconfirmed"):
+    env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith("PI_TEAMMATE_")
+        and key not in {"PI_TASK_HOLDER", "PI_TEAM_STATE_DIR", "PI_CODING_AGENT_SESSION_DIR"}
+    }
+    env["HOME"] = str(tmp_path)
+    env["PI_CODING_AGENT_DIR"] = str(tmp_path / "agent")
+    run = subprocess.run(
+        ["node", "--experimental-test-module-mocks", "tests/shutdown-confirmation-fixture.ts", mode],
+        cwd=PACKAGE, env=env, capture_output=True, text=True, timeout=20,
+    )
+    assert run.returncode == 0, run.stderr
+    return json.loads(run.stdout)
+
+
+def test_unconfirmed_registered_child_keeps_shutdown_and_ownership_open(tmp_path):
+    result = run_fixture(tmp_path)
+    assert result["stopTime"] is None
+    assert result["stoppedSummaries"] == 0
+    assert result["terminationCalls"] == 1
+    assert result["closeObserved"] is False
+    assert result["result"]["ok"] is False, result
+    assert result["status"] != "stopped"
+    assert result["task"]["status"] == "in_progress"
+    assert result["task"]["claimedBy"] == "worker"
+
+
+def test_retry_confirms_stop_and_rejects_work_while_stopping(tmp_path):
+    result = run_fixture(tmp_path, "retry")
+    assert result["rejected"]["ok"] is False
+    assert "stopping" in result["rejected"]["error"]
+    assert result["retry"]["ok"] is True
+    assert "requested" not in result["retry"]["body"].lower()
+    assert result["status"] == "stopped"
+    assert isinstance(result["stopTime"], int)
+    assert result["task"]["status"] == "blocked"
+
+
+def test_delayed_close_is_intentional_and_absent_replacement_preserves_evidence(tmp_path):
+    result = run_fixture(tmp_path, "delayed")
+    assert result["stopped"]["status"] == "stopped"
+    assert result["stopped"].get("error") is None
+    assert isinstance(result["stopTime"], int)
+    assert result["retained"] == result["stopTime"]
+    assert result["absent"]["ok"] is True
+    assert result["replacementTime"] == 1234567890000
+    assert result["resetTime"] is None
+
+
+def test_clean_idle_close_keeps_results_without_a_crash_notification(tmp_path: Path) -> None:
+    result = run_fixture(tmp_path, "close-idle")
+    assert result["status"] == "stopped"
+    assert result["stopTime"] == 1234567890000
+    assert result["error"] is None
+    assert result["reports"] == [], "A clean idle close must not start another leader turn"
+    assert result["task"]["status"] == "completed"
+    assert result["task"]["result"] == "Accepted review evidence"
+    assert [message["subject"] for message in result["mailbox"]] == ["Agent stopped"]
+    assert "unexpected" not in result["mailbox"][0]["body"].lower()
+
+
+@pytest.mark.parametrize("mode, expected_alarm", [
+    ("close-mail-current", True),
+    ("close-mail-unbound", True),
+    ("close-mail-late", True),
+    ("close-mail-invalid-body", True),
+    ("close-mail-invalid-binding", True),
+    ("close-mail-broken-json", True),
+    ("close-mail-incomplete", True),
+    ("close-mail-stale", False),
+    ("close-mail-delivered", False),
+])
+def test_unread_current_mail_prevents_passive_close_without_consuming_it(
+    tmp_path: Path, mode: str, expected_alarm: bool,
+) -> None:
+    result = run_fixture(tmp_path, mode)
+    assert result["status"] == "stopped"
+    assert result["error"] is None
+    assert result["stopTime"] == 1234567890000
+    assert len(result["reports"]) == int(expected_alarm)
+    if expected_alarm:
+        assert result["reports"][0]["harnessEvent"]["type"] == "unexpected-stop"
+    expected_subject = "Agent stopped unexpectedly" if expected_alarm else "Agent stopped"
+    assert [message["subject"] for message in result["mailbox"]] == [expected_subject]
+    assert result["task"]["status"] == "completed"
+    assert result["task"]["result"] == "Accepted review evidence"
+    assert result["inboxUnchanged"] is True
+    assert result["deliveryStateUnchanged"] is True
+
+
+@pytest.mark.parametrize("mode", ["close-owned", "close-crash", "close-signal", "close-unreported"])
+def test_unrequested_failure_or_unfinished_work_still_reaches_the_leader(tmp_path: Path, mode: str) -> None:
+    result = run_fixture(tmp_path, mode)
+    assert result["status"] == "stopped"
+    assert result["stopTime"] == 1234567890000
+    assert len(result["reports"]) == 1, "Repeated close events must not repeat the alarm"
+    assert result["reports"][0]["harnessEvent"]["type"] == "unexpected-stop"
+    assert [message["subject"] for message in result["mailbox"]] == ["Agent stopped unexpectedly"]
+    if mode in {"close-owned", "close-unreported"}:
+        assert result["task"]["status"] == "blocked"
+        assert "claimedBy" not in result["task"]
+    else:
+        assert result["error"] is not None
+        assert result["task"]["status"] == "completed"
+        assert result["task"]["result"] == "Accepted review evidence"
+
+# ── test_coordination_rows.py ──
+"""Human-facing coordination rows expose names, subjects, and typed text."""
+
+import fcntl
+import json
+import os
+import pty
+import secrets
+import select
+import shutil
+import signal
+import struct
+import subprocess
+import termios
+import time
+from pathlib import Path
+from typing import Callable
+
+import pytest
+
+PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def test_coordination_rows_are_readable_without_identifiers(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    result = subprocess.run(
+        ["node", "tests/coordination-rows-fixture.ts"],
+        cwd=PACKAGE,
+        env={
+            # A spawned teammate runs the suite with its own holder bound. A
+            # fixture that inherits that binding takes work as the teammate and
+            # fails for a reason the fixture chose, not for the one under test.
+            **{key: value for key, value in os.environ.items()
+               if not key.startswith("PI_TEAMMATE_") and key not in {"PI_TASK_HOLDER", "PI_TEAM_STATE_DIR"}},
+            "PI_CODING_AGENT_DIR": str(agent_dir),
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, f"{result.stderr}\n{result.stdout}"
+    assert "COORDINATION_ROWS_OK" in result.stdout
+
+
+@pytest.fixture
+def native_message_fixture(tmp_path: Path) -> tuple[list[str], dict[str, str], Path]:
+    pi = shutil.which("pi")
+    if pi is None:
+        pytest.skip("Pi CLI is required for native message layout verification")
+    fixture = tmp_path / "message-layout.ts"
+    snapshots = tmp_path / "renders.jsonl"
+    source = r'''
+import assert from "node:assert/strict";
+import { appendFileSync } from "node:fs";
+import { stripVTControlCharacters } from "node:util";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import { KeybindingsManager, setKeybindings, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { registerComposedTools } from "__COMPOSED__";
+import { registerChildCapabilities } from "__WORKER__";
+
+const message = "FIRST-CONTENT " + Array.from({ length: 28 }, (_, i) => `evidence-${i}`).join(" ") + " LAST-CONTENT";
+const hyperlink = "\u001b]8;;https://example.test\u001b\\LINK-LABEL\u001b]8;;\u001b\\";
+const literal = '\nPreserve this JSON: {"value":""}\nLiteral spacing: alpha ; beta !\nTwo quoted lines: "\n"';
+const args = { to: "continual-audit-close", body: message + " " + hyperlink + literal };
+const result = { content: [{ type: "text", text: "EVENT ROUTING · steered" }], details: { to: args.to, outcome: "steered" }, isError: false };
+const expected = `[message] to @${args.to} · steered · ${message} LINK-LABEL${literal}`;
+const tools = new Map();
+const capture = (prefix) => ({ registerTool: (tool) => tools.set(`${prefix}:${tool.name}`, tool), on() {} });
+registerComposedTools(capture("leader"));
+registerChildCapabilities(capture("worker"));
+
+export default function (pi) {
+  pi.on("session_start", (_event, ctx) => {
+    if (ctx.mode === "tui") return;
+    initTheme("dark", false);
+    setKeybindings(new KeybindingsManager({ "app.tools.expand": { defaultKeys: "ctrl+o" } }));
+    for (const surface of ["leader", "worker"]) {
+      const component = new ToolExecutionComponent("message", "native-layout", args, {}, tools.get(`${surface}:message`), { requestRender() {} }, ctx.cwd);
+      component.updateResult(result);
+      const content = (width) => {
+        const lines = component.render(width);
+        assert.ok(lines.every((line) => visibleWidth(line) <= width));
+        return lines.slice(2, -1).map((line) => stripVTControlCharacters(line).slice(1).trimEnd());
+      };
+      for (const width of [48, 90, 240]) {
+        component.setExpanded(false);
+        assert.ok(content(width)[0].endsWith(" · ctrl+o to expand"));
+        assert.equal(component.handleMouse({ type: "click", button: "left", x: 5, y: 2, width, height: 4 })?.handled, true);
+        assert.deepEqual(content(width), wrapTextWithAnsi(expected, width - 2));
+        assert.equal(component.handleMouse({ type: "click", button: "left", x: 5, y: 2, width, height: 20 })?.handled, true);
+        assert.ok(content(width)[0].endsWith(" · ctrl+o to expand"));
+      }
+    }
+    console.log("NATIVE_MESSAGE_LAYOUT_OK");
+  });
+  const tool = tools.get("leader:message");
+  pi.registerTool({
+    ...tool,
+    // The original routing execute is never invoked: no peers or team writes.
+    async execute() { return result; },
+    renderResult(value, options, theme, context) {
+      const component = tool.renderResult(value, options, theme, context);
+      return {
+        invalidate: () => component.invalidate(),
+        render(width) {
+          const lines = component.render(width);
+          appendFileSync(process.env.PI_MESSAGE_LAYOUT_SNAPSHOTS, JSON.stringify({
+            width, expanded: options.expanded, lines: lines.map(stripVTControlCharacters), expected,
+            expectedLines: wrapTextWithAnsi(expected, width - 2).map((line) => line.trimEnd()),
+          }) + "\n");
+          return lines;
+        },
+      };
+    },
+  });
+  let calls = 0;
+  pi.registerProvider("message-layout-fixture", {
+    api: "message-layout-fixture", baseUrl: "http://127.0.0.1", apiKey: process.env.PI_MESSAGE_LAYOUT_AUTH,
+    models: [{ id: "deterministic", name: "Message layout fixture", reasoning: false, input: ["text"],
+      contextWindow: 200000, maxTokens: 4096, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+    streamSimple(model) {
+      const first = ++calls === 1;
+      const output = {
+        role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(),
+        content: first ? [{ type: "toolCall", id: "message-row", name: "message", arguments: args }]
+          : [{ type: "text", text: "MESSAGE_LAYOUT_READY" }],
+        stopReason: first ? "toolUse" : "stop",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+      };
+      const stream = createAssistantMessageEventStream();
+      stream.push({ type: "start", partial: output });
+      stream.push({ type: "done", reason: output.stopReason, message: output });
+      stream.end();
+      return stream;
+    },
+  });
+}
+'''
+    fixture.write_text(source
+                       .replace("__COMPOSED__", Path(PACKAGE, "tests", "composed-tools.ts").as_uri())
+                       .replace("__WORKER__", Path(PACKAGE, "src", "worker.ts").as_uri()))
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "settings.json").write_text(json.dumps({"theme": "dark", "quietStartup": True}))
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
+    env.update({
+        "HOME": str(tmp_path), "PI_CODING_AGENT_DIR": str(agent_dir), "PI_OFFLINE": "1",
+        "PI_MESSAGE_LAYOUT_AUTH": secrets.token_hex(16), "PI_MESSAGE_LAYOUT_SNAPSHOTS": str(snapshots),
+        "TERM": "xterm-256color",
+    })
+    command = [
+        pi, "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes",
+        "--no-context-files", "--no-approve", "--extension", str(fixture), "--provider", "message-layout-fixture",
+        "--model", "deterministic", "--thinking", "off", "--no-builtin-tools", "Render the isolated message fixture",
+    ]
+    return command, env, snapshots
+
+
+def test_native_pi_print_message_mouse_expansion_and_resizing(
+    native_message_fixture: tuple[list[str], dict[str, str], Path], tmp_path: Path,
+) -> None:
+    command, env, _snapshots = native_message_fixture
+    result = subprocess.run([*command, "--print"], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "NATIVE_MESSAGE_LAYOUT_OK" in result.stdout + result.stderr, result.stdout + result.stderr
+    assert "MESSAGE_LAYOUT_READY" in result.stdout, result.stdout + result.stderr
+    assert "AssertionError" not in result.stderr
+
+
+def test_native_pi_tui_message_expand_key_and_terminal_resize(
+    native_message_fixture: tuple[list[str], dict[str, str], Path], tmp_path: Path,
+) -> None:
+    command, env, snapshots = native_message_fixture
+    master, slave = pty.openpty()
+    transcript = bytearray()
+
+    def resize(width: int) -> None:
+        fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", 36, width, 0, 0))
+
+    def renders() -> list[dict[str, object]]:
+        if not snapshots.exists():
+            return []
+        lines = snapshots.read_text().splitlines()
+        return [json.loads(line) for line in lines if line.endswith("}")]
+
+    resize(90)
+    try:
+        with subprocess.Popen([*command, "--tui-mode", "fullscreen"], cwd=tmp_path, env=env,
+                              stdin=slave, stdout=slave, stderr=slave) as process:
+            os.close(slave)
+
+            def wait_for(predicate: Callable[[], bool], timeout: float = 30) -> None:
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    if select.select([master], [], [], 0.05)[0]:
+                        try:
+                            transcript.extend(os.read(master, 65536))
+                        except OSError:
+                            # The PTY master reports EIO/ENXIO/EBADF once the child
+                            # closes its side. PTY closure can precede the
+                            # observable exit status, so reap the child before
+                            # deciding an exit predicate failed.
+                            try:
+                                process.wait(timeout=3)
+                            except subprocess.TimeoutExpired:
+                                pass
+                            if predicate():
+                                return
+                            break
+                    if predicate():
+                        return
+                    if process.poll() is not None:
+                        break
+                raise AssertionError(transcript.decode(errors="replace"))
+
+            def recorded_summary() -> list[tuple[object, object]]:
+                return [(row["width"], row["expanded"]) for row in renders()]
+
+            def until(action: Callable[[], None], predicate: Callable[[], bool]) -> None:
+                """Drive the real TUI to an observable state, retrying the interaction.
+
+                Synchronization is data-based but never single-shot: the host may
+                paint its first frame at its own default width, and a key sent
+                while the turn is still settling can be dropped, so each step
+                retries until its row is recorded.
+                """
+                last: AssertionError | None = None
+                for _attempt in range(3):
+                    action()
+                    try:
+                        wait_for(predicate, timeout=12)
+                        return
+                    except AssertionError:
+                        last = AssertionError(
+                            f"action attempt {_attempt + 1} never reached its row; recorded={recorded_summary()}"
+                        )
+                raise last or AssertionError("interaction never reached its observable state")
+
+            def matches(width: int, expanded: bool) -> bool:
+                return any(row["width"] == width and row["expanded"] == expanded for row in renders())
+
+            try:
+                # The host may paint its first frame at its own default width, so
+                # startup synchronization is semantic; every width below is then
+                # driven explicitly and verified from the recorded rows.
+                wait_for(lambda: b"MESSAGE_LAYOUT_READY" in transcript and any(row["expanded"] is False for row in renders()))
+                until(lambda: (resize(90), process.send_signal(signal.SIGWINCH)), lambda: matches(90, False))
+                until(lambda: os.write(master, b"\x0f"), lambda: matches(90, True))  # Configured Ctrl+O.
+                for width in [48, 240]:
+                    until(
+                        lambda w=width: (resize(w), process.send_signal(signal.SIGWINCH)),
+                        lambda w=width: matches(w, True),
+                    )
+                until(lambda: os.write(master, b"\x0f"), lambda: matches(240, False))
+                until(lambda: (resize(48), process.send_signal(signal.SIGWINCH)), lambda: matches(48, False))
+                for row in renders():
+                    content = [line[1:].rstrip() for line in row["lines"][1:-1]]
+                    if row["expanded"]:
+                        assert content == row["expectedLines"], content
+                        assert " ".join(content).count("FIRST-CONTENT") == 1
+                    else:
+                        assert content[0].endswith(" · ctrl+o to expand"), content
+                # Every resize and both expansion states must have produced a
+                # verified row: synchronization above is state-based, so the
+                # coverage assertion belongs here, on the recorded data.
+                for width in (48, 90, 240):
+                    for expanded in (True, False):
+                        assert matches(width, expanded), (width, expanded, renders())
+                # Quit with the configured key, retrying: an impatient Ctrl+D can
+                # arrive while the closing turn is still settling and be ignored.
+                for _attempt in range(3):
+                    if process.poll() is not None:
+                        break
+                    try:
+                        os.write(master, b"\x04")
+                    except OSError:
+                        break  # The PTY is already closed: the child exited.
+                    try:
+                        wait_for(lambda: process.poll() is not None, timeout=10)
+                        break
+                    except AssertionError:
+                        continue
+                if process.poll() is None:
+                    # The row contract above is already verified; the host's own
+                    # quit timing is not this test's subject, so terminate
+                    # gracefully instead of failing on it.
+                    try:
+                        process.terminate()
+                    except OSError:
+                        pass  # It exited between the check and the signal.
+                wait_for(lambda: process.poll() is not None, timeout=10)
+                exit_code = process.wait(timeout=5)
+                assert exit_code in (0, -signal.SIGTERM), transcript.decode(errors="replace")
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+    finally:
+        os.close(master)
+        (tmp_path / "terminal-transcript.txt").write_bytes(transcript)
+
+# ── test_disk_identity_resident.py ──
+"""Consumer regression for the adopted disk-only identity execution contract."""
+
+
+import json
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+
+@pytest.mark.parametrize("mode", ["accepted", "queued", "rejected", "handled", "exit", "timeout", "fast-result", "disk", "registry-owner", "two-results", "idle-send", "interrupt", "interrupt-rejected", "interrupt-handled", "interrupt-timeout", "interrupt-exit", "send-rejected", "send-handled", "send-timeout", "send-exit", "send-fast-result", "late-negative", "pending-start", "gate-on-drain", "intent-fast-report"])
+def test_team_resident_contract(tmp_path: Path, mode: str) -> None:
+    env = {**os.environ, "PI_TEST_MODE": mode, "PI_TEST_DIR": str(tmp_path)}
+    # The `timeout` mode waits out the runtime's own 30-second confirmation
+    # window before it reports the failure it is modelling, so the budget covers
+    # that deadline plus startup. A budget below it reports a harness timeout for
+    # work the runtime is doing correctly.
+    result = subprocess.run(
+        ["node", "tests/disk-identity-resident-fixture.ts"], cwd=PACKAGE,
+        env=env, capture_output=True, text=True, timeout=50,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout.strip().splitlines()[-1])["ok"] is True
+
+
+def test_team_guidance_names_only_the_intent_tool_family() -> None:
+    """The intent family replaces the retired `agent` surface, and the guidance
+    must say so by naming the four tools and nothing else.
+
+    ADR-0008 removed the legacy branch and its in-transcript notice: a recorded
+    branch that named `agent` moves silently, so a "Legacy branches" line would
+    now describe a surface no code can select. The guidance must still carry the
+    surviving contract, and must not reintroduce the retired name as a tool.
+    """
+    payload = run_node(f'''
+      import {{ buildIdleLeaderGuidance, buildTeamLeaderGuidance }} from "{(SRC / 'guidance.ts').as_uri()}";
+      console.log(JSON.stringify({{ idle: buildIdleLeaderGuidance(), active: buildTeamLeaderGuidance() }}));
+    ''')
+    for text in payload.values():
+        # The adopted fresh-session contract replaces six model actions with four intent tools.
+        for tool in ("agent_start", "agent_input", "agent_list", "agent_stop"):
+            assert f"`{tool}`" in text
+        assert "Legacy branches" not in text, "The retired legacy branch has no selectable surface"
+        assert "`agent`" not in text, "The retired agent tool must not appear as a surface"
+        # `agent_inspect` was retired with the legacy tool, so guidance that still
+        # names it teaches a model to call a tool no transport registers.
+        assert "agent_inspect" not in text, "The retired inspect tool must not appear as a surface"
+        assert "next" in text and "steer" in text
+        for obsolete in ("persist: true", "persistent:", "memory: true", "worktree: true", "promot"):
+            assert obsolete not in text.lower()
+        assert "agent.md" in text
+
+
+def test_consumer_has_no_identity_write_or_git_workspace_hooks() -> None:
+    source = (SRC / "team-machine.ts").read_text()
+    for removed in ("persistAgentDefinition", "preserveAgentWorkspace", "releaseAgentWorkspace", "liveWorkspaces", "finalizeWorktree", "discardWorkspaceQuietly", "persistScope", "generated.persist", "agent.memory", "agent.isolation"):
+        assert removed not in source, removed
+    definition = run_node(f'''
+      import {{ InlineAgentDefinitionParams }} from "{(SRC / 'types.ts').as_uri()}";
+      console.log(JSON.stringify({{ fields: Object.keys(InlineAgentDefinitionParams.properties) }}));
+    ''')
+    assert not set(definition["fields"]) & {"persist", "persistScope", "persistent", "memory", "worktree", "isolation"}
+
+# ── test_native_disk_identity.py ──
+"""Native Pi coordinator checks with fixture-only loopback config."""
+
+
+import json
+import os
+import secrets
+import subprocess
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+import pytest
+
+PACKAGE = Path(__file__).resolve().parents[1]
+REPO = PACKAGE.parents[1]
+
+
+@pytest.fixture
+def native_team_environment(tmp_path: Path) -> Iterator[tuple[dict[str, str], list[dict[str, object]]]]:
+    core = REPO / "node_modules" / "@earendil-works" / "pi-coding-agent" / "package.json"
+    # The root development requirement is the cohort of record, so this cannot drift from it.
+    expected = json.loads((REPO / "package.json").read_text())["devDependencies"]["@earendil-works/pi-coding-agent"].lstrip("^")
+    assert json.loads(core.read_text())["version"] == expected
+    requests: list[dict[str, object]] = []
+    started = threading.Event()
+    release = threading.Event()
+    if os.environ.get("PI_TEST_MODE") != "interrupt":
+        release.set()
+
+    class ModelHandler(BaseHTTPRequestHandler):
+        def log_message(self, _format: str, *args: object) -> None:
+            pass
+
+        def do_GET(self) -> None:
+            if self.path != "/started" or not started.wait(timeout=20):
+                self.send_error(408, "No actual model request arrived")
+                return
+            self.send_response(200)
+            self.end_headers()
+
+        def do_POST(self) -> None:
+            if self.path == "/release":
+                release.set()
+                self.send_response(200)
+                self.end_headers()
+                return
+            payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            requests.append(payload)
+            started.set()
+            if not release.wait(timeout=25):
+                self.send_error(504, "Model fixture was not released")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            chunk = {"id": "team-data", "object": "chat.completion.chunk", "created": 1, "model": "evidence"}
+            for delta, finish in (({"role": "assistant", "content": "LIVE_TEAM_DATA_OK"}, None), ({}, "stop")):
+                event = {**chunk, "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
+                self.wfile.write(("data: " + json.dumps(event) + "\n\n").encode())
+                self.wfile.flush()
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ModelHandler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    config = Path(os.environ["PI_CODING_AGENT_DIR"])
+    credential = secrets.token_hex(16)
+    (config / "settings.json").write_text(json.dumps({"quietStartup": True, "defaultProjectTrust": "always"}))
+    (config / "models.json").write_text(json.dumps({"providers": {
+        "teams-local-fixture": {"api": "openai-completions", "apiKey": credential,
+            "baseUrl": f"http://127.0.0.1:{server.server_port}/v1",
+            "models": [{"id": "evidence", "name": "Team data fixture", "reasoning": False,
+                "input": ["text"], "contextWindow": 200000, "maxTokens": 4096,
+                "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]}
+    }}))
+    env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TERM", "HOME", "PI_CODING_AGENT_DIR") if key in os.environ}
+    env.update({"PI_OFFLINE": "1", "PI_TEST_DIR": str(tmp_path), "PI_TEST_MODEL": "teams-local-fixture/evidence",
+        "PI_TEST_MODEL_CONTROL": f"http://127.0.0.1:{server.server_port}", "PI_TEST_MODE": os.environ.get("PI_TEST_MODE", "two-inputs")})
+    try:
+        yield env, requests
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("unread_mail", [False, True])
+def test_native_clean_idle_close_has_no_unexpected_stop(
+    native_team_environment: tuple, tmp_path: Path, unread_mail: bool,
+) -> None:
+    env, requests = native_team_environment
+    loader = (PACKAGE / "tests/native-clean-close-loader.mjs").as_uri()
+    env = {**env, "NODE_OPTIONS": f"--import={loader}", "PI_TEST_UNREAD_MAIL": "1" if unread_mail else "0"}
+    result = subprocess.run(["node", str(PACKAGE / "tests/native-clean-close.ts")],
+        cwd=tmp_path, env=env, text=True, capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(result.stdout.strip().splitlines()[-1])
+    assert report["nativePid"] > 0
+    assert report["status"] == "stopped"
+    assert report["unexpectedReports"] == int(unread_mail)
+    assert report["subject"] == ("Agent stopped unexpectedly" if unread_mail else "Agent stopped")
+    assert requests == [], "The clean-close slash command must not request a model"
+
+
+def test_native_team_disk_memory_and_history(native_team_environment: tuple, tmp_path: Path) -> None:
+    env, requests = native_team_environment
+    result = subprocess.run(["node", str(PACKAGE / "tests" / "live-workspace-memory.ts")],
+        cwd=tmp_path, env=env, text=True, capture_output=True, timeout=40)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout.strip().splitlines()[-1])["durableDataRetained"] is True
+    assert len(requests) == 1
+    messages = requests[0]["messages"]
+    text = json.dumps(messages)
+    assert "AGENT MEMORY" in text and "known-method.md" in text, text
+    assert "Native durable data probe" not in text or "Return the requested evidence" in text
+    assert str(tmp_path / "project") in text
+
+
+def test_native_hosted_two_inputs_keep_process_and_history(native_team_environment: tuple, tmp_path: Path) -> None:
+    env, requests = native_team_environment
+    result = subprocess.run(["node", str(PACKAGE / "tests" / "live-hosted-resident.ts")],
+        cwd=tmp_path, env=env, text=True, capture_output=True, timeout=40)
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(result.stdout.strip().splitlines()[-1])
+    assert report["reports"] == 2 and report["sameProcess"] is True
+    assert len(requests) == 2, "send creates exactly one model turn"
+    history = json.dumps(requests[1]["messages"])
+    assert "First input" in history and "Second input" in history and "LIVE_TEAM_DATA_OK" in history
+    assert history.count("PINNED_HOSTED_ROLE") == 1, "standing role is delivered on first input only"
+
+
+@pytest.fixture
+def interrupt_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PI_TEST_MODE", "interrupt")
+
+
+def test_native_hosted_interrupt_is_same_sequence(interrupt_mode: None, native_team_environment: tuple, tmp_path: Path) -> None:
+    env, requests = native_team_environment
+    result = subprocess.run(["node", str(PACKAGE / "tests" / "live-hosted-resident.ts")],
+        cwd=tmp_path, env=env, text=True, capture_output=True, timeout=40)
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(result.stdout.strip().splitlines()[-1])
+    assert report["reports"] == 1 and report["sameProcess"] is True
+    assert requests, "the active sequence must have actually reached the loopback model"
+    assert len(requests) <= 2, "steering may continue the same sequence, never add an independent input"

@@ -444,3 +444,191 @@ def test_worker_runtime_imports_no_pi_core_or_consumer_package() -> None:
     assert "@earendil-works/" not in section, "the worker-runtime section must not import pi core"
     assert "@fradser/" not in section
     assert "import " not in section, "the section must reuse the module's existing node imports"
+
+
+# ── Worker usage ledger and failed terminal output contracts ──
+
+
+def test_worker_ledger_and_failed_output_parsing_contracts() -> None:
+    result = run_typescript(
+        fr'''
+        import {{ parsePiWorkerUsageLedger, parsePiWorkerOutput }} from {json.dumps(KIT)};
+        const reply = (stopReason, input, cost, text = "final", errorMessage) => ({{
+          type: "message_end",
+          message: {{
+            role: "assistant",
+            stopReason,
+            ...(errorMessage ? {{ errorMessage }} : {{}}),
+            content: [{{ type: "text", text }}],
+            usage: {{ input, output: 2, cacheRead: 3, cacheWrite: 0, totalTokens: input + 5, cost: {{ total: cost }} }},
+          }},
+        }});
+        const events = [reply("toolUse", 10, 0.01), reply("stop", 20, 0.02)];
+        const output = events.map(JSON.stringify).join("\n");
+        const good = parsePiWorkerUsageLedger(output);
+        const failed = parsePiWorkerUsageLedger(output + "\n" + JSON.stringify({{ type: "message_end", message: {{ role: "assistant", stopReason: "error", usage: {{ input: 0, output: 0 }} }} }}));
+        const partial = parsePiWorkerUsageLedger(output + '\n{{"type":"message_end"');
+        const missingField = parsePiWorkerUsageLedger(JSON.stringify({{ type: "message_end", message: {{ role: "assistant", stopReason: "stop", usage: {{ input: 7, output: 2, cost: {{ total: 0.04 }} }} }} }}));
+        const missing = parsePiWorkerUsageLedger(output + "\n" + JSON.stringify({{ type: "message_end", message: {{ role: "assistant", stopReason: "stop" }} }}));
+        const terminalFailures = ["error", "aborted"].map((stopReason) =>
+          parsePiWorkerOutput(JSON.stringify(reply(stopReason, 0, 0, "partial plan", "PRIVATE")))
+        );
+        const recoveryRows = [
+          [reply("stop", 1, 0, "earlier"), reply("error", 0, 0, "partial")],
+          [reply("error", 0, 0, "partial"), reply("stop", 10, 0.01, "recovered")],
+          [reply("error", 0, 0, "partial"), {{ type: "auto_retry_end", success: true }}],
+        ].map((seq) => parsePiWorkerOutput(seq.map(JSON.stringify).join("\n")));
+        const retryCancelled = [true, false].map((success) =>
+          parsePiWorkerOutput([reply("error", 0, 0, ""), reply("aborted", 0, 0, ""), {{ type: "auto_retry_end", success }}].map(JSON.stringify).join("\n"))
+        );
+        console.log(JSON.stringify({{
+          good, failed, partial, missing, missingField,
+          legacy: parsePiWorkerOutput(output),
+          terminalFailures, recoveryRows, retryCancelled,
+        }}));
+        '''
+    )
+    assert result["good"]["complete"]
+    assert result["good"]["knownUsage"] == {"input": 30, "output": 4, "cacheRead": 6, "cacheWrite": 0, "totalTokens": 40, "cost": 0.03}
+    assert result["good"]["assistantMessages"] == 2
+    for name in ("failed", "partial", "missing"):
+        assert not result[name]["complete"]
+        assert result[name]["knownUsage"] == result["good"]["knownUsage"]
+    assert result["legacy"]["usage"]["input"] == 20
+    assert not result["missingField"]["complete"]
+    assert result["missingField"]["knownUsage"]["input"] == 7
+    assert result["missingField"]["knownUsage"]["cost"] == 0.04
+    assert result["terminalFailures"] == [{"text": "", "failure": "model-error"}, {"text": "", "failure": "cancelled"}]
+    # Note: recovered reply after failed message omits total usage because failed request prevents complete total
+    assert result["recoveryRows"] == [{"text": "", "failure": "model-error"}, {"text": "recovered"}, {"text": "", "failure": "model-error"}]
+    assert result["retryCancelled"] == [{"text": "", "failure": "cancelled"}] * 2
+
+
+def test_actual_worker_cumulative_usage_and_failed_exit_contracts() -> None:
+    result = run_typescript(
+        fr'''
+        import fs from "node:fs";
+        import os from "node:os";
+        import path from "node:path";
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "kit-worker-outcomes-"));
+        const pkg = path.join(root, "package");
+        fs.mkdirSync(pkg);
+        fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
+        const cli = path.join(pkg, "cli.mjs");
+        const prior = process.argv[1];
+        process.argv[1] = cli;
+        try {{
+          const {{ runPiWorker }} = await import({json.dumps(KIT)});
+          const sumEvents = [10, 20].map((input) => ({{
+            type: "message_end",
+            message: {{ role: "assistant", stopReason: "stop", content: [{{ type: "text", text: "done" }}], usage: {{ input, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: input + 1, cost: {{ total: 0.01 }} }} }},
+          }}));
+          fs.writeFileSync(cli, sumEvents.map((e) => "console.log(" + JSON.stringify(JSON.stringify(e)) + ");").join("\n"));
+          const cumulative = await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true, tools: [] }});
+
+          const exitZeroFailures = [];
+          for (const stopReason of ["error", "aborted"]) {{
+            fs.writeFileSync(cli, "console.log(" + JSON.stringify(JSON.stringify({{
+              type: "message_end",
+              message: {{ role: "assistant", stopReason, errorMessage: "PRIVATE-DO-NOT-RELAY", content: [{{ type: "text", text: "partial plan" }}], usage: {{ input: 0, output: 0 }} }},
+            }})) + ");");
+            exitZeroFailures.push(await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true, tools: [] }}));
+          }}
+
+          const recoveredEvents = ["error", "stop"].map((stopReason) => ({{
+            type: "message_end",
+            message: {{ role: "assistant", stopReason, errorMessage: "PRIVATE", content: [{{ type: "text", text: "recovered valid plan" }}], usage: {{ input: 1, output: 1, totalTokens: 2, cost: {{ total: 0 }} }} }},
+          }}));
+          fs.writeFileSync(cli, recoveredEvents.map((e) => "console.log(" + JSON.stringify(JSON.stringify(e)) + ");").join("\n") + "\nprocess.exitCode=7;");
+          const nonZeroExit = await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true, tools: [] }});
+
+          console.log(JSON.stringify({{ cumulative, exitZeroFailures, nonZeroExit }}));
+        }} finally {{
+          process.argv[1] = prior;
+          fs.rmSync(root, {{ recursive: true, force: true }});
+        }}
+        '''
+    )
+    assert result["cumulative"]["usage"]["input"] == 30
+    assert result["cumulative"]["usage"]["totalTokens"] == 32
+    assert result["cumulative"]["usage"]["cost"] == 0.02
+
+    rows = result["exitZeroFailures"]
+    assert all(row["exitCode"] != 0 and row["text"] == "" and "usage" not in row for row in rows)
+    assert [row["cancelled"] for row in rows] == [False, True]
+    assert all("PRIVATE" not in row["stderr"] for row in rows)
+    assert [row["terminal"] for row in rows] == [
+        {"kind": "model-error", "nativeExitCode": 0},
+        {"kind": "cancelled", "nativeExitCode": 0},
+    ]
+
+    nz = result["nonZeroExit"]
+    assert nz["text"] == "" and nz["exitCode"] == 7 and "usage" not in nz
+    assert nz["usageLedger"]["complete"] is False
+    assert nz["terminal"] == {"kind": "process-exit", "nativeExitCode": 7}
+    assert "PRIVATE" not in json.dumps(nz["terminal"])
+
+
+# ── Decision-model transport surface (counterpart to runPiWorker) ──
+
+DECISION_FIXTURE = Path(__file__).with_name("decision-surface-fixture.ts")
+
+
+def _run_decision(*scenarios: str) -> dict[str, dict[str, object]]:
+    result = subprocess.run(
+        ["bun", str(DECISION_FIXTURE), *scenarios],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    return {
+        value["scenario"]: value
+        for line in result.stdout.splitlines()
+        if line.strip()
+        for value in [json.loads(line)]
+    }
+
+
+def test_decision_surface_answers_validation_retries_cancellation_and_deadline() -> None:
+    cases = _run_decision(
+        "answers",
+        "empty-questions",
+        "missing-answer",
+        "non-object-answer",
+        "no-answers",
+        "not-json",
+        "oversize",
+        "unauthorized",
+        "throttled-once",
+        "throttled",
+        "unreachable",
+        "pre-aborted",
+        "cancelled",
+        "timeout",
+    )
+    value = cases["answers"]
+    assert value["ok"] is True and value["model"] == "jev-1.13.0", value
+    assert value["answers"]["a"] == {"type": "noul", "noul": 0.9}
+    assert value["answers"]["b"]["probabilities"] == {"yes": 0.9, "no": 0.1}
+    assert value["answers"]["b"]["confidence"] == 0.8
+    assert "confidence" not in value["answers"]["a"]
+    assert value["usage"] == {"inputTokens": 12, "outputTokens": 5} and value["hits"] == 1
+
+    rejected = cases["empty-questions"]
+    assert rejected["failure"] == "rejected" and rejected["isDecisionError"] is True and rejected["hits"] == 0
+
+    for scenario in ("missing-answer", "non-object-answer", "no-answers", "not-json", "oversize"):
+        assert cases[scenario]["failure"] == "malformed" and cases[scenario]["hits"] == 1, (scenario, cases[scenario])
+    assert "omits 1 of 2" in cases["missing-answer"]["message"]
+
+    assert cases["unauthorized"]["failure"] == "unauthorized" and cases["unauthorized"]["hits"] == 1
+    assert cases["throttled-once"]["ok"] is True and cases["throttled-once"]["hits"] == 2
+    for scenario, failure in (("throttled", "throttled"), ("unreachable", "unreachable")):
+        assert cases[scenario]["failure"] == failure and cases[scenario]["hits"] == 3
+
+    assert cases["pre-aborted"]["failure"] == "cancelled" and cases["pre-aborted"]["hits"] == 0
+    assert cases["cancelled"]["failure"] == "cancelled" and cases["cancelled"]["hits"] == 1
+    assert cases["timeout"]["failure"] == "timeout"

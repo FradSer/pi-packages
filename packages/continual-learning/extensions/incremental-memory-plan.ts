@@ -56,14 +56,6 @@ export interface IncrementalNewMemoryEvidence {
   role?: "user" | "toolResult";
 }
 
-export interface IncrementalNewMemoryProposal {
-  name: string;
-  kind: "preference" | "project";
-  classification?: IncrementalMemoryClassification;
-  content: string;
-  evidence: IncrementalNewMemoryEvidence[];
-}
-
 export interface FullIncrementalMemoryPlan {
   kind: "memory-consolidation-plan";
   version: typeof CONSOLIDATION_SCHEMA_VERSION;

@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
 import { readOdkLinkConfig, readOdkLinkConfigs } from "../src/config.ts";
 import { createTcpTransport } from "../src/transport.ts";
 import { DeskReporter } from "../src/reporter.ts";
 import { eventsFromMessage } from "../src/events.ts";
 import { selectConsoleDesk } from "../src/desk-set.ts";
+import { CurrentSessionReplay } from "../src/session-replay.ts";
 
 const config = { machine: "fixture", host: "127.0.0.1", port: 1, token: "fixture" };
 
@@ -152,4 +156,196 @@ test("finalized events publish changed activity without waiting for periodic dis
   assert.equal(sent[0].sessions[0].activity, "Tests pass.");
   assert.equal(sent[0].sessions[0].updatedAt, 9000);
   reporter.stop();
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function restoreEnv(saved) {
+  for (const key of Object.keys(process.env)) {
+    if (!(key in saved)) delete process.env[key];
+  }
+  Object.assign(process.env, saved);
+}
+
+test("an awaited replay delivers history before later live messages without content deduplication", async () => {
+  const old = { kind: "user", text: "old" };
+  const live = { kind: "assistant", text: "live" };
+  const read = deferred();
+  const replay = new CurrentSessionReplay(() => read.promise);
+  const delivered = [];
+  const start = replay.start("A", "/sessions/A.jsonl", (id, events) => delivered.push({ id, events }));
+
+  read.resolve([old]);
+  await start;
+  replay.append("A", [old, live], (id, events) => delivered.push({ id, events }));
+
+  assert.deepEqual(delivered.flatMap((batch) => batch.events), [old, old, live]);
+});
+
+test("a stale replay cannot cross an A to B to A session switch", async () => {
+  const old = { kind: "user", text: "old" };
+  const live = { kind: "assistant", text: "live" };
+  const reads = [];
+  const replay = new CurrentSessionReplay((file) => {
+    const next = deferred();
+    reads.push({ file, ...next });
+    return next.promise;
+  });
+  const delivered = [];
+
+  const oldStart = replay.start("A", "/sessions/A-old.jsonl", (id, events) => delivered.push({ id, events }));
+  replay.invalidate();
+  const currentStart = replay.start("A", "/sessions/A-current.jsonl", (id, events) => delivered.push({ id, events }));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  reads[0].resolve([old]);
+  await oldStart;
+  assert.deepEqual(delivered, [], "the old A tail must not revive after B ran");
+
+  reads[1].resolve([live]);
+  await currentStart;
+  assert.deepEqual(delivered, [{ id: "A", events: [live] }]);
+});
+
+async function lifecycleFixture(t, reporting = false) {
+  const sessionId = "11111111-1111-4111-8111-111111111111";
+  const root = await mkdtemp(join(tmpdir(), "odk-life-"));
+  const saved = { ...process.env };
+  const server = net.createServer((socket) => {
+    socket.on("error", () => {});
+    socket.on("data", () => socket.write(`${JSON.stringify({ v: 1, type: "ack" })}\n`));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await mkdir(join(root, "project"));
+  const desks = reporting ? [{ address: `127.0.0.1:${server.address().port}`, token: "fixture" }] : [];
+  await writeFile(join(root, "desks.json"), JSON.stringify({ desks }));
+  await writeFile(join(root, "history.jsonl"), `${JSON.stringify({ type: "message", message: { role: "user", content: "history" } })}\n`);
+  process.env.ODK_LINK_DESKS_FILE = join(root, "desks.json");
+  process.env.ODK_SESSION_HOST_SOCKET = join(root, "run");
+  process.env.PI_DIRECTORY_SESSIONS_DIR = join(root, "registry");
+  const { default: extension } = await import("../index.ts");
+  const handlers = new Map();
+  extension({ on(name, fn) { handlers.set(name, fn); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
+  const ctx = {
+    cwd: join(root, "project"),
+    isIdle: () => true,
+    sessionManager: {
+      getSessionId: () => sessionId,
+      getSessionName: () => undefined,
+      getHeader: () => undefined,
+      getSessionFile: () => join(root, "history.jsonl"),
+    },
+  };
+  t.after(async () => {
+    await handlers.get("session_shutdown")?.({}, ctx);
+    server.closeAllConnections?.();
+    server.close();
+    restoreEnv(saved);
+    await rm(root, { recursive: true, force: true });
+  });
+  return { handlers, ctx, descriptor: join(root, "run", `${sessionId}.json`) };
+}
+
+test("an explicit current-session endpoint works independently of reporting credentials", async (t) => {
+  const f = await lifecycleFixture(t);
+  assert.equal(typeof f.handlers.get("session_start"), "function", "the declared host has lifecycle handlers");
+  await f.handlers.get("session_start")({ reason: "startup" }, f.ctx);
+  await access(f.descriptor);
+  await f.handlers.get("session_shutdown")({}, f.ctx);
+  await assert.rejects(access(f.descriptor), { code: "ENOENT" });
+});
+
+test("a pending durable replay cannot recreate the endpoint after shutdown", async (t) => {
+  const f = await lifecycleFixture(t, true);
+  const startup = f.handlers.get("session_start")({ reason: "resume" }, f.ctx);
+  await f.handlers.get("session_shutdown")({}, f.ctx);
+  await startup;
+  await assert.rejects(access(f.descriptor), { code: "ENOENT" });
+});
+
+async function waitForActivity(condition, ms = 8000) {
+  const deadline = Date.now() + ms;
+  while (!condition()) {
+    assert.ok(Date.now() < deadline, "the desk never received the activity");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+async function activityDesk(t) {
+  const root = await mkdtemp(join(tmpdir(), "desk-activity-"));
+  const sockets = [], records = [];
+  const server = net.createServer((socket) => {
+    sockets.push(socket);
+    let pending = "";
+    socket.on("data", (chunk) => {
+      pending += chunk.toString("utf8");
+      const lines = pending.split("\n");
+      pending = lines.pop();
+      for (const line of lines) if (line) {
+        const record = JSON.parse(line);
+        records.push(record);
+        if (record.type === "hello") socket.write(JSON.stringify({ v: 1, type: "ack", at: Date.now() }) + "\n");
+      }
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const saved = { ...process.env };
+  await writeFile(join(root, "desks.json"), JSON.stringify({ desks: [{ address: `127.0.0.1:${server.address().port}`, token: "isolated-fixture" }] }));
+  delete process.env.ODK_LINK_CONTROL_TOKEN;
+  delete process.env.ODK_SESSION_HOST_SOCKET;
+  process.env.ODK_LINK_DESKS_FILE = join(root, "desks.json");
+  process.env.ODK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
+  process.env.ODK_LINK_TOKEN = "isolated-fixture";
+  process.env.ODK_LINK_MACHINE = "isolated-machine";
+  process.env.PI_DIRECTORY_SESSIONS_DIR = root;
+  const ownId = "a1234567-1234-1234-1234-123456789abc";
+  const { default: extension } = await import("../index.ts");
+  const handlers = new Map();
+  extension({ on(name, fn) { handlers.set(name, fn); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
+  const ctx = {
+    cwd: "/fixture/current",
+    isIdle: () => false,
+    sessionManager: { getSessionId: () => ownId, getSessionName: () => undefined, getHeader: () => undefined, getSessionFile: () => undefined, getBranch: () => [] },
+  };
+  t.after(async () => {
+    await handlers.get("session_shutdown")?.({}, ctx);
+    for (const socket of sockets) socket.destroy();
+    server.close();
+    restoreEnv(saved);
+    await rm(root, { recursive: true, force: true });
+  });
+  await handlers.get("session_start")({ reason: "startup" }, ctx);
+  await waitForActivity(() => records.some((record) => record.type === "hello"));
+  return { handlers, ctx, records };
+}
+
+const activities = (records) => records.flatMap((record) => record.sessions ?? []).map((session) => session.activity).filter(Boolean);
+
+test("the card's activity becomes the tool that is running now", async (t) => {
+  const { handlers, ctx, records } = await activityDesk(t);
+  await handlers.get("tool_execution_start")({ toolCallId: "t1", toolName: "bash", args: { command: "bun test" } }, ctx);
+  await waitForActivity(() => activities(records).includes("bash: bun test"));
+
+  await handlers.get("tool_execution_start")({ toolCallId: "t2", toolName: "read", args: { path: "src/example.js" } }, ctx);
+  await waitForActivity(() => activities(records).includes("read: src/example.js"));
+
+  await handlers.get("tool_execution_start")({ toolCallId: "t3", toolName: "webfetch", args: { url: "https://example.com/very/long/path" } }, ctx);
+  await waitForActivity(() => activities(records).some((activity) => activity.startsWith("webfetch")));
+
+  const newest = activities(records).at(-1);
+  assert.ok(newest.length <= 200, `the activity stays a short summary, saw ${newest.length} characters`);
+  assert.equal(newest.includes("\n"), false, "and stays one line");
+});
+
+test("a finished tool is replaced by the message that follows it", async (t) => {
+  const { handlers, ctx, records } = await activityDesk(t);
+  await handlers.get("tool_execution_start")({ toolCallId: "t1", toolName: "bash", args: { command: "bun test" } }, ctx);
+  await waitForActivity(() => activities(records).includes("bash: bun test"));
+
+  await handlers.get("message_end")({ message: { role: "assistant", content: [{ type: "text", text: "Tests pass." }] } }, ctx);
+  await waitForActivity(() => activities(records).includes("Tests pass."));
 });
