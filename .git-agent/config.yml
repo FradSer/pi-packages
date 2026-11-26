@@ -53,3 +53,9 @@ scopes:
       description: cross-package acceptance, prompt budget, and integration test suites in tests/; does not cover package-specific tests
     - name: build
       description: build, publish, and utility automation scripts in scripts/; does not cover source packages
+    - name: features
+      description: Root Gherkin behavior specs in features/; excludes package-local feature files.
+    - name: scripts
+      description: Publishing and validation helpers in scripts/; excludes package runtime logic.
+    - name: deprecated
+      description: Retired package archives in deprecated/; excludes active package code.
