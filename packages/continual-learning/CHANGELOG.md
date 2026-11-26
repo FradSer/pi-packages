@@ -1,5 +1,12 @@
 # pi-continual-learning
 
+## 1.0.2
+
+### Patch Changes
+
+- 2686f5c: Harden Harness authoring writes: apply inherited native write protection to the declared writer, revalidate raw configuration after confirmation, preserve mutation ownership and exact predecessor modes on rollback, and report commit results and receipt failures honestly.
+- 7468e0c: Replace learning lifecycle panels with Pi-native plain text. Show applied Memory and AGENTS.md edits directly, remove expansion hints and generic verification paragraphs, and describe no-model organization as file checks. Keep receipts, model-facing outcomes and stored learning data unchanged.
+
 ## 1.0.1
 
 ### Patch Changes
